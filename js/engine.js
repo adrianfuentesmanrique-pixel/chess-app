@@ -1,0 +1,161 @@
+// Stockfish 17.1 (single-threaded WASM) wrapper.
+// Two modes: continuous analysis (onLine callback) and one-shot bestMove.
+import { Chess } from '../vendor/chess.js';
+
+const SF_PATH = 'vendor/stockfish-17.1-lite-single-03e3232.js';
+
+export class Engine {
+  constructor() {
+    this.worker = null;
+    this.ready = null;
+    this.onLine = null;        // callback: array of {multipv, depth, scoreText, scoreNum, pvSan}
+    this.analysing = false;
+    this.analysisFen = null;
+    this.multiPV = 2;
+    this._bestMoveResolve = null;
+    this._pendingSearch = null;
+    this._lines = [];
+  }
+
+  init() {
+    if (this.ready) return this.ready;
+    this.ready = new Promise((resolve, reject) => {
+      try { this.worker = new Worker(SF_PATH); } catch (e) { reject(e); return; }
+      this.worker.onerror = (e) => reject(e);
+      this.worker.onmessage = (e) => this._handle(String(e.data));
+      this._uciokResolve = resolve;
+      this.worker.postMessage('uci');
+    });
+    return this.ready;
+  }
+
+  _send(cmd) { this.worker.postMessage(cmd); }
+
+  _handle(line) {
+    if (line === 'uciok') {
+      this._send('setoption name Threads value 1');
+      this._send('isready');
+      return;
+    }
+    if (line === 'readyok') { if (this._uciokResolve) { this._uciokResolve(); this._uciokResolve = null; } return; }
+    if (line.startsWith('info ') && line.includes(' pv ')) { this._parseInfo(line); return; }
+    if (line.startsWith('bestmove')) {
+      const mv = line.split(' ')[1];
+      if (this._bestMoveResolve) { const r = this._bestMoveResolve; this._bestMoveResolve = null; r(mv === '(none)' ? null : mv); }
+      if (this._pendingSearch) { const s = this._pendingSearch; this._pendingSearch = null; s(); }
+      return;
+    }
+  }
+
+  _parseInfo(line) {
+    if (!this.analysing || !this.onLine) return;
+    const depth = intAfter(line, 'depth');
+    const multipv = intAfter(line, 'multipv') || 1;
+    if (depth === null || depth < 6) return;
+    let scoreNum = 0, scoreText = '';
+    const mMate = line.match(/score mate (-?\d+)/);
+    const mCp = line.match(/score cp (-?\d+)/);
+    const whiteToMove = this.analysisFen.split(' ')[1] === 'w';
+    if (mMate) {
+      let n = +mMate[1];
+      if (!whiteToMove) n = -n;
+      scoreNum = n > 0 ? 10000 - Math.abs(n) : -10000 + Math.abs(n);
+      scoreText = (n > 0 ? '+M' : '-M') + Math.abs(n);
+    } else if (mCp) {
+      let cp = +mCp[1];
+      if (!whiteToMove) cp = -cp;
+      scoreNum = cp;
+      scoreText = (cp >= 0 ? '+' : '−') + (Math.abs(cp) / 100).toFixed(2);
+    } else return;
+    const pvUci = line.split(' pv ')[1].trim().split(/\s+/).slice(0, 10);
+    const pvSan = uciLineToSan(this.analysisFen, pvUci);
+    this._lines[multipv - 1] = { multipv, depth, scoreText, scoreNum, pvSan, firstUci: pvUci[0] };
+    this.onLine(this._lines.filter(Boolean));
+  }
+
+  // Continuous analysis of a position.
+  async analyse(fen, multiPV = 2) {
+    await this.init();
+    await this._stopSearch();
+    this.analysing = true;
+    this.analysisFen = fen;
+    this.multiPV = multiPV;
+    this._lines = [];
+    this._send('setoption name UCI_LimitStrength value false');
+    this._send('setoption name Skill Level value 20');
+    this._send(`setoption name MultiPV value ${multiPV}`);
+    this._send(`position fen ${fen}`);
+    this._send('go infinite');
+  }
+
+  async stop() {
+    this.analysing = false;
+    await this._stopSearch();
+  }
+
+  _stopSearch() {
+    return new Promise(resolve => {
+      if (!this.worker) { resolve(); return; }
+      // If no search is running, stop produces no bestmove; resolve on a ready ping.
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      this._pendingSearch = finish;
+      this._send('stop');
+      setTimeout(finish, 300);
+    });
+  }
+
+  // One-shot: best move at a given strength. elo null = full strength.
+  async bestMove(fen, { movetime = 1000, elo = null } = {}) {
+    await this.init();
+    await this._stopSearch();
+    this.analysing = false;
+    this._send('setoption name MultiPV value 1');
+    if (elo) {
+      this._send('setoption name UCI_LimitStrength value true');
+      this._send(`setoption name UCI_Elo value ${Math.max(1320, Math.min(3190, elo))}`);
+    } else {
+      this._send('setoption name UCI_LimitStrength value false');
+    }
+    this._send(`position fen ${fen}`);
+    return new Promise(resolve => {
+      this._bestMoveResolve = resolve;
+      this._send(`go movetime ${movetime}`);
+    });
+  }
+}
+
+function intAfter(line, key) {
+  const m = line.match(new RegExp(` ${key} (\\d+)`));
+  return m ? +m[1] : null;
+}
+
+export function uciLineToSan(fen, uciMoves) {
+  const chess = new Chess(fen);
+  const out = [];
+  for (const u of uciMoves) {
+    try {
+      const mv = chess.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] });
+      out.push(mv.san);
+    } catch { break; }
+  }
+  return out;
+}
+
+export function uciToMove(u) {
+  return { from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] };
+}
+
+// Format a PV with move numbers: "12.Nf3 d5 13.e4"
+export function pvWithNumbers(fen, sanMoves) {
+  const parts = fen.split(' ');
+  let num = parseInt(parts[5], 10);
+  let white = parts[1] === 'w';
+  const out = [];
+  sanMoves.forEach((san, i) => {
+    if (white) out.push(`${num}.${san}`);
+    else { out.push(i === 0 ? `${num}…${san}` : san); num++; }
+    white = !white;
+  });
+  return out.join(' ');
+}

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1714">
+<title>Mi Ajedrez</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <span id="app-title">♞ Mi Ajedrez</span>
+  <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
+</header>
+
+<main>
+  <!-- ══════════ ANALYSIS ══════════ -->
+  <section id="screen-analysis" class="screen">
+    <div id="ana-board" class="board-wrap"></div>
+    <div id="ana-engine" class="engine-panel hidden">
+      <div class="engine-lines" id="ana-engine-lines"></div>
+    </div>
+    <div id="ana-toolbar" class="toolbar">
+      <button id="ana-first" class="tool-btn">⏮</button>
+      <button id="ana-prev" class="tool-btn">◀</button>
+      <button id="ana-next" class="tool-btn">▶</button>
+      <button id="ana-last" class="tool-btn">⏭</button>
+      <button id="ana-engine-toggle" class="tool-btn">💡</button>
+      <button id="ana-comment" class="tool-btn">💬</button>
+      <button id="ana-flip" class="tool-btn">🔄</button>
+      <button id="ana-more" class="tool-btn">⋯</button>
+    </div>
+    <div id="ana-moves" class="movelist"></div>
+    <div id="ana-comment-box" class="comment-box hidden">
+      <textarea id="ana-comment-text" rows="3" data-i18n-ph="comment_hint"></textarea>
+      <div class="row">
+        <button id="ana-comment-save" class="btn primary" data-i18n="save"></button>
+        <button id="ana-comment-cancel" class="btn" data-i18n="cancel"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ DATABASE ══════════ -->
+  <section id="screen-base" class="screen hidden">
+    <div id="base-list-view">
+      <div class="row screen-head">
+        <h2 data-i18n="tab_base"></h2>
+        <button id="base-new" class="btn primary" data-i18n="new_base"></button>
+      </div>
+      <div id="base-list" class="list"></div>
+      <p class="hint" data-i18n="cbh_note"></p>
+    </div>
+    <div id="base-games-view" class="hidden">
+      <div class="row screen-head">
+        <button id="base-back" class="btn" data-i18n="back"></button>
+        <h2 id="base-games-title"></h2>
+      </div>
+      <div class="row wrap" id="base-actions">
+        <button id="base-import" class="btn" data-i18n="import_pgn"></button>
+        <button id="base-newgame" class="btn" data-i18n="new_game"></button>
+        <button id="base-share" class="btn" data-i18n="export_base"></button>
+        <button id="base-rename" class="btn" data-i18n="rename"></button>
+        <button id="base-delete" class="btn danger" data-i18n="delete_base"></button>
+      </div>
+      <input type="text" id="game-search" class="input" data-i18n-ph="search">
+      <div id="game-list" class="list"></div>
+      <input type="file" id="pgn-file" accept=".pgn,.txt,application/x-chess-pgn,text/plain" hidden>
+    </div>
+  </section>
+
+  <!-- ══════════ PLAY ══════════ -->
+  <section id="screen-play" class="screen hidden">
+    <div id="play-setup">
+      <h2 data-i18n="play_title"></h2>
+      <div class="option-group">
+        <label data-i18n="color"></label>
+        <div class="seg" id="play-color">
+          <button data-v="w" class="on" data-i18n="white"></button>
+          <button data-v="b" data-i18n="black"></button>
+          <button data-v="r" data-i18n="random"></button>
+        </div>
+      </div>
+      <div class="option-group">
+        <label data-i18n="level"></label>
+        <div class="seg wrap" id="play-level"></div>
+      </div>
+      <button id="play-start" class="btn primary big" data-i18n="start_game"></button>
+    </div>
+    <div id="play-game" class="hidden">
+      <div id="play-status" class="status-bar"></div>
+      <div id="play-board" class="board-wrap"></div>
+      <div class="row" id="play-actions">
+        <button id="play-resign" class="btn danger" data-i18n="resign"></button>
+        <button id="play-new" class="btn" data-i18n="new_game"></button>
+        <button id="play-analyze" class="btn" data-i18n="analyze_game"></button>
+      </div>
+      <div id="play-moves" class="movelist small"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ OPENING TRAINER ══════════ -->
+  <section id="screen-trainer" class="screen hidden">
+    <div id="trainer-setup">
+      <h2 data-i18n="trainer_title"></h2>
+      <p class="hint" data-i18n="trainer_explain"></p>
+      <div class="option-group">
+        <label data-i18n="book_base"></label>
+        <select id="trainer-base" class="input"></select>
+        <div id="trainer-book-info" class="hint"></div>
+      </div>
+      <div class="option-group">
+        <label data-i18n="color"></label>
+        <div class="seg" id="trainer-color">
+          <button data-v="w" class="on" data-i18n="white"></button>
+          <button data-v="b" data-i18n="black"></button>
+        </div>
+      </div>
+      <div class="option-group">
+        <label data-i18n="level"></label>
+        <div class="seg wrap" id="trainer-level"></div>
+      </div>
+      <button id="trainer-start" class="btn primary big" data-i18n="start_game"></button>
+    </div>
+    <div id="trainer-game" class="hidden">
+      <div id="trainer-status" class="status-bar"></div>
+      <div id="trainer-book-status" class="book-badge"></div>
+      <div id="trainer-board" class="board-wrap"></div>
+      <div class="row" id="trainer-actions">
+        <button id="trainer-new" class="btn" data-i18n="new_game"></button>
+        <button id="trainer-analyze" class="btn" data-i18n="analyze_game"></button>
+      </div>
+      <div id="trainer-moves" class="movelist small"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ PUZZLES ══════════ -->
+  <section id="screen-puzzles" class="screen hidden">
+    <div class="row screen-head">
+      <h2 data-i18n="puzzles_title"></h2>
+      <span id="puzzle-progress" class="hint"></span>
+    </div>
+    <div class="seg" id="puzzle-diff">
+      <button data-v="easy" class="on" data-i18n="diff_easy"></button>
+      <button data-v="medium" data-i18n="diff_medium"></button>
+      <button data-v="hard" data-i18n="diff_hard"></button>
+      <button data-v="expert" data-i18n="diff_expert"></button>
+    </div>
+    <div id="puzzle-status" class="status-bar"></div>
+    <div id="puzzle-board" class="board-wrap"></div>
+    <div class="row" id="puzzle-actions">
+      <button id="puzzle-hint" class="btn" data-i18n="hint"></button>
+      <button id="puzzle-solution" class="btn" data-i18n="show_solution"></button>
+      <button id="puzzle-next" class="btn primary" data-i18n="next_puzzle"></button>
+    </div>
+  </section>
+
+  <!-- ══════════ POSITION SETUP (overlay) ══════════ -->
+  <section id="screen-setup" class="screen hidden">
+    <div class="row screen-head">
+      <h2 data-i18n="setup_position"></h2>
+    </div>
+    <div id="setup-board" class="board-wrap"></div>
+    <div id="setup-palette" class="palette"></div>
+    <div class="option-group row">
+      <label data-i18n="side_to_move"></label>
+      <div class="seg" id="setup-turn">
+        <button data-v="w" class="on" data-i18n="white"></button>
+        <button data-v="b" data-i18n="black"></button>
+      </div>
+    </div>
+    <div class="option-group">
+      <label data-i18n="castling"></label>
+      <div class="row wrap castling-row">
+        <label><input type="checkbox" id="cast-K"> ♔ O-O</label>
+        <label><input type="checkbox" id="cast-Q"> ♔ O-O-O</label>
+        <label><input type="checkbox" id="cast-k"> ♚ O-O</label>
+        <label><input type="checkbox" id="cast-q"> ♚ O-O-O</label>
+      </div>
+    </div>
+    <div class="row wrap">
+      <button id="setup-start" class="btn" data-i18n="start_position"></button>
+      <button id="setup-clear" class="btn" data-i18n="clear_board"></button>
+    </div>
+    <div class="row wrap">
+      <button id="setup-analyze" class="btn primary" data-i18n="analyze_this"></button>
+      <button id="setup-play" class="btn" data-i18n="play_from_here"></button>
+      <button id="setup-cancel" class="btn" data-i18n="cancel"></button>
+    </div>
+  </section>
+</main>
+
+<nav id="tabbar">
+  <button data-screen="analysis"><span class="tab-ico">🔍</span><span data-i18n="tab_analysis"></span></button>
+  <button data-screen="base"><span class="tab-ico">📚</span><span data-i18n="tab_base"></span></button>
+  <button data-screen="play"><span class="tab-ico">🤖</span><span data-i18n="tab_play"></span></button>
+  <button data-screen="trainer"><span class="tab-ico">📖</span><span data-i18n="tab_trainer"></span></button>
+  <button data-screen="puzzles"><span class="tab-ico">🧩</span><span data-i18n="tab_puzzles"></span></button>
+</nav>
+
+<div id="toast" class="hidden"></div>
+<div id="modal-root"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

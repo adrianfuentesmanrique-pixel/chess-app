@@ -1,0 +1,126 @@
+// Simple two-language dictionary. t('key') returns the string in the active language.
+const DICT = {
+  // Tabs
+  tab_analysis: { es: 'Análisis', en: 'Analysis' },
+  tab_base: { es: 'Bases', en: 'Databases' },
+  tab_play: { es: 'Jugar', en: 'Play' },
+  tab_trainer: { es: 'Aperturas', en: 'Openings' },
+  tab_puzzles: { es: 'Táctica', en: 'Puzzles' },
+  // Generic
+  ok: { es: 'Aceptar', en: 'OK' },
+  cancel: { es: 'Cancelar', en: 'Cancel' },
+  save: { es: 'Guardar', en: 'Save' },
+  delete: { es: 'Borrar', en: 'Delete' },
+  rename: { es: 'Renombrar', en: 'Rename' },
+  share: { es: 'Compartir', en: 'Share' },
+  close: { es: 'Cerrar', en: 'Close' },
+  back: { es: 'Volver', en: 'Back' },
+  yes: { es: 'Sí', en: 'Yes' },
+  no: { es: 'No', en: 'No' },
+  white: { es: 'Blancas', en: 'White' },
+  black: { es: 'Negras', en: 'Black' },
+  random: { es: 'Al azar', en: 'Random' },
+  level: { es: 'Nivel', en: 'Level' },
+  color: { es: 'Color', en: 'Color' },
+  new_game: { es: 'Nueva partida', en: 'New game' },
+  loading: { es: 'Cargando…', en: 'Loading…' },
+  // Analysis
+  engine_on: { es: 'Encender motor', en: 'Engine on' },
+  engine_off: { es: 'Apagar motor', en: 'Engine off' },
+  flip_board: { es: 'Girar tablero', en: 'Flip board' },
+  comment: { es: 'Comentario', en: 'Comment' },
+  comment_hint: { es: 'Escribe un comentario para esta jugada…', en: 'Write a comment for this move…' },
+  setup_position: { es: 'Colocar posición', en: 'Set up position' },
+  save_to_base: { es: 'Guardar en base', en: 'Save to database' },
+  share_game: { es: 'Compartir partida (PGN)', en: 'Share game (PGN)' },
+  copy_fen: { es: 'Copiar FEN', en: 'Copy FEN' },
+  copy_pgn: { es: 'Copiar PGN', en: 'Copy PGN' },
+  delete_move: { es: 'Borrar jugada (y lo que sigue)', en: 'Delete move (and what follows)' },
+  promote_var: { es: 'Subir variante a principal', en: 'Promote variation to main line' },
+  play_from_here: { es: 'Jugar contra la máquina desde aquí', en: 'Play the computer from here' },
+  more: { es: 'Más', en: 'More' },
+  game_details: { es: 'Datos de la partida', en: 'Game details' },
+  copied: { es: 'Copiado ✓', en: 'Copied ✓' },
+  saved: { es: 'Guardado ✓', en: 'Saved ✓' },
+  choose_base: { es: 'Elige una base', en: 'Choose a database' },
+  no_bases_yet: { es: 'Aún no tienes bases. Se creará una llamada "Mis partidas".', en: 'No databases yet. One called "My games" will be created.' },
+  my_games: { es: 'Mis partidas', en: 'My games' },
+  event: { es: 'Torneo', en: 'Event' },
+  date: { es: 'Fecha', en: 'Date' },
+  result: { es: 'Resultado', en: 'Result' },
+  start_position: { es: 'Posición inicial', en: 'Start position' },
+  clear_board: { es: 'Vaciar tablero', en: 'Clear board' },
+  side_to_move: { es: 'Juegan', en: 'Side to move' },
+  castling: { es: 'Enroques posibles', en: 'Castling rights' },
+  invalid_position: { es: 'Posición no válida: ', en: 'Invalid position: ' },
+  analyze_this: { es: 'Analizar esta posición', en: 'Analyze this position' },
+  // Database
+  new_base: { es: 'Nueva base', en: 'New database' },
+  base_name: { es: 'Nombre de la base', en: 'Database name' },
+  import_pgn: { es: 'Importar PGN', en: 'Import PGN' },
+  export_base: { es: 'Compartir base (PGN)', en: 'Share database (PGN)' },
+  delete_base: { es: 'Borrar base', en: 'Delete database' },
+  delete_base_confirm: { es: '¿Borrar esta base y TODAS sus partidas? No se puede deshacer.', en: 'Delete this database and ALL its games? This cannot be undone.' },
+  delete_game_confirm: { es: '¿Borrar esta partida?', en: 'Delete this game?' },
+  games: { es: 'partidas', en: 'games' },
+  no_games: { es: 'No hay partidas todavía. Usa "Importar PGN" o guarda desde Análisis.', en: 'No games yet. Use "Import PGN" or save from Analysis.' },
+  imported: { es: 'partidas importadas ✓', en: 'games imported ✓' },
+  import_failed: { es: 'No se pudo leer el archivo. ¿Es un PGN?', en: 'Could not read the file. Is it a PGN?' },
+  cbh_note: { es: 'Los archivos .cbh de ChessBase no se pueden leer directamente. En ChessBase: Archivo → Exportar → Partidas a PGN, y luego importa ese PGN aquí.', en: 'ChessBase .cbh files cannot be read directly. In ChessBase: File → Export → Games to PGN, then import that PGN here.' },
+  search: { es: 'Buscar…', en: 'Search…' },
+  // Play
+  play_title: { es: 'Jugar contra la máquina', en: 'Play the computer' },
+  start_game: { es: '¡A jugar!', en: 'Start game' },
+  thinking: { es: 'Pensando…', en: 'Thinking…' },
+  your_turn: { es: 'Te toca', en: 'Your move' },
+  resign: { es: 'Abandonar', en: 'Resign' },
+  you_resigned: { es: 'Abandonaste. La máquina gana.', en: 'You resigned. The computer wins.' },
+  checkmate_win: { es: '¡Jaque mate! ¡Ganaste! 🎉', en: 'Checkmate! You win! 🎉' },
+  checkmate_loss: { es: 'Jaque mate. La máquina gana.', en: 'Checkmate. The computer wins.' },
+  draw: { es: 'Tablas.', en: 'Draw.' },
+  analyze_game: { es: 'Analizar la partida', en: 'Analyze the game' },
+  level_names: { es: ['Principiante', 'Fácil', 'Casual', 'Club', 'Club fuerte', 'Experto', 'Maestro', 'Máximo'], en: ['Beginner', 'Easy', 'Casual', 'Club', 'Strong club', 'Expert', 'Master', 'Maximum'] },
+  // Trainer
+  trainer_title: { es: 'Entrenar aperturas', en: 'Opening training' },
+  trainer_explain: { es: 'Elige una base con tus estudios de apertura. La máquina jugará las jugadas de esa base mientras pueda; cuando se salga de la teoría, seguirá jugando sola.', en: 'Choose a database with your opening studies. The computer plays moves from that base while it can; once out of theory it plays on its own.' },
+  book_base: { es: 'Base de aperturas', en: 'Opening database' },
+  in_book: { es: '📖 En la base', en: '📖 In book' },
+  out_of_book: { es: '🧠 Fuera de la base (motor)', en: '🧠 Out of book (engine)' },
+  no_book_bases: { es: 'Primero crea una base con partidas en la pestaña Bases.', en: 'First create a database with games in the Databases tab.' },
+  book_moves: { es: 'jugadas en el libro', en: 'book moves' },
+  // Puzzles
+  puzzles_title: { es: 'Táctica', en: 'Puzzles' },
+  puzzle: { es: 'Ejercicio', en: 'Puzzle' },
+  to_move_find: { es: 'juegan y ganan. ¡Encuentra la jugada!', en: 'to move and win. Find the move!' },
+  correct: { es: '¡Correcto! Sigue…', en: 'Correct! Keep going…' },
+  solved: { es: '¡Resuelto! 🎉', en: 'Solved! 🎉' },
+  wrong_try: { es: 'No es esa. ¡Inténtalo otra vez!', en: 'Not that one. Try again!' },
+  hint: { es: 'Pista', en: 'Hint' },
+  show_solution: { es: 'Ver solución', en: 'Show solution' },
+  next_puzzle: { es: 'Siguiente ejercicio', en: 'Next puzzle' },
+  difficulty: { es: 'Dificultad', en: 'Difficulty' },
+  diff_easy: { es: 'Fácil', en: 'Easy' },
+  diff_medium: { es: 'Media', en: 'Medium' },
+  diff_hard: { es: 'Difícil', en: 'Hard' },
+  diff_expert: { es: 'Experto', en: 'Expert' },
+  solved_count: { es: 'resueltos', en: 'solved' },
+  // Settings
+  settings: { es: 'Ajustes', en: 'Settings' },
+  language: { es: 'Idioma', en: 'Language' },
+  engine_lines: { es: 'Líneas del motor', en: 'Engine lines' },
+  about: { es: 'Mi Ajedrez — tu app de análisis y entrenamiento.', en: 'My Chess — your analysis and training app.' },
+};
+
+let lang = localStorage.getItem('lang') || 'es';
+
+export function t(key) {
+  const e = DICT[key];
+  if (!e) return key;
+  return e[lang] ?? e.es;
+}
+export function getLang() { return lang; }
+export function setLang(l) { lang = l; localStorage.setItem('lang', l); }
+export function applyStatic(root = document) {
+  root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  root.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+}
