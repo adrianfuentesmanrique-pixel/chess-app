@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v2';
+const CACHE = 'chess-training-center-v3';
 const ASSETS = [
   './',
   'index.html',
@@ -10,8 +10,10 @@ const ASSETS = [
   'js/engine.js',
   'js/i18n.js',
   'js/puzzles-data.js',
+  'js/endgames-data.js',
   'js/tree.js',
   'vendor/chess.js',
+  'vendor/chart.umd.js',
   'vendor/stockfish-17.1-lite-single-03e3232.js',
   'vendor/stockfish-17.1-lite-single-03e3232.wasm',
   'icons/icon-192.png',
@@ -19,6 +21,7 @@ const ASSETS = [
   'icons/icon-180.png',
   'icons/logo-mark.png',
   'icons/logo-full.png',
+  'icons/google-g.svg',
   'pieces/wK.svg', 'pieces/wQ.svg', 'pieces/wR.svg', 'pieces/wB.svg', 'pieces/wN.svg', 'pieces/wP.svg',
   'pieces/bK.svg', 'pieces/bQ.svg', 'pieces/bR.svg', 'pieces/bB.svg', 'pieces/bN.svg', 'pieces/bP.svg',
   'pieces2/wK.svg', 'pieces2/wQ.svg', 'pieces2/wR.svg', 'pieces2/wB.svg', 'pieces2/wN.svg', 'pieces2/wP.svg',

@@ -5,7 +5,8 @@ import { GameTree, parsePgn, splitPgn, START_FEN, nagText } from './tree.js';
 import { Board, parsePlacement, setPieceSet, getPieceSet } from './board.js';
 import { Engine, uciToMove, pvWithNumbers } from './engine.js';
 import * as db from './db.js';
-import { PUZZLES } from './puzzles-data.js';
+import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
+import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 
 const $ = id => document.getElementById(id);
 const engine = new Engine();
@@ -137,9 +138,59 @@ function headersFromPgn(pgnText) {
   return h;
 }
 
+// ═════════════════════ daily streak ═════════════════════
+
+const STREAK_EMOJI = ['🔥', '🔥', '🔥', '⚡', '⚡', '🌟', '🌟', '💎', '👑'];
+function streakEmoji(n) {
+  if (n <= 0) return '🔥';
+  const i = Math.min(STREAK_EMOJI.length - 1, Math.floor(Math.log2(n + 1)));
+  return STREAK_EMOJI[i];
+}
+
+const Streak = {
+  count: 0,
+  lastDate: null,
+
+  async init() {
+    this.count = +(await db.kvGet('streakCount', 0));
+    this.lastDate = await db.kvGet('streakLastDate', null);
+    // if the player missed a day entirely, the streak is broken (shown as 0 until next activity)
+    const today = todayStr();
+    if (this.lastDate && this.lastDate !== today && !isYesterday(this.lastDate, today)) {
+      this.count = 0;
+    }
+    this.render();
+  },
+
+  async recordActivity() {
+    const today = todayStr();
+    if (this.lastDate === today) { this.render(); return; }
+    if (this.lastDate && isYesterday(this.lastDate, today)) this.count += 1;
+    else this.count = 1;
+    this.lastDate = today;
+    await db.kvSet('streakCount', this.count);
+    await db.kvSet('streakLastDate', this.lastDate);
+    this.render();
+  },
+
+  render() {
+    const el = $('streak-badge');
+    if (!el) return;
+    el.textContent = `${streakEmoji(this.count)} ${this.count}`;
+    el.classList.toggle('zero', this.count === 0);
+  },
+};
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function isYesterday(dateStr, todayStrVal) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const t = new Date(todayStrVal + 'T00:00:00');
+  return (t - d) === 86400000;
+}
+
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup'];
+const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile'];
 let activeScreen = 'analysis';
 
 function showScreen(name) {
@@ -148,9 +199,12 @@ function showScreen(name) {
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.classList.toggle('on', b.dataset.screen === name));
   if (name !== 'analysis') Analysis.pauseEngine();
+  if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
   if (name === 'base') Base.refresh();
   if (name === 'trainer') Trainer.refreshBases();
   if (name === 'puzzles') Puzzles.ensureLoaded();
+  if (name === 'endgame') Endgame.ensureLoaded();
+  if (name === 'profile') Profile.refresh();
 }
 
 document.querySelectorAll('#tabbar button').forEach(b =>
@@ -708,6 +762,7 @@ const Play = {
   finish(msg) {
     this.over = true;
     this.setStatus(msg);
+    Streak.recordActivity();
   },
 
   renderMoves() {
@@ -847,6 +902,8 @@ const Trainer = {
     const id = +$('trainer-base').value;
     if (!id) { toast(t('no_book_bases')); return; }
     await this.buildBook(id);
+    const baseRec = await db.getBase(id);
+    this.baseName = baseRec?.name ?? '?';
     this.playerColor = segValue($('trainer-color'));
     this.level = +segValue($('trainer-level'));
     this.chess = new Chess();
@@ -935,14 +992,29 @@ const Trainer = {
   checkEnd() {
     if (this.chess.isCheckmate()) {
       const winner = this.chess.turn() === 'w' ? 'b' : 'w';
-      this.finishMsg(winner === this.playerColor ? t('checkmate_win') : t('checkmate_loss'));
+      const won = winner === this.playerColor;
+      this.finishMsg(won ? t('checkmate_win') : t('checkmate_loss'), won ? 'win' : 'loss');
       return true;
     }
-    if (this.chess.isDraw() || this.chess.isStalemate()) { this.finishMsg(t('draw')); return true; }
+    if (this.chess.isDraw() || this.chess.isStalemate()) { this.finishMsg(t('draw'), 'draw'); return true; }
     return false;
   },
 
-  finishMsg(msg) { this.over = true; this.setStatus(msg); },
+  finishMsg(msg, result) {
+    this.over = true;
+    this.setStatus(msg);
+    Streak.recordActivity();
+    if (result) this.recordOpeningResult(result);
+  },
+
+  async recordOpeningResult(result) {
+    const elo = await db.kvGet('openingElo', {});
+    const cur = elo[this.baseName] ?? 1200;
+    const expected = 1 / (1 + Math.pow(10, (NOMINAL_PRACTICE_RATING - cur) / 400));
+    const score = result === 'win' ? 1 : result === 'draw' ? 0.5 : 0;
+    elo[this.baseName] = Math.max(600, cur + 20 * (score - expected));
+    await db.kvSet('openingElo', elo);
+  },
 
   renderMoves() {
     $('trainer-moves').textContent = numberedHistory(this.chess.history(), START_FEN);
@@ -962,8 +1034,6 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ═════════════════════ PUZZLES ═════════════════════
 
-const DIFF_RANGES = { easy: [0, 1249], medium: [1250, 1599], hard: [1600, 1999], expert: [2000, 9999] };
-
 const Puzzles = {
   board: null,
   current: null,       // puzzle object
@@ -971,26 +1041,49 @@ const Puzzles = {
   moveIdx: 0,          // index into puzzle.moves
   solved: {},          // id -> true
   failedThis: false,
+  eloRecorded: false,
   loaded: false,
+  elo: 1200,
+  themeElo: {},
+  currentTheme: 'mixed',
 
   async init() {
     this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv) });
-    segInit($('puzzle-diff'), () => this.nextPuzzle());
+    this.buildThemeSeg();
     $('puzzle-next').onclick = () => this.nextPuzzle();
     $('puzzle-hint').onclick = () => this.hint();
     $('puzzle-solution').onclick = () => this.showSolution();
   },
 
+  buildThemeSeg() {
+    const el = $('puzzle-theme');
+    el.innerHTML = '';
+    const mixedBtn = document.createElement('button');
+    mixedBtn.dataset.v = 'mixed'; mixedBtn.textContent = t('theme_mixed');
+    if (this.currentTheme === 'mixed') mixedBtn.classList.add('on');
+    el.appendChild(mixedBtn);
+    for (const th of PUZZLE_THEMES) {
+      const b = document.createElement('button');
+      b.dataset.v = th; b.textContent = t('theme_' + th);
+      if (this.currentTheme === th) b.classList.add('on');
+      el.appendChild(b);
+    }
+    segInit(el, v => { this.currentTheme = v; this.nextPuzzle(); });
+  },
+
   async ensureLoaded() {
     if (this.loaded) { return; }
     this.solved = await db.kvGet('puzzlesSolved', {});
+    this.elo = await db.kvGet('puzzleElo', 1200);
+    this.themeElo = await db.kvGet('puzzleThemeElo', {});
     this.loaded = true;
+    this.updateEloBadge();
     this.nextPuzzle();
   },
 
   pool() {
-    const [lo, hi] = DIFF_RANGES[segValue($('puzzle-diff')) ?? 'easy'];
-    return PUZZLES.filter(p => p.rating >= lo && p.rating <= hi);
+    if (this.currentTheme === 'mixed') return PUZZLES;
+    return PUZZLES.filter(p => p.themes.includes(this.currentTheme));
   },
 
   updateProgress() {
@@ -999,15 +1092,44 @@ const Puzzles = {
     $('puzzle-progress').textContent = `${done}/${pool.length} ${t('solved_count')}`;
   },
 
+  updateEloBadge() {
+    $('puzzle-elo').textContent = `${t('puzzle_elo')}: ${Math.round(this.elo)}`;
+  },
+
+  recordResult(win) {
+    if (this.eloRecorded || !this.current) return;
+    this.eloRecorded = true;
+    const K = 24;
+    const expected = 1 / (1 + Math.pow(10, (this.current.rating - this.elo) / 400));
+    const score = win ? 1 : 0;
+    this.elo = Math.max(600, this.elo + K * (score - expected));
+    db.kvSet('puzzleElo', this.elo);
+    for (const th of this.current.themes) {
+      const cur = this.themeElo[th] ?? 1200;
+      const exp2 = 1 / (1 + Math.pow(10, (this.current.rating - cur) / 400));
+      this.themeElo[th] = Math.max(600, cur + K * (score - exp2));
+    }
+    db.kvSet('puzzleThemeElo', this.themeElo);
+    this.updateEloBadge();
+    Streak.recordActivity();
+  },
+
   nextPuzzle() {
     const pool = this.pool();
     if (!pool.length) return;
     const fresh = pool.filter(p => !this.solved[p.id]);
     const list = fresh.length ? fresh : pool;
-    this.current = list[Math.floor(Math.random() * list.length)];
+    let windowSize = 100, candidates = [];
+    while (candidates.length === 0 && windowSize <= 1200) {
+      candidates = list.filter(p => Math.abs(p.rating - this.elo) <= windowSize);
+      windowSize += 100;
+    }
+    if (!candidates.length) candidates = list;
+    this.current = candidates[Math.floor(Math.random() * candidates.length)];
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
     this.failedThis = false;
+    this.eloRecorded = false;
     this.updateProgress();
     // the first move in the list is the opponent's move — play it
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
@@ -1046,6 +1168,7 @@ const Puzzles = {
           this.solved[this.current.id] = true;
           db.kvSet('puzzlesSolved', this.solved);
         }
+        this.recordResult(!this.failedThis);
         this.updateProgress();
         return;
       }
@@ -1079,6 +1202,7 @@ const Puzzles = {
   async showSolution() {
     if (!this.current) return;
     this.failedThis = true;
+    this.recordResult(false);
     this.board.interactive = false;
     while (this.moveIdx < this.current.moves.length) {
       const m = this.applyUci(this.current.moves[this.moveIdx]);
@@ -1088,6 +1212,209 @@ const Puzzles = {
     }
     this.setStatus(t('solved'));
     this.board.interactive = true;
+  },
+};
+
+// ═════════════════════ ENDGAME STUDY ═════════════════════
+
+const NOMINAL_PRACTICE_RATING = 1500; // difficulty baseline for graded endgame/opening practice
+
+const Endgame = {
+  board: null,
+  category: null,
+  current: null,        // endgame position object
+  mode: 'study',         // 'study' | 'practice'
+  chess: null,
+  playerColor: 'w',
+  over: false,
+  thinking: false,
+  engineOn: false,
+  elo: {},               // per-category rating
+
+  init() {
+    this.board = new Board($('endgame-board'), { onMove: mv => this.userMove(mv) });
+    $('endgame-back-cat').onclick = () => this.showCategories();
+    $('endgame-back-pos').onclick = () => this.openCategory(this.category);
+    $('endgame-flip').onclick = () => this.board.flip();
+    $('endgame-engine-toggle').onclick = () => this.toggleEngine();
+    $('endgame-practice-start').onclick = () => this.startPractice();
+    $('endgame-undo').onclick = () => this.undo();
+    $('endgame-resign').onclick = async () => {
+      if (this.over) return;
+      if (await askConfirm(t('resign') + '?')) this.finishPractice(false);
+    };
+    this.showCategories();
+  },
+
+  async ensureLoaded() {
+    this.elo = await db.kvGet('endgameElo', {});
+  },
+
+  showCategories() {
+    $('endgame-list-view').classList.remove('hidden');
+    $('endgame-positions-view').classList.add('hidden');
+    $('endgame-viewer-view').classList.add('hidden');
+    const el = $('endgame-cat-list');
+    el.innerHTML = '';
+    for (const cat of ENDGAME_CATEGORIES) {
+      const count = ENDGAMES.filter(e => e.category === cat).length;
+      const rating = this.elo[cat] ? Math.round(this.elo[cat]) : '—';
+      const item = document.createElement('button');
+      item.className = 'list-item';
+      item.innerHTML = `<b>${t('cat_' + cat)}</b><span class="sub">${count} ${t('games')} · ${t('endgame_elo')}: ${rating}</span>`;
+      item.onclick = () => this.openCategory(cat);
+      el.appendChild(item);
+    }
+  },
+
+  openCategory(cat) {
+    this.category = cat;
+    $('endgame-list-view').classList.add('hidden');
+    $('endgame-positions-view').classList.remove('hidden');
+    $('endgame-viewer-view').classList.add('hidden');
+    $('endgame-cat-title').textContent = t('cat_' + cat);
+    const el = $('endgame-pos-list');
+    el.innerHTML = '';
+    for (const pos of ENDGAMES.filter(e => e.category === cat)) {
+      const item = document.createElement('button');
+      item.className = 'list-item';
+      const badge = pos.practice ? `<span class="badge-practice">🎯</span>` : '';
+      item.innerHTML = `<b>${esc(pos.name[getLang()])}${badge}</b>`;
+      item.onclick = () => this.openPosition(pos);
+      el.appendChild(item);
+    }
+  },
+
+  openPosition(pos) {
+    this.current = pos;
+    this.mode = 'study';
+    this.engineOn = false;
+    engine.stop();
+    $('endgame-positions-view').classList.add('hidden');
+    $('endgame-viewer-view').classList.remove('hidden');
+    $('endgame-pos-title').textContent = pos.name[getLang()];
+    $('endgame-comment').textContent = pos.comment[getLang()];
+    $('endgame-comment').classList.remove('hidden');
+    $('endgame-status').classList.add('hidden');
+    $('endgame-engine').classList.add('hidden');
+    $('endgame-engine-toggle').classList.remove('on');
+    $('endgame-practice-actions').style.display = 'none';
+    $('endgame-practice-start').classList.toggle('hidden', !pos.practice);
+    this.board.interactive = false;
+    this.board.setOrientation(pos.fen.split(' ')[1]);
+    this.board.setPosition(pos.fen);
+  },
+
+  toggleEngine() {
+    this.engineOn = !this.engineOn;
+    $('endgame-engine').classList.toggle('hidden', !this.engineOn);
+    $('endgame-engine-toggle').classList.toggle('on', this.engineOn);
+    if (this.engineOn) {
+      $('endgame-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
+      engine.onLine = lines => this.showLines(lines);
+      engine.analyse(this.board.fen, 2).catch(() => {});
+    } else {
+      engine.stop();
+    }
+  },
+
+  showLines(lines) {
+    if (!this.engineOn) return;
+    const el = $('endgame-engine-lines');
+    el.innerHTML = '';
+    for (const ln of lines) {
+      const div = document.createElement('div');
+      div.className = 'engine-line';
+      div.innerHTML = `<b class="${ln.scoreNum >= 0 ? 'good' : 'bad'}">${ln.scoreText}</b> <span class="depth">d${ln.depth}</span> ${pvWithNumbers(this.board.fen, ln.pvSan)}`;
+      el.appendChild(div);
+    }
+  },
+
+  startPractice() {
+    engine.stop();
+    this.engineOn = false;
+    $('endgame-engine').classList.add('hidden');
+    $('endgame-engine-toggle').classList.remove('on');
+    this.mode = 'practice';
+    this.chess = new Chess(this.current.fen);
+    this.playerColor = this.current.fen.split(' ')[1];
+    this.over = false;
+    this.thinking = false;
+    $('endgame-comment').classList.add('hidden');
+    $('endgame-status').classList.remove('hidden');
+    $('endgame-practice-actions').style.display = 'flex';
+    $('endgame-practice-start').classList.add('hidden');
+    this.board.interactive = true;
+    this.board.setOrientation(this.playerColor);
+    this.board.setPosition(this.chess.fen());
+    this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
+  },
+
+  setStatus(msg) { $('endgame-status').textContent = msg; },
+
+  async userMove(mv) {
+    if (this.mode !== 'practice' || this.over || this.thinking) return;
+    if (this.chess.turn() !== this.playerColor) return;
+    let m;
+    try { m = this.chess.move(mv); } catch { return; }
+    this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+    if (this.checkEnd()) return;
+    this.engineReply();
+  },
+
+  async engineReply() {
+    this.thinking = true;
+    this.board.interactive = false;
+    this.setStatus(t('thinking'));
+    try {
+      const uci = await engine.bestMove(this.chess.fen(), { movetime: 700 });
+      if (!uci || this.over) return;
+      const m = this.chess.move(uciToMove(uci));
+      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+      if (this.checkEnd()) return;
+      this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
+    } finally {
+      this.thinking = false;
+      this.board.interactive = true;
+    }
+  },
+
+  checkEnd() {
+    if (this.chess.isCheckmate()) {
+      const winner = this.chess.turn() === 'w' ? 'b' : 'w';
+      this.finishPractice(winner === this.playerColor ? 'win' : 'loss');
+      return true;
+    }
+    if (this.chess.isDraw() || this.chess.isStalemate()) { this.finishPractice('draw'); return true; }
+    return false;
+  },
+
+  undo() {
+    if (this.thinking) return;
+    if (this.chess.turn() !== this.playerColor) return;
+    if (this.chess.history().length < 2) return;
+    this.chess.undo();
+    this.chess.undo();
+    this.over = false;
+    this.board.interactive = true;
+    this.board.setPosition(this.chess.fen());
+    this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
+  },
+
+  finishPractice(actual) {
+    // actual: 'win' | 'draw' | 'loss' | false(resigned => loss)
+    if (actual === false) actual = 'loss';
+    this.over = true;
+    const expected = this.current.expected;
+    const success = expected === 'win' ? actual === 'win' : actual !== 'loss';
+    this.setStatus(success ? (expected === 'win' ? t('practice_win') : t('practice_draw')) : t('practice_fail'));
+    const cat = this.current.category;
+    const cur = this.elo[cat] ?? 1200;
+    const expScore = 1 / (1 + Math.pow(10, (NOMINAL_PRACTICE_RATING - cur) / 400));
+    const score = success ? 1 : 0;
+    this.elo[cat] = Math.max(600, cur + 24 * (score - expScore));
+    db.kvSet('endgameElo', this.elo);
+    Streak.recordActivity();
   },
 };
 
@@ -1271,6 +1598,9 @@ function relabel() {
   buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2));
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
+  Puzzles.buildThemeSeg?.();
+  if (activeScreen === 'profile') Profile.refresh();
+  if (activeScreen === 'endgame') Endgame.showCategories();
 }
 
 const Themes = {
@@ -1292,6 +1622,118 @@ const Themes = {
   },
 };
 
+const Auth = {
+  user: null,
+  listeners: [],
+  onChange(fn) { this.listeners.push(fn); },
+  signIn() { toast('Inicio de sesión con Google: próximamente'); },
+  signOut() {},
+};
+
+const RADAR_MIN = 800, RADAR_MAX = 2200;
+
+const Profile = {
+  charts: {},
+
+  init() {
+    $('profile-name-save').onclick = () => this.saveName();
+    $('profile-google-btn').onclick = () => Auth.signIn();
+    $('profile-signout-btn').onclick = () => Auth.signOut();
+    Auth.onChange(() => this.renderAccount());
+  },
+
+  async saveName() {
+    const name = $('profile-name').value.trim();
+    await db.kvSet('profileName', name);
+    toast(t('name_saved'));
+  },
+
+  renderAccount() {
+    const user = Auth.user;
+    $('profile-google-btn').classList.toggle('hidden', !!user);
+    $('profile-account-signed-in').classList.toggle('hidden', !user);
+    if (user) {
+      $('profile-avatar').src = user.photoURL || 'icons/icon-192.png';
+      $('profile-account-name').textContent = user.displayName || user.email || '';
+    }
+  },
+
+  async refresh() {
+    this.renderAccount();
+    const name = await db.kvGet('profileName', '');
+    $('profile-name').value = name;
+
+    const puzzleElo = await db.kvGet('puzzleElo', 1200);
+    const themeElo = await db.kvGet('puzzleThemeElo', {});
+    const openingElo = await db.kvGet('openingElo', {});
+    const endgameElo = await db.kvGet('endgameElo', {});
+
+    const openingNames = Object.keys(openingElo);
+    const openingAvg = openingNames.length
+      ? openingNames.reduce((s, k) => s + openingElo[k], 0) / openingNames.length : 1200;
+    const endgameNames = ENDGAME_CATEGORIES.filter(c => endgameElo[c] != null);
+    const endgameAvg = endgameNames.length
+      ? endgameNames.reduce((s, c) => s + endgameElo[c], 0) / endgameNames.length : 1200;
+
+    $('profile-elo-puzzle').textContent = Math.round(puzzleElo);
+    $('profile-elo-opening').textContent = openingNames.length ? Math.round(openingAvg) : '—';
+    $('profile-elo-endgame').textContent = endgameNames.length ? Math.round(endgameAvg) : '—';
+
+    this.drawRadar('overall',
+      [t('radar_axis_opening'), t('radar_axis_puzzle'), t('radar_axis_endgame')],
+      [openingNames.length ? openingAvg : RADAR_MIN, puzzleElo, endgameNames.length ? endgameAvg : RADAR_MIN]);
+
+    $('profile-opening-empty').classList.toggle('hidden', openingNames.length > 0);
+    $('chart-opening').classList.toggle('hidden', openingNames.length === 0);
+    if (openingNames.length) {
+      this.drawRadar('opening', openingNames, openingNames.map(k => openingElo[k]));
+    }
+
+    this.drawRadar('puzzle',
+      PUZZLE_THEMES.map(th => t('theme_' + th)),
+      PUZZLE_THEMES.map(th => themeElo[th] ?? 1200));
+
+    this.drawRadar('endgame',
+      ENDGAME_CATEGORIES.map(c => t('cat_' + c)),
+      ENDGAME_CATEGORIES.map(c => endgameElo[c] ?? 1200));
+  },
+
+  drawRadar(key, labels, data) {
+    const canvas = $('chart-' + key);
+    if (!canvas) return;
+    const cfg = {
+      type: 'radar',
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: 'rgba(127,166,80,0.25)',
+          borderColor: '#7fa650',
+          pointBackgroundColor: '#7fa650',
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            min: RADAR_MIN, max: RADAR_MAX,
+            ticks: { display: false, stepSize: 350 },
+            grid: { color: 'rgba(240,236,230,0.15)' },
+            angleLines: { color: 'rgba(240,236,230,0.15)' },
+            pointLabels: { color: '#f0ece6', font: { size: 11 } },
+          },
+        },
+      },
+    };
+    if (this.charts[key]) { this.charts[key].destroy(); }
+    this.charts[key] = new Chart(canvas, cfg);
+  },
+};
+
 // ═════════════════════ init ═════════════════════
 
 async function main() {
@@ -1302,8 +1744,11 @@ async function main() {
   Play.init();
   Trainer.init();
   Puzzles.init();
+  Endgame.init();
+  Profile.init();
   Setup.init();
   await Themes.init();
+  await Streak.init();
   $('btn-settings').onclick = openSettings;
   showScreen('analysis');
   // make sure at least one base exists so saving is one tap

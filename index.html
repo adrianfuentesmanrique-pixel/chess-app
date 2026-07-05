@@ -18,7 +18,10 @@
 
 <header id="topbar">
   <span id="app-title"><img src="icons/logo-mark.png" class="brand-logo" alt="">Chess Training Center</span>
-  <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
+  <div class="row" style="gap:10px; margin:0;">
+    <span id="streak-badge" class="streak-badge" title="Racha diaria"></span>
+    <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
+  </div>
 </header>
 
 <main>
@@ -156,20 +159,109 @@
   <section id="screen-puzzles" class="screen hidden">
     <div class="row screen-head">
       <h2 data-i18n="puzzles_title"></h2>
+      <span id="puzzle-elo" class="elo-badge"></span>
+    </div>
+    <div class="row" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
     </div>
-    <div class="seg" id="puzzle-diff">
-      <button data-v="easy" class="on" data-i18n="diff_easy"></button>
-      <button data-v="medium" data-i18n="diff_medium"></button>
-      <button data-v="hard" data-i18n="diff_hard"></button>
-      <button data-v="expert" data-i18n="diff_expert"></button>
-    </div>
+    <div class="seg wrap scroll" id="puzzle-theme"></div>
     <div id="puzzle-status" class="status-bar"></div>
     <div id="puzzle-board" class="board-wrap"></div>
     <div class="row" id="puzzle-actions">
       <button id="puzzle-hint" class="btn" data-i18n="hint"></button>
       <button id="puzzle-solution" class="btn" data-i18n="show_solution"></button>
       <button id="puzzle-next" class="btn primary" data-i18n="next_puzzle"></button>
+    </div>
+  </section>
+
+  <!-- ══════════ ENDGAME ══════════ -->
+  <section id="screen-endgame" class="screen hidden">
+    <div id="endgame-list-view">
+      <div class="row screen-head">
+        <h2 data-i18n="tab_endgame"></h2>
+      </div>
+      <div id="endgame-cat-list" class="list"></div>
+    </div>
+    <div id="endgame-positions-view" class="hidden">
+      <div class="row screen-head">
+        <button id="endgame-back-cat" class="btn" data-i18n="back"></button>
+        <h2 id="endgame-cat-title"></h2>
+      </div>
+      <div id="endgame-pos-list" class="list"></div>
+    </div>
+    <div id="endgame-viewer-view" class="hidden">
+      <div class="row screen-head">
+        <button id="endgame-back-pos" class="btn" data-i18n="back"></button>
+        <h2 id="endgame-pos-title" class="ellipsis"></h2>
+      </div>
+      <div id="endgame-board" class="board-wrap"></div>
+      <div id="endgame-status" class="status-bar hidden"></div>
+      <div class="row" id="endgame-study-actions">
+        <button id="endgame-flip" class="tool-btn">🔄</button>
+        <button id="endgame-engine-toggle" class="tool-btn">💡</button>
+        <button id="endgame-practice-start" class="btn primary" data-i18n="practice_start"></button>
+      </div>
+      <div id="endgame-engine" class="engine-panel hidden">
+        <div class="engine-lines" id="endgame-engine-lines"></div>
+      </div>
+      <p id="endgame-comment" class="hint"></p>
+      <div class="row" id="endgame-practice-actions" style="display:none">
+        <button id="endgame-undo" class="btn" data-i18n="undo_move"></button>
+        <button id="endgame-resign" class="btn danger" data-i18n="resign"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ PROFILE ══════════ -->
+  <section id="screen-profile" class="screen hidden">
+    <div class="row screen-head">
+      <h2 data-i18n="tab_profile"></h2>
+    </div>
+
+    <div id="profile-account" class="profile-card">
+      <button id="profile-google-btn" class="btn google-btn">
+        <img src="icons/google-g.svg" alt="">
+        <span data-i18n="sign_in_google"></span>
+      </button>
+      <div id="profile-account-signed-in" class="row hidden" style="align-items:center; gap:10px;">
+        <img id="profile-avatar" class="avatar" alt="">
+        <div>
+          <div id="profile-account-name" style="font-weight:700;"></div>
+          <button id="profile-signout-btn" class="btn small" data-i18n="sign_out"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="profile-card">
+      <label class="fld-label" data-i18n="your_name"></label>
+      <div class="row">
+        <input type="text" id="profile-name" class="input" maxlength="40">
+        <button id="profile-name-save" class="btn primary" data-i18n="save"></button>
+      </div>
+    </div>
+
+    <div class="row wrap profile-elo-row">
+      <div class="elo-card"><span data-i18n="puzzle_elo"></span><b id="profile-elo-puzzle"></b></div>
+      <div class="elo-card"><span data-i18n="opening_elo"></span><b id="profile-elo-opening"></b></div>
+      <div class="elo-card"><span data-i18n="endgame_elo"></span><b id="profile-elo-endgame"></b></div>
+    </div>
+
+    <div class="profile-card">
+      <h3 data-i18n="radar_overall"></h3>
+      <div class="radar-wrap"><canvas id="chart-overall"></canvas></div>
+    </div>
+    <div class="profile-card">
+      <h3 data-i18n="radar_opening"></h3>
+      <div class="radar-wrap"><canvas id="chart-opening"></canvas></div>
+      <p id="profile-opening-empty" class="hint hidden" data-i18n="no_opening_data"></p>
+    </div>
+    <div class="profile-card">
+      <h3 data-i18n="radar_puzzle"></h3>
+      <div class="radar-wrap"><canvas id="chart-puzzle"></canvas></div>
+    </div>
+    <div class="profile-card">
+      <h3 data-i18n="radar_endgame"></h3>
+      <div class="radar-wrap"><canvas id="chart-endgame"></canvas></div>
     </div>
   </section>
 
@@ -214,11 +306,14 @@
   <button data-screen="play"><span class="tab-ico">🤖</span><span data-i18n="tab_play"></span></button>
   <button data-screen="trainer"><span class="tab-ico">📖</span><span data-i18n="tab_trainer"></span></button>
   <button data-screen="puzzles"><span class="tab-ico">🧩</span><span data-i18n="tab_puzzles"></span></button>
+  <button data-screen="endgame"><span class="tab-ico">🏁</span><span data-i18n="tab_endgame"></span></button>
+  <button data-screen="profile"><span class="tab-ico">👤</span><span data-i18n="tab_profile"></span></button>
 </nav>
 
 <div id="toast" class="hidden"></div>
 <div id="modal-root"></div>
 
+<script src="vendor/chart.umd.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
