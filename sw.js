@@ -1,4 +1,4 @@
-const CACHE = 'mi-ajedrez-v1';
+const CACHE = 'chess-training-center-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -14,11 +14,15 @@ const ASSETS = [
   'vendor/chess.js',
   'vendor/stockfish-17.1-lite-single-03e3232.js',
   'vendor/stockfish-17.1-lite-single-03e3232.wasm',
-  'icons/icon.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'icons/icon-180.png',
+  'icons/logo-mark.png',
+  'icons/logo-full.png',
   'pieces/wK.svg', 'pieces/wQ.svg', 'pieces/wR.svg', 'pieces/wB.svg', 'pieces/wN.svg', 'pieces/wP.svg',
   'pieces/bK.svg', 'pieces/bQ.svg', 'pieces/bR.svg', 'pieces/bB.svg', 'pieces/bN.svg', 'pieces/bP.svg',
+  'pieces2/wK.svg', 'pieces2/wQ.svg', 'pieces2/wR.svg', 'pieces2/wB.svg', 'pieces2/wN.svg', 'pieces2/wP.svg',
+  'pieces2/bK.svg', 'pieces2/bQ.svg', 'pieces2/bR.svg', 'pieces2/bB.svg', 'pieces2/bN.svg', 'pieces2/bP.svg',
 ];
 
 self.addEventListener('install', e => {

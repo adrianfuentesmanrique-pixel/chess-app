@@ -74,6 +74,7 @@ const DICT = {
   thinking: { es: 'Pensando…', en: 'Thinking…' },
   your_turn: { es: 'Te toca', en: 'Your move' },
   resign: { es: 'Abandonar', en: 'Resign' },
+  undo_move: { es: '↩ Deshacer', en: '↩ Undo' },
   you_resigned: { es: 'Abandonaste. La máquina gana.', en: 'You resigned. The computer wins.' },
   checkmate_win: { es: '¡Jaque mate! ¡Ganaste! 🎉', en: 'Checkmate! You win! 🎉' },
   checkmate_loss: { es: 'Jaque mate. La máquina gana.', en: 'Checkmate. The computer wins.' },
@@ -108,7 +109,14 @@ const DICT = {
   settings: { es: 'Ajustes', en: 'Settings' },
   language: { es: 'Idioma', en: 'Language' },
   engine_lines: { es: 'Líneas del motor', en: 'Engine lines' },
-  about: { es: 'Mi Ajedrez — tu app de análisis y entrenamiento.', en: 'My Chess — your analysis and training app.' },
+  board_theme: { es: 'Color del tablero', en: 'Board color' },
+  theme_wood: { es: 'Madera', en: 'Wood' },
+  theme_green: { es: 'Verde', en: 'Green' },
+  theme_blue: { es: 'Azul', en: 'Blue' },
+  piece_style: { es: 'Estilo de piezas', en: 'Piece style' },
+  piece_classic: { es: 'Clásico', en: 'Classic' },
+  piece_alt: { es: 'Alternativo', en: 'Alternative' },
+  about: { es: 'Chess Training Center — tu app de análisis y entrenamiento.', en: 'Chess Training Center — your analysis and training app.' },
 };
 
 let lang = localStorage.getItem('lang') || 'es';

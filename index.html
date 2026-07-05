@@ -4,16 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a1714">
-<title>Mi Ajedrez</title>
+<title>Chess Training Center</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
+<div id="splash">
+  <img src="icons/logo-full.png" alt="Chess Training Center" id="splash-logo">
+</div>
+
 <header id="topbar">
-  <span id="app-title">♞ Mi Ajedrez</span>
+  <span id="app-title"><img src="icons/logo-mark.png" class="brand-logo" alt="">Chess Training Center</span>
   <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
 </header>
 
@@ -31,8 +35,15 @@
       <button id="ana-last" class="tool-btn">⏭</button>
       <button id="ana-engine-toggle" class="tool-btn">💡</button>
       <button id="ana-comment" class="tool-btn">💬</button>
+      <button id="ana-annotate-toggle" class="tool-btn">✏️</button>
       <button id="ana-flip" class="tool-btn">🔄</button>
       <button id="ana-more" class="tool-btn">⋯</button>
+    </div>
+    <div id="ana-annotate" class="annotate-bar hidden">
+      <button data-color="green" class="annotate-btn green"></button>
+      <button data-color="yellow" class="annotate-btn yellow"></button>
+      <button data-color="red" class="annotate-btn red"></button>
+      <button id="ana-annotate-clear" class="annotate-btn clear">🧹</button>
     </div>
     <div id="ana-moves" class="movelist"></div>
     <div id="ana-comment-box" class="comment-box hidden">
@@ -75,6 +86,7 @@
   <!-- ══════════ PLAY ══════════ -->
   <section id="screen-play" class="screen hidden">
     <div id="play-setup">
+      <img src="icons/logo-mark.png" class="watermark" alt="">
       <h2 data-i18n="play_title"></h2>
       <div class="option-group">
         <label data-i18n="color"></label>
@@ -94,6 +106,7 @@
       <div id="play-status" class="status-bar"></div>
       <div id="play-board" class="board-wrap"></div>
       <div class="row" id="play-actions">
+        <button id="play-undo" class="btn" data-i18n="undo_move"></button>
         <button id="play-resign" class="btn danger" data-i18n="resign"></button>
         <button id="play-new" class="btn" data-i18n="new_game"></button>
         <button id="play-analyze" class="btn" data-i18n="analyze_game"></button>
@@ -105,6 +118,7 @@
   <!-- ══════════ OPENING TRAINER ══════════ -->
   <section id="screen-trainer" class="screen hidden">
     <div id="trainer-setup">
+      <img src="icons/logo-mark.png" class="watermark" alt="">
       <h2 data-i18n="trainer_title"></h2>
       <p class="hint" data-i18n="trainer_explain"></p>
       <div class="option-group">
@@ -130,6 +144,7 @@
       <div id="trainer-book-status" class="book-badge"></div>
       <div id="trainer-board" class="board-wrap"></div>
       <div class="row" id="trainer-actions">
+        <button id="trainer-undo" class="btn" data-i18n="undo_move"></button>
         <button id="trainer-new" class="btn" data-i18n="new_game"></button>
         <button id="trainer-analyze" class="btn" data-i18n="analyze_game"></button>
       </div>

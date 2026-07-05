@@ -1,8 +1,8 @@
-// Mi Ajedrez — main application.
+// Chess Training Center — main application.
 import { Chess, validateFen } from '../vendor/chess.js';
 import { t, getLang, setLang, applyStatic } from './i18n.js';
 import { GameTree, parsePgn, splitPgn, START_FEN, nagText } from './tree.js';
-import { Board, parsePlacement } from './board.js';
+import { Board, parsePlacement, setPieceSet, getPieceSet } from './board.js';
 import { Engine, uciToMove, pvWithNumbers } from './engine.js';
 import * as db from './db.js';
 import { PUZZLES } from './puzzles-data.js';
@@ -199,6 +199,7 @@ const Analysis = {
   init() {
     this.board = new Board($('ana-board'), {
       onMove: (mv) => { if (this.tree.play(mv)) this.refresh(); },
+      onShapesChange: (shapes) => { this.tree.current.shapes = shapes; },
     });
     $('ana-first').onclick = () => { this.tree.toStart(); this.refresh(); };
     $('ana-prev').onclick = () => { this.tree.prev(); this.refresh(); };
@@ -208,6 +209,16 @@ const Analysis = {
     $('ana-engine-toggle').onclick = () => this.toggleEngine();
     $('ana-comment').onclick = () => this.editComment();
     $('ana-more').onclick = () => this.moreMenu();
+    $('ana-annotate-toggle').onclick = () => $('ana-annotate').classList.toggle('hidden');
+    $('ana-annotate-clear').onclick = () => this.board.clearShapes();
+    $('ana-annotate').querySelectorAll('.annotate-btn[data-color]').forEach(b => {
+      b.onclick = () => {
+        const active = b.classList.contains('active');
+        $('ana-annotate').querySelectorAll('.annotate-btn[data-color]').forEach(x => x.classList.remove('active'));
+        if (active) { this.board.setDrawColor(null); }
+        else { b.classList.add('active'); this.board.setDrawColor(b.dataset.color); }
+      };
+    });
     $('ana-comment-save').onclick = () => {
       this.tree.current.comment = $('ana-comment-text').value.trim();
       $('ana-comment-box').classList.add('hidden');
@@ -236,6 +247,7 @@ const Analysis = {
     const cur = this.tree.current;
     const last = cur.san ? { from: cur.from, to: cur.to } : null;
     this.board.setPosition(this.tree.fen(), last);
+    this.board.setShapes(cur.shapes);
     this.renderMoves();
     if (this.engineOn) this.restartEngine();
   },
@@ -611,6 +623,20 @@ const Play = {
     };
     $('play-new').onclick = () => { engine.stop(); $('play-game').classList.add('hidden'); $('play-setup').classList.remove('hidden'); };
     $('play-analyze').onclick = () => this.toAnalysis();
+    $('play-undo').onclick = () => this.undo();
+  },
+
+  undo() {
+    if (this.thinking) return;
+    if (this.chess.turn() !== this.playerColor) return;
+    if (this.chess.history().length < 2) return;
+    this.chess.undo();
+    this.chess.undo();
+    this.over = false;
+    this.board.interactive = true;
+    this.board.setPosition(this.chess.fen());
+    this.renderMoves();
+    this.setStatus(t('your_turn'));
   },
 
   startFromFen(fen) {
@@ -747,6 +773,20 @@ const Trainer = {
     $('trainer-start').onclick = () => this.start();
     $('trainer-new').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
     $('trainer-analyze').onclick = () => this.toAnalysis();
+    $('trainer-undo').onclick = () => this.undo();
+  },
+
+  undo() {
+    if (this.thinking) return;
+    if (this.chess.turn() !== this.playerColor) return;
+    if (this.chess.history().length < 2) return;
+    this.chess.undo();
+    this.chess.undo();
+    this.over = false;
+    this.board.interactive = true;
+    this.board.setPosition(this.chess.fen());
+    this.renderMoves();
+    this.setStatus(t('your_turn'));
   },
 
   async refreshBases() {
@@ -862,8 +902,9 @@ const Trainer = {
         let m;
         try { m = this.chess.move(bookSan); } catch { m = null; }
         if (m) {
+          this.inBook = true;
           this.updateBadge(true);
-          this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+          this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to }, 'green');
           this.renderMoves();
           if (this.checkEnd()) return;
           this.setStatus(t('your_turn'));
@@ -871,13 +912,15 @@ const Trainer = {
         }
       }
       // out of book → engine
+      const justLeftBook = this.inBook;
+      this.inBook = false;
       this.updateBadge(false);
       this.setStatus(t('thinking'));
       const lv = LEVELS[this.level];
       const uci = await engine.bestMove(this.chess.fen(), { movetime: lv.movetime, elo: lv.elo });
       if (!uci || this.over) return;
       const m = this.chess.move(uciToMove(uci));
-      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to }, justLeftBook ? 'yellow' : 'green');
       this.renderMoves();
       if (this.checkEnd()) return;
       this.setStatus(t('your_turn'));
@@ -1060,7 +1103,16 @@ const Setup = {
       onEditorTap: sq => this.tap(sq),
     });
     this.board.editorMode = true;
-    // palette
+    this.buildPalette();
+    segInit($('setup-turn'));
+    $('setup-start').onclick = () => this.load(START_FEN);
+    $('setup-clear').onclick = () => { this.grid = {}; this.sync(); };
+    $('setup-cancel').onclick = () => showScreen('analysis');
+    $('setup-analyze').onclick = () => this.done('analyze');
+    $('setup-play').onclick = () => this.done('play');
+  },
+
+  buildPalette() {
     const pal = $('setup-palette');
     pal.innerHTML = '';
     for (const color of ['w', 'b']) {
@@ -1068,7 +1120,7 @@ const Setup = {
         const b = document.createElement('button');
         b.className = 'pal-btn';
         b.dataset.piece = color + type;
-        b.innerHTML = `<img src="pieces/${color}${type.toUpperCase()}.svg" alt="">`;
+        b.innerHTML = `<img src="${getPieceSet()}/${color}${type.toUpperCase()}.svg" alt="">`;
         b.onclick = () => this.pick(b, { color, type });
         pal.appendChild(b);
       }
@@ -1078,13 +1130,6 @@ const Setup = {
     trash.dataset.piece = 'trash';
     trash.onclick = () => this.pick(trash, 'trash');
     pal.appendChild(trash);
-
-    segInit($('setup-turn'));
-    $('setup-start').onclick = () => this.load(START_FEN);
-    $('setup-clear').onclick = () => { this.grid = {}; this.sync(); };
-    $('setup-cancel').onclick = () => showScreen('analysis');
-    $('setup-analyze').onclick = () => this.done('analyze');
-    $('setup-play').onclick = () => this.done('play');
   },
 
   pick(btn, piece) {
@@ -1192,10 +1237,32 @@ function openSettings() {
       seg2.appendChild(b);
     }
     segInit(seg2, v => db.kvSet('engineLines', +v));
+    // board color theme
+    const l3 = document.createElement('label'); l3.className = 'fld-label'; l3.textContent = t('board_theme');
+    const seg3 = document.createElement('div'); seg3.className = 'seg';
+    const curBoardTheme = await db.kvGet('boardTheme', 'wood');
+    for (const [v, key] of [['wood', 'theme_wood'], ['green', 'theme_green'], ['blue', 'theme_blue']]) {
+      const b = document.createElement('button');
+      b.textContent = t(key); b.dataset.v = v;
+      if (curBoardTheme === v) b.classList.add('on');
+      seg3.appendChild(b);
+    }
+    segInit(seg3, v => Themes.setBoardTheme(v));
+    // piece style
+    const l4 = document.createElement('label'); l4.className = 'fld-label'; l4.textContent = t('piece_style');
+    const seg4 = document.createElement('div'); seg4.className = 'seg';
+    const curPieceSet = await db.kvGet('pieceSet', 'pieces');
+    for (const [v, key] of [['pieces', 'piece_classic'], ['pieces2', 'piece_alt']]) {
+      const b = document.createElement('button');
+      b.textContent = t(key); b.dataset.v = v;
+      if (curPieceSet === v) b.classList.add('on');
+      seg4.appendChild(b);
+    }
+    segInit(seg4, v => Themes.setPieceSetChoice(v));
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
     const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
     ok.onclick = () => close(null);
-    box.append(l1, seg, l2, seg2, about, ok);
+    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, about, ok);
   });
 }
 
@@ -1206,9 +1273,29 @@ function relabel() {
   Puzzles.updateProgress?.();
 }
 
+const Themes = {
+  async init() {
+    const boardTheme = await db.kvGet('boardTheme', 'wood');
+    document.body.classList.add('theme-' + boardTheme);
+    const pieceSet = await db.kvGet('pieceSet', 'pieces');
+    setPieceSet(pieceSet);
+  },
+  setBoardTheme(v) {
+    document.body.classList.remove('theme-wood', 'theme-green', 'theme-blue');
+    document.body.classList.add('theme-' + v);
+    db.kvSet('boardTheme', v);
+  },
+  setPieceSetChoice(v) {
+    setPieceSet(v);
+    db.kvSet('pieceSet', v);
+    Setup.buildPalette();
+  },
+};
+
 // ═════════════════════ init ═════════════════════
 
 async function main() {
+  const splashStart = Date.now();
   applyStatic();
   Analysis.init();
   Base.init();
@@ -1216,6 +1303,7 @@ async function main() {
   Trainer.init();
   Puzzles.init();
   Setup.init();
+  await Themes.init();
   $('btn-settings').onclick = openSettings;
   showScreen('analysis');
   // make sure at least one base exists so saving is one tap
@@ -1225,6 +1313,8 @@ async function main() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => { });
   }
+  const elapsed = Date.now() - splashStart;
+  setTimeout(() => $('splash').classList.add('hide'), Math.max(0, 600 - elapsed));
 }
 
 main();

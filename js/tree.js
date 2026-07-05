@@ -16,6 +16,7 @@ class Node {
     this.to = to;
     this.comment = '';
     this.nags = [];
+    this.shapes = { squares: [], arrows: [] }; // board annotations (in-memory only, not saved to PGN)
     this.children = [];   // children[0] = main continuation
   }
 }

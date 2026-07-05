@@ -5,6 +5,15 @@ import { Chess } from '../vendor/chess.js';
 
 const FILES = 'abcdefgh';
 
+let PIECE_SET = 'pieces';
+const ALL_BOARDS = [];
+
+export function setPieceSet(name) {
+  PIECE_SET = name;
+  for (const b of ALL_BOARDS) b.render();
+}
+export function getPieceSet() { return PIECE_SET; }
+
 export class Board {
   constructor(container, opts = {}) {
     this.el = container;
@@ -18,8 +27,13 @@ export class Board {
     this.editorMode = false;   // when true, taps are reported raw via onEditorTap
     this.onEditorTap = opts.onEditorTap || (() => {});
     this.freeMove = false;     // allow moving either color (setup/analysis root)
+    this.shapes = { squares: [], arrows: [] };
+    this.drawColor = null;     // 'green'|'yellow'|'red'|null — when set, taps/drags annotate instead of moving
+    this.onShapesChange = opts.onShapesChange || (() => {});
+    this._dragStart = null;
     this._buildSquares();
     this._bindEvents();
+    ALL_BOARDS.push(this);
     this.render();
   }
 
@@ -41,16 +55,77 @@ export class Board {
     coords.className = 'coords';
     this.el.appendChild(coords);
     this.coordsEl = coords;
+    // annotation overlay (arrows + colored squares), always on top, never blocks input
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.classList.add('shapes-layer');
+    this.el.appendChild(svg);
+    this.shapesEl = svg;
   }
 
   setOrientation(o) { this.orientation = o; this.render(); }
   flip() { this.setOrientation(this.orientation === 'w' ? 'b' : 'w'); }
 
-  setPosition(fen, lastMove = null) {
+  setPosition(fen, lastMove = null, lastMoveColor = 'green') {
     this.fen = fen;
     this.lastMove = lastMove;
+    this.lastMoveColor = lastMoveColor;
     this.selected = null;
     this.render();
+  }
+
+  setShapes(shapes) {
+    this.shapes = shapes || { squares: [], arrows: [] };
+    this._renderShapes();
+  }
+
+  setDrawColor(color) { this.drawColor = color; }
+
+  clearShapes() {
+    this.shapes = { squares: [], arrows: [] };
+    this.onShapesChange(this.shapes);
+    this._renderShapes();
+  }
+
+  _renderShapes() {
+    if (!this.shapesEl) return;
+    const flipped = this.orientation === 'b';
+    const colorMap = { green: '#3aa53a', yellow: '#e0b400', red: '#d0392b' };
+    let html = '';
+    for (const s of this.shapes.squares) {
+      const c = sqCoords(s.sq, flipped);
+      html += `<rect x="${c.left}" y="${c.top}" width="12.5" height="12.5" fill="${colorMap[s.color]}" opacity="0.55"/>`;
+    }
+    for (const a of this.shapes.arrows) {
+      const p1 = sqCoords(a.from, flipped);
+      const p2 = sqCoords(a.to, flipped);
+      html += arrowSvg(p1.cx, p1.cy, p2.cx, p2.cy, colorMap[a.color]);
+    }
+    this.shapesEl.innerHTML = html;
+  }
+
+  _toggleSquareShape(sq) {
+    const idx = this.shapes.squares.findIndex(s => s.sq === sq);
+    if (idx >= 0) {
+      if (this.shapes.squares[idx].color === this.drawColor) this.shapes.squares.splice(idx, 1);
+      else this.shapes.squares[idx].color = this.drawColor;
+    } else {
+      this.shapes.squares.push({ sq, color: this.drawColor });
+    }
+    this.onShapesChange(this.shapes);
+    this._renderShapes();
+  }
+
+  _toggleArrowShape(from, to) {
+    const idx = this.shapes.arrows.findIndex(a => a.from === from && a.to === to);
+    if (idx >= 0) {
+      if (this.shapes.arrows[idx].color === this.drawColor) this.shapes.arrows.splice(idx, 1);
+      else this.shapes.arrows[idx].color = this.drawColor;
+    } else {
+      this.shapes.arrows.push({ from, to, color: this.drawColor });
+    }
+    this.onShapesChange(this.shapes);
+    this._renderShapes();
   }
 
   render() {
@@ -71,14 +146,16 @@ export class Board {
         sq.style.left = vf * 12.5 + '%';
         sq.style.top = vr * 12.5 + '%';
         const piece = grid[name];
-        const want = piece ? `pieces/${piece.color}${piece.type.toUpperCase()}.svg` : null;
+        const want = piece ? `${PIECE_SET}/${piece.color}${piece.type.toUpperCase()}.svg` : null;
         let img = sq.querySelector('img');
         if (want) {
           if (!img) { img = document.createElement('img'); img.draggable = false; sq.appendChild(img); }
           const src = img.getAttribute('src');
           if (src !== want) img.setAttribute('src', want);
         } else if (img) img.remove();
-        sq.classList.toggle('lastmove', !!this.lastMove && (this.lastMove.from === name || this.lastMove.to === name));
+        const isLastMove = !!this.lastMove && (this.lastMove.from === name || this.lastMove.to === name);
+        sq.classList.toggle('lastmove', isLastMove && this.lastMoveColor !== 'yellow');
+        sq.classList.toggle('lastmove-outbook', isLastMove && this.lastMoveColor === 'yellow');
         sq.classList.toggle('selected', this.selected === name);
         sq.classList.remove('dest', 'capture-dest', 'check');
       }
@@ -114,6 +191,7 @@ export class Board {
       file.textContent = flipped ? FILES[7 - i] : FILES[i];
       this.coordsEl.append(rank, file);
     }
+    this._renderShapes();
   }
 
   _bindEvents() {
@@ -122,9 +200,22 @@ export class Board {
       if (!sqEl) return;
       const name = sqEl.dataset.sq;
       if (this.editorMode) { this.onEditorTap(name); return; }
+      if (this.drawColor) { this._dragStart = name; return; }
       if (!this.interactive) return;
       this._tap(name);
     });
+    this.el.addEventListener('pointerup', (e) => {
+      if (!this.drawColor || !this._dragStart) return;
+      const start = this._dragStart;
+      this._dragStart = null;
+      const el2 = document.elementFromPoint(e.clientX, e.clientY);
+      const sqEl = el2 ? el2.closest('.sq') : null;
+      if (!sqEl) return;
+      const end = sqEl.dataset.sq;
+      if (end === start) this._toggleSquareShape(start);
+      else this._toggleArrowShape(start, end);
+    });
+    this.el.addEventListener('pointercancel', () => { this._dragStart = null; });
   }
 
   async _tap(name) {
@@ -161,7 +252,7 @@ export class Board {
       for (const p of ['q', 'r', 'b', 'n']) {
         const b = document.createElement('button');
         b.className = 'promo-btn';
-        b.innerHTML = `<img src="pieces/${color}${p.toUpperCase()}.svg" alt="${p}">`;
+        b.innerHTML = `<img src="${PIECE_SET}/${color}${p.toUpperCase()}.svg" alt="${p}">`;
         b.onclick = () => { overlay.remove(); resolve(p); };
         overlay.appendChild(b);
       }
@@ -189,4 +280,29 @@ export function parsePlacement(placement) {
 function findKing(grid, color) {
   for (const [sq, p] of Object.entries(grid)) if (p.type === 'k' && p.color === color) return sq;
   return null;
+}
+
+function sqCoords(name, flipped) {
+  const f = FILES.indexOf(name[0]);
+  const r = 8 - parseInt(name[1], 10);
+  const vf = flipped ? 7 - f : f;
+  const vr = flipped ? 7 - r : r;
+  return { left: vf * 12.5, top: vr * 12.5, cx: vf * 12.5 + 6.25, cy: vr * 12.5 + 6.25 };
+}
+
+function arrowSvg(x1, y1, x2, y2, color) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  const px = -uy, py = ux;
+  const sx = x1 + ux * 3, sy = y1 + uy * 3;
+  const ex = x2 - ux * 5.5, ey = y2 - uy * 5.5;
+  const headLen = 4.2, headWidth = 3;
+  const hx = ex - ux * headLen, hy = ey - uy * headLen;
+  const p1x = hx + px * headWidth, p1y = hy + py * headWidth;
+  const p2x = hx - px * headWidth, p2y = hy - py * headWidth;
+  return `<g opacity="0.85">
+    <line x1="${sx}" y1="${sy}" x2="${hx}" y2="${hy}" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
+    <polygon points="${ex},${ey} ${p1x},${p1y} ${p2x},${p2y}" fill="${color}"/>
+  </g>`;
 }
