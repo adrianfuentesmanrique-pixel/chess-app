@@ -309,44 +309,44 @@ function headersFromPgn(pgnText) {
 // Months converted at 30 days/month; the tail (rook/queen) extends the
 // original artwork's 72-120 month cadence further so nothing repeats.
 const STREAK_TIERS = [
-  { days: 1, icon: 'flame', label: { es: '1 día', en: '1 day' } },
-  { days: 7, icon: 'flame', label: { es: '7 días', en: '7 days' } },
-  { days: 15, icon: 'flame', label: { es: '15 días', en: '15 days' } },
-  { days: 21, icon: 'flame', label: { es: '21 días', en: '21 days' } },
-  { days: 30, icon: 'flame', label: { es: '1 mes', en: '1 month' } },
-  { days: 60, icon: 'flame', label: { es: '2 meses', en: '2 months' } },
-  { days: 90, icon: 'pawn', label: { es: '3 meses', en: '3 months' } },
-  { days: 120, icon: 'pawn', label: { es: '4 meses', en: '4 months' } },
-  { days: 150, icon: 'pawn', label: { es: '5 meses', en: '5 months' } },
-  { days: 180, icon: 'pawn', label: { es: '6 meses', en: '6 months' } },
-  { days: 210, icon: 'pawn', label: { es: '7 meses', en: '7 months' } },
-  { days: 240, icon: 'pawn', label: { es: '8 meses', en: '8 months' } },
-  { days: 270, icon: 'pawn', label: { es: '9 meses', en: '9 months' } },
-  { days: 330, icon: 'pawn', label: { es: '11 meses', en: '11 months' } },
-  { days: 360, icon: 'pawn', label: { es: '12 meses', en: '12 months' } },
-  { days: 420, icon: 'knight', label: { es: '14 meses', en: '14 months' } },
-  { days: 480, icon: 'knight', label: { es: '16 meses', en: '16 months' } },
-  { days: 540, icon: 'knight', label: { es: '18 meses', en: '18 months' } },
-  { days: 720, icon: 'knight', label: { es: '24 meses', en: '24 months' } },
-  { days: 900, icon: 'knight', label: { es: '30 meses', en: '30 months' } },
-  { days: 1080, icon: 'knight', label: { es: '36 meses', en: '36 months' } },
-  { days: 1440, icon: 'knight', label: { es: '48 meses', en: '48 months' } },
-  { days: 1800, icon: 'knight', label: { es: '60 meses', en: '60 months' } },
-  { days: 2160, icon: 'bishop', label: { es: '72 meses', en: '72 months' } },
-  { days: 2520, icon: 'bishop', label: { es: '84 meses', en: '84 months' } },
-  { days: 2880, icon: 'bishop', label: { es: '96 meses', en: '96 months' } },
-  { days: 3240, icon: 'bishop', label: { es: '108 meses', en: '108 months' } },
-  { days: 3600, icon: 'bishop', label: { es: '120 meses', en: '120 months' } },
-  { days: 3960, icon: 'rook', label: { es: '132 meses', en: '132 months' } },
-  { days: 4320, icon: 'rook', label: { es: '144 meses', en: '144 months' } },
-  { days: 4680, icon: 'rook', label: { es: '156 meses', en: '156 months' } },
-  { days: 5040, icon: 'rook', label: { es: '168 meses', en: '168 months' } },
-  { days: 5400, icon: 'rook', label: { es: '180 meses', en: '180 months' } },
-  { days: 5760, icon: 'queen', label: { es: '192 meses', en: '192 months' } },
-  { days: 6120, icon: 'queen', label: { es: '204 meses', en: '204 months' } },
-  { days: 6480, icon: 'queen', label: { es: '216 meses', en: '216 months' } },
-  { days: 6840, icon: 'queen', label: { es: '228 meses', en: '228 months' } },
-  { days: 7200, icon: 'queen', label: { es: '240 meses', en: '240 months' } },
+  { days: 1, icon: 'flame1', label: { es: '1 día', en: '1 day' } },
+  { days: 7, icon: 'flame2', label: { es: '7 días', en: '7 days' } },
+  { days: 15, icon: 'flame3', label: { es: '15 días', en: '15 days' } },
+  { days: 21, icon: 'flame4', label: { es: '21 días', en: '21 days' } },
+  { days: 30, icon: 'flame5', label: { es: '1 mes', en: '1 month' } },
+  { days: 60, icon: 'flame6', label: { es: '2 meses', en: '2 months' } },
+  { days: 90, icon: 'pawn1', label: { es: '3 meses', en: '3 months' } },
+  { days: 120, icon: 'pawn2', label: { es: '4 meses', en: '4 months' } },
+  { days: 150, icon: 'pawn3', label: { es: '5 meses', en: '5 months' } },
+  { days: 180, icon: 'pawn4', label: { es: '6 meses', en: '6 months' } },
+  { days: 210, icon: 'pawn5', label: { es: '7 meses', en: '7 months' } },
+  { days: 240, icon: 'pawn6', label: { es: '8 meses', en: '8 months' } },
+  { days: 270, icon: 'pawn7', label: { es: '9 meses', en: '9 months' } },
+  { days: 330, icon: 'pawn8', label: { es: '11 meses', en: '11 months' } },
+  { days: 360, icon: 'pawn9', label: { es: '12 meses', en: '12 months' } },
+  { days: 420, icon: 'knight1', label: { es: '14 meses', en: '14 months' } },
+  { days: 480, icon: 'knight2', label: { es: '16 meses', en: '16 months' } },
+  { days: 540, icon: 'knight3', label: { es: '18 meses', en: '18 months' } },
+  { days: 720, icon: 'knight4', label: { es: '24 meses', en: '24 months' } },
+  { days: 900, icon: 'knight5', label: { es: '30 meses', en: '30 months' } },
+  { days: 1080, icon: 'knight6', label: { es: '36 meses', en: '36 months' } },
+  { days: 1440, icon: 'knight7', label: { es: '48 meses', en: '48 months' } },
+  { days: 1800, icon: 'knight8', label: { es: '60 meses', en: '60 months' } },
+  { days: 2160, icon: 'bishop1', label: { es: '72 meses', en: '72 months' } },
+  { days: 2520, icon: 'bishop2', label: { es: '84 meses', en: '84 months' } },
+  { days: 2880, icon: 'bishop3', label: { es: '96 meses', en: '96 months' } },
+  { days: 3240, icon: 'bishop4', label: { es: '108 meses', en: '108 months' } },
+  { days: 3600, icon: 'bishop5', label: { es: '120 meses', en: '120 months' } },
+  { days: 3960, icon: 'rook1', label: { es: '132 meses', en: '132 months' } },
+  { days: 4320, icon: 'rook2', label: { es: '144 meses', en: '144 months' } },
+  { days: 4680, icon: 'rook3', label: { es: '156 meses', en: '156 months' } },
+  { days: 5040, icon: 'rook4', label: { es: '168 meses', en: '168 months' } },
+  { days: 5400, icon: 'rook5', label: { es: '180 meses', en: '180 months' } },
+  { days: 5760, icon: 'queen1', label: { es: '192 meses', en: '192 months' } },
+  { days: 6120, icon: 'queen2', label: { es: '204 meses', en: '204 months' } },
+  { days: 6480, icon: 'queen3', label: { es: '216 meses', en: '216 months' } },
+  { days: 6840, icon: 'queen4', label: { es: '228 meses', en: '228 months' } },
+  { days: 7200, icon: 'queen5', label: { es: '240 meses', en: '240 months' } },
 ];
 
 function streakTierIndex(days) {
@@ -356,7 +356,7 @@ function streakTierIndex(days) {
 }
 function streakIcon(days) {
   const idx = streakTierIndex(days);
-  return idx >= 0 ? STREAK_TIERS[idx].icon : 'flame';
+  return idx >= 0 ? STREAK_TIERS[idx].icon : 'flame1';
 }
 
 const Streak = {
@@ -2235,32 +2235,9 @@ const Avatars = {
     }
   },
 
-  async openPicker() {
-    const current = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
-    await modal((box, close) => {
-      box.innerHTML = `<h3>${t('choose_avatar')}</h3>`;
-      const grid = document.createElement('div');
-      grid.className = 'trophy-grid';
-      box.appendChild(grid);
-      const pick = async (id) => {
-        await db.kvSet('avatarId', id);
-        await this.refresh();
-        this.renderGridInto(grid, id, pick);
-      };
-      this.renderGridInto(grid, current, pick);
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'btn primary';
-      closeBtn.style.marginTop = '12px';
-      closeBtn.textContent = t('close');
-      closeBtn.onclick = () => close(null);
-      box.appendChild(closeBtn);
-    });
-  },
-
   async refresh() {
     const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
-    $('profile-avatar-wrap').innerHTML = avatarHtml(id, 40);
-    $('profile-avatar-wrap2').innerHTML = avatarHtml(id, 56);
+    $('profile-avatar-wrap').innerHTML = avatarHtml(id, 56);
     return id;
   },
 };
@@ -2484,8 +2461,7 @@ const Profile = {
   charts: {},
 
   init() {
-    $('profile-name-save').onclick = () => this.saveName();
-    $('profile-avatar-edit-btn').onclick = () => Avatars.openPicker();
+    $('profile-edit-btn').onclick = () => this.openEditModal();
     $('profile-auth-btn').onclick = () => openAuthModal();
     $('profile-signout-btn').onclick = () => Auth.signOut();
     $('profile-elo-puzzle-card').onclick = () => openEloHistoryModal('puzzleEloHistory', 'puzzle_elo');
@@ -2501,23 +2477,61 @@ const Profile = {
     Auth.onChange(() => this.renderAccount());
   },
 
-  async saveName() {
-    const name = $('profile-name').value.trim();
-    await db.kvSet('profileName', name);
-    toast(t('name_saved'));
+  openEditModal() {
+    return modal((box, close) => {
+      box.innerHTML = `<h3>${t('edit_profile_title')}</h3>`;
+
+      const grid = document.createElement('div');
+      grid.className = 'trophy-grid';
+      box.appendChild(grid);
+
+      const nameLabel = document.createElement('label');
+      nameLabel.className = 'fld-label';
+      nameLabel.style.marginTop = '14px';
+      nameLabel.textContent = t('your_name');
+      box.appendChild(nameLabel);
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'row';
+      const input = document.createElement('input');
+      input.className = 'input'; input.maxLength = 40;
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn primary'; saveBtn.textContent = t('save');
+      saveBtn.onclick = async () => {
+        await db.kvSet('profileName', input.value.trim());
+        toast(t('name_saved'));
+        await this.renderAccount();
+      };
+      nameRow.append(input, saveBtn);
+      box.appendChild(nameRow);
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'btn'; closeBtn.style.marginTop = '14px';
+      closeBtn.textContent = t('close');
+      closeBtn.onclick = () => close(null);
+      box.appendChild(closeBtn);
+
+      (async () => {
+        input.value = await db.kvGet('profileName', '');
+        const currentAvatar = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
+        const pick = async (id) => {
+          await db.kvSet('avatarId', id);
+          await Avatars.refresh();
+          Avatars.renderGridInto(grid, id, pick);
+        };
+        Avatars.renderGridInto(grid, currentAvatar, pick);
+      })();
+    });
   },
 
   async renderAccount() {
     const user = Auth.user;
     $('profile-auth-btn').classList.toggle('hidden', !!user);
-    $('profile-account-signed-in').classList.toggle('hidden', !user);
-    if (user) {
-      const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
-      $('profile-avatar-wrap').innerHTML = avatarHtml(id, 40);
-      $('profile-account-name').textContent = user.displayName || user.email || '';
-      const isMember = await db.kvGet('isMember', false);
-      $('profile-account-badge').innerHTML = memberBadgeHtml(isMember);
-    }
+    $('profile-signout-btn').classList.toggle('hidden', !user);
+    const profileName = await db.kvGet('profileName', '');
+    $('profile-display-name').textContent = profileName || (user && (user.displayName || user.email)) || t('your_name');
+    const isMember = await db.kvGet('isMember', false);
+    $('profile-account-badge').innerHTML = memberBadgeHtml(isMember);
   },
 
   async renderMemberCard() {
@@ -2540,32 +2554,27 @@ const Profile = {
     if (!el) return;
     const days = Streak.count;
     const idx = streakTierIndex(days);
-    const current = STREAK_TIERS[Math.max(idx, 0)];
-    const next = STREAK_TIERS[idx + 1] || null;
     const lang = getLang();
-    const currentLabel = idx >= 0 ? current.label[lang] : (lang === 'en' ? 'No streak yet' : 'Sin racha aún');
-    const currentIcon = idx >= 0 ? current.icon : 'flame';
-    el.innerHTML = `
-      <div class="streak-timeline-tier">
-        <img src="streaks/${currentIcon}.png" alt="">
-        <span class="streak-timeline-label">${esc(currentLabel)}</span>
-      </div>
-      ${next ? `
-      <div class="streak-timeline-dots">···</div>
-      <div class="streak-timeline-tier locked">
-        <img src="streaks/${next.icon}.png" alt="">
-        <span class="streak-timeline-label">${esc(next.label[lang])}</span>
-      </div>` : ''}
-    `;
+    el.innerHTML = STREAK_TIERS.map((tier, i) => {
+      const locked = i > idx;
+      const label = tier.label[lang];
+      return `<div class="streak-timeline-tier${locked ? ' locked' : ''}${i === idx ? ' current' : ''}" title="${esc(label)}">
+        <img src="streaks/${tier.icon}.png" alt="${esc(label)}">
+      </div>`;
+    }).join('');
+    if (idx >= 0) {
+      requestAnimationFrame(() => {
+        const currentEl = el.children[idx];
+        if (currentEl) currentEl.scrollIntoView({ inline: 'center', block: 'nearest' });
+      });
+    }
   },
 
   async refresh() {
     await Membership.checkExpiry();
-    this.renderAccount();
+    await this.renderAccount();
     await this.renderMemberCard();
     await Avatars.refresh();
-    const name = await db.kvGet('profileName', '');
-    $('profile-name').value = name;
     await Badges.checkNew();
     Badges.renderTrophyCase();
     this.renderStreakTimeline();

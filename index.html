@@ -264,15 +264,18 @@
     </div>
 
     <div id="profile-account" class="profile-card">
-      <button id="profile-auth-btn" class="btn primary big" data-i18n="sign_in_or_up"></button>
-      <div id="profile-account-signed-in" class="row hidden" style="align-items:center; gap:10px;">
-        <span id="profile-avatar-wrap"></span>
+      <div class="row" style="align-items:center; gap:12px;">
+        <span class="avatar-edit-wrap">
+          <span id="profile-avatar-wrap"></span>
+          <button id="profile-edit-btn" class="avatar-edit-btn" data-i18n-aria="edit_profile">✏️</button>
+        </span>
         <div>
           <div style="display:flex; align-items:center; gap:6px;">
-            <span id="profile-account-name" style="font-weight:700;"></span>
+            <span id="profile-display-name" style="font-weight:700;"></span>
             <span id="profile-account-badge"></span>
           </div>
-          <button id="profile-signout-btn" class="btn small" data-i18n="sign_out"></button>
+          <button id="profile-auth-btn" class="btn small" data-i18n="sign_in_or_up"></button>
+          <button id="profile-signout-btn" class="btn small hidden" data-i18n="sign_out"></button>
         </div>
       </div>
     </div>
@@ -284,23 +287,9 @@
     </div>
 
     <div class="profile-card">
-      <div class="row" style="align-items:center; gap:12px;">
-        <span class="avatar-edit-wrap">
-          <span id="profile-avatar-wrap2"></span>
-          <button id="profile-avatar-edit-btn" class="avatar-edit-btn" data-i18n-aria="edit_avatar">✏️</button>
-        </span>
-        <label class="fld-label" data-i18n="your_name"></label>
-      </div>
-      <div class="row">
-        <input type="text" id="profile-name" class="input" maxlength="40">
-        <button id="profile-name-save" class="btn primary" data-i18n="save"></button>
-      </div>
-      <button id="profile-share-streak" class="btn" data-i18n="share_streak"></button>
-    </div>
-
-    <div class="profile-card">
-      <div class="row" style="justify-content:space-between; margin:0 0 8px;">
+      <div class="row" style="justify-content:space-between; margin:0 0 8px; align-items:center;">
         <h3 style="margin:0" data-i18n="streak_progress"></h3>
+        <button id="profile-share-streak" class="btn small" data-i18n="share_streak"></button>
       </div>
       <div id="profile-streak-timeline" class="streak-timeline"></div>
     </div>

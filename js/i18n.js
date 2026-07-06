@@ -198,6 +198,8 @@ const DICT = {
   card_rush_title: { es: '¡Puzzle Rush!', en: 'Puzzle Rush!' },
   choose_avatar: { es: 'Elige tu ícono', en: 'Choose your icon' },
   edit_avatar: { es: 'Cambiar ícono', en: 'Change icon' },
+  edit_profile: { es: 'Editar perfil', en: 'Edit profile' },
+  edit_profile_title: { es: 'Editar perfil', en: 'Edit profile' },
   streak_progress: { es: 'Progreso de racha', en: 'Streak progress' },
   // Membership
   member_badge_title: { es: 'Miembro', en: 'Member' },
