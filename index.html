@@ -163,6 +163,7 @@
     </div>
     <div class="row" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
+      <button id="puzzle-rush-open" class="btn" data-i18n="rush_open"></button>
     </div>
     <div class="seg wrap scroll" id="puzzle-theme"></div>
     <div id="puzzle-status" class="status-bar"></div>
@@ -170,7 +171,49 @@
     <div class="row" id="puzzle-actions">
       <button id="puzzle-hint" class="btn" data-i18n="hint"></button>
       <button id="puzzle-solution" class="btn" data-i18n="show_solution"></button>
+      <button id="puzzle-share" class="btn hidden">📤</button>
       <button id="puzzle-next" class="btn primary" data-i18n="next_puzzle"></button>
+    </div>
+  </section>
+
+  <!-- ══════════ PUZZLE RUSH ══════════ -->
+  <section id="screen-rush" class="screen hidden">
+    <div id="rush-intro">
+      <div class="row screen-head">
+        <button id="rush-back" class="btn" data-i18n="back"></button>
+        <h2 data-i18n="rush_title"></h2>
+      </div>
+      <p class="hint" data-i18n="rush_explain"></p>
+      <div class="row wrap profile-elo-row">
+        <div class="elo-card"><span data-i18n="rush_best"></span><b id="rush-best-score"></b></div>
+      </div>
+      <div class="option-group">
+        <label data-i18n="rush_duration"></label>
+        <div class="seg" id="rush-duration">
+          <button data-v="180" class="on">3 min</button>
+          <button data-v="300">5 min</button>
+        </div>
+      </div>
+      <button id="rush-start" class="btn primary big" data-i18n="rush_start"></button>
+    </div>
+    <div id="rush-game" class="hidden">
+      <div class="row" style="justify-content:space-between">
+        <span id="rush-timer" class="elo-badge"></span>
+        <span id="rush-score" class="elo-badge"></span>
+      </div>
+      <div id="rush-board" class="board-wrap"></div>
+      <div id="rush-status" class="status-bar"></div>
+    </div>
+    <div id="rush-result" class="hidden">
+      <div class="profile-card" style="text-align:center">
+        <h2 id="rush-result-title"></h2>
+        <div style="font-size:48px; font-weight:700; color:var(--accent)" id="rush-result-score"></div>
+        <p id="rush-result-best" class="hint"></p>
+        <div class="row wrap" style="justify-content:center">
+          <button id="rush-share" class="btn">📤</button>
+          <button id="rush-again" class="btn primary" data-i18n="rush_start"></button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -208,6 +251,7 @@
       <div class="row" id="endgame-practice-actions" style="display:none">
         <button id="endgame-undo" class="btn" data-i18n="undo_move"></button>
         <button id="endgame-resign" class="btn danger" data-i18n="resign"></button>
+        <button id="endgame-share" class="btn hidden">📤</button>
       </div>
     </div>
   </section>
@@ -216,12 +260,13 @@
   <section id="screen-profile" class="screen hidden">
     <div class="row screen-head">
       <h2 data-i18n="tab_profile"></h2>
+      <button id="profile-leaderboard-btn" class="btn primary" data-i18n="leaderboard_btn"></button>
     </div>
 
     <div id="profile-account" class="profile-card">
       <button id="profile-auth-btn" class="btn primary big" data-i18n="sign_in_or_up"></button>
       <div id="profile-account-signed-in" class="row hidden" style="align-items:center; gap:10px;">
-        <img id="profile-avatar" class="avatar" alt="">
+        <span id="profile-avatar-wrap"></span>
         <div>
           <div id="profile-account-name" style="font-weight:700;"></div>
           <button id="profile-signout-btn" class="btn small" data-i18n="sign_out"></button>
@@ -230,17 +275,34 @@
     </div>
 
     <div class="profile-card">
+      <div class="row" style="align-items:center; gap:12px;">
+        <span id="profile-avatar-wrap2"></span>
+        <label class="fld-label" style="margin:0" data-i18n="choose_avatar"></label>
+      </div>
+      <div id="avatar-picker" class="trophy-grid" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="profile-card">
       <label class="fld-label" data-i18n="your_name"></label>
       <div class="row">
         <input type="text" id="profile-name" class="input" maxlength="40">
         <button id="profile-name-save" class="btn primary" data-i18n="save"></button>
       </div>
+      <button id="profile-share-streak" class="btn" data-i18n="share_streak"></button>
     </div>
 
     <div class="row wrap profile-elo-row">
-      <div class="elo-card"><span data-i18n="puzzle_elo"></span><b id="profile-elo-puzzle"></b></div>
-      <div class="elo-card"><span data-i18n="opening_elo"></span><b id="profile-elo-opening"></b></div>
-      <div class="elo-card"><span data-i18n="endgame_elo"></span><b id="profile-elo-endgame"></b></div>
+      <button class="elo-card" id="profile-elo-puzzle-card"><span data-i18n="puzzle_elo"></span><b id="profile-elo-puzzle"></b></button>
+      <button class="elo-card" id="profile-elo-opening-card"><span data-i18n="opening_elo"></span><b id="profile-elo-opening"></b></button>
+      <button class="elo-card" id="profile-elo-endgame-card"><span data-i18n="endgame_elo"></span><b id="profile-elo-endgame"></b></button>
+    </div>
+
+    <div class="profile-card">
+      <div class="row" style="justify-content:space-between; margin:0 0 8px;">
+        <h3 style="margin:0" data-i18n="trophy_case"></h3>
+        <span id="trophy-count" class="hint"></span>
+      </div>
+      <div id="trophy-case" class="trophy-grid"></div>
     </div>
 
     <div class="profile-card">
@@ -259,6 +321,54 @@
     <div class="profile-card">
       <h3 data-i18n="radar_endgame"></h3>
       <div class="radar-wrap"><canvas id="chart-endgame"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ══════════ LEADERBOARD ══════════ -->
+  <section id="screen-leaderboard" class="screen hidden">
+    <div class="row screen-head">
+      <button id="leaderboard-back" class="btn" data-i18n="back"></button>
+      <h2 data-i18n="leaderboard_title"></h2>
+    </div>
+    <div class="seg" id="leaderboard-mode">
+      <button data-v="puzzleElo" class="on" data-i18n="puzzle_elo"></button>
+      <button data-v="rushBestScore" data-i18n="rush_title"></button>
+    </div>
+    <input type="text" id="leaderboard-search" class="input" data-i18n-ph="search_player">
+    <div id="leaderboard-status" class="hint"></div>
+    <div id="leaderboard-list" class="list"></div>
+  </section>
+
+  <!-- ══════════ PUBLIC PROFILE ══════════ -->
+  <section id="screen-public-profile" class="screen hidden">
+    <div class="row screen-head">
+      <button id="pubprofile-back" class="btn" data-i18n="back"></button>
+      <h2 id="pubprofile-name"></h2>
+    </div>
+    <div class="row" style="justify-content:center; margin:6px 0 14px;">
+      <span id="pubprofile-avatar-wrap"></span>
+    </div>
+    <div class="row wrap profile-elo-row">
+      <div class="elo-card"><span data-i18n="puzzle_elo"></span><b id="pubprofile-elo-puzzle"></b></div>
+      <div class="elo-card"><span data-i18n="opening_elo"></span><b id="pubprofile-elo-opening"></b></div>
+      <div class="elo-card"><span data-i18n="endgame_elo"></span><b id="pubprofile-elo-endgame"></b></div>
+    </div>
+    <div class="profile-card">
+      <h3 data-i18n="radar_overall"></h3>
+      <div class="radar-wrap"><canvas id="chart-pub-overall"></canvas></div>
+    </div>
+    <div class="profile-card">
+      <h3 data-i18n="radar_opening"></h3>
+      <div class="radar-wrap"><canvas id="chart-pub-opening"></canvas></div>
+      <p id="pubprofile-opening-empty" class="hint hidden" data-i18n="no_opening_data"></p>
+    </div>
+    <div class="profile-card">
+      <h3 data-i18n="radar_puzzle"></h3>
+      <div class="radar-wrap"><canvas id="chart-pub-puzzle"></canvas></div>
+    </div>
+    <div class="profile-card">
+      <h3 data-i18n="radar_endgame"></h3>
+      <div class="radar-wrap"><canvas id="chart-pub-endgame"></canvas></div>
     </div>
   </section>
 

@@ -7,7 +7,7 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc,
+  getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import * as db from './db.js';
 
@@ -25,8 +25,15 @@ const SYNCED_KEYS = [
   'profileName', 'firstName', 'lastName', 'dateOfBirth',
   'streakCount', 'streakLastDate',
   'puzzleElo', 'puzzleThemeElo', 'puzzlesSolved',
-  'openingElo', 'endgameElo', 'boardTheme', 'pieceSet',
+  'openingElo', 'endgameElo', 'boardTheme', 'pieceSet', 'colorMode',
+  'puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'avatarId',
+  'earnedBadges', 'bestStreak', 'endgameConverted', 'firstImportDone', 'firstEngineUsed',
+  'rushBestScore',
 ];
+
+// Subset that gets mirrored into the PUBLIC /leaderboard/{uid} doc — never
+// email, real name, or date of birth. Changing any of these re-publishes it.
+const PUBLIC_KEYS = ['profileName', 'avatarId', 'puzzleElo', 'puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount', 'rushBestScore'];
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -61,6 +68,7 @@ export const Auth = {
     }
     const local = { profileName: displayName, firstName, lastName, dateOfBirth, email };
     await setDoc(doc(firestore, 'users', cred.user.uid), local, { merge: true });
+    await updatePublicLeaderboardDoc(cred.user.uid);
     this.needsProfileCompletion = false;
   },
 
@@ -81,6 +89,7 @@ export const Auth = {
       suppressSync = false;
     }
     await setDoc(doc(firestore, 'users', this.user.uid), { profileName: displayName, firstName, lastName, dateOfBirth }, { merge: true });
+    await updatePublicLeaderboardDoc(this.user.uid);
     this.needsProfileCompletion = false;
     this._notify();
   },
@@ -125,12 +134,36 @@ export function authErrorMessage(code, lang) {
   return lang === 'en' ? 'Something went wrong. Please try again.' : 'Algo salió mal. Inténtalo de nuevo.';
 }
 
+async function updatePublicLeaderboardDoc(uid) {
+  const pub = {};
+  for (const key of PUBLIC_KEYS) {
+    const v = await db.kvGet(key, null);
+    if (v !== null) pub[key] = v;
+  }
+  pub.updatedAt = Date.now();
+  await setDoc(doc(firestore, 'leaderboard', uid), pub, { merge: true });
+}
+
 db.setSyncHook((key, value) => {
   if (suppressSync || !Auth.user || !SYNCED_KEYS.includes(key)) return;
-  setDoc(doc(firestore, 'users', Auth.user.uid), { [key]: value }, { merge: true }).catch(e => {
+  const uid = Auth.user.uid;
+  setDoc(doc(firestore, 'users', uid), { [key]: value }, { merge: true }).catch(e => {
     console.error('Firestore sync failed for', key, e);
   });
+  if (PUBLIC_KEYS.includes(key)) {
+    updatePublicLeaderboardDoc(uid).catch(e => console.error('Leaderboard sync failed', e));
+  }
 });
+
+// Top N players by the given field (default puzzle ELO). Public read — no
+// sign-in required to view.
+export async function fetchLeaderboard(limitN = 200, orderByField = 'puzzleElo') {
+  const q = query(collection(firestore, 'leaderboard'), orderBy(orderByField, 'desc'), limit(limitN));
+  const snap = await getDocs(q);
+  const out = [];
+  snap.forEach(d => out.push({ uid: d.id, ...d.data() }));
+  return out;
+}
 
 async function pullOrBootstrap(uid) {
   const ref = doc(firestore, 'users', uid);
@@ -155,6 +188,7 @@ async function pullOrBootstrap(uid) {
   } finally {
     suppressSync = false;
   }
+  updatePublicLeaderboardDoc(uid).catch(e => console.error('Leaderboard publish failed', e));
 }
 
 onAuthStateChanged(auth, async (user) => {

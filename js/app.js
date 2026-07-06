@@ -7,7 +7,7 @@ import { Engine, uciToMove, pvWithNumbers } from './engine.js';
 import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
-import { Auth, authErrorMessage } from './firebase.js';
+import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 
 const $ = id => document.getElementById(id);
 const engine = new Engine();
@@ -242,6 +242,59 @@ async function sharePgnText(filename, text) {
   toast(t('saved'));
 }
 
+// ── shareable stat cards ──────────────────────────────────────────
+function wrapCanvasText(ctx, text, cx, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '', lines = [];
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  const startY = y - (lines.length - 1) * lineHeight / 2;
+  lines.forEach((l, i) => ctx.fillText(l, cx, startY + i * lineHeight));
+}
+
+function renderStatCard({ emoji, title, subtitle }) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1000; canvas.height = 1000;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 1000);
+  grad.addColorStop(0, '#22201c'); grad.addColorStop(1, '#0f0d0b');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 1000, 1000);
+  ctx.strokeStyle = '#7fa650'; ctx.lineWidth = 10;
+  ctx.strokeRect(24, 24, 952, 952);
+  ctx.textAlign = 'center';
+  ctx.font = '220px sans-serif';
+  ctx.fillText(emoji, 500, 430);
+  ctx.fillStyle = '#f0ece6';
+  ctx.font = 'bold 64px system-ui, sans-serif';
+  wrapCanvasText(ctx, title, 500, 570, 820, 76);
+  ctx.fillStyle = '#a99f92';
+  ctx.font = '38px system-ui, sans-serif';
+  wrapCanvasText(ctx, subtitle, 500, 680, 780, 48);
+  ctx.fillStyle = '#7fa650';
+  ctx.font = 'bold 34px system-ui, sans-serif';
+  ctx.fillText('♞ Chess Training Center', 500, 940);
+  return canvas;
+}
+
+async function shareStatCard(cardOpts, filename) {
+  const canvas = renderStatCard(cardOpts);
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  const file = new File([blob], filename, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast(t('saved'));
+}
+
 function headersFromPgn(pgnText) {
   const h = {};
   const re = /^\s*\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]\s*$/gm;
@@ -282,7 +335,10 @@ const Streak = {
     this.lastDate = today;
     await db.kvSet('streakCount', this.count);
     await db.kvSet('streakLastDate', this.lastDate);
+    const best = await db.kvGet('bestStreak', 0);
+    if (this.count > best) await db.kvSet('bestStreak', this.count);
     this.render();
+    Badges.checkNew();
   },
 
   render() {
@@ -300,9 +356,20 @@ function isYesterday(dateStr, todayStrVal) {
   return (t - d) === 86400000;
 }
 
+// Appends (or updates today's) point to a dated ELO history array kept in kv.
+async function recordEloHistory(key, value) {
+  const hist = await db.kvGet(key, []);
+  const today = todayStr();
+  const last = hist[hist.length - 1];
+  if (last && last.date === today) last.value = Math.round(value);
+  else hist.push({ date: today, value: Math.round(value) });
+  while (hist.length > 400) hist.shift();
+  await db.kvSet(key, hist);
+}
+
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile'];
+const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'rush'];
 let activeScreen = 'analysis';
 
 function showScreen(name) {
@@ -478,6 +545,7 @@ const Analysis = {
       $('ana-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
       engine.onLine = lines => this.showLines(lines);
       this.restartEngine();
+      if (!(await db.kvGet('firstEngineUsed', false))) { await db.kvSet('firstEngineUsed', true); Badges.checkNew(); }
     } else {
       engine.stop();
     }
@@ -743,6 +811,7 @@ const Base = {
       if (!games.length) { toast(t('import_failed')); return; }
       await db.addGames(games);
       toast(`${games.length} ${t('imported')}`);
+      if (!(await db.kvGet('firstImportDone', false))) { await db.kvSet('firstImportDone', true); Badges.checkNew(); }
       this.openBase(this.currentBaseId);
     } catch (e) {
       toast(t('import_failed'));
@@ -1126,6 +1195,10 @@ const Trainer = {
     const score = result === 'win' ? 1 : result === 'draw' ? 0.5 : 0;
     elo[this.baseName] = Math.max(600, cur + 20 * (score - expected));
     await db.kvSet('openingElo', elo);
+    const names = Object.keys(elo);
+    const avg = names.reduce((s, k) => s + elo[k], 0) / names.length;
+    await recordEloHistory('openingEloHistory', avg);
+    Badges.checkNew();
   },
 
   renderMoves() {
@@ -1165,6 +1238,7 @@ const Puzzles = {
     $('puzzle-next').onclick = () => this.nextPuzzle();
     $('puzzle-hint').onclick = () => this.hint();
     $('puzzle-solution').onclick = () => this.showSolution();
+    $('puzzle-share').onclick = () => this.share();
   },
 
   buildThemeSeg() {
@@ -1223,10 +1297,23 @@ const Puzzles = {
     }
     db.kvSet('puzzleThemeElo', this.themeElo);
     this.updateEloBadge();
+    recordEloHistory('puzzleEloHistory', this.elo);
     Streak.recordActivity();
+    Badges.checkNew();
+  },
+
+  share() {
+    if (!this.current) return;
+    const themeLabel = this.current.themes?.[0] ? t('theme_' + this.current.themes[0]) : '';
+    shareStatCard({
+      emoji: '🧩',
+      title: t('card_puzzle_title'),
+      subtitle: `${t('puzzle_elo')}: ${Math.round(this.elo)} · ${this.current.rating} ${themeLabel}`.trim(),
+    }, 'puzzle-resuelto.png');
   },
 
   nextPuzzle() {
+    $('puzzle-share').classList.add('hidden');
     const pool = this.pool();
     if (!pool.length) return;
     const fresh = pool.filter(p => !this.solved[p.id]);
@@ -1282,6 +1369,7 @@ const Puzzles = {
         }
         this.recordResult(!this.failedThis);
         this.updateProgress();
+        $('puzzle-share').classList.remove('hidden');
         return;
       }
       this.setStatus(t('correct'));
@@ -1327,6 +1415,154 @@ const Puzzles = {
   },
 };
 
+// ═════════════════════ PUZZLE RUSH ═════════════════════
+
+const Rush = {
+  board: null,
+  chess: null,
+  queue: [],       // puzzles sorted by rating, ascending
+  index: 0,
+  current: null,
+  moveIdx: 0,
+  score: 0,
+  duration: 180,
+  timeLeft: 0,
+  timer: null,
+  running: false,
+
+  init() {
+    this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv) });
+    $('rush-back').onclick = () => { this.stop(); showScreen('puzzles'); };
+    $('puzzle-rush-open').onclick = () => this.openIntro();
+    segInit($('rush-duration'), () => {});
+    $('rush-start').onclick = () => this.start();
+    $('rush-again').onclick = () => this.openIntro();
+    $('rush-share').onclick = () => this.share();
+  },
+
+  async openIntro() {
+    showScreen('rush');
+    $('rush-intro').classList.remove('hidden');
+    $('rush-game').classList.add('hidden');
+    $('rush-result').classList.add('hidden');
+    const best = await db.kvGet('rushBestScore', 0);
+    $('rush-best-score').textContent = best;
+  },
+
+  buildQueue() {
+    this.queue = [...PUZZLES].sort((a, b) => a.rating - b.rating);
+    this.index = 0;
+  },
+
+  start() {
+    this.buildQueue();
+    this.duration = +segValue($('rush-duration'));
+    this.timeLeft = this.duration;
+    this.score = 0;
+    this.running = true;
+    $('rush-intro').classList.add('hidden');
+    $('rush-result').classList.add('hidden');
+    $('rush-game').classList.remove('hidden');
+    this.updateHud();
+    this.timer = setInterval(() => this.tick(), 1000);
+    this.loadNext();
+  },
+
+  tick() {
+    this.timeLeft--;
+    this.updateHud();
+    if (this.timeLeft <= 0) this.finish(t('rush_time_up'));
+  },
+
+  updateHud() {
+    const m = Math.floor(Math.max(0, this.timeLeft) / 60), s = Math.max(0, this.timeLeft) % 60;
+    $('rush-timer').textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
+    $('rush-score').textContent = `⚡ ${this.score}`;
+  },
+
+  loadNext() {
+    if (this.index >= this.queue.length) this.index = 0; // wrap around if someone is unstoppable
+    this.current = this.queue[this.index++];
+    this.chess = new Chess(this.current.fen);
+    this.moveIdx = 0;
+    const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
+    this.board.setOrientation(playerColor);
+    this.board.setPosition(this.chess.fen());
+    this.board.interactive = false;
+    $('rush-status').textContent = t(playerColor === 'w' ? 'white' : 'black') + ' ' + t('to_move_find');
+    setTimeout(() => {
+      if (!this.running) return;
+      const m = this.applyUci(this.current.moves[0]);
+      this.moveIdx = 1;
+      this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
+      this.board.interactive = true;
+    }, 300);
+  },
+
+  applyUci(u) { try { return this.chess.move(uciToMove(u)); } catch { return null; } },
+
+  userMove(mv) {
+    if (!this.running || !this.current) return;
+    const expected = this.current.moves[this.moveIdx];
+    const tryUci = mv.from + mv.to + (mv.promotion ?? '');
+    let m;
+    try { m = this.chess.move(mv); } catch { return; }
+    const isMate = this.chess.isCheckmate();
+    if (tryUci === expected || (isMate && this.moveIdx === this.current.moves.length - 1)) {
+      this.moveIdx++;
+      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+      if (this.moveIdx >= this.current.moves.length || isMate) {
+        this.score++;
+        this.updateHud();
+        setTimeout(() => { if (this.running) this.loadNext(); }, 350);
+        return;
+      }
+      this.board.interactive = false;
+      setTimeout(() => {
+        if (!this.running) return;
+        const r = this.applyUci(this.current.moves[this.moveIdx]);
+        this.moveIdx++;
+        this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
+        this.board.interactive = true;
+      }, 300);
+    } else {
+      this.chess.undo();
+      this.board.setPosition(this.chess.fen());
+      this.finish(t('rush_wrong_end'));
+    }
+  },
+
+  async finish(reason) {
+    if (!this.running) return;
+    this.running = false;
+    clearInterval(this.timer);
+    this.board.interactive = false;
+    const best = await db.kvGet('rushBestScore', 0);
+    const isNewBest = this.score > best;
+    if (isNewBest) await db.kvSet('rushBestScore', this.score);
+    Badges.checkNew();
+    Streak.recordActivity();
+    $('rush-game').classList.add('hidden');
+    $('rush-result').classList.remove('hidden');
+    $('rush-result-title').textContent = reason;
+    $('rush-result-score').textContent = this.score;
+    $('rush-result-best').textContent = isNewBest ? t('rush_new_best') : `${t('rush_best')}: ${Math.max(best, this.score)}`;
+  },
+
+  stop() {
+    this.running = false;
+    clearInterval(this.timer);
+  },
+
+  share() {
+    shareStatCard({
+      emoji: '⚡',
+      title: t('card_rush_title'),
+      subtitle: `${this.score} ${t('rush_score_label')}`,
+    }, 'puzzle-rush.png');
+  },
+};
+
 // ═════════════════════ ENDGAME STUDY ═════════════════════
 
 const NOMINAL_PRACTICE_RATING = 1500; // difficulty baseline for graded endgame/opening practice
@@ -1355,6 +1591,11 @@ const Endgame = {
       if (this.over) return;
       if (await askConfirm(t('resign') + '?')) this.finishPractice(false);
     };
+    $('endgame-share').onclick = () => shareStatCard({
+      emoji: '🏁',
+      title: t('card_endgame_title'),
+      subtitle: t('cat_' + this.current.category),
+    }, 'final-convertido.png');
     this.showCategories();
   },
 
@@ -1455,6 +1696,7 @@ const Endgame = {
     $('endgame-comment').classList.add('hidden');
     $('endgame-status').classList.remove('hidden');
     $('endgame-practice-actions').style.display = 'flex';
+    $('endgame-share').classList.add('hidden');
     $('endgame-practice-start').classList.add('hidden');
     this.board.interactive = true;
     this.board.setOrientation(this.playerColor);
@@ -1520,13 +1762,24 @@ const Endgame = {
     const expected = this.current.expected;
     const success = expected === 'win' ? actual === 'win' : actual !== 'loss';
     this.setStatus(success ? (expected === 'win' ? t('practice_win') : t('practice_draw')) : t('practice_fail'));
+    $('endgame-share').classList.toggle('hidden', !success);
     const cat = this.current.category;
     const cur = this.elo[cat] ?? 1200;
     const expScore = 1 / (1 + Math.pow(10, (NOMINAL_PRACTICE_RATING - cur) / 400));
     const score = success ? 1 : 0;
     this.elo[cat] = Math.max(600, cur + 24 * (score - expScore));
     db.kvSet('endgameElo', this.elo);
+    const cats = Object.keys(this.elo);
+    const avg = cats.reduce((s, c) => s + this.elo[c], 0) / cats.length;
+    recordEloHistory('endgameEloHistory', avg);
     Streak.recordActivity();
+    if (success) this.recordConversion(cat);
+    Badges.checkNew();
+  },
+
+  async recordConversion(cat) {
+    const conv = await db.kvGet('endgameConverted', {});
+    if (!conv[cat]) { conv[cat] = true; await db.kvSet('endgameConverted', conv); }
   },
 };
 
@@ -1655,6 +1908,17 @@ const Setup = {
 function openSettings() {
   modal(async (box, close) => {
     box.innerHTML = `<h3>${t('settings')}</h3>`;
+    // appearance
+    const l0 = document.createElement('label'); l0.className = 'fld-label'; l0.textContent = t('appearance');
+    const seg0 = document.createElement('div'); seg0.className = 'seg';
+    for (const [v, key] of [['light', 'mode_light'], ['dark', 'mode_dark'], ['system', 'mode_system']]) {
+      const b = document.createElement('button');
+      b.textContent = t(key); b.dataset.v = v;
+      if (ColorMode.mode === v) b.classList.add('on');
+      seg0.appendChild(b);
+    }
+    segInit(seg0, v => ColorMode.set(v));
+    box.append(l0, seg0);
     // language
     const l1 = document.createElement('label'); l1.className = 'fld-label'; l1.textContent = t('language');
     const seg = document.createElement('div'); seg.className = 'seg';
@@ -1734,6 +1998,267 @@ const Themes = {
   },
 };
 
+const ColorMode = {
+  mode: 'dark',        // user preference: 'light' | 'dark' | 'system'
+  mql: null,
+
+  async init() {
+    this.mode = await db.kvGet('colorMode', 'system');
+    this.mql = window.matchMedia('(prefers-color-scheme: light)');
+    this.mql.addEventListener('change', () => { if (this.mode === 'system') this.apply(); });
+    this.apply();
+  },
+
+  set(mode) {
+    this.mode = mode;
+    db.kvSet('colorMode', mode);
+    this.apply();
+  },
+
+  effective() {
+    if (this.mode === 'system') return this.mql.matches ? 'light' : 'dark';
+    return this.mode;
+  },
+
+  apply() {
+    const eff = this.effective();
+    document.body.classList.remove('mode-light', 'mode-dark');
+    document.body.classList.add('mode-' + eff);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', eff === 'light' ? '#f5f3ef' : '#1a1714');
+    if (activeScreen === 'profile') Profile.refresh();
+  },
+};
+
+function openEloHistoryModal(historyKey, titleKey) {
+  return modal(async (box, close) => {
+    const hist = await db.kvGet(historyKey, []);
+    box.innerHTML = `<h3>${t(titleKey)}</h3>`;
+    if (hist.length < 2) {
+      const p = document.createElement('p'); p.className = 'hint'; p.textContent = t('no_history_yet');
+      const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
+      ok.onclick = () => close(null);
+      box.append(p, ok);
+      return;
+    }
+    const peak = Math.max(...hist.map(h => h.value));
+    const tf = document.createElement('div'); tf.className = 'elo-history-timeframe';
+    const options = [['7', 'timeframe_7d'], ['30', 'timeframe_30d'], ['90', 'timeframe_90d'], ['all', 'timeframe_all']];
+    for (const [v, key] of options) {
+      const b = document.createElement('button'); b.className = 'btn'; b.dataset.v = v; b.textContent = t(key);
+      if (v === '30') b.classList.add('on');
+      tf.appendChild(b);
+    }
+    const chartWrap = document.createElement('div'); chartWrap.className = 'elo-history-wrap';
+    const canvas = document.createElement('canvas'); chartWrap.appendChild(canvas);
+    const peakEl = document.createElement('div'); peakEl.className = 'elo-peak';
+    peakEl.innerHTML = `${t('elo_peak')}: <b>${peak}</b>`;
+    const shareBtn = document.createElement('button'); shareBtn.className = 'btn big'; shareBtn.textContent = t('share');
+    shareBtn.onclick = () => shareStatCard({
+      emoji: '📈',
+      title: t('card_elo_title'),
+      subtitle: `${t(titleKey)}: ${peak}`,
+    }, 'record-elo.png');
+    const closeBtn = document.createElement('button'); closeBtn.className = 'btn big'; closeBtn.textContent = t('close');
+    closeBtn.onclick = () => close(null);
+    box.append(tf, chartWrap, peakEl, shareBtn, closeBtn);
+
+    let chart = null;
+    function render(days) {
+      let points = hist;
+      if (days !== 'all') {
+        const cutoff = Date.now() - (+days) * 86400000;
+        points = hist.filter(h => new Date(h.date + 'T00:00:00').getTime() >= cutoff);
+        if (points.length < 2) points = hist.slice(-2);
+      }
+      const light = ColorMode.effective() === 'light';
+      const labelColor = light ? '#2a2521' : '#f0ece6';
+      const gridColor = light ? 'rgba(42,37,33,0.12)' : 'rgba(240,236,230,0.12)';
+      if (chart) chart.destroy();
+      chart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: points.map(h => h.date.slice(5)),
+          datasets: [{
+            data: points.map(h => h.value),
+            borderColor: '#7fa650', backgroundColor: 'rgba(127,166,80,0.15)',
+            fill: true, tension: .25, pointRadius: 2,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, animation: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: labelColor, maxTicksLimit: 6 }, grid: { color: gridColor } },
+            y: { ticks: { color: labelColor }, grid: { color: gridColor } },
+          },
+        },
+      });
+    }
+    segInit(tf, v => render(v));
+    render('30');
+  });
+}
+
+// ═════════════════════ AVATARS (placeholder set) ═════════════════════
+// Simple built-in icon set until real artwork is supplied; swapping later
+// only means changing this table, not the storage/selection logic.
+
+const AVATAR_OPTIONS = [
+  { id: 'a1', emoji: '♟', bg: '#7fa650' },
+  { id: 'a2', emoji: '♞', bg: '#4a6c31' },
+  { id: 'a3', emoji: '♝', bg: '#5f8741' },
+  { id: 'a4', emoji: '♜', bg: '#8a6d3b' },
+  { id: 'a5', emoji: '♛', bg: '#b8453a' },
+  { id: 'a6', emoji: '♚', bg: '#3a5a8c' },
+  { id: 'a7', emoji: '🐴', bg: '#6b4c9a' },
+  { id: 'a8', emoji: '🦁', bg: '#c07830' },
+  { id: 'a9', emoji: '🐯', bg: '#b8862e' },
+  { id: 'a10', emoji: '🦊', bg: '#a0522d' },
+  { id: 'a11', emoji: '🐺', bg: '#556270' },
+  { id: 'a12', emoji: '🦅', bg: '#4a4a4a' },
+];
+
+function avatarHtml(avatarId, sizePx = 40) {
+  const opt = AVATAR_OPTIONS.find(a => a.id === avatarId) ?? AVATAR_OPTIONS[0];
+  return `<div class="avatar-badge" style="width:${sizePx}px;height:${sizePx}px;font-size:${Math.round(sizePx * 0.55)}px;background:${opt.bg}">${opt.emoji}</div>`;
+}
+
+const Avatars = {
+  init() {
+    const el = $('avatar-picker');
+    el.innerHTML = '';
+    for (const opt of AVATAR_OPTIONS) {
+      const cell = document.createElement('div');
+      cell.className = 'avatar-pick-cell';
+      cell.dataset.id = opt.id;
+      cell.innerHTML = avatarHtml(opt.id, 40);
+      cell.onclick = async () => {
+        await db.kvSet('avatarId', opt.id);
+        this.renderPicker(opt.id);
+        $('profile-avatar-wrap').innerHTML = avatarHtml(opt.id, 40);
+        $('profile-avatar-wrap2').innerHTML = avatarHtml(opt.id, 40);
+      };
+      el.appendChild(cell);
+    }
+  },
+
+  renderPicker(selectedId) {
+    $('avatar-picker').querySelectorAll('.avatar-pick-cell').forEach(c => {
+      c.classList.toggle('selected', c.dataset.id === selectedId);
+    });
+  },
+
+  async refresh() {
+    const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
+    this.renderPicker(id);
+    $('profile-avatar-wrap').innerHTML = avatarHtml(id, 40);
+    $('profile-avatar-wrap2').innerHTML = avatarHtml(id, 40);
+    return id;
+  },
+};
+
+// ═════════════════════ ACHIEVEMENTS / BADGES ═════════════════════
+
+const BADGE_DEFS = [
+  // puzzle count milestones
+  { id: 'puz_10', icon: '🧩', name: { es: 'Novato de la táctica', en: 'Puzzle Novice' }, check: s => s.puzzlesSolved >= 10 },
+  { id: 'puz_50', icon: '🧩', name: { es: 'Aficionado', en: 'Puzzle Enthusiast' }, check: s => s.puzzlesSolved >= 50 },
+  { id: 'puz_200', icon: '🧩', name: { es: 'Táctico', en: 'Tactician' }, check: s => s.puzzlesSolved >= 200 },
+  { id: 'puz_1000', icon: '🧩', name: { es: 'Veterano', en: 'Puzzle Veteran' }, check: s => s.puzzlesSolved >= 1000 },
+  { id: 'puz_5000', icon: '👑', name: { es: 'Maestro Táctico', en: 'Tactics Master' }, check: s => s.puzzlesSolved >= 5000 },
+  // per-theme mastery
+  ...PUZZLE_THEMES.map(th => ({
+    id: 'theme_' + th, icon: '🎯',
+    label: lang => `${lang === 'en' ? 'Master' : 'Maestro'}: ${t('theme_' + th)}`,
+    check: s => (s.themeCounts[th] ?? 0) >= 15,
+  })),
+  // streak
+  { id: 'streak_3', icon: '🔥', name: { es: 'Racha de 3 días', en: '3-Day Streak' }, check: s => s.bestStreak >= 3 },
+  { id: 'streak_7', icon: '🔥', name: { es: 'Racha de 7 días', en: '7-Day Streak' }, check: s => s.bestStreak >= 7 },
+  { id: 'streak_30', icon: '⚡', name: { es: 'Racha de 30 días', en: '30-Day Streak' }, check: s => s.bestStreak >= 30 },
+  { id: 'streak_100', icon: '👑', name: { es: 'Racha de 100 días', en: '100-Day Streak' }, check: s => s.bestStreak >= 100 },
+  // endgame conversions
+  ...ENDGAME_CATEGORIES.map(cat => ({
+    id: 'endgame_' + cat, icon: '🏁',
+    label: lang => `${lang === 'en' ? 'Converted' : 'Convirtió'}: ${t('cat_' + cat)}`,
+    check: s => !!s.endgameConverted[cat],
+  })),
+  // opening trainer
+  { id: 'opening_1', icon: '📖', name: { es: 'Primera apertura entrenada', en: 'First Opening Trained' }, check: s => s.openingCount >= 1 },
+  { id: 'opening_3', icon: '📖', name: { es: 'Explorador de aperturas', en: 'Opening Explorer' }, check: s => s.openingCount >= 3 },
+  // study / onboarding
+  { id: 'first_import', icon: '📥', name: { es: 'Primera partida importada', en: 'First Game Imported' }, check: s => !!s.firstImportDone },
+  { id: 'first_engine', icon: '💡', name: { es: 'Primer análisis con motor', en: 'First Engine Analysis' }, check: s => !!s.firstEngineUsed },
+  // puzzle rush
+  { id: 'rush_1', icon: '⚡', name: { es: 'Primer Puzzle Rush', en: 'First Puzzle Rush' }, check: s => s.rushBestScore >= 1 },
+  { id: 'rush_10', icon: '⚡', name: { es: 'Rush: 10 en una racha', en: 'Rush: 10 in a row' }, check: s => s.rushBestScore >= 10 },
+  { id: 'rush_30', icon: '👑', name: { es: 'Rush: 30 en una racha', en: 'Rush: 30 in a row' }, check: s => s.rushBestScore >= 30 },
+];
+
+function badgeLabel(def) {
+  return def.label ? def.label(getLang()) : def.name[getLang()];
+}
+
+const Badges = {
+  earned: {},   // id -> timestamp
+
+  async gatherState() {
+    const solved = await db.kvGet('puzzlesSolved', {});
+    const themeCounts = {};
+    for (const id of Object.keys(solved)) {
+      const p = PUZZLES.find(pz => pz.id === id);
+      if (p) for (const th of p.themes) themeCounts[th] = (themeCounts[th] ?? 0) + 1;
+    }
+    const endgameConverted = await db.kvGet('endgameConverted', {});
+    const openingElo = await db.kvGet('openingElo', {});
+    return {
+      puzzlesSolved: Object.keys(solved).length,
+      themeCounts,
+      bestStreak: await db.kvGet('bestStreak', 0),
+      endgameConverted,
+      openingCount: Object.keys(openingElo).length,
+      firstImportDone: await db.kvGet('firstImportDone', false),
+      firstEngineUsed: await db.kvGet('firstEngineUsed', false),
+      rushBestScore: await db.kvGet('rushBestScore', 0),
+    };
+  },
+
+  async checkNew() {
+    this.earned = await db.kvGet('earnedBadges', {});
+    const state = await this.gatherState();
+    let changed = false;
+    for (const def of BADGE_DEFS) {
+      if (!this.earned[def.id] && def.check(state)) {
+        this.earned[def.id] = Date.now();
+        changed = true;
+        toast(`🏆 ${t('badge_earned')}: ${badgeLabel(def)}`, 3500);
+      }
+    }
+    if (changed) await db.kvSet('earnedBadges', this.earned);
+    if (activeScreen === 'profile') this.renderTrophyCase();
+    return changed;
+  },
+
+  async renderTrophyCase() {
+    this.earned = await db.kvGet('earnedBadges', {});
+    const el = $('trophy-case');
+    if (!el) return;
+    el.innerHTML = '';
+    const earnedCount = BADGE_DEFS.filter(d => this.earned[d.id]).length;
+    $('trophy-count').textContent = `${earnedCount}/${BADGE_DEFS.length}`;
+    for (const def of BADGE_DEFS) {
+      const got = !!this.earned[def.id];
+      const label = badgeLabel(def);
+      const cell = document.createElement('div');
+      cell.className = 'badge-cell' + (got ? ' earned' : '');
+      cell.title = label;
+      cell.innerHTML = `<div class="badge-icon">${def.icon}</div><div class="badge-name">${esc(label)}</div>`;
+      el.appendChild(cell);
+    }
+  },
+};
+
 const RADAR_MIN = 800, RADAR_MAX = 2200;
 
 const Profile = {
@@ -1743,6 +2268,15 @@ const Profile = {
     $('profile-name-save').onclick = () => this.saveName();
     $('profile-auth-btn').onclick = () => openAuthModal();
     $('profile-signout-btn').onclick = () => Auth.signOut();
+    $('profile-elo-puzzle-card').onclick = () => openEloHistoryModal('puzzleEloHistory', 'puzzle_elo');
+    $('profile-elo-opening-card').onclick = () => openEloHistoryModal('openingEloHistory', 'opening_elo');
+    $('profile-elo-endgame-card').onclick = () => openEloHistoryModal('endgameEloHistory', 'endgame_elo');
+    $('profile-leaderboard-btn').onclick = () => Leaderboard.open();
+    $('profile-share-streak').onclick = () => shareStatCard({
+      emoji: streakEmoji(Streak.count),
+      title: t('card_streak_title').replace('{n}', Streak.count),
+      subtitle: t('card_streak_subtitle'),
+    }, 'racha.png');
     Auth.onChange(() => this.renderAccount());
   },
 
@@ -1752,20 +2286,24 @@ const Profile = {
     toast(t('name_saved'));
   },
 
-  renderAccount() {
+  async renderAccount() {
     const user = Auth.user;
     $('profile-auth-btn').classList.toggle('hidden', !!user);
     $('profile-account-signed-in').classList.toggle('hidden', !user);
     if (user) {
-      $('profile-avatar').src = user.photoURL || 'icons/icon-192.png';
+      const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
+      $('profile-avatar-wrap').innerHTML = avatarHtml(id, 40);
       $('profile-account-name').textContent = user.displayName || user.email || '';
     }
   },
 
   async refresh() {
     this.renderAccount();
+    await Avatars.refresh();
     const name = await db.kvGet('profileName', '');
     $('profile-name').value = name;
+    await Badges.checkNew();
+    Badges.renderTrophyCase();
 
     const puzzleElo = await db.kvGet('puzzleElo', 1200);
     const themeElo = await db.kvGet('puzzleThemeElo', {});
@@ -1805,6 +2343,9 @@ const Profile = {
   drawRadar(key, labels, data) {
     const canvas = $('chart-' + key);
     if (!canvas) return;
+    const light = ColorMode.effective() === 'light';
+    const labelColor = light ? '#2a2521' : '#f0ece6';
+    const gridColor = light ? 'rgba(42,37,33,0.15)' : 'rgba(240,236,230,0.15)';
     const cfg = {
       type: 'radar',
       data: {
@@ -1826,9 +2367,9 @@ const Profile = {
           r: {
             min: RADAR_MIN, max: RADAR_MAX,
             ticks: { display: false, stepSize: 350 },
-            grid: { color: 'rgba(240,236,230,0.15)' },
-            angleLines: { color: 'rgba(240,236,230,0.15)' },
-            pointLabels: { color: '#f0ece6', font: { size: 11 } },
+            grid: { color: gridColor },
+            angleLines: { color: gridColor },
+            pointLabels: { color: labelColor, font: { size: 11 } },
           },
         },
       },
@@ -1838,18 +2379,120 @@ const Profile = {
   },
 };
 
+// ═════════════════════ LEADERBOARD ═════════════════════
+
+const Leaderboard = {
+  entries: [],
+  field: 'puzzleElo',
+
+  init() {
+    $('leaderboard-back').onclick = () => showScreen('profile');
+    $('leaderboard-search').addEventListener('input', () => this.filter($('leaderboard-search').value));
+    segInit($('leaderboard-mode'), v => { this.field = v; this.open(); });
+  },
+
+  async open() {
+    showScreen('leaderboard');
+    $('leaderboard-search').value = '';
+    $('leaderboard-list').innerHTML = '';
+    $('leaderboard-status').textContent = t('loading');
+    try {
+      this.entries = await fetchLeaderboard(200, this.field);
+    } catch (e) {
+      this.entries = [];
+      $('leaderboard-status').textContent = '⚠️ ' + (e.message || e);
+      return;
+    }
+    this.render(this.entries);
+  },
+
+  filter(qstr) {
+    const q = qstr.trim().toLowerCase();
+    const list = q ? this.entries.filter(e => (e.profileName || '').toLowerCase().includes(q)) : this.entries;
+    this.render(list, q);
+  },
+
+  render(list, q) {
+    $('leaderboard-status').textContent = this.entries.length ? '' : t('leaderboard_empty');
+    const el = $('leaderboard-list');
+    el.innerHTML = '';
+    if (q && !list.length) { $('leaderboard-status').textContent = t('leaderboard_no_match'); return; }
+    const label = this.field === 'rushBestScore' ? t('rush_title') : t('puzzle_elo');
+    list.forEach((e, i) => {
+      const value = this.field === 'rushBestScore' ? Math.round(e.rushBestScore ?? 0) : Math.round(e.puzzleElo ?? 1200);
+      const item = document.createElement('button');
+      item.className = 'list-item';
+      item.style.cssText = 'flex-direction:row; align-items:center; gap:10px;';
+      item.innerHTML = `${avatarHtml(e.avatarId, 34)}<span style="display:flex;flex-direction:column;align-items:flex-start;"><b>#${i + 1} ${esc(e.profileName || '?')}</b><span class="sub">${label}: ${value}</span></span>`;
+      item.onclick = () => PublicProfile.open(e);
+      el.appendChild(item);
+    });
+  },
+};
+
+// ═════════════════════ PUBLIC PROFILE ═════════════════════
+
+const PublicProfile = {
+  init() {
+    $('pubprofile-back').onclick = () => showScreen('leaderboard');
+  },
+
+  open(entry) {
+    showScreen('public-profile');
+    $('pubprofile-name').textContent = entry.profileName || '?';
+    $('pubprofile-avatar-wrap').innerHTML = avatarHtml(entry.avatarId, 64);
+
+    const puzzleElo = entry.puzzleElo ?? 1200;
+    const themeElo = entry.puzzleThemeElo ?? {};
+    const openingElo = entry.openingElo ?? {};
+    const endgameElo = entry.endgameElo ?? {};
+
+    const openingNames = Object.keys(openingElo);
+    const openingAvg = openingNames.length
+      ? openingNames.reduce((s, k) => s + openingElo[k], 0) / openingNames.length : 1200;
+    const endgameNames = ENDGAME_CATEGORIES.filter(c => endgameElo[c] != null);
+    const endgameAvg = endgameNames.length
+      ? endgameNames.reduce((s, c) => s + endgameElo[c], 0) / endgameNames.length : 1200;
+
+    $('pubprofile-elo-puzzle').textContent = Math.round(puzzleElo);
+    $('pubprofile-elo-opening').textContent = openingNames.length ? Math.round(openingAvg) : '—';
+    $('pubprofile-elo-endgame').textContent = endgameNames.length ? Math.round(endgameAvg) : '—';
+
+    Profile.drawRadar('pub-overall',
+      [t('radar_axis_opening'), t('radar_axis_puzzle'), t('radar_axis_endgame')],
+      [openingNames.length ? openingAvg : RADAR_MIN, puzzleElo, endgameNames.length ? endgameAvg : RADAR_MIN]);
+
+    $('pubprofile-opening-empty').classList.toggle('hidden', openingNames.length > 0);
+    $('chart-pub-opening').classList.toggle('hidden', openingNames.length === 0);
+    if (openingNames.length) Profile.drawRadar('pub-opening', openingNames, openingNames.map(k => openingElo[k]));
+
+    Profile.drawRadar('pub-puzzle',
+      PUZZLE_THEMES.map(th => t('theme_' + th)),
+      PUZZLE_THEMES.map(th => themeElo[th] ?? 1200));
+
+    Profile.drawRadar('pub-endgame',
+      ENDGAME_CATEGORIES.map(c => t('cat_' + c)),
+      ENDGAME_CATEGORIES.map(c => endgameElo[c] ?? 1200));
+  },
+};
+
 // ═════════════════════ init ═════════════════════
 
 async function main() {
   const splashStart = Date.now();
+  await ColorMode.init();
   applyStatic();
   Analysis.init();
   Base.init();
   Play.init();
   Trainer.init();
   Puzzles.init();
+  Rush.init();
   Endgame.init();
   Profile.init();
+  Avatars.init();
+  Leaderboard.init();
+  PublicProfile.init();
   Setup.init();
   await Themes.init();
   await Streak.init();
@@ -1881,4 +2524,4 @@ async function main() {
   setTimeout(() => $('splash').classList.add('hide'), Math.max(0, 600 - elapsed));
 }
 
-main();
+main().catch(e => { window.__mainError = (e && e.stack) || String(e); console.error('MAIN FAILED', e); });
