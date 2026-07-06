@@ -7,6 +7,7 @@ import { Engine, uciToMove, pvWithNumbers } from './engine.js';
 import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
+import { Auth } from './firebase.js';
 
 const $ = id => document.getElementById(id);
 const engine = new Engine();
@@ -1622,14 +1623,6 @@ const Themes = {
   },
 };
 
-const Auth = {
-  user: null,
-  listeners: [],
-  onChange(fn) { this.listeners.push(fn); },
-  signIn() { toast('Inicio de sesión con Google: próximamente'); },
-  signOut() {},
-};
-
 const RADAR_MIN = 800, RADAR_MAX = 2200;
 
 const Profile = {
@@ -1749,6 +1742,20 @@ async function main() {
   Setup.init();
   await Themes.init();
   await Streak.init();
+  Auth.onChange(async () => {
+    // remote data may have just replaced local kv values (sign-in) — refresh live views
+    await Streak.init();
+    if (Puzzles.loaded) {
+      Puzzles.elo = await db.kvGet('puzzleElo', 1200);
+      Puzzles.themeElo = await db.kvGet('puzzleThemeElo', {});
+      Puzzles.solved = await db.kvGet('puzzlesSolved', {});
+      Puzzles.updateEloBadge();
+      Puzzles.updateProgress();
+    }
+    Endgame.elo = await db.kvGet('endgameElo', {});
+    if (activeScreen === 'endgame') Endgame.showCategories();
+    if (activeScreen === 'profile') Profile.refresh();
+  });
   $('btn-settings').onclick = openSettings;
   showScreen('analysis');
   // make sure at least one base exists so saving is one tap

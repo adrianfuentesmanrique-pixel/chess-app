@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v3';
+const CACHE = 'chess-training-center-v4';
 const ASSETS = [
   './',
   'index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   'js/db.js',
   'js/engine.js',
   'js/i18n.js',
+  'js/firebase.js',
   'js/puzzles-data.js',
   'js/endgames-data.js',
   'js/tree.js',

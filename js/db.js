@@ -106,6 +106,12 @@ export async function kvGet(key, def = null) {
   return v === undefined ? def : v;
 }
 
-export function kvSet(key, value) {
-  return tx('kv', 'readwrite', s => s.put(value, key));
+let syncHook = null;
+// Called on every kvSet with (key, value); wired up by the Firebase sync layer
+// so cloud-tracked keys mirror to Firestore without touching every call site.
+export function setSyncHook(fn) { syncHook = fn; }
+
+export async function kvSet(key, value) {
+  await tx('kv', 'readwrite', s => s.put(value, key));
+  if (syncHook) syncHook(key, value);
 }
