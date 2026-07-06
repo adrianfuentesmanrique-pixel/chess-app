@@ -7,7 +7,7 @@ import { Engine, uciToMove, pvWithNumbers } from './engine.js';
 import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
-import { Auth } from './firebase.js';
+import { Auth, authErrorMessage } from './firebase.js';
 
 const $ = id => document.getElementById(id);
 const engine = new Engine();
@@ -114,6 +114,117 @@ async function chooseBase(allowCreate = true) {
     ca.className = 'sheet-btn cancel'; ca.textContent = t('cancel');
     ca.onclick = () => close(null);
     box.appendChild(ca);
+  });
+}
+
+function openAuthModal() {
+  return modal((box, close) => {
+    let mode = 'signin';
+
+    const tabs = document.createElement('div');
+    tabs.className = 'auth-tabs';
+    const tabIn = document.createElement('button'); tabIn.textContent = t('sign_in_tab'); tabIn.classList.add('on');
+    const tabUp = document.createElement('button'); tabUp.textContent = t('sign_up_tab');
+    tabs.append(tabIn, tabUp);
+
+    const form = document.createElement('div');
+    const errorEl = document.createElement('div'); errorEl.className = 'auth-error';
+
+    const googleBtn = document.createElement('button');
+    googleBtn.className = 'btn google-btn';
+    googleBtn.innerHTML = `<img src="icons/google-g.svg" alt=""><span>${t('continue_with_google')}</span>`;
+    const divider = document.createElement('div'); divider.className = 'auth-divider'; divider.textContent = t('or_divider');
+    const switchLink = document.createElement('button'); switchLink.className = 'auth-link';
+
+    async function withBusy(btn, fn) {
+      errorEl.textContent = '';
+      btn.disabled = true;
+      const original = btn.textContent;
+      btn.textContent = '…';
+      try {
+        await fn();
+        close(null);
+      } catch (e) {
+        const msg = e._msg ?? authErrorMessage(e.code, getLang());
+        if (msg) errorEl.textContent = msg;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
+    }
+
+    googleBtn.onclick = () => withBusy(googleBtn, () => Auth.signInWithGoogle());
+
+    function fieldInput(labelKey, type) {
+      const wrap = document.createElement('div');
+      const label = document.createElement('label'); label.className = 'fld-label'; label.textContent = t(labelKey);
+      const input = document.createElement('input'); input.className = 'input'; input.type = type;
+      wrap.append(label, input);
+      return { wrap, input };
+    }
+
+    function renderForm() {
+      form.innerHTML = '';
+      errorEl.textContent = '';
+      if (mode === 'signin') {
+        const email = fieldInput('email', 'email');
+        const pass = fieldInput('password', 'password');
+        const submit = document.createElement('button');
+        submit.className = 'btn primary big'; submit.textContent = t('sign_in_tab');
+        submit.onclick = () => withBusy(submit, () => Auth.signInWithEmail(email.input.value.trim(), pass.input.value));
+        switchLink.textContent = t('no_account_yet');
+        form.append(email.wrap, pass.wrap, submit);
+      } else {
+        const first = fieldInput('first_name', 'text');
+        const last = fieldInput('last_name', 'text');
+        const dob = fieldInput('date_of_birth', 'date');
+        const email = fieldInput('email', 'email');
+        const pass = fieldInput('password', 'password');
+        const pass2 = fieldInput('confirm_password', 'password');
+        const submit = document.createElement('button');
+        submit.className = 'btn primary big'; submit.textContent = t('create_account_btn');
+        submit.onclick = () => withBusy(submit, () => {
+          if (pass.input.value !== pass2.input.value) { const e = new Error('mismatch'); e.code = null; e._msg = t('passwords_dont_match'); throw e; }
+          return Auth.signUpWithEmail({
+            email: email.input.value.trim(), password: pass.input.value,
+            firstName: first.input.value.trim(), lastName: last.input.value.trim(), dateOfBirth: dob.input.value,
+          });
+        });
+        switchLink.textContent = t('have_account_already');
+        form.append(first.wrap, last.wrap, dob.wrap, email.wrap, pass.wrap, pass2.wrap, submit);
+      }
+    }
+
+    tabIn.onclick = () => { mode = 'signin'; tabIn.classList.add('on'); tabUp.classList.remove('on'); renderForm(); };
+    tabUp.onclick = () => { mode = 'signup'; tabUp.classList.add('on'); tabIn.classList.remove('on'); renderForm(); };
+    switchLink.onclick = () => (mode === 'signin' ? tabUp : tabIn).click();
+
+    renderForm();
+    box.append(tabs, form, errorEl, divider, googleBtn, switchLink);
+  });
+}
+
+function openCompleteProfileModal() {
+  return modal((box, close) => {
+    box.innerHTML = `<h3>${t('complete_profile_title')}</h3><p class="hint">${t('complete_profile_hint')}</p>`;
+    const first = document.createElement('input'); first.className = 'input'; first.placeholder = t('first_name');
+    const last = document.createElement('input'); last.className = 'input'; last.placeholder = t('last_name');
+    const dob = document.createElement('input'); dob.className = 'input'; dob.type = 'date'; dob.placeholder = t('date_of_birth');
+    const errorEl = document.createElement('div'); errorEl.className = 'auth-error';
+    const submit = document.createElement('button');
+    submit.className = 'btn primary big'; submit.textContent = t('save');
+    submit.onclick = async () => {
+      if (!first.value.trim() || !last.value.trim()) return;
+      submit.disabled = true;
+      try {
+        await Auth.completeProfile({ firstName: first.value.trim(), lastName: last.value.trim(), dateOfBirth: dob.value });
+        close(null);
+      } catch (e) {
+        errorEl.textContent = authErrorMessage(e.code, getLang());
+        submit.disabled = false;
+      }
+    };
+    box.append(first, last, dob, errorEl, submit);
   });
 }
 
@@ -1630,7 +1741,7 @@ const Profile = {
 
   init() {
     $('profile-name-save').onclick = () => this.saveName();
-    $('profile-google-btn').onclick = () => Auth.signIn();
+    $('profile-auth-btn').onclick = () => openAuthModal();
     $('profile-signout-btn').onclick = () => Auth.signOut();
     Auth.onChange(() => this.renderAccount());
   },
@@ -1643,7 +1754,7 @@ const Profile = {
 
   renderAccount() {
     const user = Auth.user;
-    $('profile-google-btn').classList.toggle('hidden', !!user);
+    $('profile-auth-btn').classList.toggle('hidden', !!user);
     $('profile-account-signed-in').classList.toggle('hidden', !user);
     if (user) {
       $('profile-avatar').src = user.photoURL || 'icons/icon-192.png';
@@ -1755,6 +1866,7 @@ async function main() {
     Endgame.elo = await db.kvGet('endgameElo', {});
     if (activeScreen === 'endgame') Endgame.showCategories();
     if (activeScreen === 'profile') Profile.refresh();
+    if (Auth.user && Auth.needsProfileCompletion) openCompleteProfileModal();
   });
   $('btn-settings').onclick = openSettings;
   showScreen('analysis');
