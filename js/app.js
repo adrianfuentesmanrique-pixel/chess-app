@@ -1230,31 +1230,69 @@ const Puzzles = {
   loaded: false,
   elo: 1200,
   themeElo: {},
-  currentTheme: 'mixed',
+  attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
+  themeFilter: 'random',      // 'random' | Set<themeId>
 
   async init() {
     this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv) });
-    this.buildThemeSeg();
+    $('puzzle-theme-btn').onclick = () => this.openThemePicker();
     $('puzzle-next').onclick = () => this.nextPuzzle();
     $('puzzle-hint').onclick = () => this.hint();
     $('puzzle-solution').onclick = () => this.showSolution();
     $('puzzle-share').onclick = () => this.share();
   },
 
-  buildThemeSeg() {
-    const el = $('puzzle-theme');
-    el.innerHTML = '';
-    const mixedBtn = document.createElement('button');
-    mixedBtn.dataset.v = 'mixed'; mixedBtn.textContent = t('theme_mixed');
-    if (this.currentTheme === 'mixed') mixedBtn.classList.add('on');
-    el.appendChild(mixedBtn);
-    for (const th of PUZZLE_THEMES) {
-      const b = document.createElement('button');
-      b.dataset.v = th; b.textContent = t('theme_' + th);
-      if (this.currentTheme === th) b.classList.add('on');
-      el.appendChild(b);
-    }
-    segInit(el, v => { this.currentTheme = v; this.nextPuzzle(); });
+  openThemePicker() {
+    modal((box, close) => {
+      box.innerHTML = `<h3>${t('select_theme')}</h3>`;
+      let mode = this.themeFilter === 'random' ? 'random' : 'themes';
+      let selected = this.themeFilter === 'random' ? new Set() : new Set(this.themeFilter);
+
+      const randomRow = document.createElement('label');
+      randomRow.className = 'theme-pick-row';
+      randomRow.innerHTML = `<input type="checkbox" id="tp-random"><span>${t('theme_random')}</span>`;
+      box.appendChild(randomRow);
+
+      const themeRows = [];
+      for (const th of PUZZLE_THEMES) {
+        const row = document.createElement('label');
+        row.className = 'theme-pick-row';
+        row.innerHTML = `<input type="checkbox" data-th="${th}"><span>${t('theme_' + th)}</span>`;
+        box.appendChild(row);
+        themeRows.push(row);
+      }
+
+      const randomCb = randomRow.querySelector('input');
+      function syncUI() {
+        randomCb.checked = mode === 'random';
+        for (const row of themeRows) {
+          const cb = row.querySelector('input');
+          cb.checked = mode === 'themes' && selected.has(cb.dataset.th);
+        }
+      }
+      syncUI();
+
+      randomCb.onchange = () => { mode = 'random'; selected.clear(); syncUI(); };
+      for (const row of themeRows) {
+        const cb = row.querySelector('input');
+        cb.onchange = () => {
+          mode = 'themes';
+          if (cb.checked) selected.add(cb.dataset.th);
+          else selected.delete(cb.dataset.th);
+          if (selected.size === 0) { cb.checked = true; selected.add(cb.dataset.th); }
+          syncUI();
+        };
+      }
+
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'btn primary big'; applyBtn.textContent = t('apply');
+      applyBtn.onclick = () => {
+        this.themeFilter = mode === 'random' ? 'random' : selected;
+        close(null);
+        this.nextPuzzle();
+      };
+      box.appendChild(applyBtn);
+    });
   },
 
   async ensureLoaded() {
@@ -1262,14 +1300,15 @@ const Puzzles = {
     this.solved = await db.kvGet('puzzlesSolved', {});
     this.elo = await db.kvGet('puzzleElo', 1200);
     this.themeElo = await db.kvGet('puzzleThemeElo', {});
+    this.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
     this.loaded = true;
     this.updateEloBadge();
     this.nextPuzzle();
   },
 
   pool() {
-    if (this.currentTheme === 'mixed') return PUZZLES;
-    return PUZZLES.filter(p => p.themes.includes(this.currentTheme));
+    if (this.themeFilter === 'random') return PUZZLES;
+    return PUZZLES.filter(p => p.themes.some(th => this.themeFilter.has(th)));
   },
 
   updateProgress() {
@@ -1285,7 +1324,12 @@ const Puzzles = {
   recordResult(win) {
     if (this.eloRecorded || !this.current) return;
     this.eloRecorded = true;
-    const K = 24;
+    // First 10 rated attempts calibrate fast (a strong player starting at
+    // 1200 shouldn't have to grind slowly through puzzles far below their
+    // level) — up to ~±190 swing, then settle into the normal K.
+    const K = this.attemptCount < 10 ? 192 : 24;
+    this.attemptCount++;
+    db.kvSet('puzzleAttemptCount', this.attemptCount);
     const expected = 1 / (1 + Math.pow(10, (this.current.rating - this.elo) / 400));
     const score = win ? 1 : 0;
     this.elo = Math.max(600, this.elo + K * (score - expected));
@@ -1420,8 +1464,7 @@ const Puzzles = {
 const Rush = {
   board: null,
   chess: null,
-  queue: [],       // puzzles sorted by rating, ascending
-  index: 0,
+  usedIds: null,   // Set of puzzle ids already served this run
   current: null,
   moveIdx: 0,
   score: 0,
@@ -1449,13 +1492,22 @@ const Rush = {
     $('rush-best-score').textContent = best;
   },
 
-  buildQueue() {
-    this.queue = [...PUZZLES].sort((a, b) => a.rating - b.rating);
-    this.index = 0;
+  // Target rating ramps up directly with the current run's score (a rush
+  // "streak" is just its score, since one mistake ends the run), rather than
+  // walking a fixed sorted list — so difficulty visibly tracks performance.
+  pickNext() {
+    const target = Math.min(2400, 900 + this.score * 55);
+    let candidates = PUZZLES.filter(p => !this.usedIds.has(p.id));
+    if (!candidates.length) { this.usedIds.clear(); candidates = PUZZLES; }
+    candidates = [...candidates].sort((a, b) => Math.abs(a.rating - target) - Math.abs(b.rating - target));
+    const top = candidates.slice(0, 5);
+    const pick = top[Math.floor(Math.random() * top.length)];
+    this.usedIds.add(pick.id);
+    return pick;
   },
 
   start() {
-    this.buildQueue();
+    this.usedIds = new Set();
     this.duration = +segValue($('rush-duration'));
     this.timeLeft = this.duration;
     this.score = 0;
@@ -1481,8 +1533,7 @@ const Rush = {
   },
 
   loadNext() {
-    if (this.index >= this.queue.length) this.index = 0; // wrap around if someone is unstoppable
-    this.current = this.queue[this.index++];
+    this.current = this.pickNext();
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
@@ -1974,7 +2025,6 @@ function relabel() {
   buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2));
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
-  Puzzles.buildThemeSeg?.();
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.showCategories();
 }
@@ -2503,6 +2553,7 @@ async function main() {
       Puzzles.elo = await db.kvGet('puzzleElo', 1200);
       Puzzles.themeElo = await db.kvGet('puzzleThemeElo', {});
       Puzzles.solved = await db.kvGet('puzzlesSolved', {});
+      Puzzles.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
       Puzzles.updateEloBadge();
       Puzzles.updateProgress();
     }

@@ -116,10 +116,16 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   position: relative; width: 100%; aspect-ratio: 1/1;
   border-radius: 6px; overflow: hidden;
   box-shadow: 0 3px 14px var(--shadow);
-  touch-action: manipulation;
+  touch-action: none;
   user-select: none;
 }
 .sq { position: absolute; width: 12.5%; height: 12.5%; }
+.sq img.dragging-source { opacity: 0; }
+.drag-ghost {
+  position: fixed; top: 0; left: 0; pointer-events: none; z-index: 1000;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.5));
+  transform: scale(1.15);
+}
 .sq.light { background: var(--sq-light); }
 .sq.dark { background: var(--sq-dark); }
 .sq img { width: 100%; height: 100%; display: block; pointer-events: none; }
@@ -225,6 +231,16 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   border: 2px solid transparent;
 }
 .avatar-pick-cell.selected { border-color: var(--accent); }
+
+/* ── puzzle theme picker ───────────────── */
+.theme-pick-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 4px; font-size: 15px; cursor: pointer;
+  border-bottom: 1px solid var(--input-border);
+}
+.theme-pick-row input { width: 18px; height: 18px; accent-color: var(--accent); flex: 0 0 auto; }
+#tp-random { }
+label.theme-pick-row:first-of-type { font-weight: 700; }
 .btn.small { padding: 5px 10px; font-size: 13px; margin-top: 4px; }
 .profile-elo-row { gap: 8px; }
 .elo-card {

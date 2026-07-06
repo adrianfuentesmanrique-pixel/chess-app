@@ -202,7 +202,12 @@ export class Board {
       if (this.editorMode) { this.onEditorTap(name); return; }
       if (this.drawColor) { this._dragStart = name; return; }
       if (!this.interactive) return;
+      const chess = new Chess(this.fen);
+      const grid = parsePlacement(this.fen.split(' ')[0]);
+      const piece = grid[name];
+      const isOwnPiece = piece && piece.color === chess.turn();
       this._tap(name);
+      if (isOwnPiece && this.selected === name) this._beginDragVisual(name, sqEl, e);
     });
     this.el.addEventListener('pointerup', (e) => {
       if (!this.drawColor || !this._dragStart) return;
@@ -216,6 +221,51 @@ export class Board {
       else this._toggleArrowShape(start, end);
     });
     this.el.addEventListener('pointercancel', () => { this._dragStart = null; });
+  }
+
+  // Visual layer only — all move/select/reselect/deselect decisions are made
+  // by re-invoking _tap(), so drag can never diverge from tap-tap behavior.
+  _beginDragVisual(name, sqEl, downEvent) {
+    const img = sqEl.querySelector('img');
+    if (!img) return;
+    const boardRect = this.el.getBoundingClientRect();
+    const size = boardRect.width * 0.125;
+    const ghost = document.createElement('img');
+    ghost.src = img.getAttribute('src');
+    ghost.className = 'drag-ghost';
+    ghost.style.width = size + 'px';
+    ghost.style.height = size + 'px';
+    document.body.appendChild(ghost);
+    img.classList.add('dragging-source');
+
+    let moved = false;
+    const place = (x, y) => {
+      ghost.style.left = (x - size / 2) + 'px';
+      ghost.style.top = (y - size / 2) + 'px';
+    };
+    place(downEvent.clientX, downEvent.clientY);
+
+    const onMove = (ev) => {
+      moved = true;
+      place(ev.clientX, ev.clientY);
+    };
+    const onUp = (ev) => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      ghost.remove();
+      img.classList.remove('dragging-source');
+      if (!moved) return; // plain tap already handled by the _tap(name) call at pointerdown
+      const el2 = document.elementFromPoint(ev.clientX, ev.clientY);
+      const destSqEl = el2 ? el2.closest('.sq') : null;
+      if (!destSqEl) { this.selected = null; this.render(); return; }
+      const dest = destSqEl.dataset.sq;
+      if (dest === name) return; // dropped back where it started — stays selected
+      this._tap(dest);
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
   async _tap(name) {

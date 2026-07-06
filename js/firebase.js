@@ -28,7 +28,7 @@ const SYNCED_KEYS = [
   'openingElo', 'endgameElo', 'boardTheme', 'pieceSet', 'colorMode',
   'puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'avatarId',
   'earnedBadges', 'bestStreak', 'endgameConverted', 'firstImportDone', 'firstEngineUsed',
-  'rushBestScore',
+  'rushBestScore', 'puzzleAttemptCount',
 ];
 
 // Subset that gets mirrored into the PUBLIC /leaderboard/{uid} doc — never
