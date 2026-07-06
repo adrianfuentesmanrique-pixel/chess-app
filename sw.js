@@ -1,4 +1,8 @@
-const CACHE = 'chess-training-center-v6';
+const CACHE = 'chess-training-center-v7';
+// App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
+// benefit from cache-first. Everything else should prefer the network so
+// updates show up on the very next load instead of needing two reloads.
+const CACHE_FIRST = /\/(vendor|pieces|pieces2|icons)\//;
 const ASSETS = [
   './',
   'index.html',
@@ -42,13 +46,26 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+
+  if (CACHE_FIRST.test(e.request.url)) {
+    // Cache-first: heavy, rarely-changing assets — fast and works offline.
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        const fetchPromise = fetch(e.request).then(res => {
+          if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+          return res;
+        }).catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Network-first: app code — always fresh when online, cached fallback offline.
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const fetchPromise = fetch(e.request).then(res => {
-        if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
-        return res;
-      }).catch(() => cached);
-      return cached || fetchPromise;
-    })
+    fetch(e.request).then(res => {
+      if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
