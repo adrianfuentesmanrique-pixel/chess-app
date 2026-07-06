@@ -305,11 +305,58 @@ function headersFromPgn(pgnText) {
 
 // ═════════════════════ daily streak ═════════════════════
 
-const STREAK_EMOJI = ['🔥', '🔥', '🔥', '⚡', '⚡', '🌟', '🌟', '💎', '👑'];
-function streakEmoji(n) {
-  if (n <= 0) return '🔥';
-  const i = Math.min(STREAK_EMOJI.length - 1, Math.floor(Math.log2(n + 1)));
-  return STREAK_EMOJI[i];
+// Streak tier ladder — icon art from streaks/{icon}.png, thresholds in days.
+// Months converted at 30 days/month; the tail (rook/queen) extends the
+// original artwork's 72-120 month cadence further so nothing repeats.
+const STREAK_TIERS = [
+  { days: 1, icon: 'flame', label: { es: '1 día', en: '1 day' } },
+  { days: 7, icon: 'flame', label: { es: '7 días', en: '7 days' } },
+  { days: 15, icon: 'flame', label: { es: '15 días', en: '15 days' } },
+  { days: 21, icon: 'flame', label: { es: '21 días', en: '21 days' } },
+  { days: 30, icon: 'flame', label: { es: '1 mes', en: '1 month' } },
+  { days: 60, icon: 'flame', label: { es: '2 meses', en: '2 months' } },
+  { days: 90, icon: 'pawn', label: { es: '3 meses', en: '3 months' } },
+  { days: 120, icon: 'pawn', label: { es: '4 meses', en: '4 months' } },
+  { days: 150, icon: 'pawn', label: { es: '5 meses', en: '5 months' } },
+  { days: 180, icon: 'pawn', label: { es: '6 meses', en: '6 months' } },
+  { days: 210, icon: 'pawn', label: { es: '7 meses', en: '7 months' } },
+  { days: 240, icon: 'pawn', label: { es: '8 meses', en: '8 months' } },
+  { days: 270, icon: 'pawn', label: { es: '9 meses', en: '9 months' } },
+  { days: 330, icon: 'pawn', label: { es: '11 meses', en: '11 months' } },
+  { days: 360, icon: 'pawn', label: { es: '12 meses', en: '12 months' } },
+  { days: 420, icon: 'knight', label: { es: '14 meses', en: '14 months' } },
+  { days: 480, icon: 'knight', label: { es: '16 meses', en: '16 months' } },
+  { days: 540, icon: 'knight', label: { es: '18 meses', en: '18 months' } },
+  { days: 720, icon: 'knight', label: { es: '24 meses', en: '24 months' } },
+  { days: 900, icon: 'knight', label: { es: '30 meses', en: '30 months' } },
+  { days: 1080, icon: 'knight', label: { es: '36 meses', en: '36 months' } },
+  { days: 1440, icon: 'knight', label: { es: '48 meses', en: '48 months' } },
+  { days: 1800, icon: 'knight', label: { es: '60 meses', en: '60 months' } },
+  { days: 2160, icon: 'bishop', label: { es: '72 meses', en: '72 months' } },
+  { days: 2520, icon: 'bishop', label: { es: '84 meses', en: '84 months' } },
+  { days: 2880, icon: 'bishop', label: { es: '96 meses', en: '96 months' } },
+  { days: 3240, icon: 'bishop', label: { es: '108 meses', en: '108 months' } },
+  { days: 3600, icon: 'bishop', label: { es: '120 meses', en: '120 months' } },
+  { days: 3960, icon: 'rook', label: { es: '132 meses', en: '132 months' } },
+  { days: 4320, icon: 'rook', label: { es: '144 meses', en: '144 months' } },
+  { days: 4680, icon: 'rook', label: { es: '156 meses', en: '156 months' } },
+  { days: 5040, icon: 'rook', label: { es: '168 meses', en: '168 months' } },
+  { days: 5400, icon: 'rook', label: { es: '180 meses', en: '180 months' } },
+  { days: 5760, icon: 'queen', label: { es: '192 meses', en: '192 months' } },
+  { days: 6120, icon: 'queen', label: { es: '204 meses', en: '204 months' } },
+  { days: 6480, icon: 'queen', label: { es: '216 meses', en: '216 months' } },
+  { days: 6840, icon: 'queen', label: { es: '228 meses', en: '228 months' } },
+  { days: 7200, icon: 'queen', label: { es: '240 meses', en: '240 months' } },
+];
+
+function streakTierIndex(days) {
+  let idx = -1;
+  for (let i = 0; i < STREAK_TIERS.length; i++) if (days >= STREAK_TIERS[i].days) idx = i; else break;
+  return idx; // -1 means below the first tier (0 days)
+}
+function streakIcon(days) {
+  const idx = streakTierIndex(days);
+  return idx >= 0 ? STREAK_TIERS[idx].icon : 'flame';
 }
 
 const Streak = {
@@ -344,7 +391,7 @@ const Streak = {
   render() {
     const el = $('streak-badge');
     if (!el) return;
-    el.textContent = `${streakEmoji(this.count)} ${this.count}`;
+    el.innerHTML = `<img src="streaks/${streakIcon(this.count)}.png" alt="" class="streak-icon-img"><span>${this.count}</span>`;
     el.classList.toggle('zero', this.count === 0);
   },
 };
@@ -2155,56 +2202,178 @@ function openEloHistoryModal(historyKey, titleKey) {
 // only means changing this table, not the storage/selection logic.
 
 const AVATAR_OPTIONS = [
-  { id: 'a1', emoji: '♟', bg: '#7fa650' },
-  { id: 'a2', emoji: '♞', bg: '#4a6c31' },
-  { id: 'a3', emoji: '♝', bg: '#5f8741' },
-  { id: 'a4', emoji: '♜', bg: '#8a6d3b' },
-  { id: 'a5', emoji: '♛', bg: '#b8453a' },
-  { id: 'a6', emoji: '♚', bg: '#3a5a8c' },
-  { id: 'a7', emoji: '🐴', bg: '#6b4c9a' },
-  { id: 'a8', emoji: '🦁', bg: '#c07830' },
-  { id: 'a9', emoji: '🐯', bg: '#b8862e' },
-  { id: 'a10', emoji: '🦊', bg: '#a0522d' },
-  { id: 'a11', emoji: '🐺', bg: '#556270' },
-  { id: 'a12', emoji: '🦅', bg: '#4a4a4a' },
+  { id: 'a1', bg: '#7fa650' },
+  { id: 'a2', bg: '#4a6c31' },
+  { id: 'a3', bg: '#5f8741' },
+  { id: 'a4', bg: '#8a6d3b' },
+  { id: 'a5', bg: '#b8453a' },
+  { id: 'a6', bg: '#3a5a8c' },
+  { id: 'a7', bg: '#6b4c9a' },
+  { id: 'a8', bg: '#c07830' },
+  { id: 'a9', bg: '#b8862e' },
+  { id: 'a10', bg: '#a0522d' },
+  { id: 'a11', bg: '#556270' },
+  { id: 'a12', bg: '#4a4a4a' },
 ];
 
 function avatarHtml(avatarId, sizePx = 40) {
   const opt = AVATAR_OPTIONS.find(a => a.id === avatarId) ?? AVATAR_OPTIONS[0];
-  return `<div class="avatar-badge" style="width:${sizePx}px;height:${sizePx}px;font-size:${Math.round(sizePx * 0.55)}px;background:${opt.bg}">${opt.emoji}</div>`;
+  return `<div class="avatar-badge" style="width:${sizePx}px;height:${sizePx}px;background:${opt.bg}"><img src="avatars/${opt.id}.png" alt="" width="${sizePx}" height="${sizePx}"></div>`;
 }
 
 const Avatars = {
-  init() {
-    const el = $('avatar-picker');
-    el.innerHTML = '';
+  renderGridInto(container, selectedId, onPick) {
+    container.innerHTML = '';
     for (const opt of AVATAR_OPTIONS) {
       const cell = document.createElement('div');
       cell.className = 'avatar-pick-cell';
       cell.dataset.id = opt.id;
-      cell.innerHTML = avatarHtml(opt.id, 40);
-      cell.onclick = async () => {
-        await db.kvSet('avatarId', opt.id);
-        this.renderPicker(opt.id);
-        $('profile-avatar-wrap').innerHTML = avatarHtml(opt.id, 40);
-        $('profile-avatar-wrap2').innerHTML = avatarHtml(opt.id, 40);
-      };
-      el.appendChild(cell);
+      cell.classList.toggle('selected', opt.id === selectedId);
+      cell.innerHTML = avatarHtml(opt.id, 44);
+      cell.onclick = () => onPick(opt.id);
+      container.appendChild(cell);
     }
   },
 
-  renderPicker(selectedId) {
-    $('avatar-picker').querySelectorAll('.avatar-pick-cell').forEach(c => {
-      c.classList.toggle('selected', c.dataset.id === selectedId);
+  async openPicker() {
+    const current = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
+    await modal((box, close) => {
+      box.innerHTML = `<h3>${t('choose_avatar')}</h3>`;
+      const grid = document.createElement('div');
+      grid.className = 'trophy-grid';
+      box.appendChild(grid);
+      const pick = async (id) => {
+        await db.kvSet('avatarId', id);
+        await this.refresh();
+        this.renderGridInto(grid, id, pick);
+      };
+      this.renderGridInto(grid, current, pick);
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'btn primary';
+      closeBtn.style.marginTop = '12px';
+      closeBtn.textContent = t('close');
+      closeBtn.onclick = () => close(null);
+      box.appendChild(closeBtn);
     });
   },
 
   async refresh() {
     const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
-    this.renderPicker(id);
     $('profile-avatar-wrap').innerHTML = avatarHtml(id, 40);
-    $('profile-avatar-wrap2').innerHTML = avatarHtml(id, 40);
+    $('profile-avatar-wrap2').innerHTML = avatarHtml(id, 56);
     return id;
+  },
+};
+
+// ═════════════════════ MEMBERSHIP ═════════════════════
+// The trial is a pure client-side entitlement flag (free by definition, so
+// granting it costs nothing and needs no billing). Paid renewal after the
+// trial ends requires real billing (Stripe/RevenueCat) which is future
+// work — the subscribe button is an honest placeholder until that lands.
+
+const MEMBER_TRIAL_DAYS = 30;
+
+function memberBadgeHtml(isMember) {
+  return isMember ? `<span class="member-badge" title="${t('member_badge_title')}">👑</span>` : '';
+}
+
+const Membership = {
+  async status() {
+    const isMember = await db.kvGet('isMember', false);
+    const trialUsed = await db.kvGet('memberTrialUsed', false);
+    const trialEndsAt = await db.kvGet('memberTrialEndsAt', null);
+    return { isMember, trialUsed, trialEndsAt };
+  },
+
+  async checkExpiry() {
+    const { isMember, trialEndsAt } = await this.status();
+    if (isMember && trialEndsAt && Date.now() > trialEndsAt) {
+      await db.kvSet('isMember', false);
+    }
+  },
+
+  async startTrial() {
+    await db.kvSet('isMember', true);
+    await db.kvSet('memberTrialUsed', true);
+    await db.kvSet('memberTrialEndsAt', Date.now() + MEMBER_TRIAL_DAYS * 86400000);
+    toast(t('member_trial_started_toast'));
+  },
+
+  async openModal() {
+    const { isMember, trialUsed, trialEndsAt } = await this.status();
+    await modal((box, close) => {
+      box.innerHTML = `<h3>${t('member_modal_title')}</h3>`;
+
+      if (isMember && trialEndsAt) {
+        const daysLeft = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000));
+        const status = document.createElement('p');
+        status.className = 'hint';
+        status.textContent = t('member_active_trial').replace('{n}', daysLeft);
+        box.appendChild(status);
+      } else if (isMember) {
+        const status = document.createElement('p');
+        status.className = 'hint';
+        status.textContent = t('member_active_paid');
+        box.appendChild(status);
+      }
+
+      const benefitsTitle = document.createElement('h4');
+      benefitsTitle.style.margin = '10px 0 4px';
+      benefitsTitle.textContent = t('member_benefits_title');
+      box.appendChild(benefitsTitle);
+
+      const ul = document.createElement('ul');
+      ul.className = 'member-benefits';
+      for (let i = 1; i <= 7; i++) {
+        const li = document.createElement('li');
+        li.textContent = t(`member_benefit_${i}`);
+        ul.appendChild(li);
+      }
+      box.appendChild(ul);
+
+      const priceRow = document.createElement('div');
+      priceRow.className = 'member-price-row';
+      priceRow.innerHTML = `
+        <div class="member-price-card"><b>${t('member_price_monthly')}</b></div>
+        <div class="member-price-card"><b>${t('member_price_yearly')}</b></div>
+      `;
+      box.appendChild(priceRow);
+
+      const trialNote = document.createElement('p');
+      trialNote.className = 'hint';
+      trialNote.style.textAlign = 'center';
+      trialNote.textContent = t('member_trial_note');
+      box.appendChild(trialNote);
+
+      const cta = document.createElement('button');
+      cta.className = 'btn primary big';
+      let ctaIsClose = false;
+      if (!trialUsed && !isMember) {
+        cta.textContent = t('member_start_trial_btn');
+        cta.onclick = async () => {
+          await this.startTrial();
+          await Profile.refresh();
+          close(null);
+        };
+      } else if (!isMember) {
+        cta.textContent = t('member_subscribe_btn');
+        cta.onclick = () => toast(t('member_subscribe_toast'));
+      } else {
+        ctaIsClose = true;
+        cta.textContent = t('close');
+        cta.onclick = () => close(null);
+      }
+      box.appendChild(cta);
+
+      if (!ctaIsClose) {
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'btn';
+        closeBtn.style.marginTop = '8px';
+        closeBtn.textContent = t('close');
+        closeBtn.onclick = () => close(null);
+        box.appendChild(closeBtn);
+      }
+    });
   },
 };
 
@@ -2316,14 +2485,16 @@ const Profile = {
 
   init() {
     $('profile-name-save').onclick = () => this.saveName();
+    $('profile-avatar-edit-btn').onclick = () => Avatars.openPicker();
     $('profile-auth-btn').onclick = () => openAuthModal();
     $('profile-signout-btn').onclick = () => Auth.signOut();
     $('profile-elo-puzzle-card').onclick = () => openEloHistoryModal('puzzleEloHistory', 'puzzle_elo');
     $('profile-elo-opening-card').onclick = () => openEloHistoryModal('openingEloHistory', 'opening_elo');
     $('profile-elo-endgame-card').onclick = () => openEloHistoryModal('endgameEloHistory', 'endgame_elo');
     $('profile-leaderboard-btn').onclick = () => Leaderboard.open();
+    $('profile-member-btn').onclick = () => Membership.openModal();
     $('profile-share-streak').onclick = () => shareStatCard({
-      emoji: streakEmoji(Streak.count),
+      emoji: '🔥',
       title: t('card_streak_title').replace('{n}', Streak.count),
       subtitle: t('card_streak_subtitle'),
     }, 'racha.png');
@@ -2344,16 +2515,60 @@ const Profile = {
       const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
       $('profile-avatar-wrap').innerHTML = avatarHtml(id, 40);
       $('profile-account-name').textContent = user.displayName || user.email || '';
+      const isMember = await db.kvGet('isMember', false);
+      $('profile-account-badge').innerHTML = memberBadgeHtml(isMember);
     }
   },
 
+  async renderMemberCard() {
+    const { isMember, trialEndsAt } = await Membership.status();
+    const statusEl = $('profile-member-status');
+    const btn = $('profile-member-btn');
+    if (isMember && trialEndsAt) {
+      const daysLeft = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000));
+      statusEl.textContent = t('member_active_trial').replace('{n}', daysLeft);
+    } else if (isMember) {
+      statusEl.textContent = t('member_active_paid');
+    } else {
+      statusEl.textContent = t('member_trial_note');
+    }
+    btn.textContent = isMember ? t('member_manage_btn') : t('become_member_btn');
+  },
+
+  renderStreakTimeline() {
+    const el = $('profile-streak-timeline');
+    if (!el) return;
+    const days = Streak.count;
+    const idx = streakTierIndex(days);
+    const current = STREAK_TIERS[Math.max(idx, 0)];
+    const next = STREAK_TIERS[idx + 1] || null;
+    const lang = getLang();
+    const currentLabel = idx >= 0 ? current.label[lang] : (lang === 'en' ? 'No streak yet' : 'Sin racha aún');
+    const currentIcon = idx >= 0 ? current.icon : 'flame';
+    el.innerHTML = `
+      <div class="streak-timeline-tier">
+        <img src="streaks/${currentIcon}.png" alt="">
+        <span class="streak-timeline-label">${esc(currentLabel)}</span>
+      </div>
+      ${next ? `
+      <div class="streak-timeline-dots">···</div>
+      <div class="streak-timeline-tier locked">
+        <img src="streaks/${next.icon}.png" alt="">
+        <span class="streak-timeline-label">${esc(next.label[lang])}</span>
+      </div>` : ''}
+    `;
+  },
+
   async refresh() {
+    await Membership.checkExpiry();
     this.renderAccount();
+    await this.renderMemberCard();
     await Avatars.refresh();
     const name = await db.kvGet('profileName', '');
     $('profile-name').value = name;
     await Badges.checkNew();
     Badges.renderTrophyCase();
+    this.renderStreakTimeline();
 
     const puzzleElo = await db.kvGet('puzzleElo', 1200);
     const themeElo = await db.kvGet('puzzleThemeElo', {});
@@ -2473,7 +2688,7 @@ const Leaderboard = {
       const item = document.createElement('button');
       item.className = 'list-item';
       item.style.cssText = 'flex-direction:row; align-items:center; gap:10px;';
-      item.innerHTML = `${avatarHtml(e.avatarId, 34)}<span style="display:flex;flex-direction:column;align-items:flex-start;"><b>#${i + 1} ${esc(e.profileName || '?')}</b><span class="sub">${label}: ${value}</span></span>`;
+      item.innerHTML = `${avatarHtml(e.avatarId, 34)}<span style="display:flex;flex-direction:column;align-items:flex-start;"><b>#${i + 1} ${esc(e.profileName || '?')}${memberBadgeHtml(e.isMember)}</b><span class="sub">${label}: ${value}</span></span>`;
       item.onclick = () => PublicProfile.open(e);
       el.appendChild(item);
     });
@@ -2489,7 +2704,7 @@ const PublicProfile = {
 
   open(entry) {
     showScreen('public-profile');
-    $('pubprofile-name').textContent = entry.profileName || '?';
+    $('pubprofile-name').innerHTML = `${esc(entry.profileName || '?')}${memberBadgeHtml(entry.isMember)}`;
     $('pubprofile-avatar-wrap').innerHTML = avatarHtml(entry.avatarId, 64);
 
     const puzzleElo = entry.puzzleElo ?? 1200;
@@ -2540,7 +2755,6 @@ async function main() {
   Rush.init();
   Endgame.init();
   Profile.init();
-  Avatars.init();
   Leaderboard.init();
   PublicProfile.init();
   Setup.init();

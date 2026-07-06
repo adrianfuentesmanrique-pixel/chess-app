@@ -268,27 +268,41 @@
       <div id="profile-account-signed-in" class="row hidden" style="align-items:center; gap:10px;">
         <span id="profile-avatar-wrap"></span>
         <div>
-          <div id="profile-account-name" style="font-weight:700;"></div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span id="profile-account-name" style="font-weight:700;"></span>
+            <span id="profile-account-badge"></span>
+          </div>
           <button id="profile-signout-btn" class="btn small" data-i18n="sign_out"></button>
         </div>
       </div>
     </div>
 
-    <div class="profile-card">
-      <div class="row" style="align-items:center; gap:12px;">
-        <span id="profile-avatar-wrap2"></span>
-        <label class="fld-label" style="margin:0" data-i18n="choose_avatar"></label>
-      </div>
-      <div id="avatar-picker" class="trophy-grid" style="margin-top:10px;"></div>
+    <div class="profile-card member-card">
+      <h3 style="margin:0 0 6px" data-i18n="member_card_title"></h3>
+      <p id="profile-member-status" class="hint"></p>
+      <button id="profile-member-btn" class="btn primary big"></button>
     </div>
 
     <div class="profile-card">
-      <label class="fld-label" data-i18n="your_name"></label>
+      <div class="row" style="align-items:center; gap:12px;">
+        <span class="avatar-edit-wrap">
+          <span id="profile-avatar-wrap2"></span>
+          <button id="profile-avatar-edit-btn" class="avatar-edit-btn" data-i18n-aria="edit_avatar">✏️</button>
+        </span>
+        <label class="fld-label" data-i18n="your_name"></label>
+      </div>
       <div class="row">
         <input type="text" id="profile-name" class="input" maxlength="40">
         <button id="profile-name-save" class="btn primary" data-i18n="save"></button>
       </div>
       <button id="profile-share-streak" class="btn" data-i18n="share_streak"></button>
+    </div>
+
+    <div class="profile-card">
+      <div class="row" style="justify-content:space-between; margin:0 0 8px;">
+        <h3 style="margin:0" data-i18n="streak_progress"></h3>
+      </div>
+      <div id="profile-streak-timeline" class="streak-timeline"></div>
     </div>
 
     <div class="row wrap profile-elo-row">

@@ -197,6 +197,31 @@ const DICT = {
   rush_score_label: { es: 'resueltos', en: 'solved' },
   card_rush_title: { es: '¡Puzzle Rush!', en: 'Puzzle Rush!' },
   choose_avatar: { es: 'Elige tu ícono', en: 'Choose your icon' },
+  edit_avatar: { es: 'Cambiar ícono', en: 'Change icon' },
+  streak_progress: { es: 'Progreso de racha', en: 'Streak progress' },
+  // Membership
+  member_badge_title: { es: 'Miembro', en: 'Member' },
+  member_card_title: { es: 'Miembro', en: 'Member' },
+  become_member_btn: { es: '👑 Hazte Miembro', en: '👑 Become a Member' },
+  member_active_trial: { es: 'Prueba gratis activa · quedan {n} días', en: 'Free trial active · {n} days left' },
+  member_active_paid: { es: 'Eres Miembro. ¡Gracias por tu apoyo!', en: "You're a Member. Thanks for your support!" },
+  member_manage_btn: { es: 'Ver beneficios', en: 'View benefits' },
+  member_modal_title: { es: '👑 Hazte Miembro', en: '👑 Become a Member' },
+  member_benefits_title: { es: 'Lo que incluye', en: "What's included" },
+  member_benefit_1: { es: 'Puzzles ilimitados por día + repaso inteligente de los que fallaste', en: 'Unlimited daily puzzles + smart review of the ones you missed' },
+  member_benefit_2: { es: 'Análisis más profundo: más líneas y mayor profundidad del motor', en: 'Deeper analysis: more engine lines and greater depth' },
+  member_benefit_3: { es: 'Bases de partidas ilimitadas con búsqueda avanzada', en: 'Unlimited game databases with advanced search' },
+  member_benefit_4: { es: 'Tableros y piezas exclusivos', en: 'Exclusive boards and piece sets' },
+  member_benefit_5: { es: 'Estadísticas avanzadas: errores frecuentes y cobertura de aperturas', en: 'Advanced stats: blunder patterns and opening repertoire coverage' },
+  member_benefit_6: { es: 'Consulta de finales de tablebase (6-7 piezas) con juego perfecto', en: 'Endgame tablebase lookups (6-7 pieces) with perfect play' },
+  member_benefit_7: { es: 'Sin anuncios, siempre', en: 'No ads, ever' },
+  member_price_monthly: { es: '$5 / mes', en: '$5 / month' },
+  member_price_yearly: { es: '$50 / año (2 meses gratis)', en: '$50 / year (2 months free)' },
+  member_trial_note: { es: '🎁 Primer mes gratis para todos los jugadores', en: "🎁 First month free for every player" },
+  member_start_trial_btn: { es: 'Empezar prueba gratis', en: 'Start free trial' },
+  member_subscribe_btn: { es: 'Suscribirme', en: 'Subscribe' },
+  member_subscribe_toast: { es: 'Los pagos llegarán pronto — ¡te avisaremos! 🚧', en: 'Payments are coming soon — we\'ll let you know! 🚧' },
+  member_trial_started_toast: { es: '¡Prueba gratis activada! Disfruta 30 días de beneficios Miembro.', en: 'Free trial started! Enjoy 30 days of Member benefits.' },
   // Settings
   settings: { es: 'Ajustes', en: 'Settings' },
   language: { es: 'Idioma', en: 'Language' },
@@ -227,4 +252,5 @@ export function setLang(l) { lang = l; localStorage.setItem('lang', l); }
 export function applyStatic(root = document) {
   root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   root.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  root.querySelectorAll('[data-i18n-aria]').forEach(el => { el.title = t(el.dataset.i18nAria); el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
 }
