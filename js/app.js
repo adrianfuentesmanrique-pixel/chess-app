@@ -641,6 +641,9 @@ const Analysis = {
     $('ana-comment').onclick = () => this.editComment();
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-more').onclick = () => this.moreMenu();
+    $('ana-base-back').onclick = () => this.backToBase();
+    $('ana-base-prev').onclick = () => this.gotoAdjacentGame(-1);
+    $('ana-base-next').onclick = () => this.gotoAdjacentGame(1);
     $('ana-annotate-toggle').onclick = () => {
       const nowHidden = $('ana-annotate').classList.toggle('hidden');
       if (nowHidden) {
@@ -679,6 +682,39 @@ const Analysis = {
     this.tree.toEnd();
     this.refresh();
     showScreen('analysis');
+    this.updateBaseNav();
+  },
+
+  // Opening a game from a database keeps the player oriented in the Bases
+  // tab — same board/engine/comment tools, but the tab bar stays on
+  // "Bases" and there's a way back to the list plus prev/next game.
+  updateBaseNav() {
+    const inBase = !!this.ctx.baseId;
+    $('ana-base-nav').classList.toggle('hidden', !inBase);
+    if (inBase) {
+      document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.screen === 'base'));
+      const idx = Base.gamesCache.findIndex(g => g.id === this.ctx.gameId);
+      $('ana-base-prev').disabled = idx <= 0;
+      $('ana-base-next').disabled = idx === -1 || idx >= Base.gamesCache.length - 1;
+    }
+  },
+
+  backToBase() {
+    const baseId = this.ctx.baseId;
+    showScreen('base');
+    Base.openBase(baseId);
+  },
+
+  gotoAdjacentGame(dir) {
+    const idx = Base.gamesCache.findIndex(g => g.id === this.ctx.gameId);
+    if (idx === -1) return;
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= Base.gamesCache.length) return;
+    const g = Base.gamesCache[newIdx];
+    try {
+      const tree = parsePgn(g.pgn);
+      this.loadTree(tree, { baseId: g.baseId, gameId: g.id });
+    } catch { toast(t('import_failed')); }
   },
 
   refresh() {

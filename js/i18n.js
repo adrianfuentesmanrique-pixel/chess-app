@@ -35,6 +35,7 @@ const DICT = {
   comment: { es: 'Comentario', en: 'Comment' },
   comment_hint: { es: 'Escribe un comentario para esta jugada…', en: 'Write a comment for this move…' },
   setup_position: { es: 'Colocar posición', en: 'Set up position' },
+  back_to_base: { es: 'Volver a la base', en: 'Back to database' },
   save_to_base: { es: 'Guardar en base', en: 'Save to database' },
   share_game: { es: 'Compartir partida (PGN)', en: 'Share game (PGN)' },
   copy_fen: { es: 'Copiar FEN', en: 'Copy FEN' },
