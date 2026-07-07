@@ -527,3 +527,24 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
   .modal-back { align-items: center; }
   .modal-box { border-radius: 18px; }
 }
+
+/* ── game review ────────────────────────── */
+.gr-spinner {
+  width: 36px; height: 36px; margin: 22px auto 8px;
+  border: 4px solid var(--panel2); border-top-color: var(--accent);
+  border-radius: 50%; animation: gr-spin .9s linear infinite;
+}
+@keyframes gr-spin { to { transform: rotate(360deg); } }
+.gr-progress { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.gr-chart { width: 100%; height: 110px; display: block; margin: 10px 0; }
+.gr-players { display: flex; justify-content: space-between; margin: 6px 0 14px; gap: 8px; }
+.gr-player { text-align: center; flex: 1; min-width: 0; }
+.gr-player b { display: block; font-size: 13px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gr-accuracy { font-size: 26px; font-weight: 700; }
+.gr-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 12px; }
+.gr-table td { padding: 6px 4px; text-align: center; }
+.gr-table td:first-child { text-align: left; }
+.gr-table tr:not(:last-child) td { border-bottom: 1px solid var(--panel2); }
+.gr-cpl { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.gr-actions { display: flex; gap: 8px; }
+.gr-actions .btn { flex: 1; }

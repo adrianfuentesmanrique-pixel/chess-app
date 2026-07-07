@@ -13,7 +13,7 @@ export class Engine {
     this.analysisFen = null;
     this.multiPV = 2;
     this._bestMoveResolve = null;
-    this._pendingSearch = null;
+    this._readyResolve = null;
     this._lines = [];
   }
 
@@ -37,12 +37,19 @@ export class Engine {
       this._send('isready');
       return;
     }
-    if (line === 'readyok') { if (this._uciokResolve) { this._uciokResolve(); this._uciokResolve = null; } return; }
-    if (line.startsWith('info ') && line.includes(' pv ')) { this._parseInfo(line); return; }
+    if (line === 'readyok') {
+      if (this._uciokResolve) { this._uciokResolve(); this._uciokResolve = null; }
+      if (this._readyResolve) { this._readyResolve(); this._readyResolve = null; }
+      return;
+    }
+    if (line.startsWith('info ') && line.includes(' pv ')) {
+      this._parseInfo(line);
+      if (this._evalCapture) this._evalCapture(line);
+      return;
+    }
     if (line.startsWith('bestmove')) {
       const mv = line.split(' ')[1];
       if (this._bestMoveResolve) { const r = this._bestMoveResolve; this._bestMoveResolve = null; r(mv === '(none)' ? null : mv); }
-      if (this._pendingSearch) { const s = this._pendingSearch; this._pendingSearch = null; s(); }
       return;
     }
   }
@@ -96,12 +103,45 @@ export class Engine {
   _stopSearch() {
     return new Promise(resolve => {
       if (!this.worker) { resolve(); return; }
-      // If no search is running, stop produces no bestmove; resolve on a ready ping.
-      let done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
-      this._pendingSearch = finish;
+      // 'stop' makes an in-progress search emit its bestmove; isready/readyok
+      // is only exchanged once the engine has fully processed everything
+      // queued before it (UCI guarantees command ordering), so this is a
+      // reliable way to know the engine is idle and ready for new commands —
+      // unlike guessing with a fixed timeout, which can race an in-flight search.
+      this._readyResolve = resolve;
       this._send('stop');
-      setTimeout(finish, 300);
+      this._send('isready');
+    });
+  }
+
+  // One-shot: centipawn evaluation of a position, from White's perspective
+  // (mate scores are folded into a large finite number, same convention as
+  // the live analysis scores). Used to grade played moves after the fact.
+  async evaluate(fen, movetime = 250) {
+    await this.init();
+    await this._stopSearch();
+    this.analysing = false;
+    const whiteToMove = fen.split(' ')[1] === 'w';
+    let lastScore = 0;
+    this._evalCapture = (line) => {
+      const mMate = line.match(/score mate (-?\d+)/);
+      const mCp = line.match(/score cp (-?\d+)/);
+      if (mMate) {
+        let n = +mMate[1];
+        if (!whiteToMove) n = -n;
+        lastScore = n > 0 ? 10000 - Math.abs(n) : -10000 + Math.abs(n);
+      } else if (mCp) {
+        let cp = +mCp[1];
+        if (!whiteToMove) cp = -cp;
+        lastScore = cp;
+      }
+    };
+    this._send('setoption name MultiPV value 1');
+    this._send('setoption name UCI_LimitStrength value false');
+    this._send(`position fen ${fen}`);
+    return new Promise(resolve => {
+      this._bestMoveResolve = () => { this._evalCapture = null; resolve(lastScore); };
+      this._send(`go movetime ${movetime}`);
     });
   }
 

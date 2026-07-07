@@ -8,7 +8,7 @@ import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
-import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING } from './quotes-data.js';
+import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 
 const $ = id => document.getElementById(id);
@@ -1282,6 +1282,23 @@ const Play = {
     this.over = true;
     this.setStatus(msg);
     Streak.recordActivity();
+    const hist = this.chess.history();
+    if (hist.length >= 4) {
+      const names = t('level_names');
+      const me = getLang() === 'es' ? 'Yo' : 'Me';
+      const sf = `Stockfish (${names[this.level]})`;
+      const outcome = this.chess.isCheckmate()
+        ? ((this.chess.turn() === 'w' ? 'b' : 'w') === this.playerColor ? 'win' : 'loss')
+        : (this.chess.isDraw() || this.chess.isStalemate()) ? 'draw'
+        : (msg === t('you_resigned') ? 'loss' : 'draw');
+      GameReview.open({
+        startFen: this.startFen,
+        sanHistory: hist,
+        whiteName: this.playerColor === 'w' ? me : sf,
+        blackName: this.playerColor === 'b' ? me : sf,
+        outcome,
+      });
+    }
   },
 
   renderMoves() {
@@ -1303,6 +1320,137 @@ const Play = {
     else if (this.over && this.chess.isDraw()) tree.setHeader('Result', '1/2-1/2');
     engine.stop();
     Analysis.loadTree(tree);
+  },
+};
+
+// ═════════════════════ GAME REVIEW ═════════════════════
+
+const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+const GR_CATEGORY_COLOR = { brilliant: '#1fb6a6', best: 'var(--success)', good: 'var(--accent)', mistake: 'var(--warning)', blunder: 'var(--danger)' };
+const GR_CATEGORY_ICON = { brilliant: '💎', best: '⭐', good: '👍', mistake: '❓', blunder: '❌' };
+const GR_CATEGORIES = ['brilliant', 'best', 'good', 'mistake', 'blunder'];
+
+function grClassify(cpLoss, isSac) {
+  if (cpLoss <= 10) return isSac ? 'brilliant' : 'best';
+  if (cpLoss <= 50) return 'good';
+  if (cpLoss <= 200) return 'mistake';
+  return 'blunder';
+}
+
+// A capture-or-hang move that the opponent could immediately recapture at a
+// material loss for the mover, yet the engine still rates it near-best —
+// a simple proxy for "brilliant" sacrifices.
+function grIsSacrifice(move) {
+  const movedVal = PIECE_VALUE[move.piece] || 0;
+  const gainedVal = move.captured ? (PIECE_VALUE[move.captured] || 0) : 0;
+  if (movedVal - gainedVal < 2) return false;
+  const chessAfter = new Chess(move.afterFen);
+  return chessAfter.moves({ verbose: true }).some(m => m.to === move.to && m.captured);
+}
+
+function grAccuracy(avgCpLoss) {
+  const acc = 103.1668 * Math.exp(-0.04354 * avgCpLoss) - 3.1668;
+  return Math.max(0, Math.min(100, acc));
+}
+
+function grBuildMoves(startFen, sanHistory) {
+  const chess = new Chess(startFen);
+  const moves = [];
+  for (const san of sanHistory) {
+    const mv = chess.move(san);
+    moves.push({ san: mv.san, color: mv.color, piece: mv.piece, captured: mv.captured, to: mv.to, afterFen: chess.fen() });
+  }
+  return moves;
+}
+
+function grChartSvg(evals, cats) {
+  const W = 600, H = 110, CLAMP = 500;
+  const N = evals.length;
+  const clamp = v => Math.max(-CLAMP, Math.min(CLAMP, v));
+  const xFor = i => (i / (N - 1)) * W;
+  const yFor = v => H / 2 - (clamp(v) / CLAMP) * (H / 2 - 6);
+  let line = `M 0 ${yFor(evals[0]).toFixed(1)}`;
+  for (let i = 1; i < N; i++) line += ` L ${xFor(i).toFixed(1)} ${yFor(evals[i]).toFixed(1)}`;
+  const area = `${line} L ${W} ${H} L 0 ${H} Z`;
+  const dots = cats.map((cat, idx) => {
+    if (cat !== 'brilliant' && cat !== 'mistake' && cat !== 'blunder') return '';
+    const i = idx + 1;
+    return `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(evals[i]).toFixed(1)}" r="4.5" fill="${GR_CATEGORY_COLOR[cat]}" stroke="var(--panel)" stroke-width="1.5"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="gr-chart" preserveAspectRatio="none">
+    <line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="var(--muted)" stroke-opacity=".35" stroke-width="1"/>
+    <path d="${area}" fill="var(--text)" fill-opacity=".12"/>
+    <path d="${line}" fill="none" stroke="var(--text)" stroke-width="2"/>
+    ${dots}
+  </svg>`;
+}
+
+const GameReview = {
+  async open({ startFen, sanHistory, whiteName, blackName, outcome }) {
+    const moves = grBuildMoves(startFen, sanHistory);
+    const fens = [startFen, ...moves.map(m => m.afterFen)];
+
+    await modal(async (box, close) => {
+      box.innerHTML = `
+        <div class="kael-modal-head"><img src="icons/kael/kael-bust.png" class="kael-portrait" alt="Kael"></div>
+        <div class="kael-bubble"><b>${esc(t('game_review_title'))}</b><p>${esc(t('game_review_analyzing'))}</p></div>
+        <div class="gr-spinner"></div>
+        <div class="gr-progress" id="gr-progress">0 / ${fens.length}</div>`;
+
+      const evals = [];
+      for (let i = 0; i < fens.length; i++) {
+        evals.push(await engine.evaluate(fens[i], 220));
+        const p = $('gr-progress');
+        if (p) p.textContent = `${i + 1} / ${fens.length}`;
+      }
+
+      const cats = moves.map((mv, i) => {
+        const before = evals[i], after = evals[i + 1];
+        const cpLoss = Math.max(0, mv.color === 'w' ? before - after : after - before);
+        const isSac = cpLoss <= 10 && grIsSacrifice(mv);
+        return grClassify(cpLoss, isSac);
+      });
+      const cpLosses = moves.map((mv, i) => {
+        const before = evals[i], after = evals[i + 1];
+        return Math.max(0, mv.color === 'w' ? before - after : after - before);
+      });
+
+      const counts = { w: {}, b: {} };
+      for (const c of GR_CATEGORIES) { counts.w[c] = 0; counts.b[c] = 0; }
+      let cplW = 0, cplB = 0, nW = 0, nB = 0;
+      moves.forEach((mv, i) => {
+        const side = mv.color === 'w' ? 'w' : 'b';
+        counts[side][cats[i]]++;
+        if (side === 'w') { cplW += cpLosses[i]; nW++; } else { cplB += cpLosses[i]; nB++; }
+      });
+      const accW = grAccuracy(nW ? cplW / nW : 0);
+      const accB = grAccuracy(nB ? cplB / nB : 0);
+
+      const kaelMsg = pickKael(KAEL_GAME_REVIEW[outcome] || KAEL_GAME_REVIEW.draw);
+      const tableRows = GR_CATEGORIES.map(c => `
+        <tr>
+          <td>${GR_CATEGORY_ICON[c]} ${esc(t('cat_' + c))}</td>
+          <td style="color:${GR_CATEGORY_COLOR[c]}">${counts.w[c]}</td>
+          <td style="color:${GR_CATEGORY_COLOR[c]}">${counts.b[c]}</td>
+        </tr>`).join('');
+
+      box.innerHTML = `
+        <div class="kael-modal-head"><img src="icons/kael/kael-bust.png" class="kael-portrait" alt="Kael"></div>
+        <div class="kael-bubble"><b>${esc(t('game_review_title'))}</b><p>${esc(kaelMsg.text)}</p></div>
+        ${grChartSvg(evals, cats)}
+        <div class="gr-players">
+          <div class="gr-player"><b>${esc(whiteName)}</b><span class="gr-accuracy">${accW.toFixed(1)}</span></div>
+          <div class="gr-player"><b>${esc(blackName)}</b><span class="gr-accuracy">${accB.toFixed(1)}</span></div>
+        </div>
+        <table class="gr-table">${tableRows}</table>
+        <div class="gr-cpl"><span>${esc(t('game_review_cpl'))}: ${Math.round(cplW)}</span><span>${Math.round(cplB)}</span></div>
+        <div class="gr-actions">
+          <button class="btn" id="gr-analyze">${esc(t('analyze_game'))}</button>
+          <button class="btn primary" id="gr-close">${esc(t('close'))}</button>
+        </div>`;
+      $('gr-close').onclick = () => close(null);
+      $('gr-analyze').onclick = () => { close(null); Play.toAnalysis(); };
+    });
   },
 };
 

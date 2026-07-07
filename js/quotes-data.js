@@ -309,3 +309,41 @@ export const KAEL_HINT_WARNING = {
   es: { text: 'Un aviso de Kael: si usas la pista, el ELO que ganes al resolver este puzzle será menor. ¡Inténtalo de memoria primero!', okBtn: 'Entendido', dismissBtn: 'Cancelar' },
   en: { text: "A note from Kael: if you use the hint, the ELO you earn for solving this puzzle will be lower. Try it from memory first!", okBtn: 'Got it', dismissBtn: 'Cancel' },
 };
+
+// Shown atop the post-game Game Review, picked by outcome.
+export const KAEL_GAME_REVIEW = {
+  win: {
+    es: [
+      '¡Buena partida! Construiste tu ventaja con paciencia.',
+      '¡Victoria! Vamos a ver qué jugadas hicieron la diferencia.',
+      '¡Bien jugado! Revisemos los momentos clave de la partida.',
+    ],
+    en: [
+      'Good game! You built your advantage with patience.',
+      'A win! Let\'s see which moves made the difference.',
+      'Well played! Let\'s look at the key moments of the game.',
+    ],
+  },
+  loss: {
+    es: [
+      'No salió como querías, pero cada partida enseña algo. Repasemos juntos.',
+      'Una derrota es solo información. Veamos dónde se torció la partida.',
+      'Ánimo — revisemos qué pasó y qué puedes mejorar la próxima vez.',
+    ],
+    en: [
+      "It didn't go your way, but every game teaches something. Let's review it together.",
+      "A loss is just information. Let's see where the game turned.",
+      "Chin up — let's look at what happened and what to improve next time.",
+    ],
+  },
+  draw: {
+    es: [
+      'Tablas — una partida bien equilibrada. Veamos los detalles.',
+      'Empate reñido. Repasemos los momentos más ajustados.',
+    ],
+    en: [
+      "A draw — a well-balanced game. Let's see the details.",
+      "A hard-fought draw. Let's review the tightest moments.",
+    ],
+  },
+};

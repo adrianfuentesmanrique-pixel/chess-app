@@ -273,6 +273,17 @@ const DICT = {
   piece_classic: { es: 'Clásico', en: 'Classic' },
   piece_alt: { es: 'Alternativo', en: 'Alternative' },
   about: { es: 'Chess Training Center — tu app de análisis y entrenamiento.', en: 'Chess Training Center — your analysis and training app.' },
+  // Game review
+  game_review_title: { es: 'Resumen de la partida', en: 'Game Review' },
+  game_review_analyzing: { es: 'Analizando la partida…', en: 'Analyzing the game…' },
+  game_review_move: { es: 'Jugada', en: 'Move' },
+  game_review_accuracy: { es: 'Precisión', en: 'Accuracy' },
+  game_review_cpl: { es: 'Pérdida de centipeones', en: 'Centipawn loss' },
+  cat_brilliant: { es: 'Brillante', en: 'Brilliant' },
+  cat_best: { es: 'Mejor jugada', en: 'Best' },
+  cat_good: { es: 'Buena', en: 'Good' },
+  cat_mistake: { es: 'Error', en: 'Mistake' },
+  cat_blunder: { es: 'Error grave', en: 'Blunder' },
 };
 
 let lang = localStorage.getItem('lang') || 'es';
