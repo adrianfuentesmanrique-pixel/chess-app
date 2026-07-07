@@ -28,6 +28,7 @@ export class Board {
     this.onEditorTap = opts.onEditorTap || (() => {});
     this.freeMove = false;     // allow moving either color (setup/analysis root)
     this.shapes = { squares: [], arrows: [] };
+    this.piecesHidden = false; // Blind Puzzles: pieces invisible, but moves still work normally
     this.drawColor = null;     // 'green'|'yellow'|'red'|null — when set, taps/drags annotate instead of moving
     this.onShapesChange = opts.onShapesChange || (() => {});
     this._dragStart = null;
@@ -65,6 +66,8 @@ export class Board {
 
   setOrientation(o) { this.orientation = o; this.render(); }
   flip() { this.setOrientation(this.orientation === 'w' ? 'b' : 'w'); }
+
+  setPiecesHidden(hidden) { this.piecesHidden = hidden; this.render(); }
 
   setPosition(fen, lastMove = null, lastMoveColor = 'green') {
     this.fen = fen;
@@ -152,6 +155,7 @@ export class Board {
           if (!img) { img = document.createElement('img'); img.draggable = false; sq.appendChild(img); }
           const src = img.getAttribute('src');
           if (src !== want) img.setAttribute('src', want);
+          img.style.visibility = this.piecesHidden ? 'hidden' : '';
         } else if (img) img.remove();
         const isLastMove = !!this.lastMove && (this.lastMove.from === name || this.lastMove.to === name);
         sq.classList.toggle('lastmove', isLastMove && this.lastMoveColor !== 'yellow');
@@ -169,8 +173,9 @@ export class Board {
         }
       } catch { }
     }
-    // legal destination dots for selection
-    if (this.selected && !this.editorMode) {
+    // legal destination dots for selection — skipped while pieces are hidden,
+    // since the dot pattern would give away what piece is selected
+    if (this.selected && !this.editorMode && !this.piecesHidden) {
       try {
         const c2 = new Chess(this.fen);
         for (const mv of c2.moves({ square: this.selected, verbose: true })) {
@@ -235,6 +240,7 @@ export class Board {
     ghost.className = 'drag-ghost';
     ghost.style.width = size + 'px';
     ghost.style.height = size + 'px';
+    if (this.piecesHidden) ghost.style.visibility = 'hidden';
     document.body.appendChild(ghost);
     img.classList.add('dragging-source');
 

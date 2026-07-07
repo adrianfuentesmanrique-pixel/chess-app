@@ -7,6 +7,8 @@ import { Engine, uciToMove, pvWithNumbers } from './engine.js';
 import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
+import { LEARNING_CATEGORIES } from './learning-data.js';
+import { QUOTES, KAEL_LINES } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 
 const $ = id => document.getElementById(id);
@@ -228,6 +230,126 @@ function openCompleteProfileModal() {
   });
 }
 
+// ═════════════════════ KAEL ONBOARDING ═════════════════════
+
+const LEVEL_TIERS = [
+  { id: 'beginner', min: 0, max: 1200, color: '#2bb673', icon: '♟' },
+  { id: 'intermediate', min: 1201, max: 1900, color: '#3659d9', icon: '♞' },
+  { id: 'expert', min: 1901, max: 2300, color: '#f5b942', icon: '♝' },
+  { id: 'master', min: 2301, max: 3000, color: '#eb5757', icon: '♛' },
+];
+
+function kaelRecoText(levelId) {
+  if (levelId === 'beginner') return t('kael_reco_beginner');
+  if (levelId === 'master') return t('kael_reco_master');
+  return t('kael_reco_middle');
+}
+
+const Onboarding = {
+  async maybeShow() {
+    const done = await db.kvGet('onboardingDone', false);
+    if (done) return false;
+    await this.run();
+    return true;
+  },
+
+  async run() {
+    let chosen = null;
+    await modal((box, close) => {
+      let step = 1;
+
+      const render = () => {
+        box.innerHTML = '';
+        const head = document.createElement('div');
+        head.className = 'kael-modal-head';
+        head.innerHTML = `<img src="icons/kael/kael-welcome.png" class="kael-portrait" alt="Kael">`;
+        box.appendChild(head);
+
+        const bubble = document.createElement('div');
+        bubble.className = 'kael-bubble';
+        box.appendChild(bubble);
+
+        if (step === 1) {
+          bubble.innerHTML = `<b>${t('kael_welcome_title')}</b><p>${t('kael_welcome_body')}</p>`;
+          const next = document.createElement('button');
+          next.className = 'btn primary big'; next.textContent = t('kael_continue');
+          next.onclick = () => { step = 2; render(); };
+          box.appendChild(next);
+        } else if (step === 2) {
+          bubble.innerHTML = `<p>${t('kael_level_question')}</p>`;
+          const grid = document.createElement('div');
+          grid.className = 'kael-level-grid';
+          for (const tier of LEVEL_TIERS) {
+            const cell = document.createElement('button');
+            cell.className = 'kael-level-cell';
+            cell.style.setProperty('--tier-color', tier.color);
+            cell.innerHTML = `
+              <span class="kael-level-icon" style="background:${tier.color}">${tier.icon}</span>
+              <b>${t('level_' + tier.id + '_name')}</b>
+              <span class="kael-level-range">ELO ${tier.min}-${tier.max}</span>
+              <span class="kael-level-desc">${t('level_' + tier.id + '_desc')}</span>
+            `;
+            cell.onclick = () => { chosen = tier.id; step = 3; render(); };
+            grid.appendChild(cell);
+          }
+          box.appendChild(grid);
+        } else {
+          const tier = LEVEL_TIERS.find(x => x.id === chosen);
+          bubble.innerHTML = `<b>${t('level_' + chosen + '_name')}</b><p>${kaelRecoText(chosen)}</p>`;
+          const done = document.createElement('button');
+          done.className = 'btn primary big'; done.textContent = t('kael_start_btn');
+          done.onclick = async () => {
+            await db.kvSet('onboardingDone', true);
+            await db.kvSet('userLevel', chosen);
+            close(null);
+          };
+          box.appendChild(done);
+        }
+      };
+      render();
+    });
+  },
+};
+
+// ═════════════════════ KAEL QUOTES ═════════════════════
+// A small, non-blocking corner widget — never a modal — so it never
+// interrupts whatever the player is doing on the board.
+
+const KaelQuotes = {
+  lastIdx: -1,
+  timer: null,
+
+  init() {
+    $('kael-fab').onclick = () => this.showRandom();
+  },
+
+  pick() {
+    const lang = getLang();
+    if (Math.random() < 0.3) {
+      const lines = KAEL_LINES[lang];
+      let idx = Math.floor(Math.random() * lines.length);
+      if (lines.length > 1 && idx === this.lastIdx) idx = (idx + 1) % lines.length;
+      this.lastIdx = idx;
+      return { text: lines[idx], author: null };
+    }
+    let idx = Math.floor(Math.random() * QUOTES.length);
+    if (idx === this.lastIdx) idx = (idx + 1) % QUOTES.length;
+    this.lastIdx = idx;
+    const item = QUOTES[idx];
+    return { text: item.q, author: item.a };
+  },
+
+  show(item, duration = 6000) {
+    const bubble = $('kael-bubble');
+    bubble.innerHTML = `<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}`;
+    bubble.classList.add('show');
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => bubble.classList.remove('show'), duration);
+  },
+
+  showRandom() { this.show(this.pick()); },
+};
+
 async function sharePgnText(filename, text) {
   const file = new File([text], filename, { type: 'application/x-chess-pgn' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -416,7 +538,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'rush'];
+const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'learn', 'profile', 'leaderboard', 'public-profile', 'rush', 'blind'];
 let activeScreen = 'analysis';
 
 function showScreen(name) {
@@ -430,7 +552,9 @@ function showScreen(name) {
   if (name === 'trainer') Trainer.refreshBases();
   if (name === 'puzzles') Puzzles.ensureLoaded();
   if (name === 'endgame') Endgame.ensureLoaded();
+  if (name === 'learn') Learning.showCategories();
   if (name === 'profile') Profile.refresh();
+  if (name !== 'blind') Blind.cleanup();
 }
 
 document.querySelectorAll('#tabbar button').forEach(b =>
@@ -1661,6 +1785,183 @@ const Rush = {
   },
 };
 
+// ═════════════════════ BLIND PUZZLES ═════════════════════
+// Look at the position for 10s, then the pieces vanish — moves still work
+// normally (Board only hides the <img>, it never gates interaction on
+// visibility). "Peek" is the equivalent of a hint: reveal pieces for 5s.
+
+const Blind = {
+  board: null,
+  current: null,
+  chess: null,
+  moveIdx: 0,
+  peeksUsed: 0,
+  countdownTimer: null,
+  peekTimer: null,
+
+  init() {
+    this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv) });
+    $('puzzle-blind-open').onclick = () => this.open();
+    $('blind-back').onclick = () => { this.cleanup(); showScreen('puzzles'); };
+    $('blind-peek').onclick = () => this.peek();
+    $('blind-solution').onclick = () => this.showSolution();
+    $('blind-next').onclick = () => this.nextPuzzle();
+    $('blind-share').onclick = () => this.share();
+  },
+
+  open() {
+    showScreen('blind');
+    this.nextPuzzle();
+  },
+
+  cleanup() {
+    clearTimeout(this.countdownTimer);
+    clearTimeout(this.peekTimer);
+    $('blind-countdown').classList.add('hidden');
+  },
+
+  nextPuzzle() {
+    this.cleanup();
+    $('blind-share').classList.add('hidden');
+    const candidates = PUZZLES.filter(p => Math.abs(p.rating - Puzzles.elo) <= 300);
+    const list = candidates.length ? candidates : PUZZLES;
+    this.current = list[Math.floor(Math.random() * list.length)];
+    this.chess = new Chess(this.current.fen);
+    this.moveIdx = 0;
+    this.peeksUsed = 0;
+    const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
+    this.board.setOrientation(playerColor);
+    this.board.setPiecesHidden(false);
+    this.board.setPosition(this.chess.fen());
+    this.board.interactive = false;
+    $('blind-status').textContent = t('blind_watch_now');
+    this.updatePeekBtn();
+    setTimeout(() => {
+      const m = this.applyUci(this.current.moves[0]);
+      this.moveIdx = 1;
+      this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
+      this.startCountdown(10, () => this.hidePieces());
+    }, 500);
+  },
+
+  startCountdown(seconds, onDone) {
+    let n = seconds;
+    const el = $('blind-countdown');
+    el.classList.remove('hidden');
+    el.textContent = n;
+    this.countdownTimer = setInterval(() => {
+      n--;
+      if (n <= 0) {
+        clearInterval(this.countdownTimer);
+        el.classList.add('hidden');
+        onDone();
+      } else {
+        el.textContent = n;
+      }
+    }, 1000);
+  },
+
+  hidePieces() {
+    this.board.setPiecesHidden(true);
+    this.board.interactive = true;
+    this.setStatus(t('blind_solve_now'));
+  },
+
+  async updatePeekBtn() {
+    const { isMember } = await Membership.status();
+    const btn = $('blind-peek');
+    if (isMember) {
+      btn.textContent = '👁 ' + t('blind_peek_btn');
+      btn.disabled = false;
+    } else {
+      const left = Math.max(0, 2 - this.peeksUsed);
+      btn.textContent = `👁 ${t('blind_peek_btn')} (${left})`;
+      btn.disabled = left === 0;
+    }
+  },
+
+  setStatus(msg) { $('blind-status').textContent = msg; },
+
+  async peek() {
+    if (!this.current) return;
+    const { isMember } = await Membership.status();
+    if (!isMember && this.peeksUsed >= 2) {
+      toast(t('blind_no_peeks_toast'));
+      return;
+    }
+    this.peeksUsed++;
+    this.updatePeekBtn();
+    this.board.setPiecesHidden(false);
+    this.board.interactive = false;
+    clearTimeout(this.peekTimer);
+    this.peekTimer = setTimeout(() => {
+      this.board.setPiecesHidden(true);
+      this.board.interactive = true;
+    }, 5000);
+  },
+
+  applyUci(u) {
+    try { return this.chess.move(uciToMove(u)); } catch { return null; }
+  },
+
+  async userMove(mv) {
+    if (!this.current || this.moveIdx >= this.current.moves.length) return;
+    const expected = this.current.moves[this.moveIdx];
+    const tryUci = mv.from + mv.to + (mv.promotion ?? '');
+    let m;
+    try { m = this.chess.move(mv); } catch { return; }
+    const isMate = this.chess.isCheckmate();
+    if (tryUci === expected || (isMate && this.moveIdx === this.current.moves.length - 1)) {
+      this.moveIdx++;
+      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+      if (this.moveIdx >= this.current.moves.length || isMate) {
+        clearTimeout(this.peekTimer);
+        this.board.setPiecesHidden(false);
+        this.setStatus(t('solved'));
+        $('blind-share').classList.remove('hidden');
+        Streak.recordActivity();
+        return;
+      }
+      this.setStatus(t('correct'));
+      this.board.interactive = false;
+      await sleep(400);
+      const r = this.applyUci(this.current.moves[this.moveIdx]);
+      this.moveIdx++;
+      this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
+      this.board.interactive = true;
+    } else {
+      this.chess.undo();
+      this.board.setPosition(this.chess.fen());
+      this.setStatus(t('wrong_try'));
+      $('blind-board').classList.add('shake');
+      setTimeout(() => $('blind-board').classList.remove('shake'), 500);
+    }
+  },
+
+  async showSolution() {
+    if (!this.current) return;
+    clearTimeout(this.peekTimer);
+    this.board.setPiecesHidden(false);
+    this.board.interactive = false;
+    while (this.moveIdx < this.current.moves.length) {
+      const m = this.applyUci(this.current.moves[this.moveIdx]);
+      this.moveIdx++;
+      this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
+      await sleep(700);
+    }
+    this.setStatus(t('solved'));
+  },
+
+  share() {
+    if (!this.current) return;
+    shareStatCard({
+      emoji: '🙈',
+      title: t('card_blind_title'),
+      subtitle: `${this.current.rating}`,
+    }, 'puzzle-ciego.png');
+  },
+};
+
 // ═════════════════════ ENDGAME STUDY ═════════════════════
 
 const NOMINAL_PRACTICE_RATING = 1500; // difficulty baseline for graded endgame/opening practice
@@ -1878,6 +2179,71 @@ const Endgame = {
   async recordConversion(cat) {
     const conv = await db.kvGet('endgameConverted', {});
     if (!conv[cat]) { conv[cat] = true; await db.kvSet('endgameConverted', conv); }
+  },
+};
+
+// ═════════════════════ LEARN ═════════════════════
+
+const Learning = {
+  board: null,
+  category: null,
+  lessons: [],
+  lessonIdx: 0,
+
+  init() {
+    this.board = new Board($('learn-board'), { interactive: false });
+    $('learn-back-cat').onclick = () => this.showCategories();
+    $('learn-back-lessons').onclick = () => this.openCategory(this.category);
+    $('learn-prev-lesson').onclick = () => this.openLesson(this.lessonIdx - 1);
+    $('learn-next-lesson').onclick = () => this.openLesson(this.lessonIdx + 1);
+  },
+
+  showCategories() {
+    $('learn-cat-view').classList.remove('hidden');
+    $('learn-lesson-list-view').classList.add('hidden');
+    $('learn-lesson-view').classList.add('hidden');
+    const el = $('learn-cat-list');
+    el.innerHTML = '';
+    for (const cat of LEARNING_CATEGORIES) {
+      const item = document.createElement('button');
+      item.className = 'list-item';
+      item.innerHTML = `<b>${esc(cat.title[getLang()])}</b><span class="sub">${cat.lessons.length} ${t('lessons_count')}</span>`;
+      item.onclick = () => this.openCategory(cat);
+      el.appendChild(item);
+    }
+  },
+
+  openCategory(cat) {
+    this.category = cat;
+    $('learn-cat-view').classList.add('hidden');
+    $('learn-lesson-list-view').classList.remove('hidden');
+    $('learn-lesson-view').classList.add('hidden');
+    $('learn-cat-title').textContent = cat.title[getLang()];
+    this.lessons = cat.lessons;
+    const el = $('learn-lesson-list');
+    el.innerHTML = '';
+    cat.lessons.forEach((lesson, i) => {
+      const item = document.createElement('button');
+      item.className = 'list-item';
+      item.innerHTML = `<b>${esc(lesson.title[getLang()])}</b>`;
+      item.onclick = () => this.openLesson(i);
+      el.appendChild(item);
+    });
+  },
+
+  openLesson(idx) {
+    if (idx < 0 || idx >= this.lessons.length) return;
+    this.lessonIdx = idx;
+    const lesson = this.lessons[idx];
+    $('learn-lesson-list-view').classList.add('hidden');
+    $('learn-lesson-view').classList.remove('hidden');
+    $('learn-lesson-title').textContent = lesson.title[getLang()];
+    $('learn-lesson-text').textContent = lesson.text[getLang()];
+    this.board.setOrientation('w');
+    this.board.setPosition(lesson.fen);
+    this.board.setShapes(lesson.shapes || { squares: [], arrows: [] });
+    $('learn-prev-lesson').disabled = idx === 0;
+    $('learn-next-lesson').disabled = idx === this.lessons.length - 1;
   },
 };
 
@@ -2762,7 +3128,10 @@ async function main() {
   Trainer.init();
   Puzzles.init();
   Rush.init();
+  Blind.init();
   Endgame.init();
+  Learning.init();
+  KaelQuotes.init();
   Profile.init();
   Leaderboard.init();
   PublicProfile.init();
@@ -2795,7 +3164,11 @@ async function main() {
     navigator.serviceWorker.register('sw.js').catch(() => { });
   }
   const elapsed = Date.now() - splashStart;
-  setTimeout(() => $('splash').classList.add('hide'), Math.max(0, 600 - elapsed));
+  setTimeout(async () => {
+    $('splash').classList.add('hide');
+    const onboarded = await Onboarding.maybeShow();
+    if (!onboarded) setTimeout(() => KaelQuotes.showRandom(), 900);
+  }, Math.max(0, 600 - elapsed));
 }
 
 main().catch(e => { window.__mainError = (e && e.stack) || String(e); console.error('MAIN FAILED', e); });

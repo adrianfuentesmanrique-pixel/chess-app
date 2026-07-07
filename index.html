@@ -167,7 +167,10 @@
     </div>
     <div class="row" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
-      <button id="puzzle-rush-open" class="btn" data-i18n="rush_open"></button>
+      <div class="row" style="margin:0; gap:6px;">
+        <button id="puzzle-blind-open" class="btn" data-i18n="blind_open"></button>
+        <button id="puzzle-rush-open" class="btn" data-i18n="rush_open"></button>
+      </div>
     </div>
     <button id="puzzle-theme-btn" class="btn" data-i18n="select_theme"></button>
     <div id="puzzle-status" class="status-bar"></div>
@@ -222,6 +225,24 @@
     </div>
   </section>
 
+  <!-- ══════════ BLIND PUZZLES ══════════ -->
+  <section id="screen-blind" class="screen hidden">
+    <div class="row screen-head">
+      <button id="blind-back" class="btn" data-i18n="back"></button>
+      <h2 data-i18n="blind_title"></h2>
+    </div>
+    <p class="hint" data-i18n="blind_explain"></p>
+    <div id="blind-status" class="status-bar"></div>
+    <div id="blind-countdown" class="blind-countdown hidden"></div>
+    <div id="blind-board" class="board-wrap"></div>
+    <div class="row" id="blind-actions">
+      <button id="blind-peek" class="btn"></button>
+      <button id="blind-solution" class="btn" data-i18n="show_solution"></button>
+      <button id="blind-share" class="btn hidden">📤</button>
+      <button id="blind-next" class="btn primary" data-i18n="next_puzzle"></button>
+    </div>
+  </section>
+
   <!-- ══════════ ENDGAME ══════════ -->
   <section id="screen-endgame" class="screen hidden">
     <div id="endgame-list-view">
@@ -258,6 +279,35 @@
         <button id="endgame-undo" class="btn" data-i18n="undo_move"></button>
         <button id="endgame-resign" class="btn danger" data-i18n="resign"></button>
         <button id="endgame-share" class="btn hidden">📤</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ LEARN ══════════ -->
+  <section id="screen-learn" class="screen hidden">
+    <div id="learn-cat-view">
+      <div class="row screen-head">
+        <h2 data-i18n="tab_learn"></h2>
+      </div>
+      <div id="learn-cat-list" class="list"></div>
+    </div>
+    <div id="learn-lesson-list-view" class="hidden">
+      <div class="row screen-head">
+        <button id="learn-back-cat" class="btn" data-i18n="back"></button>
+        <h2 id="learn-cat-title"></h2>
+      </div>
+      <div id="learn-lesson-list" class="list"></div>
+    </div>
+    <div id="learn-lesson-view" class="hidden">
+      <div class="row screen-head">
+        <button id="learn-back-lessons" class="btn" data-i18n="back"></button>
+        <h2 id="learn-lesson-title" class="ellipsis"></h2>
+      </div>
+      <div id="learn-board" class="board-wrap"></div>
+      <p id="learn-lesson-text" class="hint learn-text"></p>
+      <div class="row" id="learn-lesson-nav">
+        <button id="learn-prev-lesson" class="btn">◀</button>
+        <button id="learn-next-lesson" class="btn primary">▶</button>
       </div>
     </div>
   </section>
@@ -423,11 +473,17 @@
   <button data-screen="trainer"><span class="tab-ico">📖</span><span data-i18n="tab_trainer"></span></button>
   <button data-screen="puzzles"><span class="tab-ico">🧩</span><span data-i18n="tab_puzzles"></span></button>
   <button data-screen="endgame"><span class="tab-ico">🏁</span><span data-i18n="tab_endgame"></span></button>
+  <button data-screen="learn"><span class="tab-ico">🎓</span><span data-i18n="tab_learn"></span></button>
   <button data-screen="profile"><span class="tab-ico">👤</span><span data-i18n="tab_profile"></span></button>
 </nav>
 
 <div id="toast" class="hidden"></div>
 <div id="modal-root"></div>
+
+<div id="kael-corner">
+  <div id="kael-bubble" class="kael-quote-bubble"></div>
+  <button id="kael-fab" data-i18n-aria="kael_fab_hint"><img src="icons/kael/kael-bust.png" alt="Kael"></button>
+</div>
 
 <script src="vendor/chart.umd.js"></script>
 <script type="module" src="js/app.js"></script>
