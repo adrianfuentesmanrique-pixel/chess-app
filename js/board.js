@@ -14,6 +14,13 @@ export function setPieceSet(name) {
 }
 export function getPieceSet() { return PIECE_SET; }
 
+function pieceCount(fen) {
+  const placement = fen.split(' ')[0];
+  let n = 0;
+  for (const ch of placement) if (/[a-zA-Z]/.test(ch)) n++;
+  return n;
+}
+
 export class Board {
   constructor(container, opts = {}) {
     this.el = container;
@@ -31,6 +38,7 @@ export class Board {
     this.piecesHidden = false; // Blind Puzzles: pieces invisible, but moves still work normally
     this.drawColor = null;     // 'green'|'yellow'|'red'|null — when set, taps/drags annotate instead of moving
     this.onShapesChange = opts.onShapesChange || (() => {});
+    this.onSound = opts.onSound || null; // (kind: 'move'|'capture') — Board detects captures by piece count, callers stay ignorant of sound
     this._dragStart = null;
     this._buildSquares();
     this._bindEvents();
@@ -70,6 +78,10 @@ export class Board {
   setPiecesHidden(hidden) { this.piecesHidden = hidden; this.render(); }
 
   setPosition(fen, lastMove = null, lastMoveColor = 'green') {
+    if (lastMove && this.onSound) {
+      const wasCapture = pieceCount(fen) < pieceCount(this.fen);
+      this.onSound(wasCapture ? 'capture' : 'move');
+    }
     this.fen = fen;
     this.lastMove = lastMove;
     this.lastMoveColor = lastMoveColor;

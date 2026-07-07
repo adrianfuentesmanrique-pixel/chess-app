@@ -16,7 +16,7 @@ class Node {
     this.to = to;
     this.comment = '';
     this.nags = [];
-    this.shapes = { squares: [], arrows: [] }; // board annotations (in-memory only, not saved to PGN)
+    this.shapes = { squares: [], arrows: [] }; // board annotations — saved to PGN via [%csl]/[%cal] tags
     this.children = [];   // children[0] = main continuation
   }
 }
@@ -114,7 +114,8 @@ export class GameTree {
       lines.push(`[FEN "${this.startFen}"]`);
     }
     let body = '';
-    if (this.root.comment) body += `{${escComment(this.root.comment)}} `;
+    const rootComment = commentWithShapes(this.root);
+    if (rootComment) body += `{${rootComment}} `;
     body += this.movesText(this.root, true);
     body += (body && !body.endsWith(' ') ? ' ' : '') + (H['Result'] ?? '*');
     return lines.join('\n') + '\n\n' + wrap(body.trim()) + '\n';
@@ -133,7 +134,8 @@ export class GameTree {
       out += node.san;
       for (const g of node.nags) out += ` $${g}`;
       out += ' ';
-      if (node.comment) { out += `{${escComment(node.comment)}} `; needNum = true; }
+      const nodeComment = commentWithShapes(node);
+      if (nodeComment) { out += `{${nodeComment}} `; needNum = true; }
       // siblings of node = variations on this move
       for (let i = 1; i < parent.children.length; i++) {
         out += `( ${this.movesText(new ProxyStart(parent, parent.children[i]), true)}) `;
@@ -154,6 +156,52 @@ class ProxyStart {
 // moveNumberFor uses node.parent.fen, which is still the real parent — fine.
 
 function escComment(s) { return s.replace(/}/g, ')').replace(/\{/g, '('); }
+
+// Board arrows/highlighted squares round-trip through PGN comments using the
+// same [%csl]/[%cal] tag convention lichess and chess.com use, so games
+// stay readable (and the shapes survive) in other tools too.
+const SHAPE_COLOR_CODE = { green: 'G', yellow: 'Y', red: 'R' };
+const SHAPE_CODE_COLOR = { G: 'green', Y: 'yellow', R: 'red' };
+
+function commentWithShapes(node) {
+  const tags = shapesToTags(node.shapes);
+  const comment = node.comment ? escComment(node.comment) : '';
+  return (tags + (tags && comment ? ' ' : '') + comment).trim();
+}
+
+function shapesToTags(shapes) {
+  if (!shapes) return '';
+  const sq = (shapes.squares || []).map(s => (SHAPE_COLOR_CODE[s.color] || 'G') + s.sq);
+  const ar = (shapes.arrows || []).map(a => (SHAPE_COLOR_CODE[a.color] || 'G') + a.from + a.to);
+  let out = '';
+  if (sq.length) out += `[%csl ${sq.join(',')}]`;
+  if (ar.length) out += `${out ? ' ' : ''}[%cal ${ar.join(',')}]`;
+  return out;
+}
+
+function extractShapesFromComment(text) {
+  const shapes = { squares: [], arrows: [] };
+  let clean = text;
+  const cslMatch = clean.match(/\[%csl ([^\]]*)\]/);
+  if (cslMatch) {
+    for (const tok of cslMatch[1].split(',')) {
+      const tk = tok.trim();
+      if (!tk) continue;
+      shapes.squares.push({ sq: tk.slice(1), color: SHAPE_CODE_COLOR[tk[0]] || 'green' });
+    }
+    clean = clean.replace(cslMatch[0], '');
+  }
+  const calMatch = clean.match(/\[%cal ([^\]]*)\]/);
+  if (calMatch) {
+    for (const tok of calMatch[1].split(',')) {
+      const tk = tok.trim();
+      if (!tk || tk.length < 5) continue;
+      shapes.arrows.push({ from: tk.slice(1, 3), to: tk.slice(3, 5), color: SHAPE_CODE_COLOR[tk[0]] || 'green' });
+    }
+    clean = clean.replace(calMatch[0], '');
+  }
+  return { shapes, clean: clean.trim() };
+}
 
 function wrap(text, width = 80) {
   const words = text.split(' ');
@@ -248,8 +296,17 @@ export function parsePgn(text) {
       cursor = node;
       lastMoveNode = node;
     } else if (tok.t === 'comment') {
-      if (lastMoveNode.comment) lastMoveNode.comment += ' ' + tok.v;
-      else lastMoveNode.comment = tok.v;
+      const { shapes, clean } = extractShapesFromComment(tok.v);
+      if (shapes.squares.length || shapes.arrows.length) {
+        lastMoveNode.shapes = {
+          squares: [...lastMoveNode.shapes.squares, ...shapes.squares],
+          arrows: [...lastMoveNode.shapes.arrows, ...shapes.arrows],
+        };
+      }
+      if (clean) {
+        if (lastMoveNode.comment) lastMoveNode.comment += ' ' + clean;
+        else lastMoveNode.comment = clean;
+      }
     } else if (tok.t === 'nag') {
       if (lastMoveNode.san && !lastMoveNode.nags.includes(tok.v)) lastMoveNode.nags.push(tok.v);
     } else if (tok.t === 'open') {

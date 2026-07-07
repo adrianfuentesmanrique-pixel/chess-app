@@ -14,6 +14,31 @@ import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 const $ = id => document.getElementById(id);
 const engine = new Engine();
 
+// ═════════════════════ sound ═════════════════════
+
+const Sound = {
+  enabled: true,
+  cache: {},
+
+  async init() {
+    this.enabled = await db.kvGet('soundEnabled', true);
+  },
+
+  async setEnabled(v) {
+    this.enabled = v;
+    await db.kvSet('soundEnabled', v);
+  },
+
+  play(name) {
+    if (!this.enabled) return;
+    let audio = this.cache[name];
+    if (!audio) { audio = new Audio(`sounds/${name}.wav`); this.cache[name] = audio; }
+    const el = audio.paused ? audio : audio.cloneNode(true);
+    el.volume = 0.6;
+    el.play().catch(() => {});
+  },
+};
+
 // ═════════════════════ small UI helpers ═════════════════════
 
 let toastTimer = null;
@@ -343,6 +368,7 @@ const KaelQuotes = {
     const bubble = $('kael-bubble');
     bubble.innerHTML = `<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}`;
     bubble.classList.add('show');
+    Sound.play('kael-pop');
     clearTimeout(this.timer);
     this.timer = setTimeout(() => bubble.classList.remove('show'), duration);
   },
@@ -604,6 +630,7 @@ const Analysis = {
     this.board = new Board($('ana-board'), {
       onMove: (mv) => { if (this.tree.play(mv)) this.refresh(); },
       onShapesChange: (shapes) => { this.tree.current.shapes = shapes; },
+      onSound: type => Sound.play(type),
     });
     $('ana-first').onclick = () => { this.tree.toStart(); this.refresh(); };
     $('ana-prev').onclick = () => { this.tree.prev(); this.refresh(); };
@@ -614,7 +641,13 @@ const Analysis = {
     $('ana-comment').onclick = () => this.editComment();
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-more').onclick = () => this.moreMenu();
-    $('ana-annotate-toggle').onclick = () => $('ana-annotate').classList.toggle('hidden');
+    $('ana-annotate-toggle').onclick = () => {
+      const nowHidden = $('ana-annotate').classList.toggle('hidden');
+      if (nowHidden) {
+        this.board.setDrawColor(null);
+        $('ana-annotate').querySelectorAll('.annotate-btn[data-color]').forEach(x => x.classList.remove('active'));
+      }
+    };
     $('ana-annotate-clear').onclick = () => this.board.clearShapes();
     $('ana-annotate').querySelectorAll('.annotate-btn[data-color]').forEach(b => {
       b.onclick = () => {
@@ -1016,7 +1049,7 @@ const Play = {
     buildLevelSeg($('play-level'));
     segInit($('play-color'));
     segInit($('play-level'));
-    this.board = new Board($('play-board'), { onMove: mv => this.userMove(mv) });
+    this.board = new Board($('play-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('play-start').onclick = () => {
       this.level = +segValue($('play-level'));
       let c = segValue($('play-color'));
@@ -1104,10 +1137,12 @@ const Play = {
   checkEnd() {
     if (this.chess.isCheckmate()) {
       const winner = this.chess.turn() === 'w' ? 'b' : 'w';
-      this.finish(winner === this.playerColor ? t('checkmate_win') : t('checkmate_loss'));
+      const won = winner === this.playerColor;
+      Sound.play(won ? 'game-win' : 'game-lose');
+      this.finish(won ? t('checkmate_win') : t('checkmate_loss'));
       return true;
     }
-    if (this.chess.isDraw() || this.chess.isStalemate()) { this.finish(t('draw')); return true; }
+    if (this.chess.isDraw() || this.chess.isStalemate()) { Sound.play('game-draw'); this.finish(t('draw')); return true; }
     return false;
   },
 
@@ -1175,7 +1210,7 @@ const Trainer = {
     buildLevelSeg($('trainer-level'));
     segInit($('trainer-color'));
     segInit($('trainer-level'));
-    this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv) });
+    this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('trainer-base').addEventListener('change', () => this.previewBook());
     $('trainer-start').onclick = () => this.start();
     $('trainer-new').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
@@ -1345,10 +1380,11 @@ const Trainer = {
     if (this.chess.isCheckmate()) {
       const winner = this.chess.turn() === 'w' ? 'b' : 'w';
       const won = winner === this.playerColor;
+      Sound.play(won ? 'game-win' : 'game-lose');
       this.finishMsg(won ? t('checkmate_win') : t('checkmate_loss'), won ? 'win' : 'loss');
       return true;
     }
-    if (this.chess.isDraw() || this.chess.isStalemate()) { this.finishMsg(t('draw'), 'draw'); return true; }
+    if (this.chess.isDraw() || this.chess.isStalemate()) { Sound.play('game-draw'); this.finishMsg(t('draw'), 'draw'); return true; }
     return false;
   },
 
@@ -1405,7 +1441,7 @@ const Puzzles = {
   themeFilter: 'random',      // 'random' | Set<themeId>
 
   async init() {
-    this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv) });
+    this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('puzzle-theme-btn').onclick = () => this.openThemePicker();
     $('puzzle-next').onclick = () => this.nextPuzzle();
     $('puzzle-hint').onclick = () => this.hint();
@@ -1645,7 +1681,7 @@ const Rush = {
   running: false,
 
   init() {
-    this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv) });
+    this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('rush-back').onclick = () => { this.stop(); showScreen('puzzles'); };
     $('puzzle-rush-open').onclick = () => this.openIntro();
     segInit($('rush-duration'), () => {});
@@ -1800,7 +1836,7 @@ const Blind = {
   peekTimer: null,
 
   init() {
-    this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv) });
+    this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('puzzle-blind-open').onclick = () => this.open();
     $('blind-back').onclick = () => { this.cleanup(); showScreen('puzzles'); };
     $('blind-peek').onclick = () => this.peek();
@@ -1979,7 +2015,7 @@ const Endgame = {
   elo: {},               // per-category rating
 
   init() {
-    this.board = new Board($('endgame-board'), { onMove: mv => this.userMove(mv) });
+    this.board = new Board($('endgame-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('endgame-back-cat').onclick = () => this.showCategories();
     $('endgame-back-pos').onclick = () => this.openCategory(this.category);
     $('endgame-flip').onclick = () => this.board.flip();
@@ -2160,6 +2196,7 @@ const Endgame = {
     this.over = true;
     const expected = this.current.expected;
     const success = expected === 'win' ? actual === 'win' : actual !== 'loss';
+    Sound.play(success ? 'game-win' : 'game-lose');
     this.setStatus(success ? (expected === 'win' ? t('practice_win') : t('practice_draw')) : t('practice_fail'));
     $('endgame-share').classList.toggle('hidden', !success);
     const cat = this.current.category;
@@ -2383,6 +2420,17 @@ function openSettings() {
     }
     segInit(seg0, v => ColorMode.set(v));
     box.append(l0, seg0);
+    // sound
+    const lSound = document.createElement('label'); lSound.className = 'fld-label'; lSound.textContent = t('sound_setting');
+    const segSound = document.createElement('div'); segSound.className = 'seg';
+    for (const [v, key] of [['on', 'sound_on'], ['off', 'sound_off']]) {
+      const b = document.createElement('button');
+      b.textContent = t(key); b.dataset.v = v;
+      if ((Sound.enabled ? 'on' : 'off') === v) b.classList.add('on');
+      segSound.appendChild(b);
+    }
+    segInit(segSound, v => Sound.setEnabled(v === 'on'));
+    box.append(lSound, segSound);
     // language
     const l1 = document.createElement('label'); l1.className = 'fld-label'; l1.textContent = t('language');
     const seg = document.createElement('div'); seg.className = 'seg';
@@ -3121,6 +3169,7 @@ const PublicProfile = {
 async function main() {
   const splashStart = Date.now();
   await ColorMode.init();
+  await Sound.init();
   applyStatic();
   Analysis.init();
   Base.init();
