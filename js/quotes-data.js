@@ -223,3 +223,65 @@ export const KAEL_LINES = {
     'A quiet move is sometimes worth more than a brilliant sacrifice.',
   ],
 };
+
+// Shown when a puzzle is solved.
+export const KAEL_PRAISE = {
+  es: [
+    '¡Excelente! Encontraste la jugada correcta.',
+    '¡Muy bien! Ese golpe táctico no se te escapó.',
+    '¡Impresionante! Sigue así.',
+    '¡Perfecto! Tu visión táctica está mejorando.',
+    '¡Genial! Un paso más hacia la maestría.',
+    '¡Bravo! Esa era la idea exacta.',
+    '¡Así se hace! Puzzle resuelto con estilo.',
+    '¡Excelente cálculo!',
+    '¡Lo lograste! Cada puzzle te hace más fuerte.',
+    '¡Fantástico! Tu entrenamiento está dando frutos.',
+    '¡Precisión total! Bien jugado.',
+    '¡Sigue con ese ritmo, vas muy bien!',
+  ],
+  en: [
+    'Excellent! You found the right move.',
+    "Well done! That tactic didn't get past you.",
+    'Impressive! Keep it up.',
+    'Perfect! Your tactical vision is improving.',
+    'Great job! One step closer to mastery.',
+    'Bravo! That was exactly the idea.',
+    'That’s how it’s done! Puzzle solved in style.',
+    'Excellent calculation!',
+    'You got it! Every puzzle makes you stronger.',
+    'Fantastic! Your training is paying off.',
+    'Total precision! Well played.',
+    "Keep that pace up, you're doing great!",
+  ],
+};
+
+// Shown on the first wrong try of a puzzle — encouragement, not scolding.
+export const KAEL_MISTAKE = {
+  es: [
+    'No pasa nada, inténtalo de nuevo — mira bien las amenazas.',
+    'Casi. Vuelve a revisar la posición con calma.',
+    'Un tropiezo no es una caída. ¡Sigue buscando!',
+    'Esa no era, pero vas por buen camino. Inténtalo otra vez.',
+    'Respira y mira el tablero de nuevo — la jugada está ahí.',
+    'Cada intento te acerca a la solución. ¡Tú puedes!',
+    'No te rindas, los mejores también fallan antes de acertar.',
+    'Revisa las piezas que están en juego — hay algo que se te escapa.',
+  ],
+  en: [
+    "No worries, try again — look closely at the threats.",
+    'So close. Take another calm look at the position.',
+    "A stumble isn't a fall. Keep searching!",
+    "That wasn't it, but you're on the right track. Try again.",
+    'Take a breath and look at the board again — the move is there.',
+    "Every attempt gets you closer to the solution. You've got this!",
+    'Even the best miss before they find it. Keep going.',
+    "Check which pieces are in play — you're missing something.",
+  ],
+};
+
+// Shown if a puzzle has been open for a while without being solved.
+export const KAEL_CHECKIN = {
+  es: { text: '¿Todo bien? Llevas un rato aquí. ¿Quieres un pequeño empujón?', okBtn: 'Sí, dame una pista', dismissBtn: 'Estoy bien, sigo pensando' },
+  en: { text: "Everything OK? You've been on this one a while. Want a little nudge?", okBtn: 'Yes, give me a hint', dismissBtn: "I'm fine, still thinking" },
+};

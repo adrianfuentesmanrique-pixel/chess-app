@@ -8,7 +8,7 @@ import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
-import { QUOTES, KAEL_LINES } from './quotes-data.js';
+import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 
 const $ = id => document.getElementById(id);
@@ -376,6 +376,13 @@ const KaelQuotes = {
   showRandom() { this.show(this.pick()); },
 };
 
+// Picks a random line from a { es: [...], en: [...] } dict and wraps it in
+// the { text, author } shape KaelQuotes.show() expects.
+function pickKael(dict) {
+  const lines = dict[getLang()];
+  return { text: lines[Math.floor(Math.random() * lines.length)], author: null };
+}
+
 async function sharePgnText(filename, text) {
   const file = new File([text], filename, { type: 'application/x-chess-pgn' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -581,6 +588,7 @@ function showScreen(name) {
   if (name === 'learn') Learning.showCategories();
   if (name === 'profile') Profile.refresh();
   if (name !== 'blind') Blind.cleanup();
+  if (name !== 'puzzles') Puzzles.disarmCheckin();
 }
 
 document.querySelectorAll('#tabbar button').forEach(b =>
@@ -1617,6 +1625,7 @@ const Puzzles = {
     this.failedThis = false;
     this.eloRecorded = false;
     this.updateProgress();
+    this.armCheckin();
     // the first move in the list is the opponent's move — play it
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
@@ -1649,6 +1658,9 @@ const Puzzles = {
       this.moveIdx++;
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
       if (this.moveIdx >= this.current.moves.length || isMate) {
+        this.disarmCheckin();
+        Sound.play('puzzle-correct');
+        KaelQuotes.show(pickKael(KAEL_PRAISE), 4500);
         this.setStatus(t('solved'));
         if (!this.failedThis) {
           this.solved[this.current.id] = true;
@@ -1669,8 +1681,11 @@ const Puzzles = {
       this.board.interactive = true;
     } else {
       // wrong — undo, shake
+      const firstMistake = !this.failedThis;
       this.chess.undo();
       this.failedThis = true;
+      Sound.play('puzzle-wrong');
+      if (firstMistake) KaelQuotes.show(pickKael(KAEL_MISTAKE), 4500);
       this.board.setPosition(this.chess.fen());
       this.setStatus(t('wrong_try'));
       $('puzzle-board').classList.add('shake');
@@ -1688,6 +1703,7 @@ const Puzzles = {
 
   async showSolution() {
     if (!this.current) return;
+    this.disarmCheckin();
     this.failedThis = true;
     this.recordResult(false);
     this.board.interactive = false;
@@ -1699,6 +1715,34 @@ const Puzzles = {
     }
     this.setStatus(t('solved'));
     this.board.interactive = true;
+  },
+
+  // If a puzzle sits unsolved for 5 minutes, Kael checks in rather than
+  // leaving the player stuck silently.
+  armCheckin() {
+    this.disarmCheckin();
+    this.checkinTimer = setTimeout(() => this.showCheckin(), 5 * 60 * 1000);
+  },
+
+  disarmCheckin() {
+    clearTimeout(this.checkinTimer);
+  },
+
+  showCheckin() {
+    if (!this.current || activeScreen !== 'puzzles') return;
+    const msg = KAEL_CHECKIN[getLang()];
+    modal((box, close) => {
+      box.innerHTML = `<div class="kael-modal-head"><img src="icons/kael/kael-bust.png" class="kael-portrait" alt="Kael" style="width:90px;"></div>
+        <div class="kael-bubble"><p>${esc(msg.text)}</p></div>`;
+      const okBtn = document.createElement('button');
+      okBtn.className = 'btn primary big'; okBtn.textContent = msg.okBtn;
+      okBtn.onclick = () => { this.hint(); close(null); };
+      const dismissBtn = document.createElement('button');
+      dismissBtn.className = 'btn'; dismissBtn.style.marginTop = '8px';
+      dismissBtn.textContent = msg.dismissBtn;
+      dismissBtn.onclick = () => close(null);
+      box.append(okBtn, dismissBtn);
+    });
   },
 };
 
