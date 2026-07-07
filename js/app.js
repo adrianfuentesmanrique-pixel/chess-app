@@ -738,7 +738,12 @@ const Analysis = {
     $('ana-last').onclick = () => { this.tree.toEnd(); this.refresh(); };
     $('ana-flip').onclick = () => this.board.flip();
     $('ana-engine-toggle').onclick = () => this.toggleEngine();
-    $('ana-comment').onclick = () => this.editComment();
+    $('ana-explore').onclick = () => this.openExplore();
+    $('ana-view-tab').addEventListener('click', e => {
+      const b = e.target.closest('button[data-v]');
+      if (!b) return;
+      if (b.dataset.v === 'games') this.showGamesTab(); else this.showMovesTab();
+    });
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-more').onclick = () => this.moreMenu();
     $('ana-base-back').onclick = () => this.backToBase();
@@ -866,6 +871,124 @@ const Analysis = {
     $('ana-nag-bar').querySelectorAll('button[data-nag]').forEach(b => {
       b.classList.toggle('on', nags.includes(+b.dataset.nag));
     });
+  },
+
+  // --- explore (find games matching the current position) ------------
+  showMovesTab() {
+    $('ana-moves').classList.remove('hidden');
+    $('ana-nag-bar').classList.remove('hidden');
+    $('ana-games-view').classList.add('hidden');
+    $('ana-view-tab').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === 'moves'));
+  },
+
+  showGamesTab() {
+    $('ana-moves').classList.add('hidden');
+    $('ana-nag-bar').classList.add('hidden');
+    $('ana-games-view').classList.remove('hidden');
+    $('ana-view-tab').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === 'games'));
+  },
+
+  async openExplore() {
+    const { isMember } = await Membership.status();
+    sheet([
+      { label: '📚 ' + t('explore_database'), action: () => this.exploreDatabase() },
+      { label: (isMember ? '🌐 ' : '👑 ') + t('explore_internet'), action: () => this.exploreInternet(isMember) },
+    ]);
+  },
+
+  async exploreDatabase() {
+    const allBases = await db.listBases();
+    // A base always exists (main() auto-creates "My games"), so check for
+    // any games at all rather than any bases — an empty default base
+    // shouldn't silently search nothing and report "no results".
+    const bases = allBases.filter(b => b.count > 0);
+    if (!bases.length) {
+      await modal((box, close) => {
+        box.innerHTML = `<p>${esc(t('explore_need_base'))}</p>`;
+        const ok = document.createElement('button');
+        ok.className = 'btn primary big'; ok.textContent = t('ok');
+        ok.onclick = () => close(null);
+        box.appendChild(ok);
+      });
+      return;
+    }
+    let baseId = bases[0].id;
+    if (bases.length > 1) {
+      baseId = await modal((box, close) => {
+        box.innerHTML = `<h3>${t('choose_base')}</h3>`;
+        for (const b of bases) {
+          const btn = document.createElement('button');
+          btn.className = 'sheet-btn';
+          btn.textContent = `${b.name} (${b.count ?? 0} ${t('games')})`;
+          btn.onclick = () => close(b.id);
+          box.appendChild(btn);
+        }
+        const ca = document.createElement('button');
+        ca.className = 'sheet-btn cancel'; ca.textContent = t('cancel');
+        ca.onclick = () => close(null);
+        box.appendChild(ca);
+      });
+      if (!baseId) return;
+    }
+    this.showGamesTab();
+    $('ana-games-status').textContent = t('explore_searching');
+    $('ana-games-list').innerHTML = '';
+    const key = fenKey(this.tree.fen());
+    const games = await db.listGames(baseId);
+    const matches = [];
+    for (const g of games) {
+      let tree;
+      try { tree = parsePgn(g.pgn); } catch { continue; }
+      if (this.treeHasFen(tree.root, key)) matches.push(g);
+    }
+    this.renderGameResults(matches, 'local');
+  },
+
+  // Walks every branch (including side variations) looking for a matching position.
+  treeHasFen(node, key, depth = 0) {
+    if (depth > 300) return false;
+    if (fenKey(node.fen) === key) return true;
+    for (const c of node.children) if (this.treeHasFen(c, key, depth + 1)) return true;
+    return false;
+  },
+
+  async exploreInternet(isMember) {
+    if (!isMember) { Membership.openModal(); return; }
+    this.showGamesTab();
+    $('ana-games-status').textContent = t('explore_searching');
+    $('ana-games-list').innerHTML = '';
+    try {
+      const url = `https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(this.tree.fen())}&topGames=15`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Lichess: ${res.status}`);
+      const data = await res.json();
+      this.renderGameResults(data.topGames || [], 'lichess');
+    } catch (e) {
+      $('ana-games-status').textContent = '⚠️ ' + (e.message || e);
+    }
+  },
+
+  renderGameResults(list, source) {
+    $('ana-games-status').textContent = list.length ? '' : t('explore_no_results');
+    const el = $('ana-games-list');
+    el.innerHTML = '';
+    for (const item of list) {
+      const btn = document.createElement('button');
+      btn.className = 'list-item';
+      if (source === 'local') {
+        btn.innerHTML = `<b>${esc(item.white)} — ${esc(item.black)}</b><span class="sub">${esc(item.event || '')} ${esc(item.date || '')} · ${esc(item.result)}</span>`;
+        btn.onclick = () => {
+          try { this.loadTree(parsePgn(item.pgn), { baseId: item.baseId, gameId: item.id }); this.showMovesTab(); }
+          catch { toast(t('import_failed')); }
+        };
+      } else {
+        const w = item.white?.name ?? '?', b = item.black?.name ?? '?';
+        const res = item.winner === 'white' ? '1-0' : item.winner === 'black' ? '0-1' : '½-½';
+        btn.innerHTML = `<b>${esc(w)} — ${esc(b)}</b><span class="sub">${item.year ?? ''} · ${res}</span>`;
+        btn.onclick = () => window.open(`https://lichess.org/${item.id}`, '_blank');
+      }
+      el.appendChild(btn);
+    }
   },
 
   renderMoves() {
