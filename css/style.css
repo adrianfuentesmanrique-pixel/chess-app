@@ -398,6 +398,15 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .variation.d2 { font-size: 13px; }
 .variation.d3 { font-size: 12px; }
 
+/* ── NAG symbol picker ─────────────────── */
+.nag-bar { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.nag-bar button {
+  flex: 0 0 auto; min-width: 34px; background: var(--panel2); color: var(--text);
+  border: none; border-radius: 7px; font-size: 14px; padding: 6px 4px; cursor: pointer;
+}
+.nag-bar button.on { background: var(--accent2); color: #fff; }
+.nag-bar button:active { transform: scale(.94); }
+
 /* ── annotate toolbar (arrows/squares) ─── */
 .annotate-bar {
   display: flex; gap: 10px; align-items: center; justify-content: center;

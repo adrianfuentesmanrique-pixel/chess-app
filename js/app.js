@@ -721,6 +721,10 @@ const Analysis = {
   engineOn: false,
   ctx: { baseId: null, gameId: null },   // where this game lives, if saved
   restartTimer: null,
+  _commentTarget: null,   // node the comment box is currently editing
+  _holdTimer: null,       // long-press timer for the move-list context menu
+  _holdXY: null,
+  _justHeld: false,       // suppresses the click-to-navigate right after a long-press fires
 
   init() {
     this.board = new Board($('ana-board'), {
@@ -757,16 +761,50 @@ const Analysis = {
       };
     });
     $('ana-comment-save').onclick = () => {
-      this.tree.current.comment = $('ana-comment-text').value.trim();
+      (this._commentTarget || this.tree.current).comment = $('ana-comment-text').value.trim();
       $('ana-comment-box').classList.add('hidden');
+      this._commentTarget = null;
       this.renderMoves();
     };
-    $('ana-comment-cancel').onclick = () => $('ana-comment-box').classList.add('hidden');
+    $('ana-comment-cancel').onclick = () => { $('ana-comment-box').classList.add('hidden'); this._commentTarget = null; };
     $('ana-moves').addEventListener('click', e => {
+      if (this._justHeld) { this._justHeld = false; return; }
       const span = e.target.closest('[data-node]');
       if (!span) return;
       const node = this.tree.findById(+span.dataset.node);
       if (node) { this.tree.goto(node); this.refresh(); }
+    });
+    $('ana-moves').addEventListener('pointerdown', e => {
+      const span = e.target.closest('.mv[data-node]');
+      if (!span) return;
+      const node = this.tree.findById(+span.dataset.node);
+      if (!node) return;
+      this._holdXY = { x: e.clientX, y: e.clientY };
+      clearTimeout(this._holdTimer);
+      this._holdTimer = setTimeout(() => {
+        this._holdTimer = null;
+        this._justHeld = true;
+        this.tree.goto(node);
+        this.refresh();
+        this.moveContextMenu(node);
+      }, 500);
+    });
+    const cancelHold = () => { clearTimeout(this._holdTimer); this._holdTimer = null; this._holdXY = null; };
+    $('ana-moves').addEventListener('pointerup', cancelHold);
+    $('ana-moves').addEventListener('pointercancel', cancelHold);
+    $('ana-moves').addEventListener('pointermove', e => {
+      if (!this._holdXY) return;
+      if (Math.abs(e.clientX - this._holdXY.x) > 10 || Math.abs(e.clientY - this._holdXY.y) > 10) cancelHold();
+    });
+    $('ana-nag-bar').addEventListener('click', e => {
+      const btn = e.target.closest('button[data-nag]');
+      if (!btn || !this.tree.current.san) return;
+      const nag = +btn.dataset.nag;
+      const nags = this.tree.current.nags;
+      const i = nags.indexOf(nag);
+      if (i === -1) nags.push(nag); else nags.splice(i, 1);
+      this.renderMoves();
+      this.updateNagBar();
     });
     this.refresh();
   },
@@ -819,7 +857,15 @@ const Analysis = {
     this.board.setPosition(this.tree.fen(), last);
     this.board.setShapes(cur.shapes);
     this.renderMoves();
+    this.updateNagBar();
     if (this.engineOn) this.restartEngine();
+  },
+
+  updateNagBar() {
+    const nags = this.tree.current.nags;
+    $('ana-nag-bar').querySelectorAll('button[data-nag]').forEach(b => {
+      b.classList.toggle('on', nags.includes(+b.dataset.nag));
+    });
   },
 
   renderMoves() {
@@ -915,11 +961,35 @@ const Analysis = {
     }
   },
 
-  editComment() {
+  editComment(node = this.tree.current) {
+    this._commentTarget = node;
     const box = $('ana-comment-box');
     box.classList.remove('hidden');
-    $('ana-comment-text').value = this.tree.current.comment || '';
+    $('ana-comment-text').value = node.comment || '';
     $('ana-comment-text').focus();
+  },
+
+  // Long-press on a move in the list — quick edit actions for that move.
+  moveContextMenu(node) {
+    const items = [
+      { label: '💬 ' + t('text_before_move'), action: () => this.editComment(node.parent) },
+      { label: '💬 ' + t('text_after_move'), action: () => this.editComment(node) },
+      { label: '⬆️ ' + t('promote_var'), action: () => { this.tree.promote(node); this.refresh(); } },
+      { label: '🗑 ' + t('delete'), action: () => this.deleteSubmenu(node) },
+    ];
+    sheet(items);
+  },
+
+  deleteSubmenu(node) {
+    const items = [];
+    if (this.tree.isInVariation(node)) {
+      items.push({ label: '🗑 ' + t('delete_variation'), action: () => { this.tree.deleteVariation(node); this.refresh(); }, danger: true });
+    }
+    items.push({ label: '🗑 ' + t('delete_remaining'), action: () => { this.tree.deleteNode(node); this.refresh(); }, danger: true });
+    if (node.parent && node.parent !== this.tree.root) {
+      items.push({ label: '🗑 ' + t('delete_previous'), action: () => { this.tree.truncateBefore(node); this.refresh(); }, danger: true });
+    }
+    sheet(items);
   },
 
   async moreMenu() {
@@ -933,8 +1003,8 @@ const Analysis = {
       { label: '🤖 ' + t('play_from_here'), action: () => Play.startFromFen(this.tree.fen()) },
     ];
     if (this.tree.current.san) {
-      items.push({ label: '⬆️ ' + t('promote_var'), action: () => { this.tree.promote(this.tree.current); this.renderMoves(); } });
-      items.push({ label: '🗑 ' + t('delete_move'), action: () => { this.tree.deleteNode(this.tree.current); this.refresh(); }, danger: true });
+      items.push({ label: '⬆️ ' + t('promote_var'), action: () => { this.tree.promote(this.tree.current); this.refresh(); } });
+      items.push({ label: '🗑 ' + t('delete'), action: () => this.deleteSubmenu(this.tree.current) });
     }
     sheet(items);
   },

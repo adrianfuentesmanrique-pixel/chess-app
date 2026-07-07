@@ -21,7 +21,7 @@ class Node {
   }
 }
 
-const NAG_TEXT = { 1: '!', 2: '?', 3: '!!', 4: '??', 5: '!?', 6: '?!', 10: '=', 13: '∞', 14: '⩲', 15: '⩱', 16: '±', 17: '∓', 18: '+-', 19: '-+' };
+const NAG_TEXT = { 1: '!', 2: '?', 3: '!!', 4: '??', 5: '!?', 6: '?!', 10: '=', 13: '∞', 14: '⩲', 15: '⩱', 16: '±', 17: '∓', 18: '+-', 19: '-+', 132: '⇄' };
 
 export class GameTree {
   constructor(startFen = START_FEN) {
@@ -90,6 +90,38 @@ export class GameTree {
       if (i > 0) { sib.splice(i, 1); sib.unshift(n); return; }
       n = n.parent;
     }
+  }
+
+  // True if `node` sits inside a side variation rather than the main line.
+  isInVariation(node) {
+    let n = node;
+    while (n.parent) {
+      if (n.parent.children.indexOf(n) > 0) return true;
+      n = n.parent;
+    }
+    return false;
+  }
+
+  // Deletes the whole variation branch that `node` belongs to, from its
+  // branch point off the main (or parent) line.
+  deleteVariation(node) {
+    let n = node;
+    while (n.parent) {
+      if (n.parent.children.indexOf(n) > 0) { this.deleteNode(n); return; }
+      n = n.parent;
+    }
+  }
+
+  // Re-roots the tree at the position right before `node`'s move, discarding
+  // everything earlier — turns this move into the new start of the game/study.
+  truncateBefore(node) {
+    if (!node.parent || node.parent === this.root) return;
+    const newRoot = new Node(null, null, node.parent.fen, null, null);
+    newRoot.children = [node];
+    node.parent = newRoot;
+    this.root = newRoot;
+    this.startFen = newRoot.fen;
+    this.current = node;
   }
 
   mainlinePath() {
