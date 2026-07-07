@@ -35,7 +35,7 @@ export class Board {
     this.onEditorTap = opts.onEditorTap || (() => {});
     this.freeMove = false;     // allow moving either color (setup/analysis root)
     this.shapes = { squares: [], arrows: [] };
-    this.piecesHidden = false; // Blind Puzzles: pieces invisible, but moves still work normally
+    this.piecesHidden = false; // Blindfold Puzzles: pieces invisible, but moves still work normally
     this.drawColor = null;     // 'green'|'yellow'|'red'|null — when set, taps/drags annotate instead of moving
     this.onShapesChange = opts.onShapesChange || (() => {});
     this.onSound = opts.onSound || null; // (kind: 'move'|'capture') — Board detects captures by piece count, callers stay ignorant of sound

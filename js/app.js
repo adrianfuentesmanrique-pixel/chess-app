@@ -8,7 +8,7 @@ import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
-import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN } from './quotes-data.js';
+import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 
 const $ = id => document.getElementById(id);
@@ -1912,8 +1912,15 @@ const Blind = {
   chess: null,
   moveIdx: 0,
   peeksUsed: 0,
+  peekedThis: false,
+  failedThis: false,
+  eloRecorded: false,
   countdownTimer: null,
   peekTimer: null,
+  loaded: false,
+  elo: 1200,
+  hintWarningSeen: false,
+  greetedThisOpen: false,
 
   init() {
     this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
@@ -1925,8 +1932,22 @@ const Blind = {
     $('blind-share').onclick = () => this.share();
   },
 
-  open() {
+  async ensureLoaded() {
+    if (this.loaded) return;
+    this.elo = await db.kvGet('blindfoldElo', 1200);
+    this.hintWarningSeen = await db.kvGet('blindfoldHintWarningSeen', false);
+    this.loaded = true;
+  },
+
+  updateEloBadge() {
+    $('blind-elo').textContent = `${t('blindfold_elo')}: ${Math.round(this.elo)}`;
+  },
+
+  async open() {
     showScreen('blind');
+    await this.ensureLoaded();
+    this.updateEloBadge();
+    this.greetedThisOpen = false;
     this.nextPuzzle();
   },
 
@@ -1936,15 +1957,38 @@ const Blind = {
     $('blind-countdown').classList.add('hidden');
   },
 
+  recordResult(win) {
+    if (this.eloRecorded || !this.current) return;
+    this.eloRecorded = true;
+    // Using a peek (hint) still earns ELO on a win, just less of it — the
+    // point is to nudge people toward solving from memory, not punish them.
+    const K = this.peekedThis ? 12 : 32;
+    const expected = 1 / (1 + Math.pow(10, (this.current.rating - this.elo) / 400));
+    const score = win ? 1 : 0;
+    this.elo = Math.max(600, this.elo + K * (score - expected));
+    db.kvSet('blindfoldElo', this.elo);
+    this.updateEloBadge();
+    recordEloHistory('blindfoldEloHistory', this.elo);
+  },
+
+  updateTurnIndicator() {
+    if (!this.chess) return;
+    const turnColor = this.chess.turn() === 'w' ? 'white' : 'black';
+    $('blind-turn').textContent = `${t(turnColor)} ${t('to_move_short')}`;
+  },
+
   nextPuzzle() {
     this.cleanup();
     $('blind-share').classList.add('hidden');
-    const candidates = PUZZLES.filter(p => Math.abs(p.rating - Puzzles.elo) <= 300);
+    const candidates = PUZZLES.filter(p => Math.abs(p.rating - this.elo) <= 300);
     const list = candidates.length ? candidates : PUZZLES;
     this.current = list[Math.floor(Math.random() * list.length)];
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
     this.peeksUsed = 0;
+    this.peekedThis = false;
+    this.failedThis = false;
+    this.eloRecorded = false;
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
     this.board.setPiecesHidden(false);
@@ -1952,10 +1996,16 @@ const Blind = {
     this.board.interactive = false;
     $('blind-status').textContent = t('blind_watch_now');
     this.updatePeekBtn();
+    this.updateTurnIndicator();
+    if (!this.greetedThisOpen) {
+      this.greetedThisOpen = true;
+      setTimeout(() => KaelQuotes.show(pickKael(KAEL_BLINDFOLD), 5000), 900);
+    }
     setTimeout(() => {
       const m = this.applyUci(this.current.moves[0]);
       this.moveIdx = 1;
       this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
+      this.updateTurnIndicator();
       this.startCountdown(10, () => this.hidePieces());
     }, 500);
   },
@@ -2005,7 +2055,24 @@ const Blind = {
       toast(t('blind_no_peeks_toast'));
       return;
     }
+    if (!this.hintWarningSeen) {
+      this.hintWarningSeen = true;
+      db.kvSet('blindfoldHintWarningSeen', true);
+      const proceed = await modal((box, close) => {
+        const msg = KAEL_HINT_WARNING[getLang()];
+        box.innerHTML = `<h3>🦉 Kael</h3><p>${esc(msg.text)}</p>`;
+        const row = document.createElement('div'); row.className = 'row';
+        const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = msg.okBtn;
+        const ca = document.createElement('button'); ca.className = 'btn'; ca.textContent = msg.dismissBtn;
+        ok.onclick = () => close(true);
+        ca.onclick = () => close(false);
+        row.append(ok, ca);
+        box.append(row);
+      });
+      if (!proceed) return;
+    }
     this.peeksUsed++;
+    this.peekedThis = true;
     this.updatePeekBtn();
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
@@ -2033,7 +2100,10 @@ const Blind = {
       if (this.moveIdx >= this.current.moves.length || isMate) {
         clearTimeout(this.peekTimer);
         this.board.setPiecesHidden(false);
+        Sound.play('puzzle-correct');
+        KaelQuotes.show(pickKael(KAEL_PRAISE), 4500);
         this.setStatus(t('solved'));
+        this.recordResult(true);
         $('blind-share').classList.remove('hidden');
         Streak.recordActivity();
         return;
@@ -2045,9 +2115,14 @@ const Blind = {
       this.moveIdx++;
       this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
       this.board.interactive = true;
+      this.updateTurnIndicator();
     } else {
+      const firstMistake = !this.failedThis;
+      this.failedThis = true;
       this.chess.undo();
       this.board.setPosition(this.chess.fen());
+      Sound.play('puzzle-wrong');
+      if (firstMistake) KaelQuotes.show(pickKael(KAEL_MISTAKE), 4500);
       this.setStatus(t('wrong_try'));
       $('blind-board').classList.add('shake');
       setTimeout(() => $('blind-board').classList.remove('shake'), 500);
@@ -2057,6 +2132,7 @@ const Blind = {
   async showSolution() {
     if (!this.current) return;
     clearTimeout(this.peekTimer);
+    this.recordResult(false);
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     while (this.moveIdx < this.current.moves.length) {
@@ -2961,6 +3037,7 @@ const Profile = {
     $('profile-elo-puzzle-card').onclick = () => openEloHistoryModal('puzzleEloHistory', 'puzzle_elo');
     $('profile-elo-opening-card').onclick = () => openEloHistoryModal('openingEloHistory', 'opening_elo');
     $('profile-elo-endgame-card').onclick = () => openEloHistoryModal('endgameEloHistory', 'endgame_elo');
+    $('profile-elo-blindfold-card').onclick = () => openEloHistoryModal('blindfoldEloHistory', 'blindfold_elo');
     $('profile-leaderboard-btn').onclick = () => Leaderboard.open();
     $('profile-member-btn').onclick = () => Membership.openModal();
     $('profile-share-streak').onclick = () => shareStatCard({
@@ -3077,6 +3154,7 @@ const Profile = {
     const themeElo = await db.kvGet('puzzleThemeElo', {});
     const openingElo = await db.kvGet('openingElo', {});
     const endgameElo = await db.kvGet('endgameElo', {});
+    const blindfoldElo = await db.kvGet('blindfoldElo', 1200);
 
     const openingNames = Object.keys(openingElo);
     const openingAvg = openingNames.length
@@ -3088,6 +3166,7 @@ const Profile = {
     $('profile-elo-puzzle').textContent = Math.round(puzzleElo);
     $('profile-elo-opening').textContent = openingNames.length ? Math.round(openingAvg) : '—';
     $('profile-elo-endgame').textContent = endgameNames.length ? Math.round(endgameAvg) : '—';
+    $('profile-elo-blindfold').textContent = Math.round(blindfoldElo);
 
     this.drawRadar('overall',
       [t('radar_axis_opening'), t('radar_axis_puzzle'), t('radar_axis_endgame')],
@@ -3185,9 +3264,11 @@ const Leaderboard = {
     const el = $('leaderboard-list');
     el.innerHTML = '';
     if (q && !list.length) { $('leaderboard-status').textContent = t('leaderboard_no_match'); return; }
-    const label = this.field === 'rushBestScore' ? t('rush_title') : t('puzzle_elo');
+    const label = this.field === 'rushBestScore' ? t('rush_title')
+      : this.field === 'blindfoldElo' ? t('blindfold_elo') : t('puzzle_elo');
     list.forEach((e, i) => {
-      const value = this.field === 'rushBestScore' ? Math.round(e.rushBestScore ?? 0) : Math.round(e.puzzleElo ?? 1200);
+      const value = this.field === 'rushBestScore' ? Math.round(e.rushBestScore ?? 0)
+        : this.field === 'blindfoldElo' ? Math.round(e.blindfoldElo ?? 1200) : Math.round(e.puzzleElo ?? 1200);
       const item = document.createElement('button');
       item.className = 'list-item';
       item.style.cssText = 'flex-direction:row; align-items:center; gap:10px;';
@@ -3214,6 +3295,7 @@ const PublicProfile = {
     const themeElo = entry.puzzleThemeElo ?? {};
     const openingElo = entry.openingElo ?? {};
     const endgameElo = entry.endgameElo ?? {};
+    const blindfoldElo = entry.blindfoldElo ?? 1200;
 
     const openingNames = Object.keys(openingElo);
     const openingAvg = openingNames.length
@@ -3225,6 +3307,7 @@ const PublicProfile = {
     $('pubprofile-elo-puzzle').textContent = Math.round(puzzleElo);
     $('pubprofile-elo-opening').textContent = openingNames.length ? Math.round(openingAvg) : '—';
     $('pubprofile-elo-endgame').textContent = endgameNames.length ? Math.round(endgameAvg) : '—';
+    $('pubprofile-elo-blindfold').textContent = Math.round(blindfoldElo);
 
     Profile.drawRadar('pub-overall',
       [t('radar_axis_opening'), t('radar_axis_puzzle'), t('radar_axis_endgame')],
@@ -3279,6 +3362,10 @@ async function main() {
       Puzzles.updateProgress();
     }
     Endgame.elo = await db.kvGet('endgameElo', {});
+    if (Blind.loaded) {
+      Blind.elo = await db.kvGet('blindfoldElo', 1200);
+      Blind.updateEloBadge();
+    }
     if (activeScreen === 'endgame') Endgame.showCategories();
     if (activeScreen === 'profile') Profile.refresh();
     if (Auth.user && Auth.needsProfileCompletion) openCompleteProfileModal();

@@ -29,12 +29,13 @@ const SYNCED_KEYS = [
   'puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'avatarId',
   'earnedBadges', 'bestStreak', 'endgameConverted', 'firstImportDone', 'firstEngineUsed',
   'rushBestScore', 'puzzleAttemptCount',
+  'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
   'isMember', 'memberTrialUsed', 'memberTrialEndsAt',
 ];
 
 // Subset that gets mirrored into the PUBLIC /leaderboard/{uid} doc — never
 // email, real name, or date of birth. Changing any of these re-publishes it.
-const PUBLIC_KEYS = ['profileName', 'avatarId', 'puzzleElo', 'puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'isMember'];
+const PUBLIC_KEYS = ['profileName', 'avatarId', 'puzzleElo', 'puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'blindfoldElo', 'isMember'];
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);

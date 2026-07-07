@@ -232,14 +232,16 @@
     </div>
   </section>
 
-  <!-- ══════════ BLIND PUZZLES ══════════ -->
+  <!-- ══════════ BLINDFOLD PUZZLES ══════════ -->
   <section id="screen-blind" class="screen hidden">
     <div class="row screen-head">
       <button id="blind-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="blind_title"></h2>
+      <span id="blind-elo" class="elo-badge"></span>
     </div>
     <p class="hint" data-i18n="blind_explain"></p>
     <div id="blind-status" class="status-bar"></div>
+    <div id="blind-turn" class="hint blind-turn"></div>
     <div id="blind-countdown" class="blind-countdown hidden"></div>
     <div id="blind-board" class="board-wrap"></div>
     <div class="row" id="blind-actions">
@@ -361,6 +363,7 @@
       <button class="elo-card" id="profile-elo-puzzle-card"><span data-i18n="puzzle_elo"></span><b id="profile-elo-puzzle"></b></button>
       <button class="elo-card" id="profile-elo-opening-card"><span data-i18n="opening_elo"></span><b id="profile-elo-opening"></b></button>
       <button class="elo-card" id="profile-elo-endgame-card"><span data-i18n="endgame_elo"></span><b id="profile-elo-endgame"></b></button>
+      <button class="elo-card" id="profile-elo-blindfold-card"><span data-i18n="blindfold_elo"></span><b id="profile-elo-blindfold"></b></button>
     </div>
 
     <div class="profile-card">
@@ -399,6 +402,7 @@
     <div class="seg" id="leaderboard-mode">
       <button data-v="puzzleElo" class="on" data-i18n="puzzle_elo"></button>
       <button data-v="rushBestScore" data-i18n="rush_title"></button>
+      <button data-v="blindfoldElo" data-i18n="blindfold_elo"></button>
     </div>
     <input type="text" id="leaderboard-search" class="input" data-i18n-ph="search_player">
     <div id="leaderboard-status" class="hint"></div>
@@ -418,6 +422,7 @@
       <div class="elo-card"><span data-i18n="puzzle_elo"></span><b id="pubprofile-elo-puzzle"></b></div>
       <div class="elo-card"><span data-i18n="opening_elo"></span><b id="pubprofile-elo-opening"></b></div>
       <div class="elo-card"><span data-i18n="endgame_elo"></span><b id="pubprofile-elo-endgame"></b></div>
+      <div class="elo-card"><span data-i18n="blindfold_elo"></span><b id="pubprofile-elo-blindfold"></b></div>
     </div>
     <div class="profile-card">
       <h3 data-i18n="radar_overall"></h3>

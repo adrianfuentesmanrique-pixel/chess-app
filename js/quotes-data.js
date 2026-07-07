@@ -285,3 +285,27 @@ export const KAEL_CHECKIN = {
   es: { text: '¿Todo bien? Llevas un rato aquí. ¿Quieres un pequeño empujón?', okBtn: 'Sí, dame una pista', dismissBtn: 'Estoy bien, sigo pensando' },
   en: { text: "Everything OK? You've been on this one a while. Want a little nudge?", okBtn: 'Yes, give me a hint', dismissBtn: "I'm fine, still thinking" },
 };
+
+// Shown when a Blindfold puzzle starts — encourages solving without peeking.
+export const KAEL_BLINDFOLD = {
+  es: [
+    'Confía en tu tablero mental — puedes verlo sin verlo.',
+    'Visualiza cada casilla. Tú puedes con esto.',
+    'Respira, imagina el tablero pieza por pieza. ¡Eres capaz!',
+    'Los grandes maestros calculan así — sin mirar. Tú también puedes.',
+    'No necesitas los ojos, necesitas tu memoria. ¡Confía en ella!',
+  ],
+  en: [
+    'Trust your mental board — you can see it without seeing it.',
+    'Visualize every square. You can do this.',
+    'Breathe, picture the board piece by piece. You are capable!',
+    'Grandmasters calculate just like this — blindfolded. So can you.',
+    "You don't need your eyes, you need your memory. Trust it!",
+  ],
+};
+
+// First-time warning before using a hint (peek) in Blindfold mode.
+export const KAEL_HINT_WARNING = {
+  es: { text: 'Un aviso de Kael: si usas la pista, el ELO que ganes al resolver este puzzle será menor. ¡Inténtalo de memoria primero!', okBtn: 'Entendido', dismissBtn: 'Cancelar' },
+  en: { text: "A note from Kael: if you use the hint, the ELO you earn for solving this puzzle will be lower. Try it from memory first!", okBtn: 'Got it', dismissBtn: 'Cancel' },
+};
