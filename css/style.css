@@ -91,7 +91,7 @@ body.mode-light .brand-logo { filter: none; }
   pointer-events: none;
 }
 body.mode-light .watermark { filter: none; }
-#play-setup, #trainer-setup, #rush-intro, #base-list-view, #endgame-list-view {
+#play-setup, #trainer-setup, #rush-intro, #base-list-view, #endgame-list-view, #learn-cat-view {
   position: relative; isolation: isolate; overflow: hidden;
 }
 /* Screens with a single "start" action: keep the button anchored to the
@@ -102,6 +102,10 @@ body.mode-light .watermark { filter: none; }
   min-height: calc(100dvh - 190px);
 }
 #play-setup .btn.big, #trainer-setup .btn.big, #rush-intro .btn.big { margin-top: auto; }
+/* List-style landing screens don't have a single bottom button to anchor,
+   but still need full-viewport height so the watermark isn't clipped short
+   like it would be if it only sized to the (short) list content. */
+#base-list-view, #endgame-list-view, #learn-cat-view { min-height: calc(100dvh - 190px); }
 
 /* ── board color themes ────────────────── */
 body.theme-wood { --sq-light: #ecdab9; --sq-dark: #ae8a68; }

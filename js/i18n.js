@@ -85,6 +85,7 @@ const DICT = {
   checkmate_loss: { es: 'Jaque mate. La máquina gana.', en: 'Checkmate. The computer wins.' },
   draw: { es: 'Tablas.', en: 'Draw.' },
   analyze_game: { es: 'Analizar la partida', en: 'Analyze the game' },
+  analyze_short: { es: 'Análisis', en: 'Analysis' },
   level_names: { es: ['Principiante', 'Fácil', 'Casual', 'Club', 'Club fuerte', 'Experto', 'Maestro', 'Máximo'], en: ['Beginner', 'Easy', 'Casual', 'Club', 'Strong club', 'Expert', 'Master', 'Maximum'] },
   // Trainer
   trainer_title: { es: 'Entrenar aperturas', en: 'Opening training' },
