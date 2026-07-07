@@ -488,6 +488,7 @@ const Analysis = {
     $('ana-flip').onclick = () => this.board.flip();
     $('ana-engine-toggle').onclick = () => this.toggleEngine();
     $('ana-comment').onclick = () => this.editComment();
+    $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-more').onclick = () => this.moreMenu();
     $('ana-annotate-toggle').onclick = () => $('ana-annotate').classList.toggle('hidden');
     $('ana-annotate-clear').onclick = () => this.board.clearShapes();
@@ -640,7 +641,6 @@ const Analysis = {
       { label: '📋 ' + t('copy_pgn'), action: () => { copyText(this.tree.toPgn()); } },
       { label: '📋 ' + t('copy_fen'), action: () => { copyText(this.tree.fen()); } },
       { label: '🆕 ' + t('new_game'), action: () => this.loadTree(new GameTree()) },
-      { label: '🧩 ' + t('setup_position'), action: () => Setup.open(this.tree.fen()) },
       { label: '🤖 ' + t('play_from_here'), action: () => Play.startFromFen(this.tree.fen()) },
     ];
     if (this.tree.current.san) {

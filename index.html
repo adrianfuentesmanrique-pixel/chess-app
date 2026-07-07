@@ -27,6 +27,9 @@
 <main>
   <!-- ══════════ ANALYSIS ══════════ -->
   <section id="screen-analysis" class="screen">
+    <div class="row" style="justify-content:flex-end; margin:0 0 6px;">
+      <button id="ana-setup-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="setup_position">✏️</button>
+    </div>
     <div id="ana-board" class="board-wrap"></div>
     <div id="ana-engine" class="engine-panel hidden">
       <div class="engine-lines" id="ana-engine-lines"></div>
@@ -36,9 +39,9 @@
       <button id="ana-prev" class="tool-btn">◀</button>
       <button id="ana-next" class="tool-btn">▶</button>
       <button id="ana-last" class="tool-btn">⏭</button>
-      <button id="ana-engine-toggle" class="tool-btn">💡</button>
+      <button id="ana-engine-toggle" class="tool-btn">🖥️</button>
       <button id="ana-comment" class="tool-btn">💬</button>
-      <button id="ana-annotate-toggle" class="tool-btn">✏️</button>
+      <button id="ana-annotate-toggle" class="tool-btn">🎨</button>
       <button id="ana-flip" class="tool-btn">🔄</button>
       <button id="ana-more" class="tool-btn">⋯</button>
     </div>
@@ -61,6 +64,7 @@
   <!-- ══════════ DATABASE ══════════ -->
   <section id="screen-base" class="screen hidden">
     <div id="base-list-view">
+      <img src="icons/logo-mark.png" class="watermark" alt="">
       <div class="row screen-head">
         <h2 data-i18n="tab_base"></h2>
         <button id="base-new" class="btn primary" data-i18n="new_base"></button>
@@ -179,6 +183,7 @@
   <!-- ══════════ PUZZLE RUSH ══════════ -->
   <section id="screen-rush" class="screen hidden">
     <div id="rush-intro">
+      <img src="icons/logo-mark.png" class="watermark" alt="">
       <div class="row screen-head">
         <button id="rush-back" class="btn" data-i18n="back"></button>
         <h2 data-i18n="rush_title"></h2>
@@ -220,6 +225,7 @@
   <!-- ══════════ ENDGAME ══════════ -->
   <section id="screen-endgame" class="screen hidden">
     <div id="endgame-list-view">
+      <img src="icons/logo-mark.png" class="watermark" alt="">
       <div class="row screen-head">
         <h2 data-i18n="tab_endgame"></h2>
       </div>
@@ -241,7 +247,7 @@
       <div id="endgame-status" class="status-bar hidden"></div>
       <div class="row" id="endgame-study-actions">
         <button id="endgame-flip" class="tool-btn">🔄</button>
-        <button id="endgame-engine-toggle" class="tool-btn">💡</button>
+        <button id="endgame-engine-toggle" class="tool-btn">🖥️</button>
         <button id="endgame-practice-start" class="btn primary" data-i18n="practice_start"></button>
       </div>
       <div id="endgame-engine" class="engine-panel hidden">
