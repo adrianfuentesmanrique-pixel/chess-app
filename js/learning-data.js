@@ -26,6 +26,7 @@ export const LEARNING_CATEGORIES = [
           es: 'El peón avanza una casilla hacia adelante (dos casillas si está en su posición inicial), pero nunca hacia atrás. A diferencia de su movimiento, captura en diagonal una casilla hacia adelante — nunca puede capturar moviéndose recto. Al llegar a la última fila, se corona (ver lección de Coronación).',
           en: 'A pawn moves one square forward (two squares if it hasn\'t moved yet), and never backward. Unlike its movement, it captures one square diagonally forward — it can never capture by moving straight ahead. When it reaches the last rank, it promotes (see the Promotion lesson).',
         },
+        practice: { from: 'e2' },
       },
       {
         id: 'knight',
@@ -36,6 +37,7 @@ export const LEARNING_CATEGORIES = [
           es: 'El caballo se mueve en forma de "L": dos casillas en una dirección (horizontal o vertical) y luego una casilla perpendicular. Es la única pieza que puede saltar sobre otras piezas, propias o rivales.',
           en: 'The knight moves in an "L" shape: two squares in one direction (horizontal or vertical), then one square perpendicular to that. It\'s the only piece that can jump over other pieces, friend or foe.',
         },
+        practice: { from: 'd5' },
       },
       {
         id: 'bishop',
@@ -46,6 +48,7 @@ export const LEARNING_CATEGORIES = [
           es: 'El alfil se mueve en diagonal, cualquier número de casillas, sin poder saltar sobre otras piezas. Cada alfil queda confinado toda la partida a las casillas de un solo color (claras u oscuras) según donde empezó.',
           en: 'The bishop moves diagonally, any number of squares, and cannot jump over other pieces. Each bishop stays confined for the whole game to squares of one color (light or dark) depending on where it started.',
         },
+        practice: { from: 'd5' },
       },
       {
         id: 'rook',
@@ -56,6 +59,7 @@ export const LEARNING_CATEGORIES = [
           es: 'La torre se mueve en línea recta, en horizontal o vertical, cualquier número de casillas, sin saltar sobre otras piezas. Junto con el rey, participa en el enroque (ver lección de Enroque).',
           en: 'The rook moves in a straight line, horizontally or vertically, any number of squares, without jumping over other pieces. Along with the king, it takes part in castling (see the Castling lesson).',
         },
+        practice: { from: 'd5' },
       },
       {
         id: 'queen',
@@ -66,6 +70,7 @@ export const LEARNING_CATEGORIES = [
           es: 'La dama combina los movimientos de la torre y el alfil: se mueve en línea recta o en diagonal, cualquier número de casillas. Es la pieza más poderosa del tablero.',
           en: 'The queen combines the rook\'s and bishop\'s movement: it moves in a straight line or diagonally, any number of squares. It\'s the most powerful piece on the board.',
         },
+        practice: { from: 'd5' },
       },
       {
         id: 'king',
@@ -76,6 +81,7 @@ export const LEARNING_CATEGORIES = [
           es: 'El rey se mueve una casilla en cualquier dirección. Es la pieza más importante: si está en jaque (amenazado de captura) y no puede evitarlo, es jaque mate y la partida termina. El rey nunca puede moverse a una casilla atacada por el rival.',
           en: 'The king moves one square in any direction. It\'s the most important piece: if it\'s in check (threatened with capture) and can\'t escape it, that\'s checkmate and the game ends. The king can never move to a square attacked by the opponent.',
         },
+        practice: { from: 'd4' },
       },
       {
         id: 'captures',
@@ -86,6 +92,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Cualquier pieza captura moviéndose a una casilla ocupada por una pieza rival, siguiendo su propio patrón de movimiento — la pieza capturada se retira del tablero. La única excepción es el peón, que se mueve recto pero captura en diagonal.',
           en: 'Any piece captures by moving to a square occupied by an enemy piece, following its own normal movement pattern — the captured piece is removed from the board. The one exception is the pawn, which moves straight but captures diagonally.',
         },
+        practice: { from: 'c3', requireCapture: true },
       },
       {
         id: 'castling',
@@ -96,6 +103,7 @@ export const LEARNING_CATEGORIES = [
           es: 'El enroque es el único movimiento donde se mueven dos piezas a la vez: el rey se mueve dos casillas hacia una torre, y esa torre salta al otro lado del rey. Solo es posible si ni el rey ni esa torre se han movido antes, no hay piezas entre ellos, y el rey no está en jaque ni pasa por (ni termina en) una casilla atacada.',
           en: 'Castling is the only move where two pieces move at once: the king moves two squares toward a rook, and that rook jumps to the other side of the king. It\'s only legal if neither the king nor that rook has moved before, there are no pieces between them, and the king isn\'t in check nor passes through (or lands on) an attacked square.',
         },
+        practice: { from: 'e1', requireCastle: true },
       },
       {
         id: 'en_passant',
@@ -106,6 +114,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Si un peón rival avanza dos casillas desde su posición inicial y queda justo al lado de uno de tus peones (en la misma fila), puedes capturarlo "al paso" como si solo hubiera avanzado una casilla — pero únicamente en la jugada inmediatamente siguiente.',
           en: 'If an enemy pawn advances two squares from its starting position and lands right beside one of your pawns (on the same rank), you may capture it "en passant" as if it had only moved one square — but only on the very next move.',
         },
+        practice: { from: 'e5', to: 'd6' },
       },
       {
         id: 'promotion',
@@ -116,6 +125,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Cuando un peón alcanza la última fila (la 8ª para blancas, la 1ª para negras), se corona: se convierte en dama, torre, alfil o caballo, a elección del jugador (casi siempre dama, por ser la pieza más fuerte). Puede haber más de una dama en el tablero al mismo tiempo.',
           en: 'When a pawn reaches the last rank (the 8th for White, the 1st for Black), it promotes: it becomes a queen, rook, bishop, or knight, the player\'s choice (almost always a queen, since it\'s the strongest piece). You can have more than one queen on the board at the same time.',
         },
+        practice: { from: 'e7', to: 'e8' },
       },
     ],
   },
@@ -132,6 +142,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica: usa la dama para ir arrinconando al rey rival hacia el borde del tablero, manteniéndote siempre a "distancia de caballo" para evitar el ahogado (que el rey no tenga jaque pero tampoco movimientos legales). Cuando el rey rival esté en el borde, acerca tu propio rey para apoyar a la dama y dar mate, como en el diagrama: la dama controla la fila y columna, y tu rey protege la casilla junto a ella.',
           en: 'Technique: use the queen to gradually confine the enemy king toward the edge of the board, staying a "knight\'s move" away to avoid stalemate (king not in check but with no legal moves). Once the enemy king is on the edge, bring your own king up to support the queen and deliver mate, as in the diagram: the queen controls the rank and file, and your king protects the square next to her.',
         },
+        practice: { fen: '7k/Q7/6K1/8/8/8/8/8 w - - 0 1', requireCheckmate: true },
       },
       {
         id: 'k2r_vs_k',
@@ -142,6 +153,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica conocida como "mate de escalera": una torre corta una fila mientras la otra da jaque en la fila siguiente, obligando al rey a retroceder; luego se alternan como en una escalera hasta llegar al borde del tablero, sin que el rey propio necesite intervenir.',
           en: 'Known as the "ladder mate": one rook cuts off a rank while the other gives check on the next rank, forcing the king back; they alternate like rungs on a ladder until the king is pushed to the edge — your own king doesn\'t even need to help.',
         },
+        practice: { fen: '7k/1R6/8/8/8/R7/8/4K3 w - - 0 1', requireCheckmate: true },
       },
       {
         id: 'kr_vs_k',
@@ -152,6 +164,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica: la torre corta al rey rival en una fila o columna mientras tu propio rey avanza para "empujarlo" (oponerse directamente) hacia el borde. Cuando el rey rival queda en el borde y el tuyo lo controla de cerca, la torre da jaque mate a lo largo de esa fila o columna, como en el diagrama.',
           en: 'Technique: the rook confines the enemy king to a rank or file while your own king advances to "shoulder" it (oppose it directly) toward the edge. Once the enemy king is on the edge and your king controls it closely, the rook delivers mate along that rank or file, as in the diagram.',
         },
+        practice: { fen: 'k7/8/1K6/8/8/7R/8/8 w - - 0 1', requireCheckmate: true },
       },
       {
         id: 'k2b_vs_k',
@@ -162,6 +175,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica: los dos alfiles, uno de casillas claras y otro de oscuras, avanzan juntos en diagonales paralelas formando una "barrera" que empuja al rey rival hacia cualquier esquina del tablero (a diferencia del rey+torre, funciona en cualquier esquina). Tu rey se acerca para dar el mate final, como en el diagrama.',
           en: 'Technique: the two bishops, one on light squares and one on dark, advance together on parallel diagonals forming a "barrier" that pushes the enemy king toward any corner of the board (unlike king+rook, this works in any corner). Your king comes in to deliver the final mate, as in the diagram.',
         },
+        practice: { fen: '7k/5K2/6B1/4B3/8/8/8/8 w - - 0 1', requireCheckmate: true },
       },
       {
         id: 'kbn_vs_k',
@@ -172,6 +186,7 @@ export const LEARNING_CATEGORIES = [
           es: 'El mate más difícil de los básicos: el rey rival debe ser llevado obligatoriamente a la esquina del mismo color que tu alfil (si tu alfil es de casillas claras, debes llevarlo a una esquina clara). El caballo y el rey colaboran para ir cerrando el cerco mientras el alfil vigila las casillas de escape, hasta lograr el mate en esa esquina exacta.',
           en: 'The hardest of the basic mates: the enemy king must be driven specifically to the corner matching your bishop\'s color (if your bishop is light-squared, you must drive it to a light corner). The knight and king work together to close the net while the bishop watches the escape squares, until mate is delivered in that exact corner.',
         },
+        practice: { fen: '8/1B6/8/8/6N1/8/5K2/7k w - - 0 1', requireCheckmate: true },
       },
     ],
   },

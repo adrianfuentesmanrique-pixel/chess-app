@@ -455,6 +455,8 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
   padding: 10px 14px; margin: 8px 0; font-size: 15px; min-height: 42px;
   display: flex; align-items: center;
 }
+.status-bar.good { background: #2e4620; color: #b8e08c; }
+.status-bar.bad { background: #4a2626; color: #f0aaaa; }
 .book-badge { margin: 6px 0; font-size: 14px; padding: 4px 10px; border-radius: 20px; display: inline-block; }
 .book-badge.in { background: #2e4620; color: #b8e08c; }
 .book-badge.out { background: #46331f; color: #e0bd8c; }

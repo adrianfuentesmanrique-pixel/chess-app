@@ -9,6 +9,10 @@ const DICT = {
   tab_endgame: { es: 'Finales', en: 'Endgame' },
   tab_learn: { es: 'Aprender', en: 'Learn' },
   lessons_count: { es: 'lecciones', en: 'lessons' },
+  learn_practice_btn: { es: '🎯 Practicar', en: '🎯 Practice' },
+  learn_practice_prompt: { es: 'Ahora te toca: haz la jugada en el tablero.', en: "Now it's your turn: make the move on the board." },
+  learn_correct: { es: '¡Correcto! 🎉', en: 'Correct! 🎉' },
+  learn_try_again: { es: 'No es esa — inténtalo de nuevo.', en: "Not quite — try again." },
   tab_profile: { es: 'Perfil', en: 'Profile' },
   // Generic
   ok: { es: 'Aceptar', en: 'OK' },

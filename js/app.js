@@ -2887,13 +2887,20 @@ const Learning = {
   category: null,
   lessons: [],
   lessonIdx: 0,
+  practicing: false,
+  practiceFen: null,
 
   init() {
-    this.board = new Board($('learn-board'), { interactive: false });
+    this.board = new Board($('learn-board'), {
+      interactive: false,
+      onMove: mv => this.checkPracticeMove(mv),
+      onSound: type => Sound.play(type),
+    });
     $('learn-back-cat').onclick = () => this.showCategories();
     $('learn-back-lessons').onclick = () => this.openCategory(this.category);
     $('learn-prev-lesson').onclick = () => this.openLesson(this.lessonIdx - 1);
     $('learn-next-lesson').onclick = () => this.openLesson(this.lessonIdx + 1);
+    $('learn-practice-btn').onclick = () => this.startPractice();
   },
 
   showCategories() {
@@ -2937,11 +2944,61 @@ const Learning = {
     $('learn-lesson-view').classList.remove('hidden');
     $('learn-lesson-title').textContent = lesson.title[getLang()];
     $('learn-lesson-text').textContent = lesson.text[getLang()];
+    this.practicing = false;
+    this.board.interactive = false;
     this.board.setOrientation('w');
     this.board.setPosition(lesson.fen);
     this.board.setShapes(lesson.shapes || { squares: [], arrows: [] });
+    $('learn-practice-status').classList.add('hidden');
+    $('learn-practice-btn').classList.toggle('hidden', !lesson.practice);
+    $('learn-practice-btn').disabled = false;
     $('learn-prev-lesson').disabled = idx === 0;
     $('learn-next-lesson').disabled = idx === this.lessons.length - 1;
+  },
+
+  startPractice() {
+    const lesson = this.lessons[this.lessonIdx];
+    if (!lesson.practice) return;
+    this.practicing = true;
+    this.practiceFen = lesson.practice.fen || lesson.fen;
+    this.board.setShapes({ squares: [], arrows: [] });
+    this.board.setPosition(this.practiceFen);
+    this.board.interactive = true;
+    $('learn-practice-status').classList.remove('hidden');
+    $('learn-practice-status').textContent = t('learn_practice_prompt');
+    $('learn-practice-status').classList.remove('good', 'bad');
+  },
+
+  checkPracticeMove(mv) {
+    if (!this.practicing) return;
+    const lesson = this.lessons[this.lessonIdx];
+    const p = lesson.practice;
+    const chess = new Chess(this.practiceFen);
+    let result;
+    try { result = chess.move(mv); } catch { return; }
+    let ok = true;
+    if (p.from && result.from !== p.from) ok = false;
+    if (p.to && result.to !== p.to) ok = false;
+    if (p.requireCapture && !result.captured) ok = false;
+    if (p.requireCastle && result.san !== 'O-O' && result.san !== 'O-O-O') ok = false;
+    if (p.requireCheckmate && !chess.isCheckmate()) ok = false;
+    const statusEl = $('learn-practice-status');
+    statusEl.classList.remove('good', 'bad');
+    if (ok) {
+      this.board.setPosition(chess.fen(), { from: result.from, to: result.to });
+      this.board.interactive = false;
+      this.practicing = false;
+      Sound.play('puzzle-correct');
+      statusEl.textContent = t('learn_correct');
+      statusEl.classList.add('good');
+    } else {
+      Sound.play('puzzle-wrong');
+      this.board.setPosition(this.practiceFen);
+      statusEl.textContent = t('learn_try_again');
+      statusEl.classList.add('bad');
+      $('learn-board').classList.add('shake');
+      setTimeout(() => $('learn-board').classList.remove('shake'), 500);
+    }
   },
 };
 
