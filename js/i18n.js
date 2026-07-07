@@ -181,7 +181,6 @@ const DICT = {
   trophy_case: { es: 'Logros', en: 'Achievements' },
   badge_earned: { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },
   share: { es: 'Compartir', en: 'Share' },
-  card_puzzle_title: { es: '¡Rompecabezas resuelto!', en: 'Puzzle solved!' },
   card_streak_title: { es: '¡Racha de {n} días!', en: '{n}-day streak!' },
   card_streak_subtitle: { es: 'Entrenando ajedrez todos los días.', en: 'Training chess every day.' },
   card_endgame_title: { es: '¡Final convertido!', en: 'Endgame converted!' },

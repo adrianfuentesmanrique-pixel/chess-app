@@ -435,6 +435,94 @@ function renderStatCard({ emoji, title, subtitle }) {
   return canvas;
 }
 
+const PIECE_GLYPHS = {
+  w: { p: '♙', n: '♘', b: '♗', r: '♖', q: '♕', k: '♔' },
+  b: { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' },
+};
+
+function parseFenBoard(fen) {
+  return fen.split(' ')[0].split('/').map(row => {
+    const cells = [];
+    for (const ch of row) {
+      if (/\d/.test(ch)) { for (let i = 0; i < Number(ch); i++) cells.push(null); }
+      else cells.push({ color: ch === ch.toUpperCase() ? 'w' : 'b', type: ch.toLowerCase() });
+    }
+    return cells;
+  });
+}
+
+// Renders the puzzle position itself (not a "solved!" card) so it can be
+// shared before, during, or after solving.
+function renderPuzzleCard(puzzle, orientation) {
+  const W = 1000, H = 1250;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#22201c'); grad.addColorStop(1, '#0f0d0b');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#7fa650'; ctx.lineWidth = 10;
+  ctx.strokeRect(24, 24, W - 48, H - 48);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f0ece6';
+  ctx.font = 'bold 46px system-ui, sans-serif';
+  ctx.fillText(`🧩 ${t('puzzles_title')} · ${puzzle.rating}`, W / 2, 96);
+
+  const toMove = puzzle.fen.split(' ')[1] === 'w' ? 'w' : 'b';
+  ctx.fillStyle = '#a99f92';
+  ctx.font = '34px system-ui, sans-serif';
+  ctx.fillText(`${t(toMove === 'w' ? 'white' : 'black')} ${t('to_move_find')}`, W / 2, 148);
+
+  const boardSize = 800, boardX = (W - boardSize) / 2, boardY = 190, sq = boardSize / 8;
+  let rows = parseFenBoard(puzzle.fen);
+  if (orientation === 'b') rows = rows.slice().reverse().map(r => r.slice().reverse());
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      ctx.fillStyle = (r + c) % 2 === 0 ? '#e9d5b0' : '#a5713f';
+      ctx.fillRect(boardX + c * sq, boardY + r * sq, sq, sq);
+    }
+  }
+  ctx.strokeStyle = '#3a352c'; ctx.lineWidth = 3;
+  ctx.strokeRect(boardX, boardY, boardSize, boardSize);
+
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 2;
+  ctx.font = `${Math.round(sq * 0.72)}px 'Segoe UI Symbol', 'DejaVu Sans', sans-serif`;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = rows[r][c];
+      if (!piece) continue;
+      const glyph = PIECE_GLYPHS[piece.color][piece.type];
+      const x = boardX + c * sq + sq / 2, y = boardY + r * sq + sq / 2 + 6;
+      ctx.strokeStyle = piece.color === 'w' ? '#1c1a17' : '#f5f1ea';
+      ctx.strokeText(glyph, x, y);
+      ctx.fillStyle = piece.color === 'w' ? '#f5f1ea' : '#1c1a17';
+      ctx.fillText(glyph, x, y);
+    }
+  }
+
+  ctx.fillStyle = '#7fa650';
+  ctx.font = 'bold 34px system-ui, sans-serif';
+  ctx.fillText('♞ Chess Training Center', W / 2, H - 60);
+  return canvas;
+}
+
+async function shareCanvas(canvas, filename) {
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  const file = new File([blob], filename, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast(t('saved'));
+}
+
 async function shareStatCard(cardOpts, filename) {
   const canvas = renderStatCard(cardOpts);
   const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
@@ -1483,6 +1571,11 @@ const Puzzles = {
   themeElo: {},
   attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
   themeFilter: 'random',      // 'random' | Set<themeId>
+  posHistory: [],             // [{fen, lastMove}] snapshots for the nav buttons
+  viewIdx: -1,                 // index into posHistory currently shown on the board
+  liveInteractive: false,      // whether the board should accept moves at the live position
+  timerInterval: null,
+  timerStart: 0,
 
   async init() {
     this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
@@ -1490,7 +1583,13 @@ const Puzzles = {
     $('puzzle-next').onclick = () => this.nextPuzzle();
     $('puzzle-hint').onclick = () => this.hint();
     $('puzzle-solution').onclick = () => this.showSolution();
-    $('puzzle-share').onclick = () => this.share();
+    $('puzzle-share').onclick = () => this.shareProblem();
+    $('puzzle-analyze').onclick = () => this.toAnalysis();
+    $('puzzle-nav-first').onclick = () => this.gotoHistory(0);
+    $('puzzle-nav-prev').onclick = () => this.gotoHistory(this.viewIdx - 1);
+    $('puzzle-nav-next').onclick = () => this.gotoHistory(this.viewIdx + 1);
+    $('puzzle-nav-last').onclick = () => this.gotoHistory(this.posHistory.length - 1);
+    this.updateNavButtons();
   },
 
   openThemePicker() {
@@ -1597,18 +1696,76 @@ const Puzzles = {
     Badges.checkNew();
   },
 
-  share() {
+  // Shares the puzzle position itself — always available, regardless of
+  // whether it's been solved yet.
+  async shareProblem() {
     if (!this.current) return;
-    const themeLabel = this.current.themes?.[0] ? t('theme_' + this.current.themes[0]) : '';
-    shareStatCard({
-      emoji: '🧩',
-      title: t('card_puzzle_title'),
-      subtitle: `${t('puzzle_elo')}: ${Math.round(this.elo)} · ${this.current.rating} ${themeLabel}`.trim(),
-    }, 'puzzle-resuelto.png');
+    const canvas = renderPuzzleCard(this.current, this.board.orientation);
+    await shareCanvas(canvas, 'puzzle.png');
+  },
+
+  toAnalysis() {
+    if (!this.current || !this.chess) return;
+    const tree = treeFromHistory(this.current.fen, this.chess.history());
+    tree.setHeader('Event', getLang() === 'es' ? 'Puzzle de táctica' : 'Tactics puzzle');
+    engine.stop();
+    Analysis.loadTree(tree);
+  },
+
+  startTimer() {
+    this.stopTimer();
+    this.timerStart = Date.now();
+    const update = () => {
+      const s = Math.floor((Date.now() - this.timerStart) / 1000);
+      const mm = String(Math.floor(s / 60)).padStart(2, '0');
+      const ss = String(s % 60).padStart(2, '0');
+      $('puzzle-timer').textContent = `⏱ ${mm}:${ss}`;
+    };
+    update();
+    this.timerInterval = setInterval(update, 1000);
+  },
+
+  stopTimer() {
+    clearInterval(this.timerInterval);
+  },
+
+  // Sets whether the board should be interactive once the user is viewing
+  // the live (most recent) position — and applies it immediately if so.
+  setLiveInteractive(v) {
+    this.liveInteractive = v;
+    if (this.viewIdx === this.posHistory.length - 1) this.board.interactive = v;
+  },
+
+  // Renders a move and records it in the browsable history.
+  place(fen, lastMove) {
+    this.board.setPosition(fen, lastMove);
+    this.posHistory.push({ fen, lastMove });
+    this.viewIdx = this.posHistory.length - 1;
+    this.updateNavButtons();
+  },
+
+  updateNavButtons() {
+    const atStart = this.viewIdx <= 0;
+    const atEnd = this.viewIdx >= this.posHistory.length - 1;
+    $('puzzle-nav-first').disabled = atStart;
+    $('puzzle-nav-prev').disabled = atStart;
+    $('puzzle-nav-next').disabled = atEnd;
+    $('puzzle-nav-last').disabled = atEnd;
+  },
+
+  gotoHistory(idx) {
+    if (!this.posHistory.length) return;
+    idx = Math.max(0, Math.min(idx, this.posHistory.length - 1));
+    this.viewIdx = idx;
+    const snap = this.posHistory[idx];
+    this.board.setPosition(snap.fen, snap.lastMove);
+    const live = idx === this.posHistory.length - 1;
+    this.board.interactive = live && this.liveInteractive;
+    this.updateNavButtons();
   },
 
   nextPuzzle() {
-    $('puzzle-share').classList.add('hidden');
+    $('puzzle-analyze').classList.add('hidden');
     const pool = this.pool();
     if (!pool.length) return;
     const fresh = pool.filter(p => !this.solved[p.id]);
@@ -1624,18 +1781,21 @@ const Puzzles = {
     this.moveIdx = 0;
     this.failedThis = false;
     this.eloRecorded = false;
+    this.posHistory = [];
+    this.viewIdx = -1;
     this.updateProgress();
     this.armCheckin();
+    this.startTimer();
     // the first move in the list is the opponent's move — play it
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
-    this.board.setPosition(this.chess.fen());
-    this.board.interactive = false;
+    this.place(this.chess.fen());
+    this.setLiveInteractive(false);
     setTimeout(() => {
       const m = this.applyUci(this.current.moves[0]);
       this.moveIdx = 1;
-      this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
-      this.board.interactive = true;
+      this.place(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
+      this.setLiveInteractive(true);
       this.setStatus(`${t(playerColor === 'w' ? 'white' : 'black')} ${t('to_move_find')} (${this.current.rating})`);
     }, 600);
   },
@@ -1656,9 +1816,10 @@ const Puzzles = {
     const isMate = this.chess.isCheckmate();
     if (tryUci === expected || (isMate && this.moveIdx === this.current.moves.length - 1)) {
       this.moveIdx++;
-      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+      this.place(this.chess.fen(), { from: m.from, to: m.to });
       if (this.moveIdx >= this.current.moves.length || isMate) {
         this.disarmCheckin();
+        this.stopTimer();
         Sound.play('puzzle-correct');
         KaelQuotes.show(pickKael(KAEL_PRAISE), 4500);
         this.setStatus(t('solved'));
@@ -1668,17 +1829,18 @@ const Puzzles = {
         }
         this.recordResult(!this.failedThis);
         this.updateProgress();
-        $('puzzle-share').classList.remove('hidden');
+        $('puzzle-analyze').classList.remove('hidden');
+        this.setLiveInteractive(false);
         return;
       }
       this.setStatus(t('correct'));
       // opponent reply
-      this.board.interactive = false;
+      this.setLiveInteractive(false);
       await sleep(400);
       const r = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
-      this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
-      this.board.interactive = true;
+      this.place(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
+      this.setLiveInteractive(true);
     } else {
       // wrong — undo, shake
       const firstMistake = !this.failedThis;
@@ -1705,16 +1867,18 @@ const Puzzles = {
     if (!this.current) return;
     this.disarmCheckin();
     this.failedThis = true;
+    this.stopTimer();
     this.recordResult(false);
-    this.board.interactive = false;
+    this.setLiveInteractive(false);
     while (this.moveIdx < this.current.moves.length) {
       const m = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
-      this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
+      this.place(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
       await sleep(700);
     }
     this.setStatus(t('solved'));
-    this.board.interactive = true;
+    $('puzzle-analyze').classList.remove('hidden');
+    this.setLiveInteractive(true);
   },
 
   // If a puzzle sits unsolved for 5 minutes, Kael checks in rather than

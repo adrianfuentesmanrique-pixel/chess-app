@@ -174,6 +174,7 @@
     </div>
     <div class="row" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
+      <span id="puzzle-timer" class="elo-badge"></span>
       <div class="row" style="margin:0; gap:6px;">
         <button id="puzzle-blind-open" class="btn" data-i18n="blind_open"></button>
         <button id="puzzle-rush-open" class="btn" data-i18n="rush_open"></button>
@@ -182,12 +183,19 @@
     <button id="puzzle-theme-btn" class="btn" data-i18n="select_theme"></button>
     <div id="puzzle-status" class="status-bar"></div>
     <div id="puzzle-board" class="board-wrap"></div>
+    <div id="puzzle-nav" class="toolbar">
+      <button id="puzzle-nav-first" class="tool-btn">⏮</button>
+      <button id="puzzle-nav-prev" class="tool-btn">◀</button>
+      <button id="puzzle-nav-next" class="tool-btn">▶</button>
+      <button id="puzzle-nav-last" class="tool-btn">⏭</button>
+    </div>
     <div class="row" id="puzzle-actions">
       <button id="puzzle-hint" class="btn" data-i18n="hint"></button>
       <button id="puzzle-solution" class="btn" data-i18n="show_solution"></button>
-      <button id="puzzle-share" class="btn hidden">📤</button>
+      <button id="puzzle-share" class="btn">📤</button>
       <button id="puzzle-next" class="btn primary" data-i18n="next_puzzle"></button>
     </div>
+    <button id="puzzle-analyze" class="btn hidden" data-i18n="analyze_game"></button>
   </section>
 
   <!-- ══════════ PUZZLE RUSH ══════════ -->
