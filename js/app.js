@@ -747,6 +747,7 @@ const Analysis = {
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-more').onclick = () => this.moreMenu();
     $('ana-base-back').onclick = () => this.backToBase();
+    $('ana-base-exit').onclick = () => this.exitBase();
     $('ana-base-prev').onclick = () => this.gotoAdjacentGame(-1);
     $('ana-base-next').onclick = () => this.gotoAdjacentGame(1);
     $('ana-annotate-toggle').onclick = () => {
@@ -842,6 +843,14 @@ const Analysis = {
     const baseId = this.ctx.baseId;
     showScreen('base');
     Base.openBase(baseId);
+  },
+
+  // Leaves the base-linked context without leaving the game on screen —
+  // stays on this position, but as a normal, un-linked Analysis session.
+  exitBase() {
+    this.ctx = { baseId: null, gameId: null };
+    showScreen('analysis');
+    this.updateBaseNav();
   },
 
   gotoAdjacentGame(dir) {
