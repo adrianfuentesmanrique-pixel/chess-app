@@ -61,7 +61,7 @@ const DICT = {
   explore_need_base: { es: 'Necesitas subir una base primero para poder explorar.', en: 'You need to upload a database first to explore.' },
   explore_no_results: { es: 'No se encontraron partidas con esta posición.', en: 'No games found with this position.' },
   explore_searching: { es: 'Buscando partidas…', en: 'Searching for games…' },
-  explore_lichess_unavailable: { es: 'La base de partidas de Lichess no está disponible en este momento. Prueba a buscar en tu propia base.', en: 'Lichess\'s game database isn\'t available right now. Try searching your own database instead.' },
+  explore_lichess_unavailable: { es: 'La búsqueda en internet no está disponible en este momento. Prueba a buscar en tu propia base.', en: 'Internet search isn\'t available right now. Try searching your own database instead.' },
   play_from_here: { es: 'Jugar contra la máquina desde aquí', en: 'Play the computer from here' },
   more: { es: 'Más', en: 'More' },
   game_details: { es: 'Datos de la partida', en: 'Game details' },
