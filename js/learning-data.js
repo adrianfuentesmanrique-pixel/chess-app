@@ -106,15 +106,26 @@ export const LEARNING_CATEGORIES = [
         practice: { from: 'e1', requireCastle: true },
       },
       {
+        id: 'castling_illegal',
+        title: { es: 'Cuándo NO se puede enrocar', en: 'When You Can\'t Castle' },
+        fen: 'r3k2r/8/8/4R3/8/8/8/4K3 b kq - 0 1',
+        shapes: { squares: [{ sq: 'e8', color: 'red' }], arrows: [{ from: 'e5', to: 'e8', color: 'red' }] },
+        text: {
+          es: 'Aquí las negras conservan el derecho a enrocar (ni el rey ni las torres se han movido), pero no pueden hacerlo: el rey está en jaque por la torre blanca en e5. Un rey en jaque debe resolverlo primero — moverse, capturar o bloquear — antes de poder enrocar. Lo mismo ocurre si el rey tendría que pasar por una casilla atacada, o si hay una pieza entre el rey y la torre.',
+          en: 'Here Black still has the right to castle (neither the king nor the rooks have moved), but can\'t: the king is in check from the white rook on e5. A king in check must deal with it first — move, capture, or block — before castling becomes possible again. The same applies if the king would have to pass through an attacked square, or if a piece sits between the king and the rook.',
+        },
+      },
+      {
         id: 'en_passant',
         title: { es: 'Captura al paso', en: 'En Passant' },
-        fen: 'k7/8/8/3pP3/8/8/8/K7 w - d6 0 1',
+        fen: 'k7/3p4/8/4P3/8/8/8/K7 b - - 0 1',
+        setupMove: 'd7d5',
         shapes: { squares: [], arrows: [{ from: 'e5', to: 'd6', color: 'red' }] },
         text: {
-          es: 'Si un peón rival avanza dos casillas desde su posición inicial y queda justo al lado de uno de tus peones (en la misma fila), puedes capturarlo "al paso" como si solo hubiera avanzado una casilla — pero únicamente en la jugada inmediatamente siguiente.',
-          en: 'If an enemy pawn advances two squares from its starting position and lands right beside one of your pawns (on the same rank), you may capture it "en passant" as if it had only moved one square — but only on the very next move.',
+          es: 'Si un peón rival avanza dos casillas desde su posición inicial y queda justo al lado de uno de tus peones (en la misma fila), puedes capturarlo "al paso" como si solo hubiera avanzado una casilla — pero únicamente en la jugada inmediatamente siguiente. Observa cómo el peón negro acaba de avanzar dos casillas de golpe.',
+          en: 'If an enemy pawn advances two squares from its starting position and lands right beside one of your pawns (on the same rank), you may capture it "en passant" as if it had only moved one square — but only on the very next move. Watch the black pawn just push two squares in one go.',
         },
-        practice: { from: 'e5', to: 'd6' },
+        practice: { fen: 'k7/8/8/3pP3/8/8/8/K7 w - d6 0 1', from: 'e5', to: 'd6' },
       },
       {
         id: 'promotion',
@@ -142,7 +153,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica: usa la dama para ir arrinconando al rey rival hacia el borde del tablero, manteniéndote siempre a "distancia de caballo" para evitar el ahogado (que el rey no tenga jaque pero tampoco movimientos legales). Cuando el rey rival esté en el borde, acerca tu propio rey para apoyar a la dama y dar mate, como en el diagrama: la dama controla la fila y columna, y tu rey protege la casilla junto a ella.',
           en: 'Technique: use the queen to gradually confine the enemy king toward the edge of the board, staying a "knight\'s move" away to avoid stalemate (king not in check but with no legal moves). Once the enemy king is on the edge, bring your own king up to support the queen and deliver mate, as in the diagram: the queen controls the rank and file, and your king protects the square next to her.',
         },
-        practice: { fen: '7k/Q7/6K1/8/8/8/8/8 w - - 0 1', requireCheckmate: true },
+        practice: { fen: '4k3/8/8/8/8/8/8/3QK3 w - - 0 1', vsEngine: true },
       },
       {
         id: 'k2r_vs_k',
@@ -153,7 +164,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica conocida como "mate de escalera": una torre corta una fila mientras la otra da jaque en la fila siguiente, obligando al rey a retroceder; luego se alternan como en una escalera hasta llegar al borde del tablero, sin que el rey propio necesite intervenir.',
           en: 'Known as the "ladder mate": one rook cuts off a rank while the other gives check on the next rank, forcing the king back; they alternate like rungs on a ladder until the king is pushed to the edge — your own king doesn\'t even need to help.',
         },
-        practice: { fen: '7k/1R6/8/8/8/R7/8/4K3 w - - 0 1', requireCheckmate: true },
+        practice: { fen: '4k3/8/8/8/8/8/8/R3K2R w - - 0 1', vsEngine: true },
       },
       {
         id: 'kr_vs_k',
@@ -164,7 +175,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica: la torre corta al rey rival en una fila o columna mientras tu propio rey avanza para "empujarlo" (oponerse directamente) hacia el borde. Cuando el rey rival queda en el borde y el tuyo lo controla de cerca, la torre da jaque mate a lo largo de esa fila o columna, como en el diagrama.',
           en: 'Technique: the rook confines the enemy king to a rank or file while your own king advances to "shoulder" it (oppose it directly) toward the edge. Once the enemy king is on the edge and your king controls it closely, the rook delivers mate along that rank or file, as in the diagram.',
         },
-        practice: { fen: 'k7/8/1K6/8/8/7R/8/8 w - - 0 1', requireCheckmate: true },
+        practice: { fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1', vsEngine: true },
       },
       {
         id: 'k2b_vs_k',
@@ -175,7 +186,7 @@ export const LEARNING_CATEGORIES = [
           es: 'Técnica: los dos alfiles, uno de casillas claras y otro de oscuras, avanzan juntos en diagonales paralelas formando una "barrera" que empuja al rey rival hacia cualquier esquina del tablero (a diferencia del rey+torre, funciona en cualquier esquina). Tu rey se acerca para dar el mate final, como en el diagrama.',
           en: 'Technique: the two bishops, one on light squares and one on dark, advance together on parallel diagonals forming a "barrier" that pushes the enemy king toward any corner of the board (unlike king+rook, this works in any corner). Your king comes in to deliver the final mate, as in the diagram.',
         },
-        practice: { fen: '7k/5K2/6B1/4B3/8/8/8/8 w - - 0 1', requireCheckmate: true },
+        practice: { fen: '4k3/8/8/8/8/8/8/2B1K1B1 w - - 0 1', vsEngine: true },
       },
       {
         id: 'kbn_vs_k',
@@ -186,7 +197,7 @@ export const LEARNING_CATEGORIES = [
           es: 'El mate más difícil de los básicos: el rey rival debe ser llevado obligatoriamente a la esquina del mismo color que tu alfil (si tu alfil es de casillas claras, debes llevarlo a una esquina clara). El caballo y el rey colaboran para ir cerrando el cerco mientras el alfil vigila las casillas de escape, hasta lograr el mate en esa esquina exacta.',
           en: 'The hardest of the basic mates: the enemy king must be driven specifically to the corner matching your bishop\'s color (if your bishop is light-squared, you must drive it to a light corner). The knight and king work together to close the net while the bishop watches the escape squares, until mate is delivered in that exact corner.',
         },
-        practice: { fen: '8/1B6/8/8/6N1/8/5K2/7k w - - 0 1', requireCheckmate: true },
+        practice: { fen: '4k3/8/8/8/8/8/8/2B1K1N1 w - - 0 1', vsEngine: true },
       },
     ],
   },

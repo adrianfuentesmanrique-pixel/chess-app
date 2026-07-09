@@ -3033,6 +3033,9 @@ const Learning = {
   lessonIdx: 0,
   practicing: false,
   practiceFen: null,
+  vsEngine: false,
+  chess: null,
+  thinking: false,
 
   init() {
     this.board = new Board($('learn-board'), {
@@ -3089,6 +3092,7 @@ const Learning = {
     $('learn-lesson-title').textContent = lesson.title[getLang()];
     $('learn-lesson-text').textContent = lesson.text[getLang()];
     this.practicing = false;
+    this.vsEngine = false;
     this.board.interactive = false;
     this.board.setOrientation('w');
     this.board.setPosition(lesson.fen);
@@ -3098,6 +3102,15 @@ const Learning = {
     $('learn-practice-btn').disabled = false;
     $('learn-prev-lesson').disabled = idx === 0;
     $('learn-next-lesson').disabled = idx === this.lessons.length - 1;
+    if (lesson.setupMove) {
+      setTimeout(() => {
+        if (this.lessons[this.lessonIdx] !== lesson) return;
+        const c = new Chess(lesson.fen);
+        let mv;
+        try { mv = c.move(uciToMove(lesson.setupMove)); } catch { mv = null; }
+        if (mv) this.board.setPosition(c.fen(), { from: mv.from, to: mv.to });
+      }, 900);
+    }
   },
 
   startPractice() {
@@ -3106,15 +3119,27 @@ const Learning = {
     this.practicing = true;
     this.practiceFen = lesson.practice.fen || lesson.fen;
     this.board.setShapes({ squares: [], arrows: [] });
+    $('learn-practice-status').classList.remove('hidden');
+    $('learn-practice-status').classList.remove('good', 'bad');
+    if (lesson.practice.vsEngine) {
+      this.vsEngine = true;
+      this.chess = new Chess(this.practiceFen);
+      this.thinking = false;
+      this.board.setOrientation(this.practiceFen.split(' ')[1]);
+      this.board.setPosition(this.chess.fen());
+      this.board.interactive = true;
+      $('learn-practice-status').textContent = t('learn_practice_prompt');
+      return;
+    }
+    this.vsEngine = false;
     this.board.setPosition(this.practiceFen);
     this.board.interactive = true;
-    $('learn-practice-status').classList.remove('hidden');
     $('learn-practice-status').textContent = t('learn_practice_prompt');
-    $('learn-practice-status').classList.remove('good', 'bad');
   },
 
   checkPracticeMove(mv) {
     if (!this.practicing) return;
+    if (this.vsEngine) { this.checkVsEngineMove(mv); return; }
     const lesson = this.lessons[this.lessonIdx];
     const p = lesson.practice;
     const chess = new Chess(this.practiceFen);
@@ -3142,6 +3167,61 @@ const Learning = {
       statusEl.classList.add('bad');
       $('learn-board').classList.add('shake');
       setTimeout(() => $('learn-board').classList.remove('shake'), 500);
+    }
+  },
+
+  checkVsEngineMove(mv) {
+    if (this.thinking) return;
+    const playerColor = this.practiceFen.split(' ')[1];
+    if (this.chess.turn() !== playerColor) return;
+    let result;
+    try { result = this.chess.move(mv); } catch { return; }
+    const statusEl = $('learn-practice-status');
+    statusEl.classList.remove('good', 'bad');
+    this.board.setPosition(this.chess.fen(), { from: result.from, to: result.to });
+    if (this.chess.isCheckmate()) {
+      this.board.interactive = false;
+      this.practicing = false;
+      Sound.play('puzzle-correct');
+      statusEl.textContent = t('learn_correct');
+      statusEl.classList.add('good');
+      return;
+    }
+    if (this.chess.isDraw() || this.chess.isStalemate()) {
+      Sound.play('puzzle-wrong');
+      this.chess = new Chess(this.practiceFen);
+      this.board.setPosition(this.chess.fen());
+      statusEl.textContent = t('learn_try_again');
+      statusEl.classList.add('bad');
+      $('learn-board').classList.add('shake');
+      setTimeout(() => $('learn-board').classList.remove('shake'), 500);
+      return;
+    }
+    this.engineReply();
+  },
+
+  async engineReply() {
+    this.thinking = true;
+    this.board.interactive = false;
+    const statusEl = $('learn-practice-status');
+    statusEl.textContent = t('thinking');
+    try {
+      const uci = await engine.bestMove(this.chess.fen(), { movetime: 500 });
+      if (!this.practicing || !uci) return;
+      const m = this.chess.move(uciToMove(uci));
+      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+      if (this.chess.isCheckmate() || this.chess.isDraw() || this.chess.isStalemate()) {
+        Sound.play('puzzle-wrong');
+        this.chess = new Chess(this.practiceFen);
+        this.board.setPosition(this.chess.fen());
+        statusEl.textContent = t('learn_try_again');
+        statusEl.classList.add('bad');
+        return;
+      }
+      statusEl.textContent = t('learn_practice_prompt');
+    } finally {
+      this.thinking = false;
+      this.board.interactive = true;
     }
   },
 };
