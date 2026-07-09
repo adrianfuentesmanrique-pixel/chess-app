@@ -16,7 +16,12 @@ import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 // Free-tier usage limits — not membership-gated yet, but kept as named
 // constants so they're easy to loosen for supporting users once that
 // feature actually exists again.
-const MAX_ENGINE_LINES = 3;
+// MAX_ENGINE_LINES is capped at 2, not 3: the bundled Stockfish "lite"
+// single-threaded WASM build hits a fatal "unreachable" trap and dies
+// when asked for MultiPV 3 — a binary-level limitation, not a bug in
+// this file. Don't raise this without switching to a build that
+// actually supports it.
+const MAX_ENGINE_LINES = 2;
 const MAX_DATABASES = 10;
 
 // One-time cleanup for accounts that accumulated openingElo entries before
@@ -1300,7 +1305,7 @@ const Analysis = {
     $('ana-engine-toggle').classList.toggle('on', this.engineOn);
     if (this.engineOn) {
       $('ana-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
-      this.linesCount = +(await db.kvGet('engineLines', 2));
+      this.linesCount = Math.min(MAX_ENGINE_LINES, +(await db.kvGet('engineLines', 2)));
       this.updateLinesControl();
       engine.onLine = lines => this.showLines(lines);
       this.restartEngine();
@@ -1334,7 +1339,7 @@ const Analysis = {
     clearTimeout(this.restartTimer);
     const fen = this.tree.fen();
     this.restartTimer = setTimeout(async () => {
-      const n = this.linesCount ?? +(await db.kvGet('engineLines', 2));
+      const n = this.linesCount ?? Math.min(MAX_ENGINE_LINES, +(await db.kvGet('engineLines', 2)));
       engine.onLine = lines => this.showLines(lines);
       engine.analyse(fen, n).catch(err => {
         $('ana-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${err.message || err}</div>`;
@@ -1483,6 +1488,7 @@ function gameFilename(H) {
 const Base = {
   currentBaseId: null,
   gamesCache: [],
+  basesCache: [],
 
   init() {
     $('base-new').onclick = async () => {
@@ -1514,6 +1520,7 @@ const Base = {
       }
     };
     $('game-search').addEventListener('input', () => this.renderGames());
+    $('base-search').addEventListener('input', () => this.renderBases());
   },
 
   async refresh() {
@@ -1525,9 +1532,15 @@ const Base = {
     this.currentBaseId = null;
     $('base-list-view').classList.remove('hidden');
     $('base-games-view').classList.add('hidden');
-    const bases = await db.listBases();
+    this.basesCache = await db.listBases();
+    this.renderBases();
+  },
+
+  renderBases() {
+    const q = normalizeSearch($('base-search').value);
     const el = $('base-list');
     el.innerHTML = '';
+    const bases = this.basesCache.filter(b => !q || normalizeSearch(b.name).includes(q));
     for (const b of bases) {
       const item = document.createElement('button');
       item.className = 'list-item';
@@ -3823,7 +3836,7 @@ function openSettings() {
     // engine lines
     const l2 = document.createElement('label'); l2.className = 'fld-label'; l2.textContent = t('engine_lines');
     const seg2 = document.createElement('div'); seg2.className = 'seg';
-    const cur = +(await db.kvGet('engineLines', 2));
+    const cur = Math.min(MAX_ENGINE_LINES, +(await db.kvGet('engineLines', 2)));
     for (let n = 1; n <= MAX_ENGINE_LINES; n++) {
       const b = document.createElement('button');
       b.textContent = n; b.dataset.v = n;
