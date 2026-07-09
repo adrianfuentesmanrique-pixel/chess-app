@@ -118,6 +118,19 @@ export class Engine {
   // (mate scores are folded into a large finite number, same convention as
   // the live analysis scores). Used to grade played moves after the fact.
   async evaluate(fen, movetime = 250) {
+    // A position with no legal moves has nothing for "go" to search — Stockfish
+    // just replies bestmove (none) without ever sending a score line, so the
+    // caller would silently get 0 back for what might be a decisive checkmate.
+    // Resolve those directly instead of asking the engine.
+    try {
+      const c = new Chess(fen);
+      if (c.isCheckmate()) {
+        // side to move is the one who got mated, so the mover of the last
+        // move (the other color) delivered it — a maximal score in their favor.
+        return c.turn() === 'w' ? -9999 : 9999;
+      }
+      if (c.isDraw() || c.isStalemate()) return 0;
+    } catch { /* fall through to engine search for anything unparsable */ }
     await this.init();
     await this._stopSearch();
     this.analysing = false;

@@ -1201,11 +1201,11 @@ const Analysis = {
     try {
       const url = `https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(this.tree.fen())}&topGames=15`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error(`Lichess: ${res.status}`);
+      if (!res.ok) throw new Error(res.status === 401 ? 'lichess_unavailable' : `Lichess: ${res.status}`);
       const data = await res.json();
       this.renderGameResults(data.topGames || [], 'lichess');
     } catch (e) {
-      $('ana-games-status').textContent = '⚠️ ' + (e.message || e);
+      $('ana-games-status').textContent = '⚠️ ' + (e.message === 'lichess_unavailable' ? t('explore_lichess_unavailable') : (e.message || e));
     }
   },
 
