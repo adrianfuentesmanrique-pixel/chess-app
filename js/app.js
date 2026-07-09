@@ -1567,8 +1567,12 @@ const Base = {
     const q = normalizeSearch($('game-search').value);
     const el = $('game-list');
     el.innerHTML = '';
+    // Match only White/Black — the visible name of each entry. Event is
+    // excluded: repertoire-style PGNs (one big book, many chapters) tend to
+    // repeat the same Event string across every game, which would make
+    // search match nearly the whole database instead of narrowing it.
     const games = this.gamesCache.filter(g =>
-      !q || normalizeSearch(`${g.white} ${g.black} ${g.event}`).includes(q));
+      !q || normalizeSearch(`${g.white} ${g.black}`).includes(q));
     if (!games.length) {
       el.innerHTML = `<p class="hint">${t('no_games')}</p>`;
       return;
