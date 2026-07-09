@@ -310,6 +310,21 @@ export const KAEL_HINT_WARNING = {
   en: { text: "A note from Kael: if you use the hint, the ELO you earn for solving this puzzle will be lower. Try it from memory first!", okBtn: 'Got it', dismissBtn: 'Cancel' },
 };
 
+// Shown when a player deviates from an endgame study's exact move but the
+// engine confirms it's still sound — praise, not a correction.
+export const KAEL_ALT_MOVE = {
+  es: [
+    '¡Jugada alternativa! No es la del libro, pero el motor dice que sigue ganando. 👏',
+    'Distinto camino, mismo destino — el motor confirma que esa jugada también funciona.',
+    '¡Buena idea! No es la línea "oficial", pero es igual de sólida.',
+  ],
+  en: [
+    'Alternative move! Not the book line, but the engine confirms it still works. 👏',
+    "Different path, same destination — the engine backs up that move too.",
+    "Good idea! Not the 'official' line, but just as sound.",
+  ],
+};
+
 // Shown atop the post-game Game Review, picked by outcome.
 export const KAEL_GAME_REVIEW = {
   win: {

@@ -154,6 +154,7 @@ const DICT = {
   practice_win: { es: '¡Convertiste la posición! 🎉', en: 'You converted the position! 🎉' },
   practice_draw: { es: '¡Sostuviste las tablas! 🎉', en: 'You held the draw! 🎉' },
   practice_fail: { es: 'No se logró esta vez. ¡Sigue practicando!', en: "Didn't work out this time. Keep practicing!" },
+  checking_move: { es: 'Comprobando la jugada…', en: 'Checking the move…' },
   endgame_elo: { es: 'ELO de finales', en: 'Endgame ELO' },
   // Profile
   sign_in_google: { es: 'Iniciar sesión con Google', en: 'Sign in with Google' },

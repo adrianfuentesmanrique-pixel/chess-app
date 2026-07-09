@@ -8,7 +8,7 @@ import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
-import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW } from './quotes-data.js';
+import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 
@@ -2801,8 +2801,7 @@ const Endgame = {
     for (const pos of ENDGAMES.filter(e => e.category === cat)) {
       const item = document.createElement('button');
       item.className = 'list-item';
-      const badge = pos.practice ? `<span class="badge-practice">🎯</span>` : '';
-      item.innerHTML = `<b>${esc(pos.name[getLang()])}${badge}</b>`;
+      item.innerHTML = `<b>${esc(pos.name[getLang()])}</b>`;
       item.onclick = () => this.openPosition(pos);
       el.appendChild(item);
     }
@@ -2822,7 +2821,7 @@ const Endgame = {
     $('endgame-engine').classList.add('hidden');
     $('endgame-engine-toggle').classList.remove('on');
     $('endgame-practice-actions').style.display = 'none';
-    $('endgame-practice-start').classList.toggle('hidden', !pos.practice);
+    $('endgame-practice-start').classList.remove('hidden');
     this.board.interactive = false;
     this.board.setOrientation(pos.fen.split(' ')[1]);
     this.board.setPosition(pos.fen);
@@ -2863,6 +2862,9 @@ const Endgame = {
     this.playerColor = this.current.fen.split(' ')[1];
     this.over = false;
     this.thinking = false;
+    this.bookMode = true;      // still replaying the book's move sequence
+    this.moveIdx = 0;          // index into current.moves
+    this.mistakes = 0;
     $('endgame-comment').classList.add('hidden');
     $('endgame-status').classList.remove('hidden');
     $('endgame-practice-actions').style.display = 'flex';
@@ -2879,11 +2881,78 @@ const Endgame = {
   async userMove(mv) {
     if (this.mode !== 'practice' || this.over || this.thinking) return;
     if (this.chess.turn() !== this.playerColor) return;
+    const preFen = this.chess.fen();
+    const tryUci = mv.from + mv.to + (mv.promotion ?? '');
     let m;
     try { m = this.chess.move(mv); } catch { return; }
-    this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+    const afterFen = this.chess.fen();
+
+    if (!this.bookMode) {
+      // Already off the book line — free play against the engine.
+      this.board.setPosition(afterFen, { from: m.from, to: m.to });
+      if (this.checkEnd()) return;
+      this.engineReply();
+      return;
+    }
+
+    const bookUci = this.current.moves[this.moveIdx];
+    if (tryUci === bookUci) {
+      this.moveIdx++;
+      this.board.setPosition(afterFen, { from: m.from, to: m.to });
+      Sound.play('puzzle-correct');
+      if (this.moveIdx >= this.current.moves.length) { this.finishPractice(true); return; }
+      this.playBookReply();
+      return;
+    }
+
+    // A different move — check with the engine whether it's still sound
+    // before treating it as a mistake.
+    this.thinking = true;
+    this.board.interactive = false;
+    this.board.setPosition(afterFen, { from: m.from, to: m.to });
+    this.setStatus(t('checking_move'));
+    const bookChess = new Chess(preFen);
+    let bookAfterFen = null;
+    try { bookChess.move(uciToMove(bookUci)); bookAfterFen = bookChess.fen(); } catch { }
+    const evalMine = await engine.evaluate(afterFen, 400);
+    const evalBook = bookAfterFen ? await engine.evaluate(bookAfterFen, 400) : evalMine;
+    this.thinking = false;
+    const sign = this.playerColor === 'w' ? 1 : -1;
+    const cpLoss = Math.max(0, sign * (evalBook - evalMine));
+    if (cpLoss <= 50) {
+      this.bookMode = false;
+      Sound.play('puzzle-correct');
+      KaelQuotes.show(pickKael(KAEL_ALT_MOVE), 4500);
+      if (this.checkEnd()) return;
+      this.board.interactive = true;
+      this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
+    } else {
+      this.mistakes++;
+      this.chess.undo();
+      this.board.setPosition(preFen);
+      Sound.play('puzzle-wrong');
+      KaelQuotes.show(pickKael(KAEL_MISTAKE), 4500);
+      this.setStatus(t('wrong_try'));
+      $('endgame-board').classList.add('shake');
+      setTimeout(() => $('endgame-board').classList.remove('shake'), 500);
+      this.board.interactive = true;
+    }
+  },
+
+  async playBookReply() {
+    this.board.interactive = false;
+    this.setStatus(t('correct'));
+    await sleep(400);
+    const bookUci = this.current.moves[this.moveIdx];
+    let mv;
+    try { mv = this.chess.move(uciToMove(bookUci)); } catch { mv = null; }
+    if (!mv) { this.finishPractice(true); return; }
+    this.moveIdx++;
+    this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to });
     if (this.checkEnd()) return;
-    this.engineReply();
+    if (this.moveIdx >= this.current.moves.length) { this.finishPractice(true); return; }
+    this.board.interactive = true;
+    this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
   },
 
   async engineReply() {
@@ -2906,15 +2975,15 @@ const Endgame = {
   checkEnd() {
     if (this.chess.isCheckmate()) {
       const winner = this.chess.turn() === 'w' ? 'b' : 'w';
-      this.finishPractice(winner === this.playerColor ? 'win' : 'loss');
+      this.finishPractice(winner === this.playerColor);
       return true;
     }
-    if (this.chess.isDraw() || this.chess.isStalemate()) { this.finishPractice('draw'); return true; }
+    if (this.chess.isDraw() || this.chess.isStalemate()) { this.finishPractice(true); return true; }
     return false;
   },
 
   undo() {
-    if (this.thinking) return;
+    if (this.thinking || this.bookMode) return;
     if (this.chess.turn() !== this.playerColor) return;
     if (this.chess.history().length < 2) return;
     this.chess.undo();
@@ -2925,19 +2994,20 @@ const Endgame = {
     this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
   },
 
-  finishPractice(actual) {
-    // actual: 'win' | 'draw' | 'loss' | false(resigned => loss)
-    if (actual === false) actual = 'loss';
+  // success: true (completed the technique — full book line, an approved
+  // alternative that reached a natural end, or checkmate/draw along the way)
+  // or false (resigned, or lost after leaving the book line).
+  finishPractice(success) {
     this.over = true;
-    const expected = this.current.expected;
-    const success = expected === 'win' ? actual === 'win' : actual !== 'loss';
     Sound.play(success ? 'game-win' : 'game-lose');
-    this.setStatus(success ? (expected === 'win' ? t('practice_win') : t('practice_draw')) : t('practice_fail'));
+    this.setStatus(success ? t('practice_win') : t('practice_fail'));
     $('endgame-share').classList.toggle('hidden', !success);
     const cat = this.current.category;
     const cur = this.elo[cat] ?? 1200;
     const expScore = 1 / (1 + Math.pow(10, (NOMINAL_PRACTICE_RATING - cur) / 400));
-    const score = success ? 1 : 0;
+    // A perfect replay scores a full point; each mistake made along the way
+    // chips away at the credit, down to zero (same as an outright fail).
+    const score = success ? Math.max(0, 1 - this.mistakes * 0.34) : 0;
     this.elo[cat] = Math.max(600, cur + 24 * (score - expScore));
     db.kvSet('endgameElo', this.elo);
     const cats = Object.keys(this.elo);
