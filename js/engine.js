@@ -11,7 +11,9 @@ export class Engine {
     this.onLine = null;        // callback: array of {multipv, depth, scoreText, scoreNum, pvSan}
     this.analysing = false;
     this.analysisFen = null;
-    this.multiPV = 2;
+    // null (not 2) so the very first analyse() call never thinks MultiPV
+    // "changed" and triggers a pointless respawn before a worker even exists.
+    this.multiPV = null;
     this._bestMoveResolve = null;
     this._readyResolve = null;
     this._lines = [];
@@ -21,12 +23,39 @@ export class Engine {
     if (this.ready) return this.ready;
     this.ready = new Promise((resolve, reject) => {
       try { this.worker = new Worker(SF_PATH); } catch (e) { reject(e); return; }
-      this.worker.onerror = (e) => reject(e);
+      // onerror must recover, not just reject the (long-since-settled) ready
+      // promise — this build's WASM can fault later (e.g. reconfiguring
+      // MultiPV on an already-searching worker), and without this, any
+      // pending _stopSearch()/isready wait hangs forever on a dead worker.
+      this.worker.onerror = (e) => { this._handleCrash(); reject(e); };
       this.worker.onmessage = (e) => this._handle(String(e.data));
       this._uciokResolve = resolve;
       this.worker.postMessage('uci');
     });
     return this.ready;
+  }
+
+  _handleCrash() {
+    this.ready = null;
+    this.worker = null;
+    this.analysing = false;
+    this.multiPV = null;
+    if (this._readyResolve) { this._readyResolve(); this._readyResolve = null; }
+    if (this._bestMoveResolve) { const r = this._bestMoveResolve; this._bestMoveResolve = null; r(null); }
+  }
+
+  // Fully kill the current worker. Used when reconfiguring MultiPV, since
+  // this build can fault internally when MultiPV is changed on a worker
+  // that's already been searching — a fresh instance sidesteps that
+  // entirely instead of trying to reconfigure a live one.
+  terminate() {
+    if (this.worker) this.worker.terminate();
+    this.worker = null;
+    this.ready = null;
+    this.analysing = false;
+    this._readyResolve = null;
+    this._bestMoveResolve = null;
+    this._uciokResolve = null;
   }
 
   _send(cmd) { this.worker.postMessage(cmd); }
@@ -82,6 +111,7 @@ export class Engine {
 
   // Continuous analysis of a position.
   async analyse(fen, multiPV = 2) {
+    if (this.multiPV !== null && this.multiPV !== multiPV) this.terminate();
     await this.init();
     await this._stopSearch();
     this.analysing = true;
@@ -131,6 +161,7 @@ export class Engine {
       }
       if (c.isDraw() || c.isStalemate()) return 0;
     } catch { /* fall through to engine search for anything unparsable */ }
+    if (this.multiPV !== null && this.multiPV !== 1) this.terminate();
     await this.init();
     await this._stopSearch();
     this.analysing = false;
@@ -149,6 +180,7 @@ export class Engine {
         lastScore = cp;
       }
     };
+    this.multiPV = 1;
     this._send('setoption name MultiPV value 1');
     this._send('setoption name UCI_LimitStrength value false');
     this._send(`position fen ${fen}`);
@@ -160,9 +192,11 @@ export class Engine {
 
   // One-shot: best move at a given strength. elo null = full strength.
   async bestMove(fen, { movetime = 1000, elo = null } = {}) {
+    if (this.multiPV !== null && this.multiPV !== 1) this.terminate();
     await this.init();
     await this._stopSearch();
     this.analysing = false;
+    this.multiPV = 1;
     this._send('setoption name MultiPV value 1');
     if (elo) {
       this._send('setoption name UCI_LimitStrength value true');
