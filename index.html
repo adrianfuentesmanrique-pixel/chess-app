@@ -27,6 +27,9 @@
 <main>
   <!-- ══════════ ANALYSIS ══════════ -->
   <section id="screen-analysis" class="screen">
+    <div id="ana-gr-nav" class="row hidden" style="margin:0 0 6px;">
+      <button id="ana-gr-exit" class="btn small" data-i18n="exit_game"></button>
+    </div>
     <div id="ana-base-nav" class="row wrap hidden" style="justify-content:space-between; margin:0 0 6px;">
       <div class="row" style="margin:0; gap:4px;">
         <button id="ana-base-back" class="btn small">← <span data-i18n="back_to_base"></span></button>
@@ -37,7 +40,15 @@
         <button id="ana-base-next" class="btn small">▶</button>
       </div>
     </div>
-    <div class="row" style="justify-content:flex-end; margin:0 0 6px;">
+    <div class="row" style="justify-content:flex-end; gap:6px; margin:0 0 6px;">
+      <button id="ana-new-game-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="new_game">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M2 6.67h14M2 11.33h14M6.67 2v14M11.33 2v14" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+          <circle cx="18" cy="18" r="5.5" fill="var(--accent)"/>
+          <path d="M18 15.5v5M15.5 18h5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </button>
       <button id="ana-setup-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="setup_position">✏️</button>
     </div>
     <div id="ana-board" class="board-wrap"></div>
@@ -350,6 +361,12 @@
         <h2 id="learn-lesson-title" class="ellipsis"></h2>
       </div>
       <div id="learn-board" class="board-wrap"></div>
+      <div id="learn-demo-nav" class="row hidden" style="justify-content:center; align-items:center; gap:10px; margin:8px 0;">
+        <button id="learn-demo-prev" class="tool-btn">◀</button>
+        <button id="learn-demo-play" class="tool-btn">▶️</button>
+        <span id="learn-demo-counter" class="hint" style="min-width:64px; text-align:center;"></span>
+        <button id="learn-demo-next" class="tool-btn">▶</button>
+      </div>
       <div id="learn-practice-status" class="status-bar hidden"></div>
       <p id="learn-lesson-text" class="hint learn-text"></p>
       <button id="learn-practice-btn" class="btn primary big hidden" data-i18n="learn_practice_btn"></button>
@@ -388,6 +405,14 @@
       <h3 style="margin:0 0 6px" data-i18n="member_card_title"></h3>
       <p id="profile-member-status" class="hint"></p>
       <button id="profile-member-btn" class="btn primary big"></button>
+    </div>
+
+    <div class="profile-card">
+      <div class="row" style="justify-content:space-between; margin:0 0 8px; align-items:center;">
+        <h3 style="margin:0" data-i18n="daily_missions_title"></h3>
+        <span id="daily-missions-streak" class="hint"></span>
+      </div>
+      <div id="daily-missions-list" class="daily-missions-list"></div>
     </div>
 
     <div class="profile-card">

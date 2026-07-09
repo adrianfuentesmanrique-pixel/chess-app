@@ -209,16 +209,6 @@ export const ENDGAMES = [
     },
   },
   {
-    id: 'p21', category: 'pawn',
-    name: { es: 'Exploiting a mistake', en: 'Exploiting a mistake' },
-    fen: '8/6kp/8/7K/8/8/6PP/8 w - - 0 1',
-    moves: ["g2g4","h7h6","h5h4","g7g6","h4g3","h6h5"],
-    comment: {
-      es: 'Continuación práctica del tema anterior: un descuido del bando defensor permite al bando fuerte encontrar la ruptura decisiva.',
-      en: 'A practical follow-up to the previous idea: a slip by the defending side lets the stronger side find the decisive breakthrough.',
-    },
-  },
-  {
     id: 'p22', category: 'pawn',
     name: { es: 'An important subvariation', en: 'An important subvariation' },
     fen: '8/8/5k1p/8/5KPP/8/8/8 b - - 0 1',
@@ -580,16 +570,6 @@ export const ENDGAMES = [
     },
   },
   {
-    id: 'r32', category: 'rook',
-    name: { es: 'Exploiting a mistake', en: 'Exploiting a mistake' },
-    fen: 'R7/6k1/P7/8/8/5K2/8/r7 b - - 0 1',
-    moves: ["a1a2","f3e4","a2a5","e4d4","a5b5","a8a7","g7f6","a7h7","b5a5","a6a7","f6e6","d4c4","e6d6","c4b4","a5a1","b4b5","a1b1","b5a6","b1a1","a6b7","a1b1","b7c8","b1a1","c8b8","a1g1"],
-    comment: {
-      es: 'Qué pasa si el bando defensor se equivoca aplicando la Defensa Vancura: el bando fuerte tiene la oportunidad de castigarlo de inmediato.',
-      en: 'What happens if the defending side slips up while applying the Vancura Defence: the stronger side gets the chance to punish it immediately.',
-    },
-  },
-  {
     id: 'r33', category: 'rook',
     name: { es: 'The king is in front of the pawn and the pawn is on the 7th rank', en: 'The king is in front of the pawn and the pawn is on the 7th rank' },
     fen: 'K7/P4k2/8/8/8/8/4R3/1r6 w - - 0 1',
@@ -777,16 +757,6 @@ export const ENDGAMES = [
     comment: {
       es: 'La Defensa Cochrane funciona de maravilla en las columnas centrales, pero cuando la posición inicial del rey es más delicada, existe una alternativa: la defensa de segunda fila, sencilla e inquebrantable pese a su aspecto inquietante.',
       en: 'The Cochrane Defence works beautifully on the central files, but when the king\'s starting position is trickier, there\'s an alternative: the second-rank defence — simple and unbreakable, despite how worrying it looks.',
-    },
-  },
-  {
-    id: 'r52', category: 'rook',
-    name: { es: 'Exploiting a mistake (2)', en: 'Exploiting a mistake (2)' },
-    fen: '8/7R/8/8/4KBk1/8/6r1/8 b - - 0 4',
-    moves: ["g2c2","h7g7","g4h4","e4f5","c2c5","f4e5"],
-    comment: {
-      es: 'Qué pasa cuando el bando defensor se equivoca dentro de la Defensa Cochrane: el bando fuerte tiene la ocasión de aprovecharlo de inmediato.',
-      en: 'What happens when the defending side slips up within the Cochrane Defence: the stronger side gets the chance to capitalize right away.',
     },
   },
   {
@@ -1052,6 +1022,16 @@ export const ENDGAMES = [
     },
   },
   {
+    id: 'b16', category: 'bishop',
+    name: { es: 'Central and rook\'s pawns (2)', en: 'Central and rook\'s pawns (2)' },
+    fen: '8/b7/P7/3Bk3/2K1P3/8/8/8 w - - 0 1',
+    moves: ["c4d3","e5f4","d3e2","a7b6","e2f1","b6a7","f1g2","a7b6","g2h3","b6f2","d5b7","f4g5","b7c6","g5f4","c6d5","f2e3","h3h4","f4e5","h4h5","e5f6","d5b7","e3a7","h5h6","a7b6","h6h7","b6d4","h7g8","d4c5","b7d5","f6e5","g8f7","e5d6","f7f6","c5d4","f6f5","d4b6","d5a8","b6d4","a8b7","d4a7","e4e5","d6e7","e5e6","a7d4","b7c8","e7d8","c8d7","d8e7","f5e4","d4b6","e4d5"],
+    comment: {
+      es: 'Con un peón de torre, la vida es más fácil para el bando fuerte: el rey atacante tiene mucho más espacio para colarse por el flanco, ilustrando la típica maniobra de desbordar por el borde del tablero.',
+      en: 'With a rook\'s pawn, life is easier for the stronger side: the attacking king has far more room to break through on the flank, illustrating the classic maneuver of outflanking along the edge of the board.',
+    },
+  },
+  {
     id: 'b14', category: 'bishop',
     name: { es: 'Bishop\'s and knight\'s pawns', en: 'Bishop\'s and knight\'s pawns' },
     fen: '1b6/1P6/4Bk2/5P2/4K3/8/8/8 w - - 0 1',
@@ -1069,16 +1049,6 @@ export const ENDGAMES = [
     comment: {
       es: 'Cuando el alfil defensor controla la penúltima casilla del peón de caballo pero no su casilla de coronación, casi todo sigue igual — salvo que, si el peón ha avanzado demasiado (aquí, a la 6ª fila), aparece un bloqueo perfecto. Posición basada en la partida real Miller-Saidy.',
       en: 'When the defending bishop controls the knight\'s pawn\'s second-to-last square but not its promotion square, most ideas still hold — except that if the pawn has gone too far (here, the 6th rank), a perfect blockade appears. Based on the real game Miller-Saidy.',
-    },
-  },
-  {
-    id: 'b16', category: 'bishop',
-    name: { es: 'Central and rook\'s pawns (2)', en: 'Central and rook\'s pawns (2)' },
-    fen: '8/b7/P7/3Bk3/2K1P3/8/8/8 w - - 0 1',
-    moves: ["c4d3","e5f4","d3e2","a7b6","e2f1","b6a7","f1g2","a7b6","g2h3","b6f2","d5b7","f4g5","b7c6","g5f4","c6d5","f2e3","h3h4","f4e5","h4h5","e5f6","d5b7","e3a7","h5h6","a7b6","h6h7","b6d4","h7g8","d4c5","b7d5","f6e5","g8f7","e5d6","f7f6","c5d4","f6f5","d4b6","d5a8","b6d4","a8b7","d4a7","e4e5","d6e7","e5e6","a7d4","b7c8","e7d8","c8d7","d8e7","f5e4","d4b6","e4d5"],
-    comment: {
-      es: 'Con un peón de torre, la vida es más fácil para el bando fuerte: el rey atacante tiene mucho más espacio para colarse por el flanco, ilustrando la típica maniobra de desbordar por el borde del tablero.',
-      en: 'With a rook\'s pawn, life is easier for the stronger side: the attacking king has far more room to break through on the flank, illustrating the classic maneuver of outflanking along the edge of the board.',
     },
   },
   // ── KNIGHT ──────────────────────────────────────────
@@ -1211,16 +1181,6 @@ export const ENDGAMES = [
     comment: {
       es: 'Una variante secundaria dentro de la técnica de mate con alfil y caballo, útil para completar la comprensión del procedimiento.',
       en: 'A secondary branch within the bishop-and-knight mating technique, useful for rounding out your understanding of the procedure.',
-    },
-  },
-  {
-    id: 'm8', category: 'minor',
-    name: { es: 'Positions 13.4 to 13.6 - Checkmating with B and N', en: 'Positions 13.4 to 13.6 - Checkmating with B and N' },
-    fen: '8/8/8/8/4k3/8/6K1/6BN w - - 0 1',
-    moves: ["g2g3","e4e5","g3f3","e5d5","f3f4","d5d6","f4e4","d6c6","h1g3","c6d6","g3f5","d6c6","e4e5","c6d7","e5d5","d7c7","g1c5","c7b7","d5d6","b7b8","d6c6","b8a8","f5d6","a8b8","d6b5","b8a8","b5c7","a8b8","c5d4","b8c8","d4a7","c8d8","c7d5","d8e8","c6d6","e8f7","d5e7","f7f6","a7e3","f6f7","e3g5","f7e8","e7c6","e8f7","c6e5","f7e8","d6e6","e8f8","e6d7","f8g8","d7e8","g8g7","e8e7","g7g8","g5h6","g8h7","h6f8","h7g8","e7e8","g8h8","e8f7","h8h7","e5g4","h7h8","f8g7","h8h7","g4f6"],
-    comment: {
-      es: 'Desde la peor configuración inicial posible, el mate de alfil y caballo requiere hasta 30 jugadas con juego perfecto. El plan: centralizar el rey y el caballo, empujar al rey rival hacia la esquina del color del alfil (la \'esquina segura\') y cerrar el cerco con el rey en la diagonal opuesta.',
-      en: 'Starting from the worst possible setup, the bishop-and-knight mate can take up to 30 moves with perfect play. The plan: centralize your king and knight, push the enemy king toward the corner matching your bishop\'s color (the \'safe corner\'), then close the net with your king on the opposite diagonal.',
     },
   },
 ];

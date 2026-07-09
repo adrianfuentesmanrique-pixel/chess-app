@@ -676,6 +676,102 @@ const Streak = {
   },
 };
 
+// ═════════════════════ DAILY MISSIONS ═════════════════════
+
+// Deterministic small string hash — same input always yields the same
+// number, so "today's" pick is stable across users/reloads without needing
+// a server.
+function dailySeed(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// Rating bands the puzzle of the day scales across, keyed by the player's
+// own puzzle ELO — a beginner and a 2500 get a different "puzzle of the
+// day", but everyone in the same band gets the same one on a given date.
+const PUZZLE_OF_DAY_BANDS = [0, 1800, 2000, 2300, 2500, 2800, Infinity];
+
+function puzzleOfDay(playerElo) {
+  let tier = 0;
+  for (let i = 1; i < PUZZLE_OF_DAY_BANDS.length - 1; i++) if (playerElo >= PUZZLE_OF_DAY_BANDS[i]) tier = i;
+  const lo = PUZZLE_OF_DAY_BANDS[tier], hi = PUZZLE_OF_DAY_BANDS[tier + 1];
+  const pool = PUZZLES.filter(p => p.rating >= lo && p.rating < hi);
+  const list = pool.length ? pool : PUZZLES;
+  const seed = dailySeed(todayStr() + '_tier' + tier);
+  return list[seed % list.length];
+}
+
+const DailyMissions = {
+  date: null,
+  done: { puzzle: false, play: false, opening: false },
+  streak: 0,
+
+  async init() {
+    const today = todayStr();
+    this.date = await db.kvGet('dailyMissionsDate', null);
+    this.done = await db.kvGet('dailyMissionsDone', { puzzle: false, play: false, opening: false });
+    this.streak = +(await db.kvGet('dailyMissionStreak', 0));
+    if (this.date !== today) {
+      const lastComplete = await db.kvGet('dailyMissionLastCompleteDate', null);
+      if (!(lastComplete && isYesterday(lastComplete, today))) this.streak = 0;
+      this.date = today;
+      this.done = { puzzle: false, play: false, opening: false };
+      await db.kvSet('dailyMissionsDate', this.date);
+      await db.kvSet('dailyMissionsDone', this.done);
+      await db.kvSet('dailyMissionStreak', this.streak);
+    }
+    this.render();
+  },
+
+  async complete(key) {
+    if (this.date !== todayStr()) await this.init();
+    if (this.done[key]) return;
+    this.done[key] = true;
+    await db.kvSet('dailyMissionsDone', this.done);
+    if (this.done.puzzle && this.done.play && this.done.opening) {
+      const today = todayStr();
+      await db.kvSet('dailyMissionLastCompleteDate', today);
+      this.streak += 1;
+      await db.kvSet('dailyMissionStreak', this.streak);
+      const best = await db.kvGet('bestDailyMissionStreak', 0);
+      if (this.streak > best) await db.kvSet('bestDailyMissionStreak', this.streak);
+      toast('🎯 ' + t('daily_missions_complete'), 3500);
+      Badges.checkNew();
+    }
+    this.render();
+  },
+
+  render() {
+    const el = $('daily-missions-list');
+    if (!el) return;
+    const streakEl = $('daily-missions-streak');
+    if (streakEl) streakEl.textContent = this.streak > 0 ? `🔥 ${this.streak}` : '';
+    const rows = [
+      { key: 'puzzle', label: t('mission_puzzle'), go: () => this.goPuzzle() },
+      { key: 'play', label: t('mission_play'), go: () => showScreen('play') },
+      { key: 'opening', label: t('mission_opening'), go: () => showScreen('trainer') },
+    ];
+    el.innerHTML = '';
+    for (const row of rows) {
+      const done = !!this.done[row.key];
+      const btn = document.createElement('button');
+      btn.className = 'daily-mission-row' + (done ? ' done' : '');
+      btn.innerHTML = `<span class="daily-mission-check">✓</span><span class="daily-mission-label">${esc(row.label)}</span><span class="daily-mission-arrow">${done ? '' : '›'}</span>`;
+      btn.onclick = () => row.go();
+      el.appendChild(btn);
+    }
+  },
+
+  async goPuzzle() {
+    showScreen('puzzles');
+    await Puzzles.ensureLoaded();
+    const elo = await db.kvGet('puzzleElo', 1200);
+    Puzzles.loadPuzzle(puzzleOfDay(elo));
+    Puzzles.isDailyPuzzle = true;
+  },
+};
+
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function isYesterday(dateStr, todayStrVal) {
   const d = new Date(dateStr + 'T00:00:00');
@@ -782,9 +878,11 @@ const Analysis = {
       if (b.dataset.v === 'games') this.showGamesTab(); else this.showMovesTab();
     });
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
+    $('ana-new-game-btn').onclick = () => this.loadTree(new GameTree());
     $('ana-more').onclick = () => this.moreMenu();
     $('ana-base-back').onclick = () => this.backToBase();
     $('ana-base-exit').onclick = () => this.exitBase();
+    $('ana-gr-exit').onclick = () => this.exitGameReview();
     $('ana-base-prev').onclick = () => this.gotoAdjacentGame(-1);
     $('ana-base-next').onclick = () => this.gotoAdjacentGame(1);
     $('ana-annotate-toggle').onclick = () => {
@@ -874,6 +972,7 @@ const Analysis = {
       $('ana-base-prev').disabled = idx <= 0;
       $('ana-base-next').disabled = idx === -1 || idx >= Base.gamesCache.length - 1;
     }
+    $('ana-gr-nav').classList.toggle('hidden', !this.ctx.fromGameReview);
   },
 
   backToBase() {
@@ -887,6 +986,14 @@ const Analysis = {
   exitBase() {
     this.ctx = { baseId: null, gameId: null };
     showScreen('analysis');
+    this.updateBaseNav();
+  },
+
+  // Leaves the "just analyzed this played game" context without discarding
+  // the position on screen — same idea as exitBase() but for games that
+  // arrived here via Game Review's "Analyze the game" button.
+  exitGameReview() {
+    this.ctx = { baseId: null, gameId: null };
     this.updateBaseNav();
   },
 
@@ -1168,7 +1275,6 @@ const Analysis = {
       { label: '📤 ' + t('share_game'), action: () => sharePgnText(gameFilename(this.tree.headers), this.tree.toPgn()) },
       { label: '📋 ' + t('copy_pgn'), action: () => { copyText(this.tree.toPgn()); } },
       { label: '📋 ' + t('copy_fen'), action: () => { copyText(this.tree.fen()); } },
-      { label: '🆕 ' + t('new_game'), action: () => this.loadTree(new GameTree()) },
       { label: '🤖 ' + t('play_from_here'), action: () => Play.startFromFen(this.tree.fen()) },
     ];
     if (this.tree.current.san) {
@@ -1511,10 +1617,20 @@ const Play = {
       const won = winner === this.playerColor;
       Sound.play(won ? 'game-win' : 'game-lose');
       this.finish(won ? t('checkmate_win') : t('checkmate_loss'));
+      if (won) this.recordLevelBeaten();
       return true;
     }
     if (this.chess.isDraw() || this.chess.isStalemate()) { Sound.play('game-draw'); this.finish(t('draw')); return true; }
     return false;
+  },
+
+  async recordLevelBeaten() {
+    const beaten = await db.kvGet('engineLevelsBeaten', {});
+    if (!beaten[this.level]) {
+      beaten[this.level] = true;
+      await db.kvSet('engineLevelsBeaten', beaten);
+      Badges.checkNew();
+    }
   },
 
   finish(msg) {
@@ -1522,6 +1638,7 @@ const Play = {
     this.setStatus(msg);
     Streak.recordActivity();
     const hist = this.chess.history();
+    if (hist.length >= 2) DailyMissions.complete('play');
     if (hist.length >= 4) {
       const names = t('level_names');
       const me = getLang() === 'es' ? 'Yo' : 'Me';
@@ -1558,7 +1675,7 @@ const Play = {
     if (this.over && this.chess.isCheckmate()) tree.setHeader('Result', this.chess.turn() === 'w' ? '0-1' : '1-0');
     else if (this.over && this.chess.isDraw()) tree.setHeader('Result', '1/2-1/2');
     engine.stop();
-    Analysis.loadTree(tree);
+    Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
   },
 };
 
@@ -1578,8 +1695,12 @@ function grClassify(cpLoss, isSac) {
 
 // A capture-or-hang move that the opponent could immediately recapture at a
 // material loss for the mover, yet the engine still rates it near-best —
-// a simple proxy for "brilliant" sacrifices.
-function grIsSacrifice(move) {
+// a simple proxy for "brilliant" sacrifices. Excludes forced moves (the
+// only legal move is never a "choice") and moves made from an already
+// clearly-lost position (delaying an inevitable loss isn't brilliant).
+function grIsSacrifice(move, legalMoveCount, evalBeforeMover) {
+  if (legalMoveCount <= 1) return false;
+  if (evalBeforeMover < -300) return false;
   const movedVal = PIECE_VALUE[move.piece] || 0;
   const gainedVal = move.captured ? (PIECE_VALUE[move.captured] || 0) : 0;
   if (movedVal - gainedVal < 2) return false;
@@ -1596,8 +1717,9 @@ function grBuildMoves(startFen, sanHistory) {
   const chess = new Chess(startFen);
   const moves = [];
   for (const san of sanHistory) {
+    const legalMoveCount = chess.moves().length;
     const mv = chess.move(san);
-    moves.push({ san: mv.san, color: mv.color, piece: mv.piece, captured: mv.captured, to: mv.to, afterFen: chess.fen() });
+    moves.push({ san: mv.san, color: mv.color, piece: mv.piece, captured: mv.captured, to: mv.to, afterFen: chess.fen(), legalMoveCount });
   }
   return moves;
 }
@@ -1646,7 +1768,8 @@ const GameReview = {
       const cats = moves.map((mv, i) => {
         const before = evals[i], after = evals[i + 1];
         const cpLoss = Math.max(0, mv.color === 'w' ? before - after : after - before);
-        const isSac = cpLoss <= 10 && grIsSacrifice(mv);
+        const evalBeforeMover = mv.color === 'w' ? before : -before;
+        const isSac = cpLoss <= 10 && grIsSacrifice(mv, mv.legalMoveCount, evalBeforeMover);
         return grClassify(cpLoss, isSac);
       });
       const cpLosses = moves.map((mv, i) => {
@@ -1705,7 +1828,7 @@ const GameReview = {
         if (finalChess.isCheckmate()) tree.setHeader('Result', finalChess.turn() === 'w' ? '0-1' : '1-0');
         else if (finalChess.isDraw()) tree.setHeader('Result', '1/2-1/2');
         engine.stop();
-        Analysis.loadTree(tree);
+        Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
       };
     });
   },
@@ -1942,6 +2065,7 @@ const Trainer = {
     const names = Object.keys(elo);
     const avg = names.reduce((s, k) => s + elo[k], 0) / names.length;
     await recordEloHistory('openingEloHistory', avg);
+    DailyMissions.complete('opening');
     Badges.checkNew();
   },
 
@@ -1954,7 +2078,7 @@ const Trainer = {
     const tree = treeFromHistory(START_FEN, this.chess.history());
     tree.setHeader('Event', getLang() === 'es' ? 'Entrenamiento de apertura' : 'Opening training');
     engine.stop();
-    Analysis.loadTree(tree);
+    Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
   },
 };
 
@@ -1986,6 +2110,7 @@ const Puzzles = {
   themeElo: {},
   attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
   themeFilter: 'random',      // 'random' | Set<themeId>
+  isDailyPuzzle: false,
   posHistory: [],             // [{fen, lastMove}] snapshots for the nav buttons
   viewIdx: -1,                 // index into posHistory currently shown on the board
   liveInteractive: false,      // whether the board should accept moves at the live position
@@ -2108,6 +2233,7 @@ const Puzzles = {
     this.updateEloBadge();
     recordEloHistory('puzzleEloHistory', this.elo);
     Streak.recordActivity();
+    if (win && this.isDailyPuzzle) DailyMissions.complete('puzzle');
     Badges.checkNew();
   },
 
@@ -2124,7 +2250,7 @@ const Puzzles = {
     const tree = treeFromHistory(this.current.fen, this.chess.history());
     tree.setHeader('Event', getLang() === 'es' ? 'Puzzle de táctica' : 'Tactics puzzle');
     engine.stop();
-    Analysis.loadTree(tree);
+    Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
   },
 
   startTimer() {
@@ -2180,7 +2306,6 @@ const Puzzles = {
   },
 
   nextPuzzle() {
-    $('puzzle-analyze').classList.add('hidden');
     const pool = this.pool();
     if (!pool.length) return;
     const fresh = pool.filter(p => !this.solved[p.id]);
@@ -2191,7 +2316,13 @@ const Puzzles = {
       windowSize += 100;
     }
     if (!candidates.length) candidates = list;
-    this.current = candidates[Math.floor(Math.random() * candidates.length)];
+    this.isDailyPuzzle = false;
+    this.loadPuzzle(candidates[Math.floor(Math.random() * candidates.length)]);
+  },
+
+  loadPuzzle(puzzle) {
+    $('puzzle-analyze').classList.add('hidden');
+    this.current = puzzle;
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
     this.failedThis = false;
@@ -3036,6 +3167,10 @@ const Learning = {
   vsEngine: false,
   chess: null,
   thinking: false,
+  demoIdx: 0,
+  demoTimer: null,
+  progressEvals: [],
+  hintCooldown: 0,
 
   init() {
     this.board = new Board($('learn-board'), {
@@ -3048,6 +3183,9 @@ const Learning = {
     $('learn-prev-lesson').onclick = () => this.openLesson(this.lessonIdx - 1);
     $('learn-next-lesson').onclick = () => this.openLesson(this.lessonIdx + 1);
     $('learn-practice-btn').onclick = () => this.startPractice();
+    $('learn-demo-prev').onclick = () => this.demoStep(-1);
+    $('learn-demo-next').onclick = () => this.demoStep(1);
+    $('learn-demo-play').onclick = () => this.demoTogglePlay();
   },
 
   showCategories() {
@@ -3093,6 +3231,8 @@ const Learning = {
     $('learn-lesson-text').textContent = lesson.text[getLang()];
     this.practicing = false;
     this.vsEngine = false;
+    clearInterval(this.demoTimer);
+    this.demoTimer = null;
     this.board.interactive = false;
     this.board.setOrientation('w');
     this.board.setPosition(lesson.fen);
@@ -3102,6 +3242,14 @@ const Learning = {
     $('learn-practice-btn').disabled = false;
     $('learn-prev-lesson').disabled = idx === 0;
     $('learn-next-lesson').disabled = idx === this.lessons.length - 1;
+    if (lesson.demo) {
+      $('learn-demo-nav').classList.remove('hidden');
+      $('learn-demo-play').textContent = '▶️';
+      this.demoIdx = 0;
+      this.renderDemoStep();
+    } else {
+      $('learn-demo-nav').classList.add('hidden');
+    }
     if (lesson.setupMove) {
       setTimeout(() => {
         if (this.lessons[this.lessonIdx] !== lesson) return;
@@ -3113,9 +3261,53 @@ const Learning = {
     }
   },
 
+  renderDemoStep() {
+    const lesson = this.lessons[this.lessonIdx];
+    const demo = lesson.demo;
+    const c = new Chess(lesson.fen);
+    let last = null;
+    for (let i = 0; i < this.demoIdx; i++) last = c.move(uciToMove(demo.moves[i]));
+    this.board.setPosition(c.fen(), last ? { from: last.from, to: last.to } : null);
+    $('learn-demo-counter').textContent = `${this.demoIdx} / ${demo.moves.length}`;
+    $('learn-demo-prev').disabled = this.demoIdx === 0;
+    $('learn-demo-next').disabled = this.demoIdx === demo.moves.length;
+  },
+
+  demoStep(dir) {
+    const lesson = this.lessons[this.lessonIdx];
+    if (!lesson.demo) return;
+    const next = this.demoIdx + dir;
+    if (next < 0 || next > lesson.demo.moves.length) {
+      clearInterval(this.demoTimer);
+      this.demoTimer = null;
+      $('learn-demo-play').textContent = '▶️';
+      return;
+    }
+    this.demoIdx = next;
+    this.renderDemoStep();
+    if (this.demoIdx === lesson.demo.moves.length) {
+      clearInterval(this.demoTimer);
+      this.demoTimer = null;
+      $('learn-demo-play').textContent = '▶️';
+    }
+  },
+
+  demoTogglePlay() {
+    if (this.demoTimer) {
+      clearInterval(this.demoTimer);
+      this.demoTimer = null;
+      $('learn-demo-play').textContent = '▶️';
+      return;
+    }
+    $('learn-demo-play').textContent = '⏸️';
+    this.demoTimer = setInterval(() => this.demoStep(1), 900);
+  },
+
   startPractice() {
     const lesson = this.lessons[this.lessonIdx];
     if (!lesson.practice) return;
+    clearInterval(this.demoTimer);
+    this.demoTimer = null;
     this.practicing = true;
     this.practiceFen = lesson.practice.fen || lesson.fen;
     this.board.setShapes({ squares: [], arrows: [] });
@@ -3125,6 +3317,8 @@ const Learning = {
       this.vsEngine = true;
       this.chess = new Chess(this.practiceFen);
       this.thinking = false;
+      this.progressEvals = [];
+      this.hintCooldown = 0;
       this.board.setOrientation(this.practiceFen.split(' ')[1]);
       this.board.setPosition(this.chess.fen());
       this.board.interactive = true;
@@ -3170,7 +3364,7 @@ const Learning = {
     }
   },
 
-  checkVsEngineMove(mv) {
+  async checkVsEngineMove(mv) {
     if (this.thinking) return;
     const playerColor = this.practiceFen.split(' ')[1];
     if (this.chess.turn() !== playerColor) return;
@@ -3197,7 +3391,30 @@ const Learning = {
       setTimeout(() => $('learn-board').classList.remove('shake'), 500);
       return;
     }
+    await this.checkProgress(playerColor);
     this.engineReply();
+  },
+
+  // Tracks whether the player's own evaluation (from their side) is
+  // actually improving over their last few moves. If it's been flat for a
+  // while, they're likely wandering instead of applying the technique —
+  // nudge them with the lesson's core idea instead of staying silent.
+  async checkProgress(playerColor) {
+    if (this.thinking) return;
+    const lesson = this.lessons[this.lessonIdx];
+    if (!lesson.hint) return;
+    const sign = playerColor === 'w' ? 1 : -1;
+    let raw;
+    try { raw = await engine.evaluate(this.chess.fen(), 200); } catch { return; }
+    this.progressEvals.push(sign * raw);
+    if (this.hintCooldown > 0) { this.hintCooldown--; return; }
+    if (this.progressEvals.length < 5) return;
+    const recent = this.progressEvals.slice(-5);
+    const delta = recent[4] - recent[0];
+    if (delta < 30) {
+      KaelQuotes.show({ text: lesson.hint[getLang()], author: null }, 5500);
+      this.hintCooldown = 4;
+    }
   },
 
   async engineReply() {
@@ -3755,6 +3972,19 @@ const BADGE_DEFS = [
   { id: 'rush_1', icon: '⚡', name: { es: 'Primer Puzzle Rush', en: 'First Puzzle Rush' }, check: s => s.rushBestScore >= 1 },
   { id: 'rush_10', icon: '⚡', name: { es: 'Rush: 10 en una racha', en: 'Rush: 10 in a row' }, check: s => s.rushBestScore >= 10 },
   { id: 'rush_30', icon: '👑', name: { es: 'Rush: 30 en una racha', en: 'Rush: 30 in a row' }, check: s => s.rushBestScore >= 30 },
+  // beating the engine, per difficulty level + one for sweeping all of them
+  ...LEVELS.map((lv, i) => ({
+    id: 'beat_engine_' + i, icon: '🤖',
+    label: lang => `${lang === 'en' ? 'Beat' : 'Venció a'} ${t('level_names')[i]}`,
+    check: s => !!s.engineLevelsBeaten[i],
+  })),
+  { id: 'beat_engine_all', icon: '👑', name: { es: 'Venció a todos los niveles del motor', en: 'Beat Every Engine Level' }, check: s => LEVELS.every((lv, i) => !!s.engineLevelsBeaten[i]) },
+  // daily missions streak
+  { id: 'daily_1', icon: '🎯', name: { es: 'Primera misión diaria', en: 'First Daily Mission' }, check: s => s.bestDailyMissionStreak >= 1 },
+  { id: 'daily_7', icon: '🎯', name: { es: 'Misión diaria: 1 semana', en: 'Daily Mission: 1 Week' }, check: s => s.bestDailyMissionStreak >= 7 },
+  { id: 'daily_30', icon: '🎯', name: { es: 'Misión diaria: 1 mes', en: 'Daily Mission: 1 Month' }, check: s => s.bestDailyMissionStreak >= 30 },
+  { id: 'daily_180', icon: '⚡', name: { es: 'Misión diaria: 6 meses', en: 'Daily Mission: 6 Months' }, check: s => s.bestDailyMissionStreak >= 180 },
+  { id: 'daily_365', icon: '👑', name: { es: 'Misión diaria: 1 año', en: 'Daily Mission: 1 Year' }, check: s => s.bestDailyMissionStreak >= 365 },
 ];
 
 function badgeLabel(def) {
@@ -3782,6 +4012,8 @@ const Badges = {
       firstImportDone: await db.kvGet('firstImportDone', false),
       firstEngineUsed: await db.kvGet('firstEngineUsed', false),
       rushBestScore: await db.kvGet('rushBestScore', 0),
+      engineLevelsBeaten: await db.kvGet('engineLevelsBeaten', {}),
+      bestDailyMissionStreak: await db.kvGet('bestDailyMissionStreak', 0),
     };
   },
 
@@ -3941,6 +4173,7 @@ const Profile = {
     await this.renderAccount();
     await this.renderMemberCard();
     await Avatars.refresh();
+    await DailyMissions.init();
     await Badges.checkNew();
     Badges.renderTrophyCase();
     this.renderStreakTimeline();
@@ -4145,6 +4378,7 @@ async function main() {
   Setup.init();
   await Themes.init();
   await Streak.init();
+  await DailyMissions.init();
   Auth.onChange(async () => {
     // remote data may have just replaced local kv values (sign-in) — refresh live views
     await Streak.init();
