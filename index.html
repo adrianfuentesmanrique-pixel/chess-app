@@ -13,7 +13,8 @@
 <body>
 
 <div id="splash">
-  <img src="icons/logo-full.png" alt="Chess Training Center" id="splash-logo">
+  <img src="icons/logo-mark.png" alt="" id="splash-logo">
+  <div id="splash-title">Chess Training Center</div>
 </div>
 
 <header id="topbar">
@@ -41,6 +42,7 @@
       </div>
     </div>
     <div class="row" style="justify-content:flex-end; gap:6px; margin:0 0 6px;">
+      <button id="ana-undo-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="undo_annotation">↩️</button>
       <button id="ana-new-game-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="new_game">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="1" y="1" width="8" height="8" rx="1.5" fill="currentColor"/>
@@ -50,7 +52,6 @@
           <path d="M17.5 14.7v5.6M14.7 17.5h5.6" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
         </svg>
       </button>
-      <button id="ana-undo-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="undo_annotation">↩️</button>
       <button id="ana-setup-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="setup_position">✏️</button>
     </div>
     <div id="ana-board" class="board-wrap"></div>

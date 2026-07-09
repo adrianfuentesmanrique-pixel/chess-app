@@ -156,6 +156,11 @@ export const OPENINGS_ECO = [
   { moves: ['c3'], name: 'Saragossa Opening' },
 ];
 
+// All names classifyOpening() can ever return — used to prune stale
+// openingElo entries left over from before openings were tracked by
+// detected name instead of by (possibly mislabeled) study base name.
+export const VALID_OPENING_NAMES = new Set(OPENINGS_ECO.map(e => e.name));
+
 // Normalizes a SAN move for matching (strips check/mate markers, keeps
 // castling/promotion notation as-is since chess.js already normalizes those).
 function normSan(san) {

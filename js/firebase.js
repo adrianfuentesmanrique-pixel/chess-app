@@ -22,7 +22,7 @@ const firebaseConfig = {
 
 // Keys that follow the signed-in user across devices.
 const SYNCED_KEYS = [
-  'profileName', 'firstName', 'lastName', 'dateOfBirth',
+  'profileName', 'username', 'firstName', 'lastName', 'dateOfBirth',
   'streakCount', 'streakLastDate',
   'puzzleElo', 'puzzleThemeElo', 'puzzlesSolved',
   'openingElo', 'endgameElo', 'boardTheme', 'pieceSet', 'colorMode',
@@ -35,7 +35,7 @@ const SYNCED_KEYS = [
 
 // Subset that gets mirrored into the PUBLIC /leaderboard/{uid} doc — never
 // email, real name, or date of birth. Changing any of these re-publishes it.
-const PUBLIC_KEYS = ['profileName', 'avatarId', 'puzzleElo', 'puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'blindfoldElo', 'isMember'];
+const PUBLIC_KEYS = ['profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'blindfoldElo', 'isMember'];
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -55,20 +55,21 @@ export const Auth = {
     await signInWithPopup(auth, new GoogleAuthProvider());
   },
 
-  async signUpWithEmail({ email, password, firstName, lastName, dateOfBirth }) {
+  async signUpWithEmail({ email, password, firstName, lastName, username, dateOfBirth }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const displayName = `${firstName} ${lastName}`.trim();
     await updateProfile(cred.user, { displayName });
     suppressSync = true;
     try {
-      await db.kvSet('profileName', displayName);
+      await db.kvSet('profileName', username);
+      await db.kvSet('username', username);
       await db.kvSet('firstName', firstName);
       await db.kvSet('lastName', lastName);
       await db.kvSet('dateOfBirth', dateOfBirth);
     } finally {
       suppressSync = false;
     }
-    const local = { profileName: displayName, firstName, lastName, dateOfBirth, email };
+    const local = { profileName: username, username, firstName, lastName, dateOfBirth, email };
     await setDoc(doc(firestore, 'users', cred.user.uid), local, { merge: true });
     await updatePublicLeaderboardDoc(cred.user.uid);
     this.needsProfileCompletion = false;
@@ -78,19 +79,19 @@ export const Auth = {
     await signInWithEmailAndPassword(auth, email, password);
   },
 
-  async completeProfile({ firstName, lastName, dateOfBirth }) {
+  async completeProfile({ firstName, lastName, username, dateOfBirth }) {
     if (!this.user) return;
-    const displayName = `${firstName} ${lastName}`.trim();
     suppressSync = true;
     try {
-      await db.kvSet('profileName', displayName);
+      await db.kvSet('profileName', username);
+      await db.kvSet('username', username);
       await db.kvSet('firstName', firstName);
       await db.kvSet('lastName', lastName);
       await db.kvSet('dateOfBirth', dateOfBirth);
     } finally {
       suppressSync = false;
     }
-    await setDoc(doc(firestore, 'users', this.user.uid), { profileName: displayName, firstName, lastName, dateOfBirth }, { merge: true });
+    await setDoc(doc(firestore, 'users', this.user.uid), { profileName: username, username, firstName, lastName, dateOfBirth }, { merge: true });
     await updatePublicLeaderboardDoc(this.user.uid);
     this.needsProfileCompletion = false;
     this._notify();

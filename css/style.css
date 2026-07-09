@@ -77,11 +77,31 @@ body.mode-light .brand-logo { filter: none; }
 #splash {
   position: fixed; inset: 0; z-index: 1000;
   background: #f5f3ef;
-  display: flex; align-items: center; justify-content: center;
-  transition: opacity .4s ease;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  transition: opacity .45s ease;
 }
 #splash.hide { opacity: 0; pointer-events: none; }
-#splash-logo { width: min(72vw, 320px); height: auto; }
+#splash-logo {
+  width: min(30vw, 120px); height: auto;
+  clip-path: inset(0 100% 0 0);
+  transform: scale(.92);
+  animation: splash-logo-draw 850ms cubic-bezier(.22,.8,.25,1) forwards;
+}
+#splash-title {
+  font-weight: 700; font-size: 21px; letter-spacing: .6px; text-align: center;
+  color: #102a43;
+  opacity: 0; transform: translateY(8px);
+  animation: splash-title-in 650ms ease forwards;
+  animation-delay: 520ms;
+}
+@keyframes splash-logo-draw {
+  from { clip-path: inset(0 100% 0 0); transform: scale(.92); }
+  to { clip-path: inset(0 0% 0 0); transform: scale(1); }
+}
+@keyframes splash-title-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* ── decorative watermark ──────────────── */
 .watermark {
@@ -202,6 +222,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .tool-btn {
   flex: 1; background: var(--panel2); color: var(--text);
   border: none; border-radius: 8px; font-size: 18px; padding: 9px 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
 }
 .tool-btn.on { background: var(--accent2); }
 .tool-btn:active { transform: scale(.96); }

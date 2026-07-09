@@ -11,7 +11,20 @@ import { LEARNING_CATEGORIES } from './learning-data.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
-import { classifyOpening } from './openings-eco.js';
+import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
+
+// One-time cleanup for accounts that accumulated openingElo entries before
+// openings were tracked by detected name instead of by (possibly
+// mislabeled) study base name — those stale keys would otherwise sit in
+// the radar forever since nothing ever overwrites or removes them.
+async function cleanStaleOpenings() {
+  const elo = await db.kvGet('openingElo', {});
+  let changed = false;
+  for (const name of Object.keys(elo)) {
+    if (!VALID_OPENING_NAMES.has(name)) { delete elo[name]; changed = true; }
+  }
+  if (changed) await db.kvSet('openingElo', elo);
+}
 
 // A short Kael line about the opening the player just reached, flavored by
 // its general character (gambit, sharp, solid, hypermodern, classical…)
@@ -260,6 +273,11 @@ function openAuthModal() {
       } else {
         const first = fieldInput('first_name', 'text');
         const last = fieldInput('last_name', 'text');
+        const username = fieldInput('username_field', 'text');
+        username.input.maxLength = 24;
+        const usernameHint = document.createElement('p');
+        usernameHint.className = 'hint';
+        usernameHint.textContent = t('username_permanent_hint');
         const dob = fieldInput('date_of_birth', 'date');
         const email = fieldInput('email', 'email');
         const pass = fieldInput('password', 'password');
@@ -268,13 +286,15 @@ function openAuthModal() {
         submit.className = 'btn primary big'; submit.textContent = t('create_account_btn');
         submit.onclick = () => withBusy(submit, () => {
           if (pass.input.value !== pass2.input.value) { const e = new Error('mismatch'); e.code = null; e._msg = t('passwords_dont_match'); throw e; }
+          if (!username.input.value.trim()) { const e = new Error('no username'); e.code = null; e._msg = t('username_required'); throw e; }
           return Auth.signUpWithEmail({
             email: email.input.value.trim(), password: pass.input.value,
-            firstName: first.input.value.trim(), lastName: last.input.value.trim(), dateOfBirth: dob.input.value,
+            firstName: first.input.value.trim(), lastName: last.input.value.trim(),
+            username: username.input.value.trim(), dateOfBirth: dob.input.value,
           });
         });
         switchLink.textContent = t('have_account_already');
-        form.append(first.wrap, last.wrap, dob.wrap, email.wrap, pass.wrap, pass2.wrap, submit);
+        form.append(first.wrap, last.wrap, username.wrap, usernameHint, dob.wrap, email.wrap, pass.wrap, pass2.wrap, submit);
       }
       updateGate();
     }
@@ -293,22 +313,24 @@ function openCompleteProfileModal() {
     box.innerHTML = `<h3>${t('complete_profile_title')}</h3><p class="hint">${t('complete_profile_hint')}</p>`;
     const first = document.createElement('input'); first.className = 'input'; first.placeholder = t('first_name');
     const last = document.createElement('input'); last.className = 'input'; last.placeholder = t('last_name');
+    const username = document.createElement('input'); username.className = 'input'; username.placeholder = t('username_field'); username.maxLength = 24;
+    const usernameHint = document.createElement('p'); usernameHint.className = 'hint'; usernameHint.textContent = t('username_permanent_hint');
     const dob = document.createElement('input'); dob.className = 'input'; dob.type = 'date'; dob.placeholder = t('date_of_birth');
     const errorEl = document.createElement('div'); errorEl.className = 'auth-error';
     const submit = document.createElement('button');
     submit.className = 'btn primary big'; submit.textContent = t('save');
     submit.onclick = async () => {
-      if (!first.value.trim() || !last.value.trim()) return;
+      if (!first.value.trim() || !last.value.trim() || !username.value.trim()) return;
       submit.disabled = true;
       try {
-        await Auth.completeProfile({ firstName: first.value.trim(), lastName: last.value.trim(), dateOfBirth: dob.value });
+        await Auth.completeProfile({ firstName: first.value.trim(), lastName: last.value.trim(), username: username.value.trim(), dateOfBirth: dob.value });
         close(null);
       } catch (e) {
         errorEl.textContent = authErrorMessage(e.code, getLang());
         submit.disabled = false;
       }
     };
-    box.append(first, last, dob, errorEl, submit);
+    box.append(first, last, username, usernameHint, dob, errorEl, submit);
   });
 }
 
@@ -1110,10 +1132,9 @@ const Analysis = {
   },
 
   async openExplore() {
-    const { isMember } = await Membership.status();
     sheet([
       { label: '📚 ' + t('explore_database'), action: () => this.exploreDatabase() },
-      { label: (isMember ? '🌐 ' : '👑 ') + t('explore_internet'), action: () => this.exploreInternet(isMember) },
+      { label: '🌐 ' + t('explore_internet'), action: () => this.exploreInternet() },
     ]);
   },
 
@@ -1173,8 +1194,7 @@ const Analysis = {
     return false;
   },
 
-  async exploreInternet(isMember) {
-    if (!isMember) { Membership.openModal(); return; }
+  async exploreInternet() {
     this.showGamesTab();
     $('ana-games-status').textContent = t('explore_searching');
     $('ana-games-list').innerHTML = '';
@@ -2362,7 +2382,7 @@ const Puzzles = {
   updateProgress() {
     const pool = this.pool();
     const done = pool.filter(p => this.solved[p.id]).length;
-    $('puzzle-progress').textContent = `${done}/${pool.length} ${t('solved_count')}`;
+    $('puzzle-progress').textContent = `${done} ${t('solved_count')}`;
   },
 
   updateEloBadge() {
@@ -4252,6 +4272,9 @@ const Profile = {
     Auth.onChange(() => this.renderAccount());
   },
 
+  // Picking an icon here saves immediately (no Save step) — the username
+  // is set once at account creation and can't be changed, so avatar is the
+  // only thing left to edit.
   openEditModal() {
     return modal((box, close) => {
       box.innerHTML = `<h3>${t('edit_profile_title')}</h3>`;
@@ -4260,26 +4283,6 @@ const Profile = {
       grid.className = 'trophy-grid';
       box.appendChild(grid);
 
-      const nameLabel = document.createElement('label');
-      nameLabel.className = 'fld-label';
-      nameLabel.style.marginTop = '14px';
-      nameLabel.textContent = t('your_name');
-      box.appendChild(nameLabel);
-
-      const nameRow = document.createElement('div');
-      nameRow.className = 'row';
-      const input = document.createElement('input');
-      input.className = 'input'; input.maxLength = 40;
-      const saveBtn = document.createElement('button');
-      saveBtn.className = 'btn primary'; saveBtn.textContent = t('save');
-      saveBtn.onclick = async () => {
-        await db.kvSet('profileName', input.value.trim());
-        toast(t('name_saved'));
-        await this.renderAccount();
-      };
-      nameRow.append(input, saveBtn);
-      box.appendChild(nameRow);
-
       const closeBtn = document.createElement('button');
       closeBtn.className = 'btn'; closeBtn.style.marginTop = '14px';
       closeBtn.textContent = t('close');
@@ -4287,7 +4290,6 @@ const Profile = {
       box.appendChild(closeBtn);
 
       (async () => {
-        input.value = await db.kvGet('profileName', '');
         const currentAvatar = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
         const pick = async (id) => {
           await db.kvSet('avatarId', id);
@@ -4347,6 +4349,7 @@ const Profile = {
 
   async refresh() {
     await Membership.checkExpiry();
+    await cleanStaleOpenings();
     await this.renderAccount();
     await this.renderMemberCard();
     await Avatars.refresh();
@@ -4591,7 +4594,7 @@ async function main() {
     $('splash').classList.add('hide');
     const onboarded = await Onboarding.maybeShow();
     if (!onboarded) setTimeout(() => KaelQuotes.showRandom(), 900);
-  }, Math.max(0, 600 - elapsed));
+  }, Math.max(0, 1500 - elapsed));
 }
 
 main().catch(e => { window.__mainError = (e && e.stack) || String(e); console.error('MAIN FAILED', e); });
