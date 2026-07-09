@@ -10,6 +10,7 @@ import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
+import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 
 const $ = id => document.getElementById(id);
 const engine = new Engine();
@@ -144,6 +145,18 @@ async function chooseBase(allowCreate = true) {
   });
 }
 
+function openLegalModal(doc) {
+  return modal((box, close) => {
+    const content = doc[getLang()];
+    box.innerHTML = `<h3>${esc(content.title)}</h3><p class="hint">${esc(content.updated)}</p>` +
+      content.sections.map(s => `<h4 class="legal-h">${esc(s.h)}</h4><p class="legal-p">${esc(s.p)}</p>`).join('');
+    const ok = document.createElement('button');
+    ok.className = 'btn primary big'; ok.textContent = t('close');
+    ok.onclick = () => close(null);
+    box.appendChild(ok);
+  });
+}
+
 function openAuthModal() {
   return modal((box, close) => {
     let mode = 'signin';
@@ -162,6 +175,29 @@ function openAuthModal() {
     googleBtn.innerHTML = `<img src="icons/google-g.svg" alt=""><span>${t('continue_with_google')}</span>`;
     const divider = document.createElement('div'); divider.className = 'auth-divider'; divider.textContent = t('or_divider');
     const switchLink = document.createElement('button'); switchLink.className = 'auth-link';
+
+    const consentWrap = document.createElement('label');
+    consentWrap.className = 'auth-consent hidden';
+    const consentCb = document.createElement('input'); consentCb.type = 'checkbox';
+    const consentText = document.createElement('span');
+    const termsLink = document.createElement('a');
+    termsLink.href = '#'; termsLink.textContent = t('terms_link_text');
+    termsLink.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openLegalModal(LEGAL_TERMS); };
+    const privacyLink = document.createElement('a');
+    privacyLink.href = '#'; privacyLink.textContent = t('privacy_link_text');
+    privacyLink.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openLegalModal(LEGAL_PRIVACY); };
+    consentText.append(t('agree_terms_prefix') + ' ', termsLink, ' ' + t('agree_terms_middle') + ' ', privacyLink, '.');
+    consentWrap.append(consentCb, consentText);
+
+    function updateGate() {
+      const needsConsent = mode === 'signup';
+      consentWrap.classList.toggle('hidden', !needsConsent);
+      const blocked = needsConsent && !consentCb.checked;
+      googleBtn.disabled = blocked;
+      const submit = form.querySelector('button.primary');
+      if (submit) submit.disabled = blocked;
+    }
+    consentCb.onchange = updateGate;
 
     async function withBusy(btn, fn) {
       errorEl.textContent = '';
@@ -220,6 +256,7 @@ function openAuthModal() {
         switchLink.textContent = t('have_account_already');
         form.append(first.wrap, last.wrap, dob.wrap, email.wrap, pass.wrap, pass2.wrap, submit);
       }
+      updateGate();
     }
 
     tabIn.onclick = () => { mode = 'signin'; tabIn.classList.add('on'); tabUp.classList.remove('on'); renderForm(); };
@@ -227,7 +264,7 @@ function openAuthModal() {
     switchLink.onclick = () => (mode === 'signin' ? tabUp : tabIn).click();
 
     renderForm();
-    box.append(tabs, form, errorEl, divider, googleBtn, switchLink);
+    box.append(tabs, form, consentWrap, errorEl, divider, googleBtn, switchLink);
   });
 }
 
@@ -3229,10 +3266,19 @@ function openSettings() {
       seg4.appendChild(b);
     }
     segInit(seg4, v => Themes.setPieceSetChoice(v));
+    // legal
+    const lLegal = document.createElement('label'); lLegal.className = 'fld-label'; lLegal.textContent = t('legal_section');
+    const termsBtn = document.createElement('button'); termsBtn.className = 'btn'; termsBtn.textContent = t('view_terms');
+    termsBtn.onclick = () => openLegalModal(LEGAL_TERMS);
+    const privacyBtn = document.createElement('button'); privacyBtn.className = 'btn'; privacyBtn.textContent = t('view_privacy');
+    privacyBtn.onclick = () => openLegalModal(LEGAL_PRIVACY);
+    const legalRow = document.createElement('div'); legalRow.className = 'row wrap';
+    legalRow.append(termsBtn, privacyBtn);
+
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
     const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
     ok.onclick = () => close(null);
-    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, about, ok);
+    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, lLegal, legalRow, about, ok);
   });
 }
 
