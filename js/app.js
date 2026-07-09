@@ -1020,7 +1020,7 @@ const Analysis = {
     while (node) {
       const { num, whiteMoves } = this.tree.moveNumberFor(node);
       const span = document.createElement('span');
-      span.className = 'mv' + (node === this.tree.current ? ' current' : '');
+      span.className = 'mv' + (node === this.tree.current ? ' current' : '') + nagMoveClass(node.nags);
       span.dataset.node = node.id;
       let label = '';
       if (whiteMoves) label = num + '.';
@@ -1651,7 +1651,25 @@ const GameReview = {
           <button class="btn primary" id="gr-close">${esc(t('close'))}</button>
         </div>`;
       $('gr-close').onclick = () => close(null);
-      $('gr-analyze').onclick = () => { close(null); Play.toAnalysis(); };
+      $('gr-analyze').onclick = () => {
+        close(null);
+        const tree = treeFromHistory(startFen, moves.map(m => m.san));
+        const NAG_FOR = { brilliant: 3, mistake: 2, blunder: 4 };
+        let node = tree.root;
+        moves.forEach((mv, i) => {
+          node = node.children[0];
+          const nag = NAG_FOR[cats[i]];
+          if (nag) node.nags.push(nag);
+        });
+        tree.setHeader('White', whiteName);
+        tree.setHeader('Black', blackName);
+        tree.setHeader('Date', new Date().toISOString().slice(0, 10).replace(/-/g, '.'));
+        const finalChess = new Chess(fens[fens.length - 1]);
+        if (finalChess.isCheckmate()) tree.setHeader('Result', finalChess.turn() === 'w' ? '0-1' : '1-0');
+        else if (finalChess.isDraw()) tree.setHeader('Result', '1/2-1/2');
+        engine.stop();
+        Analysis.loadTree(tree);
+      };
     });
   },
 };
@@ -1904,6 +1922,16 @@ const Trainer = {
 };
 
 function fenKey(fen) { return fen.split(' ').slice(0, 4).join(' '); }
+
+// Colors a move in the notation when it carries a Game-Review-assigned
+// quality NAG ($3 brilliant, $2 mistake, $4 blunder) — a plain " mv-xxx"
+// suffix (or '') so it can be appended straight into a className string.
+function nagMoveClass(nags) {
+  if (nags.includes(4)) return ' mv-blunder';
+  if (nags.includes(2)) return ' mv-mistake';
+  if (nags.includes(3)) return ' mv-brilliant';
+  return '';
+}
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ═════════════════════ PUZZLES ═════════════════════

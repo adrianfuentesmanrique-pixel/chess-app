@@ -402,6 +402,9 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .movelist.small { font-size: 14px; max-height: 20dvh; line-height: 1.6; color: var(--muted); }
 .mv { cursor: pointer; padding: 2px 3px; border-radius: 5px; white-space: nowrap; }
 .mv.current { background: var(--accent2); color: #fff; }
+.mv-brilliant { color: #1fb6a6; font-weight: 700; }
+.mv-mistake { color: var(--warning); font-weight: 700; }
+.mv-blunder { color: var(--danger); font-weight: 700; }
 .mv-comment { color: #8fbc8f; font-style: italic; cursor: pointer; }
 .variation { color: var(--muted); font-size: 14px; }
 .variation.d2 { font-size: 13px; }
