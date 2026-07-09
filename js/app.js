@@ -13,6 +13,25 @@ import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening } from './openings-eco.js';
 
+// A short Kael line about the opening the player just reached, flavored by
+// its general character (gambit, sharp, solid, hypermodern, classical…)
+// rather than needing hand-written text for every single named opening.
+function openingFlavorMsg(name) {
+  const lower = name.toLowerCase();
+  let flavor;
+  if (/gambit/.test(lower)) flavor = { es: 'un gambito atrevido', en: 'a bold gambit' };
+  else if (/sicilian/.test(lower)) flavor = { es: 'una elección afilada y combativa', en: 'a sharp, fighting choice' };
+  else if (/king's indian|grünfeld|grunfeld|benoni/.test(lower)) flavor = { es: 'una apertura hipermoderna y contundente', en: 'a hypermodern, punchy opening' };
+  else if (/french|caro-kann|slav|scheveningen|karpov/.test(lower)) flavor = { es: 'una elección sólida y bien fundamentada', en: 'a solid, well-founded choice' };
+  else if (/queen's gambit|london|catalan|torre/.test(lower)) flavor = { es: 'un planteamiento clásico y estable', en: 'a classical, stable setup' };
+  else if (/dutch|budapest|latvian|owl|nimzowitsch defense/.test(lower)) flavor = { es: 'una apertura poco común y llena de vida', en: 'an uncommon opening full of life' };
+  else if (/ruy lopez|italian|scotch|petrov|philidor|vienna/.test(lower)) flavor = { es: 'una apertura clásica con mucha historia', en: 'a classical opening with a lot of history' };
+  else if (/english|réti|reti|bird|larsen|sokolsky/.test(lower)) flavor = { es: 'un enfoque flexible por el flanco', en: 'a flexible flank approach' };
+  else if (/najdorf|dragon|sveshnikov|winawer/.test(lower)) flavor = { es: 'una variante afilada de mucho peso teórico', en: 'a sharp, theory-heavy variation' };
+  else flavor = { es: 'una buena elección', en: 'a good choice' };
+  return getLang() === 'es' ? `${name}, ¡${flavor.es}!` : `${name}, ${flavor.en}!`;
+}
+
 const $ = id => document.getElementById(id);
 const engine = new Engine();
 
@@ -879,11 +898,36 @@ const Analysis = {
   _holdTimer: null,       // long-press timer for the move-list context menu
   _holdXY: null,
   _justHeld: false,       // suppresses the click-to-navigate right after a long-press fires
+  undoStack: [],          // snapshots for undoing annotation mistakes (shapes/NAGs/deletions) — never moves
+
+  // Snapshots the tree (as PGN, which round-trips shapes/NAGs/comments) plus
+  // the current node's FEN, so a mistaken annotation, NAG, or variation
+  // deletion can be undone without touching the actual move history.
+  pushUndo() {
+    this.undoStack.push({ pgn: this.tree.toPgn(), fen: this.tree.current.fen });
+    if (this.undoStack.length > 20) this.undoStack.shift();
+  },
+
+  undoAnnotation() {
+    if (!this.undoStack.length) { toast(t('nothing_to_undo')); return; }
+    const snap = this.undoStack.pop();
+    const tree = parsePgn(snap.pgn);
+    let target = tree.root;
+    const stack = [tree.root];
+    while (stack.length) {
+      const n = stack.pop();
+      if (n.fen === snap.fen) { target = n; break; }
+      stack.push(...n.children);
+    }
+    tree.current = target;
+    this.tree = tree;
+    this.refresh();
+  },
 
   init() {
     this.board = new Board($('ana-board'), {
       onMove: (mv) => { if (this.tree.play(mv)) this.refresh(); },
-      onShapesChange: (shapes) => { this.tree.current.shapes = shapes; },
+      onShapesChange: (shapes) => { this.pushUndo(); this.tree.current.shapes = shapes; },
       onSound: type => Sound.play(type),
     });
     $('ana-first').onclick = () => { this.tree.toStart(); this.refresh(); };
@@ -900,6 +944,7 @@ const Analysis = {
     });
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-new-game-btn').onclick = () => this.loadTree(new GameTree());
+    $('ana-undo-btn').onclick = () => this.undoAnnotation();
     $('ana-more').onclick = () => this.moreMenu();
     $('ana-base-back').onclick = () => this.backToBase();
     $('ana-base-exit').onclick = () => this.exitBase();
@@ -961,6 +1006,7 @@ const Analysis = {
     $('ana-nag-bar').addEventListener('click', e => {
       const btn = e.target.closest('button[data-nag]');
       if (!btn || !this.tree.current.san) return;
+      this.pushUndo();
       const nag = +btn.dataset.nag;
       const nags = this.tree.current.nags;
       const i = nags.indexOf(nag);
@@ -974,6 +1020,7 @@ const Analysis = {
   loadTree(tree, ctx = { baseId: null, gameId: null }) {
     this.tree = tree;
     this.ctx = ctx;
+    this.undoStack = [];
     this.tree.toStart();
     this.tree.toEnd();
     this.refresh();
@@ -1271,7 +1318,7 @@ const Analysis = {
     const items = [
       { label: '💬 ' + t('text_before_move'), action: () => this.editComment(node.parent) },
       { label: '💬 ' + t('text_after_move'), action: () => this.editComment(node) },
-      { label: '⬆️ ' + t('promote_var'), action: () => { this.tree.promote(node); this.refresh(); } },
+      { label: '⬆️ ' + t('promote_var'), action: () => { this.pushUndo(); this.tree.promote(node); this.refresh(); } },
       { label: '🗑 ' + t('delete'), action: () => this.deleteSubmenu(node) },
     ];
     sheet(items);
@@ -1280,11 +1327,11 @@ const Analysis = {
   deleteSubmenu(node) {
     const items = [];
     if (this.tree.isInVariation(node)) {
-      items.push({ label: '🗑 ' + t('delete_variation'), action: () => { this.tree.deleteVariation(node); this.refresh(); }, danger: true });
+      items.push({ label: '🗑 ' + t('delete_variation'), action: () => { this.pushUndo(); this.tree.deleteVariation(node); this.refresh(); }, danger: true });
     }
-    items.push({ label: '🗑 ' + t('delete_remaining'), action: () => { this.tree.deleteNode(node); this.refresh(); }, danger: true });
+    items.push({ label: '🗑 ' + t('delete_remaining'), action: () => { this.pushUndo(); this.tree.deleteNode(node); this.refresh(); }, danger: true });
     if (node.parent && node.parent !== this.tree.root) {
-      items.push({ label: '🗑 ' + t('delete_previous'), action: () => { this.tree.truncateBefore(node); this.refresh(); }, danger: true });
+      items.push({ label: '🗑 ' + t('delete_previous'), action: () => { this.pushUndo(); this.tree.truncateBefore(node); this.refresh(); }, danger: true });
     }
     sheet(items);
   },
@@ -1299,7 +1346,7 @@ const Analysis = {
       { label: '🤖 ' + t('play_from_here'), action: () => Play.startFromFen(this.tree.fen()) },
     ];
     if (this.tree.current.san) {
-      items.push({ label: '⬆️ ' + t('promote_var'), action: () => { this.tree.promote(this.tree.current); this.refresh(); } });
+      items.push({ label: '⬆️ ' + t('promote_var'), action: () => { this.pushUndo(); this.tree.promote(this.tree.current); this.refresh(); } });
       items.push({ label: '🗑 ' + t('delete'), action: () => this.deleteSubmenu(this.tree.current) });
     }
     sheet(items);
@@ -1886,6 +1933,10 @@ const Trainer = {
   inBook: true,
   over: false,
   thinking: false,
+  posHistory: [],      // [{fen, lastMove, inBook}] snapshots for the nav buttons
+  viewIdx: -1,
+  liveInteractive: false,
+  announcedOpening: null,
 
   init() {
     buildLevelSeg($('trainer-level'));
@@ -1894,9 +1945,12 @@ const Trainer = {
     this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('trainer-base').addEventListener('change', () => this.previewBook());
     $('trainer-start').onclick = () => this.start();
-    $('trainer-new').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
+    $('trainer-new-btn').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
     $('trainer-analyze').onclick = () => this.toAnalysis();
-    $('trainer-undo').onclick = () => this.undo();
+    $('trainer-first').onclick = () => this.gotoHistory(0);
+    $('trainer-prev').onclick = () => this.gotoHistory(this.viewIdx - 1);
+    $('trainer-next').onclick = () => this.gotoHistory(this.viewIdx + 1);
+    $('trainer-last').onclick = () => this.gotoHistory(this.posHistory.length - 1);
     $('trainer-hint').onclick = () => this.hint();
     $('trainer-resign').onclick = async () => {
       if (this.over) return;
@@ -1904,8 +1958,48 @@ const Trainer = {
     };
   },
 
+  // Renders a move and records it in the browsable history, same pattern
+  // as the Puzzles nav — lets the player look back through the game
+  // (including past a point where they left book, or into any variation
+  // the engine free-plays) without that browsing ever being mistaken for
+  // an undo.
+  place(fen, lastMove, inBook, color) {
+    this.board.setPosition(fen, lastMove, color);
+    this.posHistory.push({ fen, lastMove, inBook });
+    this.viewIdx = this.posHistory.length - 1;
+    this.updateBadgeForView();
+    this.updateNavButtons();
+  },
+
+  updateNavButtons() {
+    const atStart = this.viewIdx <= 0;
+    const atEnd = this.viewIdx >= this.posHistory.length - 1;
+    $('trainer-first').disabled = atStart;
+    $('trainer-prev').disabled = atStart;
+    $('trainer-next').disabled = atEnd;
+    $('trainer-last').disabled = atEnd;
+  },
+
+  gotoHistory(idx) {
+    if (!this.posHistory.length) return;
+    idx = Math.max(0, Math.min(idx, this.posHistory.length - 1));
+    this.viewIdx = idx;
+    const snap = this.posHistory[idx];
+    this.board.setPosition(snap.fen, snap.lastMove);
+    const live = idx === this.posHistory.length - 1;
+    this.board.interactive = live && this.liveInteractive;
+    this.updateBadgeForView();
+    this.updateNavButtons();
+  },
+
+  updateBadgeForView() {
+    const snap = this.posHistory[this.viewIdx];
+    if (snap) this.updateBadge(snap.inBook);
+  },
+
   hint() {
     if (this.over || this.thinking) return;
+    if (this.viewIdx !== this.posHistory.length - 1) return;
     if (this.chess.turn() !== this.playerColor) return;
     const key = fenKey(this.chess.fen());
     const entry = this.book?.get(key);
@@ -1920,19 +2014,6 @@ const Trainer = {
     if (sq) { sq.classList.add('hintsq'); setTimeout(() => sq.classList.remove('hintsq'), 1500); }
     const comment = this.bookComments?.get(key + '|' + bestSan);
     toast(comment || t('no_book_comment'));
-  },
-
-  undo() {
-    if (this.thinking) return;
-    if (this.chess.turn() !== this.playerColor) return;
-    if (this.chess.history().length < 2) return;
-    this.chess.undo();
-    this.chess.undo();
-    this.over = false;
-    this.board.interactive = true;
-    this.board.setPosition(this.chess.fen());
-    this.renderMoves();
-    this.setStatus(t('your_turn'));
   },
 
   async refreshBases() {
@@ -2004,17 +2085,28 @@ const Trainer = {
     this.chess = new Chess();
     this.over = false;
     this.inBook = true;
+    this.announcedOpening = null;
+    this.posHistory = [];
+    this.viewIdx = -1;
     $('trainer-setup').classList.add('hidden');
     $('trainer-game').classList.remove('hidden');
     this.board.setOrientation(this.playerColor);
-    this.board.setPosition(this.chess.fen());
+    this.place(this.chess.fen(), null, true);
     this.renderMoves();
-    this.updateBadge(true);
+    this.setLiveInteractive(true);
     this.setStatus(t('your_turn'));
     if (this.chess.turn() !== this.playerColor) this.computerMove();
   },
 
   setStatus(msg) { $('trainer-status').textContent = msg; },
+
+  // Sets whether the board should be interactive once the player is
+  // viewing the live (most recent) position — and applies it immediately
+  // if so, matching the Puzzles nav pattern.
+  setLiveInteractive(v) {
+    this.liveInteractive = v;
+    if (this.viewIdx === this.posHistory.length - 1) this.board.interactive = v;
+  },
 
   updateBadge(usedBook) {
     const el = $('trainer-book-status');
@@ -2022,13 +2114,22 @@ const Trainer = {
     el.className = 'book-badge ' + (usedBook ? 'in' : 'out');
   },
 
+  announceOpeningIfNew() {
+    const name = classifyOpening(this.chess.history());
+    if (!name || name === this.announcedOpening) return;
+    this.announcedOpening = name;
+    KaelQuotes.show({ text: openingFlavorMsg(name), author: null }, 5500);
+  },
+
   async userMove(mv) {
     if (this.over || this.thinking) return;
+    if (this.viewIdx !== this.posHistory.length - 1) return;
     if (this.chess.turn() !== this.playerColor) return;
     let m;
     try { m = this.chess.move(mv); } catch { return; }
-    this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
+    this.place(this.chess.fen(), { from: m.from, to: m.to }, this.inBook);
     this.renderMoves();
+    this.announceOpeningIfNew();
     if (this.checkEnd()) return;
     this.computerMove();
   },
@@ -2046,7 +2147,7 @@ const Trainer = {
 
   async computerMove() {
     this.thinking = true;
-    this.board.interactive = false;
+    this.setLiveInteractive(false);
     const bookSan = this.pickBookMove();
     try {
       if (bookSan) {
@@ -2055,9 +2156,9 @@ const Trainer = {
         try { m = this.chess.move(bookSan); } catch { m = null; }
         if (m) {
           this.inBook = true;
-          this.updateBadge(true);
-          this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to }, 'green');
+          this.place(this.chess.fen(), { from: m.from, to: m.to }, true, 'green');
           this.renderMoves();
+          this.announceOpeningIfNew();
           if (this.checkEnd()) return;
           this.setStatus(t('your_turn'));
           return;
@@ -2066,13 +2167,12 @@ const Trainer = {
       // out of book → engine
       const justLeftBook = this.inBook;
       this.inBook = false;
-      this.updateBadge(false);
       this.setStatus(t('thinking'));
       const lv = LEVELS[this.level];
       const uci = await engine.bestMove(this.chess.fen(), { movetime: lv.movetime, elo: lv.elo });
       if (!uci || this.over) return;
       const m = this.chess.move(uciToMove(uci));
-      this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to }, justLeftBook ? 'yellow' : 'green');
+      this.place(this.chess.fen(), { from: m.from, to: m.to }, false, justLeftBook ? 'yellow' : 'green');
       this.renderMoves();
       if (this.checkEnd()) return;
       this.setStatus(t('your_turn'));
@@ -2080,7 +2180,7 @@ const Trainer = {
       this.setStatus('⚠️ ' + (e.message || e));
     } finally {
       this.thinking = false;
-      this.board.interactive = true;
+      this.setLiveInteractive(true);
     }
   },
 
@@ -3850,35 +3950,36 @@ function openEloHistoryModal(historyKey, titleKey) {
 // only means changing this table, not the storage/selection logic.
 
 const AVATAR_OPTIONS = [
-  { id: 'a1', bg: '#7fa650' },
-  { id: 'a2', bg: '#4a6c31' },
-  { id: 'a3', bg: '#5f8741' },
-  { id: 'a4', bg: '#8a6d3b' },
-  { id: 'a5', bg: '#b8453a' },
-  { id: 'a6', bg: '#3a5a8c' },
-  { id: 'a7', bg: '#6b4c9a' },
-  { id: 'a8', bg: '#c07830' },
-  { id: 'a9', bg: '#b8862e' },
-  { id: 'a10', bg: '#a0522d' },
-  { id: 'a11', bg: '#556270' },
-  { id: 'a12', bg: '#4a4a4a' },
+  // free
+  { id: 'pawn_w' }, { id: 'pawn_b' }, { id: 'knight_w' }, { id: 'knight_b' },
+  { id: 'bishop_w' }, { id: 'bishop_b' }, { id: 'rook_w' }, { id: 'rook_b' },
+  { id: 'queen_w' }, { id: 'king_w' }, { id: 'king_b' },
+  { id: 'wolf' }, { id: 'fox' }, { id: 'lion' }, { id: 'tiger' },
+  { id: 'eagle' }, { id: 'owl' }, { id: 'bear' }, { id: 'raven' },
+  // member-only
+  { id: 'dragon', member: true }, { id: 'phoenix', member: true }, { id: 'griffin', member: true },
+  { id: 'kraken', member: true }, { id: 'hydra', member: true }, { id: 'galaxy', member: true },
+  { id: 'crystal', member: true }, { id: 'shadow', member: true }, { id: 'storm', member: true },
+  { id: 'fire', member: true }, { id: 'ice', member: true }, { id: 'void', member: true },
 ];
 
 function avatarHtml(avatarId, sizePx = 40) {
   const opt = AVATAR_OPTIONS.find(a => a.id === avatarId) ?? AVATAR_OPTIONS[0];
-  return `<div class="avatar-badge" style="width:${sizePx}px;height:${sizePx}px;background:${opt.bg}"><img src="avatars/${opt.id}.png" alt="" width="${sizePx}" height="${sizePx}"></div>`;
+  return `<div class="avatar-badge" style="width:${sizePx}px;height:${sizePx}px"><img src="avatars/${opt.id}.png" alt="" width="${sizePx}" height="${sizePx}"></div>`;
 }
 
 const Avatars = {
-  renderGridInto(container, selectedId, onPick) {
+  async renderGridInto(container, selectedId, onPick) {
     container.innerHTML = '';
+    const { isMember } = await Membership.status();
     for (const opt of AVATAR_OPTIONS) {
+      const locked = opt.member && !isMember;
       const cell = document.createElement('div');
-      cell.className = 'avatar-pick-cell';
+      cell.className = 'avatar-pick-cell' + (locked ? ' locked' : '');
       cell.dataset.id = opt.id;
       cell.classList.toggle('selected', opt.id === selectedId);
-      cell.innerHTML = avatarHtml(opt.id, 44);
-      cell.onclick = () => onPick(opt.id);
+      cell.innerHTML = avatarHtml(opt.id, 44) + (locked ? '<span class="avatar-lock">🔒</span>' : '');
+      cell.onclick = () => { if (locked) Membership.openModal(); else onPick(opt.id); };
       container.appendChild(cell);
     }
   },
@@ -3899,7 +4000,7 @@ const Avatars = {
 const MEMBER_TRIAL_DAYS = 30;
 
 function memberBadgeHtml(isMember) {
-  return isMember ? `<span class="member-badge" title="${t('member_badge_title')}">👑</span>` : '';
+  return isMember ? `<img class="member-badge" src="icons/member-badge.png" alt="" title="${t('member_badge_title')}">` : '';
 }
 
 const Membership = {

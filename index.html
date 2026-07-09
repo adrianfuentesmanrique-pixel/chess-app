@@ -50,6 +50,7 @@
           <path d="M17.5 14.7v5.6M14.7 17.5h5.6" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
         </svg>
       </button>
+      <button id="ana-undo-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="undo_annotation">↩️</button>
       <button id="ana-setup-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="setup_position">✏️</button>
     </div>
     <div id="ana-board" class="board-wrap"></div>
@@ -194,15 +195,28 @@
       <button id="trainer-start" class="btn primary big" data-i18n="start_game"></button>
     </div>
     <div id="trainer-game" class="hidden">
+      <div class="row" style="justify-content:flex-end; margin:0 0 6px;">
+        <button id="trainer-new-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="new_game">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="8" height="8" rx="1.5" fill="currentColor"/>
+            <rect x="10.5" y="1" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="1" y="10.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <circle cx="17.5" cy="17.5" r="6" fill="var(--accent)"/>
+            <path d="M17.5 14.7v5.6M14.7 17.5h5.6" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
       <div id="trainer-status" class="status-bar"></div>
       <div id="trainer-book-status" class="book-badge"></div>
       <div id="trainer-board" class="board-wrap"></div>
-      <div class="row" id="trainer-actions">
-        <button id="trainer-undo" class="btn" data-i18n="undo_move"></button>
-        <button id="trainer-hint" class="btn">🔎 <span data-i18n="hint"></span></button>
-        <button id="trainer-resign" class="btn danger">🏳️ <span data-i18n="resign"></span></button>
-        <button id="trainer-new" class="btn" data-i18n="new_game"></button>
-        <button id="trainer-analyze" class="btn" data-i18n="analyze_game"></button>
+      <div id="trainer-toolbar" class="toolbar">
+        <button id="trainer-first" class="tool-btn">⏮</button>
+        <button id="trainer-prev" class="tool-btn">◀</button>
+        <button id="trainer-next" class="tool-btn">▶</button>
+        <button id="trainer-last" class="tool-btn">⏭</button>
+        <button id="trainer-hint" class="tool-btn" data-i18n-aria="hint">🔎</button>
+        <button id="trainer-resign" class="tool-btn" data-i18n-aria="resign">🏳️</button>
+        <button id="trainer-analyze" class="tool-btn" data-i18n-aria="analyze_game">🔬</button>
       </div>
       <div id="trainer-moves" class="movelist small"></div>
     </div>

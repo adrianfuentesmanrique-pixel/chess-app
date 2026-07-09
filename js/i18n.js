@@ -123,6 +123,8 @@ const DICT = {
   wrong_try: { es: 'No es esa. ¡Inténtalo otra vez!', en: 'Not that one. Try again!' },
   hint: { es: 'Pista', en: 'Hint' },
   no_book_hint: { es: 'Ya no hay jugada de la base para esta posición.', en: 'No book move for this position anymore.' },
+  nothing_to_undo: { es: 'No hay nada que deshacer.', en: 'Nothing to undo.' },
+  undo_annotation: { es: 'Deshacer', en: 'Undo' },
   no_book_comment: { es: 'No hay comentario para esta jugada.', en: 'No comment for this move.' },
   not_an_opening_msg: { es: 'La posición que estás jugando no parece una apertura real, así que no la voy a añadir a tu perfil de aperturas.', en: 'The position you\'re playing doesn\'t look like a real opening, so it won\'t be added to your Opening profile.' },
   show_solution: { es: 'Ver solución', en: 'Show solution' },
