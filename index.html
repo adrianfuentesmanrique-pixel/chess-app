@@ -56,7 +56,14 @@
     </div>
     <div id="ana-board" class="board-wrap"></div>
     <div id="ana-engine" class="engine-panel hidden">
-      <div class="engine-lines" id="ana-engine-lines"></div>
+      <div class="engine-lines-row">
+        <div class="engine-lines" id="ana-engine-lines"></div>
+        <div class="engine-lines-control">
+          <button id="ana-lines-minus" class="engine-lines-btn">−</button>
+          <span id="ana-lines-count">2</span>
+          <button id="ana-lines-plus" class="engine-lines-btn">+</button>
+        </div>
+      </div>
     </div>
     <div id="ana-toolbar" class="toolbar">
       <button id="ana-first" class="tool-btn">⏮</button>
@@ -411,18 +418,11 @@
         <div>
           <div style="display:flex; align-items:center; gap:6px;">
             <span id="profile-display-name" style="font-weight:700;"></span>
-            <span id="profile-account-badge"></span>
           </div>
           <button id="profile-auth-btn" class="btn small" data-i18n="sign_in_or_up"></button>
           <button id="profile-signout-btn" class="btn small hidden" data-i18n="sign_out"></button>
         </div>
       </div>
-    </div>
-
-    <div class="profile-card member-card">
-      <h3 style="margin:0 0 6px" data-i18n="member_card_title"></h3>
-      <p id="profile-member-status" class="hint"></p>
-      <button id="profile-member-btn" class="btn primary big"></button>
     </div>
 
     <div class="profile-card">

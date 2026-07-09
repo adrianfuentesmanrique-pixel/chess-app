@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v7';
+const CACHE = 'chess-training-center-v8';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -62,8 +62,11 @@ self.addEventListener('fetch', e => {
   }
 
   // Network-first: app code — always fresh when online, cached fallback offline.
+  // cache: 'no-store' bypasses the browser's own HTTP disk cache, which can
+  // otherwise silently serve a stale response for an unchanged URL even when
+  // this handler explicitly wants to hit the network.
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: 'no-store' }).then(res => {
       if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
       return res;
     }).catch(() => caches.match(e.request))

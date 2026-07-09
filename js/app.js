@@ -13,6 +13,12 @@ import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 
+// Free-tier usage limits — not membership-gated yet, but kept as named
+// constants so they're easy to loosen for supporting users once that
+// feature actually exists again.
+const MAX_ENGINE_LINES = 3;
+const MAX_DATABASES = 10;
+
 // One-time cleanup for accounts that accumulated openingElo entries before
 // openings were tracked by detected name instead of by (possibly
 // mislabeled) study base name — those stale keys would otherwise sit in
@@ -958,6 +964,8 @@ const Analysis = {
     $('ana-last').onclick = () => { this.tree.toEnd(); this.refresh(); };
     $('ana-flip').onclick = () => this.board.flip();
     $('ana-engine-toggle').onclick = () => this.toggleEngine();
+    $('ana-lines-minus').onclick = () => this.changeLines(-1);
+    $('ana-lines-plus').onclick = () => this.changeLines(1);
     $('ana-explore').onclick = () => this.openExplore();
     $('ana-view-tab').addEventListener('click', e => {
       const b = e.target.closest('button[data-v]');
@@ -1284,12 +1292,16 @@ const Analysis = {
   },
 
   // --- engine ---
+  // linesCount is kept in memory (not re-read from the async db on every
+  // click) so rapid +/- clicks can't race each other and silently drop a step.
   async toggleEngine() {
     this.engineOn = !this.engineOn;
     $('ana-engine').classList.toggle('hidden', !this.engineOn);
     $('ana-engine-toggle').classList.toggle('on', this.engineOn);
     if (this.engineOn) {
       $('ana-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
+      this.linesCount = +(await db.kvGet('engineLines', 2));
+      this.updateLinesControl();
       engine.onLine = lines => this.showLines(lines);
       this.restartEngine();
       if (!(await db.kvGet('firstEngineUsed', false))) { await db.kvSet('firstEngineUsed', true); Badges.checkNew(); }
@@ -1298,11 +1310,31 @@ const Analysis = {
     }
   },
 
+  setLinesCount(n) {
+    this.linesCount = n;
+    this.updateLinesControl();
+    if (this.engineOn) this.restartEngine();
+  },
+
+  changeLines(delta) {
+    const next = Math.min(MAX_ENGINE_LINES, Math.max(1, (this.linesCount ?? 2) + delta));
+    if (next === this.linesCount) return;
+    db.kvSet('engineLines', next);
+    this.setLinesCount(next);
+  },
+
+  updateLinesControl() {
+    const n = this.linesCount ?? 2;
+    $('ana-lines-count').textContent = n;
+    $('ana-lines-minus').disabled = n <= 1;
+    $('ana-lines-plus').disabled = n >= MAX_ENGINE_LINES;
+  },
+
   restartEngine() {
     clearTimeout(this.restartTimer);
     const fen = this.tree.fen();
     this.restartTimer = setTimeout(async () => {
-      const n = +(await db.kvGet('engineLines', 2));
+      const n = this.linesCount ?? +(await db.kvGet('engineLines', 2));
       engine.onLine = lines => this.showLines(lines);
       engine.analyse(fen, n).catch(err => {
         $('ana-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${err.message || err}</div>`;
@@ -1454,6 +1486,11 @@ const Base = {
 
   init() {
     $('base-new').onclick = async () => {
+      const bases = await db.listBases();
+      if (bases.length >= MAX_DATABASES) {
+        toast(t('database_limit_toast').replace('{n}', MAX_DATABASES));
+        return;
+      }
       const name = await askText(t('base_name'));
       if (name) { await db.createBase(name); this.refresh(); }
     };
@@ -1514,11 +1551,11 @@ const Base = {
   },
 
   renderGames() {
-    const q = $('game-search').value.toLowerCase();
+    const q = normalizeSearch($('game-search').value);
     const el = $('game-list');
     el.innerHTML = '';
     const games = this.gamesCache.filter(g =>
-      !q || `${g.white} ${g.black} ${g.event}`.toLowerCase().includes(q));
+      !q || normalizeSearch(`${g.white} ${g.black} ${g.event}`).includes(q));
     if (!games.length) {
       el.innerHTML = `<p class="hint">${t('no_games')}</p>`;
       return;
@@ -1594,6 +1631,10 @@ const Base = {
     sharePgnText(`${base.name.replace(/[^\w-]+/g, '_')}.pgn`, all);
   },
 };
+
+function normalizeSearch(s) {
+  return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2922,24 +2963,17 @@ const Blind = {
   },
 
   async updatePeekBtn() {
-    const { isMember } = await Membership.status();
     const btn = $('blind-peek');
-    if (isMember) {
-      btn.textContent = '👁 ' + t('blind_peek_btn');
-      btn.disabled = false;
-    } else {
-      const left = Math.max(0, 2 - this.peeksUsed);
-      btn.textContent = `👁 ${t('blind_peek_btn')} (${left})`;
-      btn.disabled = left === 0;
-    }
+    const left = Math.max(0, 2 - this.peeksUsed);
+    btn.textContent = `👁 ${t('blind_peek_btn')} (${left})`;
+    btn.disabled = left === 0;
   },
 
   setStatus(msg) { $('blind-status').textContent = msg; },
 
   async peek() {
     if (!this.current) return;
-    const { isMember } = await Membership.status();
-    if (!isMember && this.peeksUsed >= 2) {
+    if (this.peeksUsed >= 2) {
       toast(t('blind_no_peeks_toast'));
       return;
     }
@@ -3790,13 +3824,16 @@ function openSettings() {
     const l2 = document.createElement('label'); l2.className = 'fld-label'; l2.textContent = t('engine_lines');
     const seg2 = document.createElement('div'); seg2.className = 'seg';
     const cur = +(await db.kvGet('engineLines', 2));
-    for (const n of [1, 2, 3]) {
+    for (let n = 1; n <= MAX_ENGINE_LINES; n++) {
       const b = document.createElement('button');
       b.textContent = n; b.dataset.v = n;
       if (cur === n) b.classList.add('on');
       seg2.appendChild(b);
     }
-    segInit(seg2, v => db.kvSet('engineLines', +v));
+    segInit(seg2, async v => {
+      await db.kvSet('engineLines', +v);
+      Analysis.setLinesCount(+v);
+    });
     // board color theme
     const l3 = document.createElement('label'); l3.className = 'fld-label'; l3.textContent = t('board_theme');
     const seg3 = document.createElement('div'); seg3.className = 'seg';
@@ -3976,11 +4013,11 @@ const AVATAR_OPTIONS = [
   { id: 'queen_w' }, { id: 'king_w' }, { id: 'king_b' },
   { id: 'wolf' }, { id: 'fox' }, { id: 'lion' }, { id: 'tiger' },
   { id: 'eagle' }, { id: 'owl' }, { id: 'bear' }, { id: 'raven' },
-  // member-only
-  { id: 'dragon', member: true }, { id: 'phoenix', member: true }, { id: 'griffin', member: true },
-  { id: 'kraken', member: true }, { id: 'hydra', member: true }, { id: 'galaxy', member: true },
-  { id: 'crystal', member: true }, { id: 'shadow', member: true }, { id: 'storm', member: true },
-  { id: 'fire', member: true }, { id: 'ice', member: true }, { id: 'void', member: true },
+  // coming soon — shown locked to everyone as a preview of future content
+  { id: 'dragon', locked: true }, { id: 'phoenix', locked: true }, { id: 'griffin', locked: true },
+  { id: 'kraken', locked: true }, { id: 'hydra', locked: true }, { id: 'galaxy', locked: true },
+  { id: 'crystal', locked: true }, { id: 'shadow', locked: true }, { id: 'storm', locked: true },
+  { id: 'fire', locked: true }, { id: 'ice', locked: true }, { id: 'void', locked: true },
 ];
 
 function avatarHtml(avatarId, sizePx = 40) {
@@ -3991,15 +4028,14 @@ function avatarHtml(avatarId, sizePx = 40) {
 const Avatars = {
   async renderGridInto(container, selectedId, onPick) {
     container.innerHTML = '';
-    const { isMember } = await Membership.status();
     for (const opt of AVATAR_OPTIONS) {
-      const locked = opt.member && !isMember;
+      const locked = !!opt.locked;
       const cell = document.createElement('div');
       cell.className = 'avatar-pick-cell' + (locked ? ' locked' : '');
       cell.dataset.id = opt.id;
       cell.classList.toggle('selected', opt.id === selectedId);
       cell.innerHTML = avatarHtml(opt.id, 44) + (locked ? '<span class="avatar-lock">🔒</span>' : '');
-      cell.onclick = () => { if (locked) Membership.openModal(); else onPick(opt.id); };
+      cell.onclick = () => { if (locked) toast(t('avatar_locked_toast')); else onPick(opt.id); };
       container.appendChild(cell);
     }
   },
@@ -4008,118 +4044,6 @@ const Avatars = {
     const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
     $('profile-avatar-wrap').innerHTML = avatarHtml(id, 56);
     return id;
-  },
-};
-
-// ═════════════════════ MEMBERSHIP ═════════════════════
-// The trial is a pure client-side entitlement flag (free by definition, so
-// granting it costs nothing and needs no billing). Paid renewal after the
-// trial ends requires real billing (Stripe/RevenueCat) which is future
-// work — the subscribe button is an honest placeholder until that lands.
-
-const MEMBER_TRIAL_DAYS = 30;
-
-function memberBadgeHtml(isMember) {
-  return isMember ? `<img class="member-badge" src="icons/member-badge.png" alt="" title="${t('member_badge_title')}">` : '';
-}
-
-const Membership = {
-  async status() {
-    const isMember = await db.kvGet('isMember', false);
-    const trialUsed = await db.kvGet('memberTrialUsed', false);
-    const trialEndsAt = await db.kvGet('memberTrialEndsAt', null);
-    return { isMember, trialUsed, trialEndsAt };
-  },
-
-  async checkExpiry() {
-    const { isMember, trialEndsAt } = await this.status();
-    if (isMember && trialEndsAt && Date.now() > trialEndsAt) {
-      await db.kvSet('isMember', false);
-    }
-  },
-
-  async startTrial() {
-    await db.kvSet('isMember', true);
-    await db.kvSet('memberTrialUsed', true);
-    await db.kvSet('memberTrialEndsAt', Date.now() + MEMBER_TRIAL_DAYS * 86400000);
-    toast(t('member_trial_started_toast'));
-  },
-
-  async openModal() {
-    const { isMember, trialUsed, trialEndsAt } = await this.status();
-    await modal((box, close) => {
-      box.innerHTML = `<h3>${t('member_modal_title')}</h3>`;
-
-      if (isMember && trialEndsAt) {
-        const daysLeft = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000));
-        const status = document.createElement('p');
-        status.className = 'hint';
-        status.textContent = t('member_active_trial').replace('{n}', daysLeft);
-        box.appendChild(status);
-      } else if (isMember) {
-        const status = document.createElement('p');
-        status.className = 'hint';
-        status.textContent = t('member_active_paid');
-        box.appendChild(status);
-      }
-
-      const benefitsTitle = document.createElement('h4');
-      benefitsTitle.style.margin = '10px 0 4px';
-      benefitsTitle.textContent = t('member_benefits_title');
-      box.appendChild(benefitsTitle);
-
-      const ul = document.createElement('ul');
-      ul.className = 'member-benefits';
-      for (let i = 1; i <= 7; i++) {
-        const li = document.createElement('li');
-        li.textContent = t(`member_benefit_${i}`);
-        ul.appendChild(li);
-      }
-      box.appendChild(ul);
-
-      const priceRow = document.createElement('div');
-      priceRow.className = 'member-price-row';
-      priceRow.innerHTML = `
-        <div class="member-price-card"><b>${t('member_price_monthly')}</b></div>
-        <div class="member-price-card"><b>${t('member_price_yearly')}</b></div>
-      `;
-      box.appendChild(priceRow);
-
-      const trialNote = document.createElement('p');
-      trialNote.className = 'hint';
-      trialNote.style.textAlign = 'center';
-      trialNote.textContent = t('member_trial_note');
-      box.appendChild(trialNote);
-
-      const cta = document.createElement('button');
-      cta.className = 'btn primary big';
-      let ctaIsClose = false;
-      if (!trialUsed && !isMember) {
-        cta.textContent = t('member_start_trial_btn');
-        cta.onclick = async () => {
-          await this.startTrial();
-          await Profile.refresh();
-          close(null);
-        };
-      } else if (!isMember) {
-        cta.textContent = t('member_subscribe_btn');
-        cta.onclick = () => toast(t('member_subscribe_toast'));
-      } else {
-        ctaIsClose = true;
-        cta.textContent = t('close');
-        cta.onclick = () => close(null);
-      }
-      box.appendChild(cta);
-
-      if (!ctaIsClose) {
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'btn';
-        closeBtn.style.marginTop = '8px';
-        closeBtn.textContent = t('close');
-        closeBtn.onclick = () => close(null);
-        box.appendChild(closeBtn);
-      }
-    });
   },
 };
 
@@ -4263,7 +4187,6 @@ const Profile = {
     $('profile-elo-endgame-card').onclick = () => openEloHistoryModal('endgameEloHistory', 'endgame_elo');
     $('profile-elo-blindfold-card').onclick = () => openEloHistoryModal('blindfoldEloHistory', 'blindfold_elo');
     $('profile-leaderboard-btn').onclick = () => Leaderboard.open();
-    $('profile-member-btn').onclick = () => Membership.openModal();
     $('profile-share-streak').onclick = () => shareStatCard({
       emoji: '🔥',
       title: t('card_streak_title').replace('{n}', Streak.count),
@@ -4307,23 +4230,6 @@ const Profile = {
     $('profile-signout-btn').classList.toggle('hidden', !user);
     const profileName = await db.kvGet('profileName', '');
     $('profile-display-name').textContent = profileName || (user && (user.displayName || user.email)) || t('your_name');
-    const isMember = await db.kvGet('isMember', false);
-    $('profile-account-badge').innerHTML = memberBadgeHtml(isMember);
-  },
-
-  async renderMemberCard() {
-    const { isMember, trialEndsAt } = await Membership.status();
-    const statusEl = $('profile-member-status');
-    const btn = $('profile-member-btn');
-    if (isMember && trialEndsAt) {
-      const daysLeft = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86400000));
-      statusEl.textContent = t('member_active_trial').replace('{n}', daysLeft);
-    } else if (isMember) {
-      statusEl.textContent = t('member_active_paid');
-    } else {
-      statusEl.textContent = t('member_trial_note');
-    }
-    btn.textContent = isMember ? t('member_manage_btn') : t('become_member_btn');
   },
 
   renderStreakTimeline() {
@@ -4348,10 +4254,8 @@ const Profile = {
   },
 
   async refresh() {
-    await Membership.checkExpiry();
     await cleanStaleOpenings();
     await this.renderAccount();
-    await this.renderMemberCard();
     await Avatars.refresh();
     await DailyMissions.init();
     await Badges.checkNew();
@@ -4480,7 +4384,7 @@ const Leaderboard = {
       const item = document.createElement('button');
       item.className = 'list-item';
       item.style.cssText = 'flex-direction:row; align-items:center; gap:10px;';
-      item.innerHTML = `${avatarHtml(e.avatarId, 34)}<span style="display:flex;flex-direction:column;align-items:flex-start;"><b>#${i + 1} ${esc(e.profileName || '?')}${memberBadgeHtml(e.isMember)}</b><span class="sub">${label}: ${value}</span></span>`;
+      item.innerHTML = `${avatarHtml(e.avatarId, 34)}<span style="display:flex;flex-direction:column;align-items:flex-start;"><b>#${i + 1} ${esc(e.profileName || '?')}</b><span class="sub">${label}: ${value}</span></span>`;
       item.onclick = () => PublicProfile.open(e);
       el.appendChild(item);
     });
@@ -4496,7 +4400,7 @@ const PublicProfile = {
 
   open(entry) {
     showScreen('public-profile');
-    $('pubprofile-name').innerHTML = `${esc(entry.profileName || '?')}${memberBadgeHtml(entry.isMember)}`;
+    $('pubprofile-name').textContent = entry.profileName || '?';
     $('pubprofile-avatar-wrap').innerHTML = avatarHtml(entry.avatarId, 64);
 
     const puzzleElo = entry.puzzleElo ?? 1200;

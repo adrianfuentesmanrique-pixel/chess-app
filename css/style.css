@@ -312,21 +312,6 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   content: ''; position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: 10px;
 }
 
-/* ── membership ────────────────────────── */
-.member-badge {
-  display: inline-block; width: 20px; height: 20px;
-  vertical-align: middle; object-fit: contain;
-}
-.member-card { background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 16%, transparent), var(--panel)); border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); }
-.member-card .btn { width: 100%; }
-.member-benefits { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
-.member-benefits li { font-size: 14px; }
-.member-price-row { display: flex; gap: 10px; margin-bottom: 10px; }
-.member-price-card {
-  flex: 1; background: var(--panel2); border-radius: var(--radius);
-  padding: 10px; text-align: center; font-size: 15px;
-}
-
 /* ── Kael (mascot) ─────────────────────── */
 .kael-modal-head { display: flex; justify-content: center; margin: -6px 0 10px; }
 .kael-portrait {
@@ -493,6 +478,19 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .engine-line b.good { color: var(--success); }
 .engine-line b.bad { color: var(--danger); }
 .engine-line .depth { color: var(--muted); font-size: 11px; }
+.engine-lines-row { display: flex; align-items: flex-start; gap: 8px; }
+.engine-lines-row .engine-lines { flex: 1; min-width: 0; }
+.engine-lines-control {
+  display: flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  padding-top: 3px;
+}
+.engine-lines-btn {
+  width: 24px; height: 24px; border-radius: 50%; border: none;
+  background: var(--panel2); color: var(--text); font-size: 15px; line-height: 1;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.engine-lines-btn:disabled { opacity: 0.4; cursor: default; }
+#ana-lines-count { font-size: 13px; color: var(--muted); min-width: 12px; text-align: center; }
 
 /* ── lists (bases, games) ──────────────── */
 .list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }

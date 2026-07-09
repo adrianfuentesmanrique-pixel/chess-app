@@ -55,8 +55,8 @@ export const LEGAL_TERMS = {
         p: `La búsqueda de partidas por posición puede enviar la posición actual del tablero (en formato FEN, sin datos que te identifiquen) al servicio público de Lichess para mostrarte partidas relacionadas. Este servicio es operado por un tercero independiente (Lichess), tiene su propia disponibilidad y términos, y no lo controlamos ni garantizamos su funcionamiento continuo — puede no estar disponible en todo momento.`,
       },
       {
-        h: '11. Membresía "Miembro" y pagos',
-        p: `Algunas funciones están marcadas como exclusivas para usuarios "Miembro". En la versión actual, el estado de Miembro se activa manualmente o mediante una prueba gratuita dentro de la App; no se procesan pagos reales ni se almacenan datos de tarjetas de pago en esta versión. Si en el futuro se habilita el cobro de una suscripción a través de un procesador de pagos externo, actualizaremos estos términos, te lo comunicaremos con antelación razonable, y en ningún caso se te cobrará sin tu consentimiento explícito previo.`,
+        h: '11. Límites de uso y futuros planes de pago',
+        p: `La App es gratuita y no procesa pagos ni almacena datos de tarjetas en esta versión. Algunas funciones pueden tener límites de uso (por ejemplo, un número máximo de líneas de análisis del motor o de bases de partidas) que podrían ampliarse en el futuro para usuarios que apoyen el desarrollo de la App mediante una suscripción. Si en el futuro se habilita el cobro de una suscripción a través de un procesador de pagos externo, actualizaremos estos términos, te lo comunicaremos con antelación razonable, y en ningún caso se te cobrará sin tu consentimiento explícito previo.`,
       },
       {
         h: '12. Uso aceptable',
@@ -137,8 +137,8 @@ export const LEGAL_TERMS = {
         p: `Searching for games by position may send the current board position (in FEN format, with no data that identifies you) to Lichess's public service to show you related games. This service is operated by an independent third party (Lichess), has its own availability and terms, and we do not control or guarantee its continued operation — it may not be available at all times.`,
       },
       {
-        h: '11. "Member" membership and payments',
-        p: `Some features are marked exclusive to "Member" users. In the current version, Member status is enabled manually or through an in-app free trial; no real payments are processed and no payment card data is stored in this version. If paid subscriptions through an external payment processor are enabled in the future, we will update these terms, notify you with reasonable advance notice, and you will never be charged without your prior explicit consent.`,
+        h: '11. Usage limits and future paid plans',
+        p: `The App is free and does not process payments or store card data in this version. Some features may have usage limits (for example, a maximum number of engine analysis lines or game databases) that could be expanded in the future for users who support the App's development through a subscription. If paid subscriptions through an external payment processor are enabled in the future, we will update these terms, notify you with reasonable advance notice, and you will never be charged without your prior explicit consent.`,
       },
       {
         h: '12. Acceptable use',
@@ -191,7 +191,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '3. Qué es público',
-        p: `Solo un subconjunto limitado de tu perfil (nombre de usuario, avatar, ELO de táctica/aperturas/finales/a ciegas, racha, insignia de Miembro) aparece en el leaderboard público si tienes cuenta. Tu correo, nombre y apellido reales, y fecha de nacimiento nunca se hacen públicos.`,
+        p: `Solo un subconjunto limitado de tu perfil (nombre de usuario, avatar, ELO de táctica/aperturas/finales/a ciegas, racha) aparece en el leaderboard público si tienes cuenta. Tu correo, nombre y apellido reales, y fecha de nacimiento nunca se hacen públicos.`,
       },
       {
         h: '4. Dónde se almacenan los datos y transferencias internacionales',
@@ -245,7 +245,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '3. What is public',
-        p: `Only a limited subset of your profile (username, avatar, puzzle/opening/endgame/blindfold ELO, streak, Member badge) appears on the public leaderboard if you have an account. Your email, real first/last name, and date of birth are never made public.`,
+        p: `Only a limited subset of your profile (username, avatar, puzzle/opening/endgame/blindfold ELO, streak) appears on the public leaderboard if you have an account. Your email, real first/last name, and date of birth are never made public.`,
       },
       {
         h: '4. Where data is stored and international transfers',
