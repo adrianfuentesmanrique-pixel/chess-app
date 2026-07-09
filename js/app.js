@@ -11,6 +11,7 @@ import { LEARNING_CATEGORIES } from './learning-data.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
+import { classifyOpening } from './openings-eco.js';
 
 const $ = id => document.getElementById(id);
 const engine = new Engine();
@@ -403,7 +404,11 @@ const KaelQuotes = {
 
   show(item, duration = 6000) {
     const bubble = $('kael-bubble');
-    bubble.innerHTML = `<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}`;
+    const title = item.title ? `<b class="kael-quote-title">${esc(item.title)}</b>` : '';
+    const text = `${title}<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}`;
+    bubble.innerHTML = item.image
+      ? `<div class="kael-quote-row"><img src="${item.image}" class="kael-quote-badge" alt=""><div>${text}</div></div>`
+      : text;
     bubble.classList.add('show');
     Sound.play('kael-pop');
     clearTimeout(this.timer);
@@ -706,6 +711,7 @@ const DailyMissions = {
   date: null,
   done: { puzzle: false, play: false, opening: false },
   streak: 0,
+  reminded: false,
 
   async init() {
     const today = todayStr();
@@ -729,6 +735,7 @@ const DailyMissions = {
     if (this.done[key]) return;
     this.done[key] = true;
     await db.kvSet('dailyMissionsDone', this.done);
+    const doneMsgKey = { puzzle: 'mission_done_puzzle', play: 'mission_done_play', opening: 'mission_done_opening' }[key];
     if (this.done.puzzle && this.done.play && this.done.opening) {
       const today = todayStr();
       await db.kvSet('dailyMissionLastCompleteDate', today);
@@ -736,10 +743,24 @@ const DailyMissions = {
       await db.kvSet('dailyMissionStreak', this.streak);
       const best = await db.kvGet('bestDailyMissionStreak', 0);
       if (this.streak > best) await db.kvSet('bestDailyMissionStreak', this.streak);
-      toast('🎯 ' + t('daily_missions_complete'), 3500);
-      Badges.checkNew();
+      KaelQuotes.show({ title: '🎯 ' + t('daily_missions_complete'), text: t(doneMsgKey) }, 5500);
+      // delayed so it doesn't immediately overwrite the message just shown above
+      setTimeout(() => Badges.checkNew(), 5700);
+    } else {
+      KaelQuotes.show({ text: t(doneMsgKey) }, 4000);
+      setTimeout(() => Badges.checkNew(), 4200);
     }
     this.render();
+  },
+
+  // A one-time-per-session nudge if the player hasn't touched their daily
+  // missions yet — not shown if they're already all done, and never more
+  // than once per app load.
+  remindIfIncomplete() {
+    if (this.reminded) return;
+    this.reminded = true;
+    if (this.done.puzzle && this.done.play && this.done.opening) return;
+    KaelQuotes.show({ text: t('daily_missions_reminder'), author: null }, 5500);
   },
 
   render() {
@@ -1876,6 +1897,29 @@ const Trainer = {
     $('trainer-new').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
     $('trainer-analyze').onclick = () => this.toAnalysis();
     $('trainer-undo').onclick = () => this.undo();
+    $('trainer-hint').onclick = () => this.hint();
+    $('trainer-resign').onclick = async () => {
+      if (this.over) return;
+      if (await askConfirm(t('resign') + '?')) this.finishMsg(t('you_resigned'), 'loss');
+    };
+  },
+
+  hint() {
+    if (this.over || this.thinking) return;
+    if (this.chess.turn() !== this.playerColor) return;
+    const key = fenKey(this.chess.fen());
+    const entry = this.book?.get(key);
+    if (!entry) { toast(t('no_book_hint')); return; }
+    const moves = Object.entries(entry);
+    const bestSan = moves.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+    const c = new Chess(this.chess.fen());
+    let mv;
+    try { mv = c.move(bestSan); } catch { mv = null; }
+    if (!mv) return;
+    const sq = this.board.squares[mv.from];
+    if (sq) { sq.classList.add('hintsq'); setTimeout(() => sq.classList.remove('hintsq'), 1500); }
+    const comment = this.bookComments?.get(key + '|' + bestSan);
+    toast(comment || t('no_book_comment'));
   },
 
   undo() {
@@ -1916,6 +1960,7 @@ const Trainer = {
     if (this.book && this.bookBaseId === baseId) return this.book;
     const games = await db.listGames(baseId);
     const book = new Map();
+    const bookComments = new Map();
     for (const g of games.slice(0, 500)) {
       let tree;
       try { tree = parsePgn(g.pgn); } catch { continue; }
@@ -1927,12 +1972,17 @@ const Trainer = {
           let entry = book.get(key);
           if (!entry) { entry = {}; book.set(key, entry); }
           entry[child.san] = (entry[child.san] ?? 0) + 1;
+          if (child.comment) {
+            const ck = key + '|' + child.san;
+            if (!bookComments.has(ck)) bookComments.set(ck, child.comment);
+          }
           walk(child, depth + 1);
         }
       };
       walk(tree.root, 0);
     }
     this.book = book;
+    this.bookComments = bookComments;
     this.bookBaseId = baseId;
     return book;
   },
@@ -1949,8 +1999,6 @@ const Trainer = {
     const id = +$('trainer-base').value;
     if (!id) { toast(t('no_book_bases')); return; }
     await this.buildBook(id);
-    const baseRec = await db.getBase(id);
-    this.baseName = baseRec?.name ?? '?';
     this.playerColor = segValue($('trainer-color'));
     this.level = +segValue($('trainer-level'));
     this.chess = new Chess();
@@ -2056,11 +2104,21 @@ const Trainer = {
   },
 
   async recordOpeningResult(result) {
+    // Track the radar by the opening actually reached on the board, not
+    // by however the study base happens to be named — a base can mix
+    // openings or be mislabeled, which would otherwise silently corrupt
+    // the tracking.
+    const openingName = classifyOpening(this.chess.history());
+    if (!openingName) {
+      KaelQuotes.show({ text: t('not_an_opening_msg'), author: null }, 5500);
+      DailyMissions.complete('opening');
+      return;
+    }
     const elo = await db.kvGet('openingElo', {});
-    const cur = elo[this.baseName] ?? 1200;
+    const cur = elo[openingName] ?? 1200;
     const expected = 1 / (1 + Math.pow(10, (NOMINAL_PRACTICE_RATING - cur) / 400));
     const score = result === 'win' ? 1 : result === 'draw' ? 0.5 : 0;
-    elo[this.baseName] = Math.max(600, cur + 20 * (score - expected));
+    elo[openingName] = Math.max(600, cur + 20 * (score - expected));
     await db.kvSet('openingElo', elo);
     const names = Object.keys(elo);
     const avg = names.reduce((s, k) => s + elo[k], 0) / names.length;
@@ -3396,9 +3454,14 @@ const Learning = {
   },
 
   // Tracks whether the player's own evaluation (from their side) is
-  // actually improving over their last few moves. If it's been flat for a
-  // while, they're likely wandering instead of applying the technique —
-  // nudge them with the lesson's core idea instead of staying silent.
+  // actually improving over a longer stretch of their own moves. Endgame
+  // technique naturally has quiet/waiting moves and more than one correct
+  // path, so this only speaks up when progress has been flat for a while —
+  // and never once the position is already close to winning outright,
+  // since cp scores saturate near mate even while the technique is being
+  // executed perfectly (that false "no progress" reading was the bug
+  // behind Kael nagging about the two-bishop barrier when it was already
+  // being applied correctly).
   async checkProgress(playerColor) {
     if (this.thinking) return;
     const lesson = this.lessons[this.lessonIdx];
@@ -3406,14 +3469,17 @@ const Learning = {
     const sign = playerColor === 'w' ? 1 : -1;
     let raw;
     try { raw = await engine.evaluate(this.chess.fen(), 200); } catch { return; }
-    this.progressEvals.push(sign * raw);
+    const evalForPlayer = sign * raw;
+    this.progressEvals.push(evalForPlayer);
     if (this.hintCooldown > 0) { this.hintCooldown--; return; }
-    if (this.progressEvals.length < 5) return;
-    const recent = this.progressEvals.slice(-5);
-    const delta = recent[4] - recent[0];
-    if (delta < 30) {
+    const WINDOW = 8;
+    if (this.progressEvals.length < WINDOW) return;
+    const recent = this.progressEvals.slice(-WINDOW);
+    if (recent.some(v => v >= 700)) return; // already clearly winning — nothing useful to say
+    const delta = recent[WINDOW - 1] - recent[0];
+    if (delta < 15) {
       KaelQuotes.show({ text: lesson.hint[getLang()], author: null }, 5500);
-      this.hintCooldown = 4;
+      this.hintCooldown = 8;
     }
   },
 
@@ -4021,13 +4087,23 @@ const Badges = {
     this.earned = await db.kvGet('earnedBadges', {});
     const state = await this.gatherState();
     let changed = false;
+    const newlyEarned = [];
     for (const def of BADGE_DEFS) {
       if (!this.earned[def.id] && def.check(state)) {
         this.earned[def.id] = Date.now();
         changed = true;
-        toast(`🏆 ${t('badge_earned')}: ${badgeLabel(def)}`, 3500);
+        newlyEarned.push(def);
       }
     }
+    newlyEarned.forEach((def, i) => {
+      setTimeout(() => {
+        KaelQuotes.show({
+          title: '🏆 ' + t('badge_earned'),
+          text: badgeLabel(def),
+          image: `icons/badges/${def.id}.png`,
+        }, 5000);
+      }, i * 5200);
+    });
     if (changed) await db.kvSet('earnedBadges', this.earned);
     if (activeScreen === 'profile') this.renderTrophyCase();
     return changed;
@@ -4046,7 +4122,7 @@ const Badges = {
       const cell = document.createElement('div');
       cell.className = 'badge-cell' + (got ? ' earned' : '');
       cell.title = label;
-      cell.innerHTML = `<div class="badge-icon">${def.icon}</div><div class="badge-name">${esc(label)}</div>`;
+      cell.innerHTML = `<div class="badge-icon"><img src="icons/badges/${def.id}.png" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${def.icon}'))"></div><div class="badge-name">${esc(label)}</div>`;
       el.appendChild(cell);
     }
   },
@@ -4379,6 +4455,7 @@ async function main() {
   await Themes.init();
   await Streak.init();
   await DailyMissions.init();
+  setTimeout(() => DailyMissions.remindIfIncomplete(), 45000);
   Auth.onChange(async () => {
     // remote data may have just replaced local kv values (sign-in) — refresh live views
     await Streak.init();

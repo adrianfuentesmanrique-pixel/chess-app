@@ -381,7 +381,8 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
   opacity: .3; filter: grayscale(1);
 }
 .badge-cell.earned { opacity: 1; filter: none; background: var(--accent2); }
-.badge-icon { font-size: 22px; }
+.badge-icon { font-size: 22px; width: 44px; height: 44px; }
+.badge-icon img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
 .badge-name { font-size: 9px; text-align: center; color: var(--text); line-height: 1.2; }
 
 /* ── auth modal ────────────────────────── */
@@ -555,6 +556,9 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .kael-quote-bubble .kael-quote-author {
   display: block; margin-top: 4px; color: var(--muted); font-size: 11px; text-align: right;
 }
+.kael-quote-row { display: flex; align-items: center; gap: 10px; }
+.kael-quote-badge { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.kael-quote-title { display: block; font-size: 13px; margin-bottom: 2px; }
 .modal-box {
   background: var(--panel); border-radius: 18px 18px 0 0;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
