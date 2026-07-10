@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.chesstrainingcenter.app",
+    "sha256_cert_fingerprints": ["4D:50:F8:C0:02:02:52:B8:34:22:45:5F:98:37:D0:41:E0:86:C0:20:9D:7B:DC:EF:84:CC:82:12:65:39:D3:90"]
+  }
+}]
