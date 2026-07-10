@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess Training Center — Privacy Policy / Política de Privacidad</title>
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 24px 16px 60px; max-width: 720px; margin-inline: auto;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #f5f3ef; color: #1a1714; line-height: 1.55;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #16130f; color: #f0ece4; }
+    a { color: #9fc3ff; }
+    .lang-btn { background: #2a241d; color: #f0ece4; border-color: #4a4034; }
+    .lang-btn.on { background: #d4a94a; color: #16130f; }
+  }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  header img { width: 40px; height: 40px; border-radius: 10px; }
+  h1 { font-size: 20px; margin: 0; }
+  .updated { color: #8a7f6e; font-size: 13px; margin: 0 0 20px; }
+  .lang-row { display: flex; gap: 8px; margin-bottom: 24px; }
+  .lang-btn {
+    border: 1px solid #d8d0c0; background: #fff; color: #1a1714;
+    padding: 6px 14px; border-radius: 999px; font-size: 14px; cursor: pointer;
+  }
+  .lang-btn.on { background: #1a1714; color: #f5f3ef; border-color: #1a1714; }
+  h2 { font-size: 16px; margin: 28px 0 6px; }
+  p { margin: 0 0 4px; font-size: 15px; }
+  a { color: #1a1714; }
+</style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon-192.png" alt="">
+    <h1 id="title">Política de Privacidad</h1>
+  </header>
+  <p class="updated" id="updated"></p>
+  <div class="lang-row">
+    <button class="lang-btn on" data-lang="es" id="btn-es">Español</button>
+    <button class="lang-btn" data-lang="en" id="btn-en">English</button>
+  </div>
+  <div id="sections"></div>
+
+  <script type="module">
+    import { LEGAL_PRIVACY } from './js/legal-data.js';
+
+    let lang = 'es';
+    const titleEl = document.getElementById('title');
+    const updatedEl = document.getElementById('updated');
+    const sectionsEl = document.getElementById('sections');
+
+    function render() {
+      const doc = LEGAL_PRIVACY[lang];
+      titleEl.textContent = lang === 'es' ? 'Política de Privacidad' : 'Privacy Policy';
+      updatedEl.textContent = doc.updated;
+      sectionsEl.innerHTML = doc.sections.map(s => `<h2>${esc(s.h)}</h2><p>${esc(s.p)}</p>`).join('');
+      document.getElementById('btn-es').classList.toggle('on', lang === 'es');
+      document.getElementById('btn-en').classList.toggle('on', lang === 'en');
+      document.documentElement.lang = lang;
+    }
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    }
+    document.getElementById('btn-es').onclick = () => { lang = 'es'; render(); };
+    document.getElementById('btn-en').onclick = () => { lang = 'en'; render(); };
+    render();
+  </script>
+</body>
+</html>
