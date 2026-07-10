@@ -115,3 +115,16 @@ export async function kvSet(key, value) {
   await tx('kv', 'readwrite', s => s.put(value, key));
   if (syncHook) syncHook(key, value);
 }
+
+// Wipes every local store (settings/progress, imported databases, saved
+// games) — used for account deletion, so nothing lingers on the device
+// once the cloud account and its data are gone.
+export async function clearAllLocalData() {
+  const database = await open();
+  await Promise.all(['bases', 'games', 'kv'].map(store => new Promise((resolve, reject) => {
+    const t = database.transaction(store, 'readwrite');
+    t.objectStore(store).clear();
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  })));
+}

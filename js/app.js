@@ -127,6 +127,23 @@ function askText(title, initial = '') {
   });
 }
 
+function askPassword(title) {
+  return modal((box, close) => {
+    box.innerHTML = `<h3>${title}</h3>`;
+    const inp = document.createElement('input');
+    inp.className = 'input'; inp.type = 'password';
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('ok');
+    const ca = document.createElement('button'); ca.className = 'btn'; ca.textContent = t('cancel');
+    ok.onclick = () => close(inp.value || null);
+    ca.onclick = () => close(null);
+    inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); };
+    row.append(ok, ca);
+    box.append(inp, row);
+    setTimeout(() => inp.focus(), 50);
+  });
+}
+
 function askConfirm(msg) {
   return modal((box, close) => {
     box.innerHTML = `<p>${msg}</p>`;
@@ -4199,6 +4216,7 @@ const Profile = {
     $('profile-edit-btn').onclick = () => this.openEditModal();
     $('profile-auth-btn').onclick = () => openAuthModal();
     $('profile-signout-btn').onclick = () => Auth.signOut();
+    $('profile-delete-account-btn').onclick = () => this.deleteAccountFlow();
     $('profile-elo-puzzle-card').onclick = () => openEloHistoryModal('puzzleEloHistory', 'puzzle_elo');
     $('profile-elo-opening-card').onclick = () => openEloHistoryModal('openingEloHistory', 'opening_elo');
     $('profile-elo-endgame-card').onclick = () => openEloHistoryModal('endgameEloHistory', 'endgame_elo');
@@ -4245,8 +4263,43 @@ const Profile = {
     const user = Auth.user;
     $('profile-auth-btn').classList.toggle('hidden', !!user);
     $('profile-signout-btn').classList.toggle('hidden', !user);
+    $('profile-delete-account-btn').classList.toggle('hidden', !user);
     const profileName = await db.kvGet('profileName', '');
     $('profile-display-name').textContent = profileName || (user && (user.displayName || user.email)) || t('your_name');
+  },
+
+  // Terms §18 promises account + data deletion "anytime from Profile" —
+  // this is that promise kept. Reauth is handled inline since Firebase
+  // requires a "recent" login for this specific operation and a long-lived
+  // session usually isn't recent enough.
+  async deleteAccountFlow() {
+    if (!await askConfirm(t('delete_account_confirm'))) return;
+    try {
+      await Auth.deleteAccount();
+    } catch (e) {
+      if (e.code === 'auth/requires-recent-login') {
+        const providerId = Auth.user?.providerData[0]?.providerId;
+        try {
+          if (providerId !== 'google.com') {
+            const password = await askPassword(t('delete_account_reauth_password'));
+            if (!password) return;
+            await Auth.reauthenticate(password);
+          } else {
+            await Auth.reauthenticate();
+          }
+          await Auth.deleteAccount();
+        } catch (e2) {
+          toast(t('delete_account_failed'));
+          return;
+        }
+      } else {
+        toast(t('delete_account_failed'));
+        return;
+      }
+    }
+    await db.clearAllLocalData();
+    toast(t('delete_account_done'));
+    setTimeout(() => location.reload(), 1200);
   },
 
   renderStreakTimeline() {

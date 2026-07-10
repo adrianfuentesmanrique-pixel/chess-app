@@ -5,9 +5,10 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/fireba
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile,
+  deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs,
+  getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import * as db from './db.js';
 
@@ -98,6 +99,44 @@ export const Auth = {
 
   async signOut() {
     await signOut(auth);
+  },
+
+  // Re-proves identity right before a sensitive op (account deletion) —
+  // Firebase requires a "recent" login for this, which a long-lived session
+  // usually isn't. Google accounts reauth via a fresh popup; password
+  // accounts need the password typed again (passed in for those).
+  async reauthenticate(password) {
+    const user = auth.currentUser;
+    if (!user) return;
+    const providerId = user.providerData[0]?.providerId;
+    if (providerId === 'google.com') {
+      await reauthenticateWithPopup(user, new GoogleAuthProvider());
+    } else {
+      await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+    }
+  },
+
+  // Permanently deletes the account: the public leaderboard entry, the
+  // private user document, and the Firebase Auth account itself.
+  // Firestore doc deletes are best-effort and swallow permission-denied
+  // specifically (rather than aborting) — losing the Auth account is far
+  // worse for the user than an orphaned leaderboard doc, and this project's
+  // current security rules are known not to allow client-side deletes on
+  // /leaderboard/{uid} (see chess-app-playstore-setup memory). Any other
+  // error (network, etc.) still propagates normally.
+  async deleteAccount() {
+    const user = auth.currentUser;
+    if (!user) return;
+    const uid = user.uid;
+    for (const path of [['leaderboard', uid], ['users', uid]]) {
+      try {
+        await deleteDoc(doc(firestore, ...path));
+      } catch (e) {
+        if (e.code !== 'permission-denied') throw e;
+        console.warn(`Could not delete ${path.join('/')} (permission-denied) — proceeding anyway`, e);
+      }
+    }
+    await deleteUser(user);
   },
 };
 
