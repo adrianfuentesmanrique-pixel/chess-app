@@ -23,6 +23,7 @@ const ASSETS = [
   'vendor/stockfish-17.1-lite-single-03e3232.wasm',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'icons/icon-maskable-512.png',
   'icons/icon-180.png',
   'icons/logo-mark.png',
   'icons/logo-full.png',
