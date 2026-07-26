@@ -128,3 +128,18 @@ export async function clearAllLocalData() {
     t.onerror = () => reject(t.error);
   })));
 }
+
+// Clears only synced profile/settings data (name, ELO, streaks, avatar,
+// etc.) — used on sign-out so a different account signing in next on the
+// same device can't inherit or contaminate a previous identity's stats.
+// Leaves imported bases/games alone since those were never tied to the
+// account and signing out shouldn't destroy unsynced local work.
+export async function clearSyncedProfileData() {
+  const database = await open();
+  await new Promise((resolve, reject) => {
+    const t = database.transaction('kv', 'readwrite');
+    t.objectStore('kv').clear();
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+  });
+}

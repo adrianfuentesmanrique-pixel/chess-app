@@ -97,7 +97,13 @@ export const Auth = {
     this._notify();
   },
 
+  // Clears local profile/settings data first so a different account
+  // signing in next on this device (shared computer) can't inherit stray
+  // local values — pullOrBootstrap below would otherwise either leave a
+  // previous identity's stats in place (remote missing that key) or, for
+  // a brand-new account, push them to Firestore as if they belonged to it.
   async signOut() {
+    await db.clearSyncedProfileData();
     await signOut(auth);
   },
 

@@ -5,6 +5,52 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1a1714">
 <title>Chess Training Center</title>
+<script>
+// Standalone crash guard — deliberately has zero dependency on the app's own
+// modules, CSS, or i18n, so it still works if THOSE are what crashed. Catches
+// uncaught errors and rejected promises anywhere in the app and shows a
+// fallback instead of leaving the page silently frozen/blank.
+(function () {
+  var shown = false;
+  function showCrashOverlay(detail) {
+    console.error('[crash-guard]', detail);
+    if (shown) return;
+    shown = true;
+    var isEs = (document.documentElement.lang || navigator.language || '').toLowerCase().indexOf('es') === 0;
+    var overlay = document.createElement('div');
+    overlay.setAttribute('style',
+      'position:fixed;inset:0;z-index:999999;background:#1a1714;color:#f5f3ef;' +
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+      'gap:16px;padding:24px;text-align:center;font-family:system-ui,sans-serif;');
+    var title = document.createElement('div');
+    title.style.fontSize = '20px';
+    title.style.fontWeight = '600';
+    title.textContent = isEs ? 'Algo salió mal' : 'Something went wrong';
+    var body = document.createElement('div');
+    body.style.opacity = '0.8';
+    body.style.maxWidth = '360px';
+    body.textContent = isEs
+      ? 'La aplicación encontró un error inesperado. Intenta recargar la página.'
+      : 'The app hit an unexpected error. Try reloading the page.';
+    var btn = document.createElement('button');
+    btn.textContent = isEs ? 'Recargar' : 'Reload';
+    btn.setAttribute('style',
+      'padding:10px 24px;border-radius:8px;border:none;background:#f5f3ef;' +
+      'color:#1a1714;font-size:15px;font-weight:600;cursor:pointer;');
+    btn.onclick = function () { location.reload(); };
+    overlay.appendChild(title);
+    overlay.appendChild(body);
+    overlay.appendChild(btn);
+    (document.body || document.documentElement).appendChild(overlay);
+  }
+  window.addEventListener('error', function (e) {
+    showCrashOverlay(e.error || e.message);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    showCrashOverlay(e.reason);
+  });
+})();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
