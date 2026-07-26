@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v8';
+const CACHE = 'chess-training-center-v9';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -47,6 +47,12 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+
+  // Only ever cache our own files. Cross-origin GETs (Firebase auth/data, the
+  // gstatic SDK) go straight to the network: CacheStorage is readable by any
+  // script on this origin and survives sign-out, so a cached authenticated
+  // response would outlive the session it belonged to.
+  if (new URL(e.request.url).origin !== self.location.origin) return;
 
   if (CACHE_FIRST.test(e.request.url)) {
     // Cache-first: heavy, rarely-changing assets — fast and works offline.

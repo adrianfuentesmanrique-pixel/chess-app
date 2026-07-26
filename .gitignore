@@ -1,2 +1,18 @@
 node_modules/
 *.log
+
+# Real secrets. This repo is public and served by GitHub Pages, so anything
+# committed here is world-readable and stays in git history even if deleted.
+# The Firebase web config in js/firebase.js is NOT a secret and belongs in the
+# repo — it identifies the project, it does not grant access. These do grant it:
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+.env
+.env.*
+**/service-account*.json
+**/serviceAccountKey*.json
+google-services.json
+android/keystore.properties
