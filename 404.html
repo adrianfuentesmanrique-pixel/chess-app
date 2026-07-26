@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess Training Center — 404</title>
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #f5f3ef; color: #1a1714;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #16130f; color: #f0ece4; }
+    a { color: #d4a94a; }
+  }
+  img { width: 72px; height: 72px; border-radius: 16px; }
+  h1 { font-size: 22px; margin: 0; }
+  p { font-size: 15px; opacity: 0.8; max-width: 360px; margin: 0; }
+  a {
+    color: #1a1714; text-decoration: none; font-weight: 600;
+    border: 1px solid currentColor; border-radius: 999px; padding: 8px 20px; font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <img src="icons/icon-192.png" alt="">
+  <h1 id="title">Página no encontrada</h1>
+  <p id="body">Esta página no existe. Puede que el enlace esté roto o desactualizado.</p>
+  <a href="/" id="link">Volver al inicio</a>
+
+  <script>
+    if ((navigator.language || '').toLowerCase().indexOf('es') !== 0) {
+      document.title = 'Chess Training Center — 404';
+      document.getElementById('title').textContent = 'Page not found';
+      document.getElementById('body').textContent = "This page doesn't exist. The link may be broken or outdated.";
+      document.getElementById('link').textContent = 'Back to home';
+      document.documentElement.lang = 'en';
+    }
+  </script>
+</body>
+</html>
