@@ -10,6 +10,7 @@ import {
 import {
   getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import * as db from './db.js';
 
 const firebaseConfig = {
@@ -38,6 +39,24 @@ const SYNCED_KEYS = [
 const PUBLIC_KEYS = ['profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'blindfoldElo'];
 
 const app = initializeApp(firebaseConfig);
+
+// App Check attests that Auth/Firestore requests come from this real app
+// (not a scripted client hitting the API directly). The reCAPTCHA site is
+// only registered for chesstrainingcenter.app, so local dev over localhost
+// needs a debug token instead — enable it once, register the token Firebase
+// logs to the console under App Check > Apps > Manage debug tokens, and it's
+// remembered for that browser afterward. Enforcement is left in "Monitor"
+// mode in Firebase Console for now, so a missing/failed token here doesn't
+// block anything yet — this only starts actually rejecting requests once
+// enforcement is switched on.
+if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+}
+initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider('6LeR3GYtAAAAACqUurrsfN2K6oTEywe0RGhW0yTc'),
+  isTokenAutoRefreshEnabled: true,
+});
+
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 
