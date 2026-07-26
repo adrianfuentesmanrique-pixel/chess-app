@@ -32,6 +32,8 @@ const DICT = {
   color: { es: 'Color', en: 'Color' },
   new_game: { es: 'Nueva partida', en: 'New game' },
   loading: { es: 'Cargando…', en: 'Loading…' },
+  retry_btn: { es: 'Reintentar', en: 'Retry' },
+  engine_timeout: { es: 'El motor no respondió. Puede que necesite reiniciarse.', en: "The engine didn't respond. It may need a restart." },
   // Analysis
   engine_on: { es: 'Encender motor', en: 'Engine on' },
   engine_off: { es: 'Apagar motor', en: 'Engine off' },

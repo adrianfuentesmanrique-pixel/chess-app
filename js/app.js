@@ -1354,13 +1354,25 @@ const Analysis = {
 
   restartEngine() {
     clearTimeout(this.restartTimer);
+    clearTimeout(this._engineWatchdog);
+    this._engineGen = (this._engineGen || 0) + 1;
+    const gen = this._engineGen;
     const fen = this.tree.fen();
     this.restartTimer = setTimeout(async () => {
       const n = this.linesCount ?? Math.min(MAX_ENGINE_LINES, +(await db.kvGet('engineLines', 2)));
       engine.onLine = lines => this.showLines(lines);
       engine.analyse(fen, n).catch(err => {
+        if (gen !== this._engineGen) return;
         $('ana-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${err.message || err}</div>`;
       });
+      // Guards against a worker that spawns fine but never emits a single
+      // analysis line — no crash event fires in that case, so without this
+      // the "loading" placeholder would sit there forever with no way out.
+      this._engineWatchdog = setTimeout(() => {
+        if (gen !== this._engineGen || !this.engineOn) return;
+        $('ana-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${t('engine_timeout')} <button class="btn small" id="ana-engine-retry">${t('retry_btn')}</button></div>`;
+        $('ana-engine-retry').onclick = () => this.restartEngine();
+      }, 8000);
     }, 200);
   },
 
@@ -1368,6 +1380,7 @@ const Analysis = {
 
   showLines(lines) {
     if (!this.engineOn || activeScreen !== 'analysis') return;
+    clearTimeout(this._engineWatchdog);
     const el = $('ana-engine-lines');
     el.innerHTML = '';
     for (const ln of lines) {
@@ -3208,10 +3221,20 @@ const Endgame = {
     this.engineOn = !this.engineOn;
     $('endgame-engine').classList.toggle('hidden', !this.engineOn);
     $('endgame-engine-toggle').classList.toggle('on', this.engineOn);
+    clearTimeout(this._engineWatchdog);
     if (this.engineOn) {
+      this._engineGen = (this._engineGen || 0) + 1;
+      const gen = this._engineGen;
       $('endgame-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
       engine.onLine = lines => this.showLines(lines);
       engine.analyse(this.board.fen, 2).catch(() => {});
+      // See Analysis.restartEngine — guards a worker that spawns but never
+      // emits a line (no crash event fires, so nothing else would notice).
+      this._engineWatchdog = setTimeout(() => {
+        if (gen !== this._engineGen || !this.engineOn) return;
+        $('endgame-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${t('engine_timeout')} <button class="btn small" id="endgame-engine-retry">${t('retry_btn')}</button></div>`;
+        $('endgame-engine-retry').onclick = () => { this.toggleEngine(); this.toggleEngine(); };
+      }, 8000);
     } else {
       engine.stop();
     }
@@ -3219,6 +3242,7 @@ const Endgame = {
 
   showLines(lines) {
     if (!this.engineOn) return;
+    clearTimeout(this._engineWatchdog);
     const el = $('endgame-engine-lines');
     el.innerHTML = '';
     for (const ln of lines) {

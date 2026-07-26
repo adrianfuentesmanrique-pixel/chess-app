@@ -27,7 +27,12 @@ export class Engine {
       // promise — this build's WASM can fault later (e.g. reconfiguring
       // MultiPV on an already-searching worker), and without this, any
       // pending _stopSearch()/isready wait hangs forever on a dead worker.
-      this.worker.onerror = (e) => { this._handleCrash(); reject(e); };
+      // preventDefault() matters here: without it, the browser also
+      // reports this as a global window error (per the HTML spec for
+      // uncaught worker errors), which would trip the app's top-level
+      // crash overlay even though _handleCrash() already recovers fine —
+      // this failure mode is expected/handled, not a real crash.
+      this.worker.onerror = (e) => { e.preventDefault(); this._handleCrash(); reject(e); };
       this.worker.onmessage = (e) => this._handle(String(e.data));
       this._uciokResolve = resolve;
       this.worker.postMessage('uci');
