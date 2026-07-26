@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /leaderboard/{uid} {
+      allow read: if true;
+      // hasOnly() must mirror PUBLIC_KEYS in js/firebase.js exactly — this
+      // collection is world-readable, so restricting which fields a client
+      // can write here (not just who) is what actually enforces the
+      // Privacy Policy's promise that real name/email never go public,
+      // independent of whether the client-side code can be trusted.
+      allow write: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo',
+          'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'blindfoldElo', 'updatedAt'
+        ])
+        && (!('profileName' in request.resource.data) ||
+            (request.resource.data.profileName is string && request.resource.data.profileName.size() <= 60))
+        && (!('username' in request.resource.data) ||
+            (request.resource.data.username is string && request.resource.data.username.size() <= 60));
+    }
+  }
+}
