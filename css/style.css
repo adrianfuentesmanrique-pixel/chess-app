@@ -12,8 +12,16 @@
   --danger: #ff7070;
   --sq-light: #ecdab9;
   --sq-dark: #ae8a68;
+  /* Board overlays are tuned against the tan squares (identical in both
+     themes), so they live here rather than reusing the UI success/danger
+     tokens — same values as before, just no longer hardcoded at use site. */
+  --sq-selected: rgba(20, 85, 30, .5);
+  --sq-check: #e05a4d;
+  --sq-hint: rgba(70, 130, 220, .55);
   --hl: rgba(91, 140, 255, .45);
   --tab-active-bg: rgba(91, 140, 255, .18);
+  --gold-bg: rgba(244, 193, 93, .18);
+  --gold-glow: rgba(244, 193, 93, .65);
   --radius: 12px;
   --input-border: #2a3441;
   --shadow: rgba(0, 0, 0, .5);
@@ -35,8 +43,13 @@ body.mode-light {
   --danger: #eb5757;
   --sq-light: #ecdab9;
   --sq-dark: #ae8a68;
+  --sq-selected: rgba(20, 85, 30, .5);
+  --sq-check: #e05a4d;
+  --sq-hint: rgba(70, 130, 220, .55);
   --hl: rgba(54, 89, 217, .35);
   --tab-active-bg: rgba(16, 42, 67, .12);
+  --gold-bg: rgba(245, 185, 66, .16);
+  --gold-glow: rgba(245, 185, 66, .55);
   --radius: 12px;
   --input-border: #b6bdc8;
   --shadow: rgba(0, 0, 0, .12);
@@ -62,7 +75,7 @@ body { display: flex; flex-direction: column; height: 100dvh; }
   padding: 8px 14px;
   padding-top: calc(8px + env(safe-area-inset-top));
   background: var(--panel);
-  font-weight: 700; font-size: 17px;
+  font-weight: 700; font-size: 18px;
   flex: 0 0 auto;
 }
 #app-title { display: flex; align-items: center; gap: 8px; }
@@ -70,7 +83,24 @@ body { display: flex; flex-direction: column; height: 100dvh; }
 body.mode-light .brand-logo { filter: none; }
 .streak-badge { font-size: 15px; font-weight: 700; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .streak-badge.zero { opacity: .5; }
-.streak-icon-img { height: 20px; width: auto; }
+.streak-icon-img { height: 20px; width: auto; transition: height .3s ease, filter .3s ease; }
+/* "Just crossed a tier" state. The topbar is a status strip, so the resting
+   size stays compact — this only grows and glows on the day the tier actually
+   changed, then drops back to 20px on the next app open. */
+.streak-badge.tier-up .streak-icon-img {
+  height: 28px;
+  filter: drop-shadow(0 0 6px var(--gold-glow));
+}
+.streak-badge.tier-up { animation: streak-pop .6s ease; }
+@keyframes streak-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .streak-badge.tier-up { animation: none; }
+  .streak-icon-img, .streak-timeline-tier, .streak-timeline-tier img { transition: none; }
+}
 .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px 8px; }
 
 /* ── splash screen ─────────────────────── */
@@ -88,7 +118,7 @@ body.mode-light .brand-logo { filter: none; }
   animation: splash-logo-draw 850ms cubic-bezier(.22,.8,.25,1) forwards;
 }
 #splash-title {
-  font-weight: 700; font-size: 21px; letter-spacing: .6px; text-align: center;
+  font-weight: 700; font-size: 22px; letter-spacing: .6px; text-align: center;
   color: #102a43;
   opacity: 0; transform: translateY(8px);
   animation: splash-title-in 650ms ease forwards;
@@ -150,7 +180,7 @@ main { flex: 1 1 auto; overflow-y: auto; padding: 10px; }
   border-radius: 10px 10px 0 0;
   transition: background-color .25s ease, color .25s ease;
 }
-#tabbar button.on { color: var(--accent); background: var(--tab-active-bg); }
+#tabbar button.on { color: var(--gold); background: var(--gold-bg); }
 .tab-ico { font-size: 20px; line-height: 1; }
 
 .screen { max-width: 560px; margin: 0 auto; }
@@ -182,10 +212,10 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   content: ''; position: absolute; inset: 0; background: var(--hl);
 }
 .sq.lastmove-outbook::before {
-  content: ''; position: absolute; inset: 0; background: rgba(230, 190, 40, .55);
+  content: ''; position: absolute; inset: 0; background: var(--gold-glow);
 }
 .sq.selected::before {
-  content: ''; position: absolute; inset: 0; background: rgba(20, 85, 30, .5);
+  content: ''; position: absolute; inset: 0; background: var(--sq-selected);
 }
 .sq.dest::after {
   content: ''; position: absolute; left: 36%; top: 36%; width: 28%; height: 28%;
@@ -195,14 +225,14 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   content: ''; position: absolute; inset: 0;
   border: 4px solid rgba(0,0,0,.3); border-radius: 50%;
 }
-.sq.check { background: radial-gradient(circle, #e05a4d 30%, transparent 75%); }
+.sq.check { background: radial-gradient(circle, var(--sq-check) 30%, transparent 75%); }
 .sq.check.light { background-color: var(--sq-light); }
 .sq.check.dark { background-color: var(--sq-dark); }
 .sq.hintsq::before {
-  content: ''; position: absolute; inset: 0; background: rgba(70, 130, 220, .55);
+  content: ''; position: absolute; inset: 0; background: var(--sq-hint);
 }
 .shapes-layer { position: absolute; inset: 0; pointer-events: none; width: 100%; height: 100%; z-index: 3; }
-.coords { position: absolute; inset: 0; pointer-events: none; font-size: 9px; font-weight: 700; }
+.coords { position: absolute; inset: 0; pointer-events: none; font-size: 10px; font-weight: 700; }
 .coord { position: absolute; color: rgba(0,0,0,.45); }
 .coord.rank { left: 2px; }
 .coord.file { bottom: 1px; }
@@ -233,7 +263,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 }
 .btn.primary { background: var(--accent); color: var(--btn-text); font-weight: 700; }
 .btn.danger { background: var(--danger); color: #fff; }
-.btn.big { width: 100%; padding: 14px; font-size: 17px; margin-top: 12px; }
+.btn.big { width: 100%; padding: 14px; font-size: 18px; margin-top: 12px; }
 .btn:active { transform: scale(.97); }
 
 .row { display: flex; gap: 8px; margin: 8px 0; align-items: center; }
@@ -298,18 +328,24 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   overflow-x: auto; overflow-y: hidden; padding: 6px 2px 10px;
   scrollbar-width: thin;
 }
-.streak-timeline-tier { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 4px 6px; }
+.streak-timeline-tier { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 4px 6px; transition: padding .25s ease; }
 /* Fixed height, auto width: the source art ranges from tall/narrow (early
    tiers) to short/wide (later tiers), so forcing a square box made later
    tiers look shrunken. Sharing one height instead keeps every icon reading
    as the same size regardless of its natural aspect ratio. */
-.streak-timeline-tier img { height: 46px; width: auto; display: block; }
-.streak-timeline-tier.locked img {
-  filter: grayscale(1) brightness(0) invert(1); opacity: .28;
-}
-.streak-timeline-tier.current { position: relative; }
+.streak-timeline-tier img { height: 46px; width: auto; display: block; transition: height .25s ease; }
+/* Grayscale only (no brightness/invert): future tiers stay visible as dim
+   silhouettes that still hint at what's coming — a wall of identical white
+   blobs told the player nothing about the path ahead. */
+.streak-timeline-tier.locked img { filter: grayscale(1); opacity: .4; }
+.streak-timeline-tier.current { position: relative; padding: 4px 12px; }
+/* The current tier is the one the player actually earned today — it should
+   read as a step forward out of the row, not just a bordered cell the same
+   size as everything else. */
+.streak-timeline-tier.current img { height: 68px; }
 .streak-timeline-tier.current::after {
-  content: ''; position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: 10px;
+  content: ''; position: absolute; inset: 0; border: 2px solid var(--gold); border-radius: 10px;
+  box-shadow: 0 0 12px var(--gold-glow);
 }
 
 /* ── Kael (mascot) ─────────────────────── */
@@ -322,7 +358,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   background: var(--panel2); border-radius: var(--radius);
   padding: 12px 14px; margin-bottom: 12px; text-align: center;
 }
-.kael-bubble b { display: block; font-size: 17px; margin-bottom: 4px; }
+.kael-bubble b { display: block; font-size: 18px; margin-bottom: 4px; }
 .kael-bubble p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .kael-level-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
 .kael-level-cell {
@@ -340,7 +376,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 }
 .kael-level-cell b { font-size: 15px; color: var(--text); }
 .kael-level-range { font-size: 11px; color: var(--muted); }
-.kael-level-desc { grid-column: 2; font-size: 12px; color: var(--muted); line-height: 1.35; }
+.kael-level-desc { grid-column: 2; font-size: 13px; color: var(--muted); line-height: 1.35; }
 
 /* ── puzzle theme picker ───────────────── */
 .theme-pick-row {
@@ -355,7 +391,7 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .profile-elo-row { gap: 8px; }
 .elo-card {
   flex: 1 1 100px; background: var(--panel); border-radius: var(--radius);
-  padding: 10px; text-align: center; font-size: 12px; color: var(--muted);
+  padding: 10px; text-align: center; font-size: 13px; color: var(--muted);
   display: flex; flex-direction: column; gap: 4px;
   border: none; cursor: pointer; font-family: inherit;
 }
@@ -374,7 +410,7 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .daily-mission-row:last-child { border-bottom: none; }
 .daily-mission-check {
   width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--muted);
-  display: flex; align-items: center; justify-content: center; font-size: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
   flex: 0 0 auto; color: transparent;
 }
 .daily-mission-row.done .daily-mission-check { background: var(--success); border-color: var(--success); color: #fff; }
@@ -382,16 +418,31 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .daily-mission-row.done .daily-mission-label { color: var(--muted); text-decoration: line-through; }
 .daily-mission-arrow { color: var(--muted); font-size: 14px; }
 
-.trophy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.trophy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 .badge-cell {
   background: var(--panel2); border-radius: 10px; padding: 8px 4px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  opacity: .3; filter: grayscale(1);
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  /* Partial desaturation, not full: 49 badges at grayscale(1)/opacity .3 all
+     collapsed into identical gray discs, so a new player couldn't see WHAT
+     they were chasing, only that something was locked. */
+  opacity: .45; filter: grayscale(.7);
 }
-.badge-cell.earned { opacity: 1; filter: none; background: var(--accent2); }
-.badge-icon { font-size: 22px; width: 44px; height: 44px; }
-.badge-icon img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
-.badge-name { font-size: 9px; text-align: center; color: var(--text); line-height: 1.2; }
+/* Gold marks "you earned this" (blue stays for functional/interactive state).
+   inset shadow rather than a border so the cell doesn't shift on unlock. */
+.badge-cell.earned {
+  opacity: 1; filter: none;
+  background: var(--gold-bg); box-shadow: inset 0 0 0 1px var(--gold);
+}
+.badge-icon { font-size: 28px; width: 58px; height: 58px; }
+/* Squircle, not a true circle: this art was composed square, and several
+   badges push a promoted element (365's crown, rush_30's bolt, streak_100's
+   laurel tips) into the corners — a 50% radius decapitated them. */
+.badge-icon img { width: 100%; height: 100%; border-radius: 28%; object-fit: cover; display: block; }
+.badge-name {
+  font-size: 10.5px; text-align: center; color: var(--text); line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; width: 100%;
+}
 
 /* ── auth modal ────────────────────────── */
 .auth-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -578,7 +629,11 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
   display: block; margin-top: 4px; color: var(--muted); font-size: 11px; text-align: right;
 }
 .kael-quote-row { display: flex; align-items: center; gap: 10px; }
-.kael-quote-badge { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.kael-quote-badge { width: 48px; height: 48px; border-radius: 28%; object-fit: cover; flex: 0 0 auto; }
+/* Streak art is exported at a shared height with natural widths, so it must
+   never get a fixed box or object-fit — that's what made these look shrunken.
+   Height-only keeps every tier reading at the same visual weight. */
+.kael-quote-streak { height: 64px; width: auto; flex: 0 0 auto; filter: drop-shadow(0 0 8px var(--gold-glow)); }
 .kael-quote-title { display: block; font-size: 13px; margin-bottom: 2px; }
 .modal-box {
   background: var(--panel); border-radius: 18px 18px 0 0;

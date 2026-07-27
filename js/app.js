@@ -475,8 +475,11 @@ const KaelQuotes = {
     const bubble = $('kael-bubble');
     const title = item.title ? `<b class="kael-quote-title">${esc(item.title)}</b>` : '';
     const text = `${title}<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}`;
+    // imageClass lets callers opt out of the square badge treatment — streak
+    // art has variable widths and must be sized by height only.
+    const imgClass = item.imageClass || 'kael-quote-badge';
     bubble.innerHTML = item.image
-      ? `<div class="kael-quote-row"><img src="${item.image}" class="kael-quote-badge" alt=""><div>${text}</div></div>`
+      ? `<div class="kael-quote-row"><img src="${item.image}" class="${imgClass}" alt=""><div>${text}</div></div>`
       : text;
     bubble.classList.add('show');
     Sound.play('kael-pop');
@@ -731,6 +734,11 @@ const Streak = {
   async recordActivity() {
     const today = todayStr();
     if (this.lastDate === today) { this.render(); return; }
+    // Snapshot the tier before the count moves, so crossing into a new one is
+    // a detectable event rather than a silent re-render. A broken-and-restarted
+    // streak reads as a tier-up too (0 -> day 1), which is intentional — coming
+    // back deserves the same acknowledgement as continuing.
+    const prevTier = streakTierIndex(this.count);
     if (this.lastDate && isYesterday(this.lastDate, today)) this.count += 1;
     else this.count = 1;
     this.lastDate = today;
@@ -738,15 +746,37 @@ const Streak = {
     await db.kvSet('streakLastDate', this.lastDate);
     const best = await db.kvGet('bestStreak', 0);
     if (this.count > best) await db.kvSet('bestStreak', this.count);
-    this.render();
-    Badges.checkNew();
+    const newTier = streakTierIndex(this.count);
+    const tierUp = newTier > prevTier;
+    this.render({ tierUp });
+    if (tierUp) this.celebrateTier(newTier);
+    // Badge popups share the one Kael bubble, so hold them back when the tier
+    // celebration is already using it.
+    Badges.checkNew(tierUp ? 5400 : 0);
   },
 
-  render() {
+  celebrateTier(tierIdx) {
+    const tier = STREAK_TIERS[tierIdx];
+    if (!tier) return;
+    setTimeout(() => {
+      KaelQuotes.show({
+        title: '🔥 ' + t('streak_tier_up'),
+        text: tier.label[getLang()],
+        image: `streaks/${tier.icon}.png`,
+        imageClass: 'kael-quote-streak',
+      }, 5000);
+    }, 400);
+  },
+
+  // tierUp is deliberately transient: the enlarged/glowing header icon marks
+  // the moment it changed, then falls back to the compact status size on the
+  // next render or app open.
+  render({ tierUp = false } = {}) {
     const el = $('streak-badge');
     if (!el) return;
     el.innerHTML = `<img src="streaks/${streakIcon(this.count)}.png" alt="" class="streak-icon-img"><span>${this.count}</span>`;
     el.classList.toggle('zero', this.count === 0);
+    el.classList.toggle('tier-up', tierUp);
   },
 };
 
@@ -4186,7 +4216,9 @@ const Badges = {
     };
   },
 
-  async checkNew() {
+  // delayMs lets a caller that's already occupying the Kael bubble (the streak
+  // tier-up celebration) push these back instead of talking over itself.
+  async checkNew(delayMs = 0) {
     this.earned = await db.kvGet('earnedBadges', {});
     const state = await this.gatherState();
     let changed = false;
@@ -4205,7 +4237,7 @@ const Badges = {
           text: badgeLabel(def),
           image: `icons/badges/${def.id}.png`,
         }, 5000);
-      }, i * 5200);
+      }, delayMs + i * 5200);
     });
     if (changed) await db.kvSet('earnedBadges', this.earned);
     if (activeScreen === 'profile') this.renderTrophyCase();
