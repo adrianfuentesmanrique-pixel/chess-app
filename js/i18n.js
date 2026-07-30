@@ -213,6 +213,7 @@ const DICT = {
   email: { es: 'Correo electrónico', en: 'Email' },
   password: { es: 'Contraseña', en: 'Password' },
   confirm_password: { es: 'Confirmar contraseña', en: 'Confirm password' },
+  engine_download_failed: { es: 'No se pudo descargar el motor de ajedrez (7 MB). Revisa tu conexión e inténtalo de nuevo.', en: "Couldn't download the chess engine (7 MB). Check your connection and try again." },
   password_show: { es: 'Mostrar contraseña', en: 'Show password' },
   password_hide: { es: 'Ocultar contraseña', en: 'Hide password' },
   first_name: { es: 'Nombre', en: 'First name' },

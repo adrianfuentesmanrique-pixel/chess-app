@@ -24,7 +24,10 @@ const ASSETS = [
   'vendor/chess.js',
   'vendor/chart.umd.js',
   'vendor/stockfish-17.1-lite-single-03e3232.js',
-  'vendor/stockfish-17.1-lite-single-03e3232.wasm',
+  // NOTE: the 7 MB Stockfish .wasm is deliberately NOT precached here. Pulling
+  // it during install put a 7 MB download in front of first launch, and since
+  // install is all-or-nothing, a phone that dropped it got NOTHING cached.
+  // It is fetched on first use instead and cached by the handler below.
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
@@ -39,7 +42,15 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // Cache each asset independently. cache.addAll() rejects the whole install if
+  // a single request fails, which on a flaky mobile connection meant the app
+  // installed with an empty cache and then failed at runtime.
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.all(ASSETS.map(url =>
+        c.add(url).catch(err => console.warn('[sw] skipped', url, err)))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
@@ -62,11 +73,19 @@ self.addEventListener('fetch', e => {
     // Cache-first: heavy, rarely-changing assets — fast and works offline.
     e.respondWith(
       caches.match(e.request).then(cached => {
-        const fetchPromise = fetch(e.request).then(res => {
+        if (cached) return cached;
+        return fetch(e.request).then(res => {
           if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
           return res;
-        }).catch(() => cached);
-        return cached || fetchPromise;
+        }).catch(err => {
+          // Previously this resolved to `cached`, which is undefined when
+          // nothing was stored — and respondWith(undefined) surfaces to the
+          // page as an opaque network failure. Stockfish loads its .wasm over
+          // XHR, so that became an uncatchable "Aborted(NetworkError)" crash.
+          // A real Response lets the caller see a status and retry.
+          return new Response('offline: ' + err.message,
+            { status: 504, statusText: 'Gateway Timeout' });
+        });
       })
     );
     return;

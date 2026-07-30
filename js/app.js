@@ -61,6 +61,16 @@ function openingFlavorMsg(name) {
 const $ = id => document.getElementById(id);
 const engine = new Engine();
 
+// The engine is a 7 MB WebAssembly download. When it fails — nearly always a
+// dropped connection on mobile — the raw abort text ("Aborted(NetworkError:
+// Failed to execute 'send' on 'XMLHttpRequest'...)") tells the player nothing.
+function engineErrorText(e) {
+  const raw = String(e && (e.message || e.reason || e)) || '';
+  return /NetworkError|Aborted|wasm|fetch|Failed to load|504/i.test(raw)
+    ? t('engine_download_failed')
+    : (raw || t('engine_download_failed'));
+}
+
 // ═════════════════════ sound ═════════════════════
 
 const Sound = {
@@ -1435,7 +1445,7 @@ const Analysis = {
       engine.onLine = lines => this.showLines(lines);
       engine.analyse(fen, n).catch(err => {
         if (gen !== this._engineGen) return;
-        $('ana-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${err.message || err}</div>`;
+        $('ana-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${esc(engineErrorText(err))}</div>`;
       });
       // Guards against a worker that spawns fine but never emits a single
       // analysis line — no crash event fires in that case, so without this
@@ -1828,7 +1838,10 @@ const Play = {
   setStatus(msg) { $('play-status').textContent = msg; },
 
   async userMove(mv) {
-    if (this.over || this.thinking) return;
+    // No game started yet means no position to move in. The board is hidden
+    // behind the setup panel so this is hard to reach by hand, but reaching it
+    // threw a null dereference straight into the global crash overlay.
+    if (!this.chess || this.over || this.thinking) return;
     if (this.chess.turn() !== this.playerColor) return;
     let m;
     try { m = this.chess.move(mv); } catch { return; }
@@ -1852,7 +1865,7 @@ const Play = {
       if (this.checkEnd()) return;
       this.setStatus(t('your_turn'));
     } catch (e) {
-      this.setStatus('⚠️ ' + (e.message || e));
+      this.setStatus('⚠️ ' + engineErrorText(e));
     } finally {
       this.thinking = false;
       this.board.interactive = true;
