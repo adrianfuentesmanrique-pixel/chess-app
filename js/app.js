@@ -5,7 +5,9 @@ import { GameTree, parsePgn, splitPgn, START_FEN, nagText } from './tree.js';
 import { Board, parsePlacement, setPieceSet, getPieceSet } from './board.js';
 import { Engine, uciToMove, pvWithNumbers } from './engine.js';
 import * as db from './db.js';
-import { PUZZLES, PUZZLE_THEMES } from './puzzles-data.js';
+import { PUZZLES, PUZZLE_THEMES, PUZZLE_PATTERNS, TRACKED_THEMES,
+         BANDS as PUZZLE_BANDS, bandOf, loadBand, ensureForRating,
+         puzzlesInBand } from './puzzles.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
@@ -796,14 +798,22 @@ function dailySeed(str) {
 // day", but everyone in the same band gets the same one on a given date.
 const PUZZLE_OF_DAY_BANDS = [0, 1800, 2000, 2300, 2500, 2800, Infinity];
 
-function puzzleOfDay(playerElo) {
+// Drawn from one whole rating band, never from "whatever is loaded" — the
+// puzzle of the day has to be identical for every player in a tier, and the
+// set of loaded bands varies by session.
+async function puzzleOfDay(playerElo) {
   let tier = 0;
   for (let i = 1; i < PUZZLE_OF_DAY_BANDS.length - 1; i++) if (playerElo >= PUZZLE_OF_DAY_BANDS[i]) tier = i;
-  const lo = PUZZLE_OF_DAY_BANDS[tier], hi = PUZZLE_OF_DAY_BANDS[tier + 1];
-  const pool = PUZZLES.filter(p => p.rating >= lo && p.rating < hi);
+  const band = bandOf(PUZZLE_OF_DAY_BANDS[tier]);
+  try { await loadBand(band); } catch { /* fall back to whatever is already loaded */ }
+  const pool = puzzlesInBand(band);
   const list = pool.length ? pool : PUZZLES;
+  if (!list.length) return null;
+  // Sorted so the pick depends only on the band's contents, not on the order
+  // bands happened to be appended in.
+  const sorted = [...list].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const seed = dailySeed(todayStr() + '_tier' + tier);
-  return list[seed % list.length];
+  return sorted[seed % sorted.length];
 }
 
 const DailyMissions = {
@@ -887,7 +897,9 @@ const DailyMissions = {
     showScreen('puzzles');
     await Puzzles.ensureLoaded();
     const elo = await db.kvGet('puzzleElo', 1200);
-    Puzzles.loadPuzzle(puzzleOfDay(elo));
+    const daily = await puzzleOfDay(elo);
+    if (!daily) { toast(t('puzzles_unavailable')); return; }
+    Puzzles.loadPuzzle(daily);
     Puzzles.isDailyPuzzle = true;
   },
 };
@@ -2489,6 +2501,13 @@ const Puzzles = {
     this.elo = await db.kvGet('puzzleElo', 1200);
     this.themeElo = await db.kvGet('puzzleThemeElo', {});
     this.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
+    $('puzzle-progress').textContent = t('puzzles_loading');
+    try {
+      await ensureForRating(this.elo);
+    } catch {
+      $('puzzle-progress').textContent = t('puzzles_unavailable');
+      return;                                   // stay unloaded so a retry works
+    }
     this.loaded = true;
     this.updateEloBadge();
     this.nextPuzzle();
@@ -2668,7 +2687,11 @@ const Puzzles = {
         KaelQuotes.show(pickKael(KAEL_PRAISE), 4500);
         this.setStatus(t('solved'));
         if (!this.failedThis) {
-          this.solved[this.current.id] = true;
+          // Store the themes, not just a flag. The library is split across
+          // rating bands now, so a later lookup by id would miss any puzzle
+          // whose band isn't loaded — and the theme-mastery badges would
+          // quietly under-count. Old records saved as `true` still work.
+          this.solved[this.current.id] = this.current.themes ?? true;
           db.kvSet('puzzlesSolved', this.solved);
         }
         this.recordResult(!this.failedThis);
@@ -2825,6 +2848,10 @@ const Rush = {
   // walking a fixed sorted list — so difficulty visibly tracks performance.
   pickNext() {
     const target = Math.min(2400, 900 + this.score * 55);
+    // A run climbs from ~900 to 2400, crossing most bands. Fetch the next one
+    // ahead of time without blocking — the pool already loaded stays playable
+    // if it hasn't arrived yet.
+    ensureForRating(target).catch(() => {});
     let candidates = PUZZLES.filter(p => !this.usedIds.has(p.id));
     if (!candidates.length) { this.usedIds.clear(); candidates = PUZZLES; }
     candidates = [...candidates].sort((a, b) => Math.abs(a.rating - target) - Math.abs(b.rating - target));
@@ -2834,7 +2861,16 @@ const Rush = {
     return pick;
   },
 
-  start() {
+  async start() {
+    $('rush-start').disabled = true;
+    try {
+      await ensureForRating(1000);            // where every run begins
+    } catch {
+      toast(t('puzzles_unavailable'));
+      $('rush-start').disabled = false;
+      return;
+    }
+    $('rush-start').disabled = false;
     this.usedIds = new Set();
     this.duration = +segValue($('rush-duration'));
     this.timeLeft = this.duration;
@@ -3039,6 +3075,7 @@ const Blind = {
     if (this.loaded) return;
     this.elo = await db.kvGet('blindfoldElo', 1200);
     this.hintWarningSeen = await db.kvGet('blindfoldHintWarningSeen', false);
+    await ensureForRating(this.elo);
     this.loaded = true;
   },
 
@@ -4293,9 +4330,11 @@ const Badges = {
   async gatherState() {
     const solved = await db.kvGet('puzzlesSolved', {});
     const themeCounts = {};
-    for (const id of Object.keys(solved)) {
-      const p = PUZZLES.find(pz => pz.id === id);
-      if (p) for (const th of p.themes) themeCounts[th] = (themeCounts[th] ?? 0) + 1;
+    for (const [id, rec] of Object.entries(solved)) {
+      // Newer records carry their own themes; pre-split records are `true`
+      // and still need the lookup, which only works if their band is loaded.
+      const themes = Array.isArray(rec) ? rec : PUZZLES.find(pz => pz.id === id)?.themes;
+      if (themes) for (const th of themes) themeCounts[th] = (themeCounts[th] ?? 0) + 1;
     }
     const endgameConverted = await db.kvGet('endgameConverted', {});
     const openingElo = await db.kvGet('openingElo', {});
@@ -4514,8 +4553,8 @@ const Profile = {
     }
 
     this.drawRadar('puzzle',
-      PUZZLE_THEMES.map(th => t('theme_' + th)),
-      PUZZLE_THEMES.map(th => themeElo[th] ?? 1200));
+      radarThemes().map(th => t('theme_' + th)),
+      radarThemes().map(th => themeElo[th] ?? 1200));
 
     this.drawRadar('endgame',
       ENDGAME_CATEGORIES.map(c => t('cat_' + c)),
@@ -4575,6 +4614,17 @@ const LEADERBOARD_FIELDS = {
   rushBest300:  { label: 'rush_5min',     fallback: 0, season: 'rushMonth300' },
   blindfoldElo: { label: 'blindfold_elo', fallback: 1200 },
 };
+
+// Every tracked theme earns a rating, but a radar with 28 spokes is unreadable
+// on a phone, so the chart shows at most 13 at a time. Defaults to the original
+// thirteen; the picker (still to build) writes a different set here.
+const MAX_RADAR_THEMES = 13;
+let radarSelection = null;
+function radarThemes() {
+  const picked = (radarSelection ?? []).filter(th => PUZZLE_THEMES.includes(th));
+  return picked.length ? picked.slice(0, MAX_RADAR_THEMES)
+                       : PUZZLE_THEMES.slice(0, MAX_RADAR_THEMES);
+}
 
 // Rank bands worth showing off. Beyond the top 100 a row is just a row —
 // giving every position its own colour would flatten the distinction.
@@ -4701,8 +4751,8 @@ const PublicProfile = {
     if (openingNames.length) Profile.drawRadar('pub-opening', openingNames, openingNames.map(k => openingElo[k]));
 
     Profile.drawRadar('pub-puzzle',
-      PUZZLE_THEMES.map(th => t('theme_' + th)),
-      PUZZLE_THEMES.map(th => themeElo[th] ?? 1200));
+      radarThemes().map(th => t('theme_' + th)),
+      radarThemes().map(th => themeElo[th] ?? 1200));
 
     Profile.drawRadar('pub-endgame',
       ENDGAME_CATEGORIES.map(c => t('cat_' + c)),
