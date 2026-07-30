@@ -4045,16 +4045,28 @@ const Setup = {
     return `${rows.join('/')} ${turn} ${cast || '-'} - 0 1`;
   },
 
-  done(mode) {
+  async done(mode) {
     const fen = this.buildFen();
-    const v = validateFen(fen);
-    if (!v.ok) { toast(t('invalid_position') + (v.error ?? '')); return; }
-    // also require both kings
     const pieces = Object.values(this.grid);
-    if (!pieces.some(p => p.type === 'k' && p.color === 'w') || !pieces.some(p => p.type === 'k' && p.color === 'b')) {
-      toast(t('invalid_position') + '♔+♚');
-      return;
+    const bothKings = pieces.some(p => p.type === 'k' && p.color === 'w')
+                   && pieces.some(p => p.type === 'k' && p.color === 'b');
+    const v = validateFen(fen);
+
+    // Without two kings there is no position at all — nothing downstream can
+    // work, so this stays a hard stop.
+    if (!bothKings) { toast(t('invalid_position') + '♔+♚'); return; }
+
+    // Everything else (a side already in check on the move, too many pawns,
+    // impossible castling rights) is unusual but analysable. Studies and
+    // composed positions land here routinely, so ask instead of refusing.
+    if (!v.ok) {
+      // askConfirm renders its argument as HTML, so escape the validator's
+      // message rather than passing it through raw.
+      const why = v.error ? `<br><span class="hint">${esc(v.error)}</span>` : '';
+      const go = await askConfirm(esc(t('illegal_position_confirm')) + why);
+      if (!go) return;
     }
+
     if (mode === 'analyze') Analysis.loadTree(new GameTree(fen));
     else Play.startFromFen(fen);
   },
