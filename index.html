@@ -337,9 +337,13 @@
     <div id="rush-game" class="hidden">
       <div class="row" style="justify-content:space-between">
         <span id="rush-timer" class="elo-badge"></span>
+        <span id="rush-strikes" class="elo-badge"></span>
         <span id="rush-score" class="elo-badge"></span>
       </div>
-      <div id="rush-board" class="board-wrap"></div>
+      <div class="rush-board-stack">
+        <div id="rush-board" class="board-wrap"></div>
+        <div id="rush-countdown" class="rush-countdown hidden"><span></span></div>
+      </div>
       <div id="rush-status" class="status-bar"></div>
     </div>
     <div id="rush-result" class="hidden">
@@ -529,6 +533,7 @@
 
   <!-- ══════════ LEADERBOARD ══════════ -->
   <section id="screen-leaderboard" class="screen hidden">
+    <img src="icons/logo-mark.png" class="watermark" alt="">
     <div class="row screen-head">
       <button id="leaderboard-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="leaderboard_title"></h2>

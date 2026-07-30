@@ -2767,6 +2767,12 @@ const Rush = {
   timeLeft: 0,
   timer: null,
   running: false,
+  strikes: 0,
+  // A single wrong move ending the whole run makes the mode punishing rather
+  // than fast: one slip erases three minutes of work. Three strikes keeps the
+  // pressure while letting a good run survive a mistake.
+  MAX_STRIKES: 3,
+  COUNTDOWN: 5,
 
   init() {
     this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
@@ -2830,13 +2836,49 @@ const Rush = {
     this.duration = +segValue($('rush-duration'));
     this.timeLeft = this.duration;
     this.score = 0;
+    this.strikes = 0;
     this.running = true;
     $('rush-intro').classList.add('hidden');
     $('rush-result').classList.add('hidden');
     $('rush-game').classList.remove('hidden');
     this.updateHud();
-    this.timer = setInterval(() => this.tick(), 1000);
+    // Show the first puzzle immediately but frozen, so the count-in is spent
+    // reading the position rather than staring at an empty board.
     this.loadNext();
+    this.countIn(() => {
+      if (!this.running) return;
+      $('rush-status').textContent = this.prompt ?? '';
+      this.timer = setInterval(() => this.tick(), 1000);
+      this.board.interactive = true;
+    });
+  },
+
+  // Counts 5…1 then "Go!" over the board. The clock does not start until it
+  // finishes, so the count-in never costs the player time.
+  countIn(done) {
+    const el = $('rush-countdown');
+    const label = el.firstElementChild;
+    let n = this.COUNTDOWN;
+    this.countingIn = true;
+    el.classList.remove('hidden');
+    $('rush-status').textContent = t('rush_get_ready');
+    const tick = () => {
+      if (!this.running) { el.classList.add('hidden'); return; }
+      label.textContent = n > 0 ? n : t('rush_go');
+      label.classList.remove('pop');
+      void label.offsetWidth;            // restart the animation each step
+      label.classList.add('pop');
+      if (n-- <= 0) {
+        setTimeout(() => {
+          el.classList.add('hidden');
+          this.countingIn = false;
+          done();
+        }, 450);
+        return;
+      }
+      setTimeout(tick, 1000);
+    };
+    tick();
   },
 
   tick() {
@@ -2849,6 +2891,10 @@ const Rush = {
     const m = Math.floor(Math.max(0, this.timeLeft) / 60), s = Math.max(0, this.timeLeft) % 60;
     $('rush-timer').textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
     $('rush-score').textContent = `⚡ ${this.score}`;
+    const el = $('rush-strikes');
+    el.innerHTML = Array.from({ length: this.MAX_STRIKES }, (_, i) =>
+      `<span class="rush-strike${i < this.strikes ? ' used' : ''}">✕</span>`).join('');
+    el.classList.toggle('danger', this.strikes >= this.MAX_STRIKES - 1);
   },
 
   loadNext() {
@@ -2859,13 +2905,18 @@ const Rush = {
     this.board.setOrientation(playerColor);
     this.board.setPosition(this.chess.fen());
     this.board.interactive = false;
-    $('rush-status').textContent = t(playerColor === 'w' ? 'white' : 'black') + ' ' + t('to_move_find');
+    // Kept so the count-in can put it back — countIn() borrows the status line
+    // for "Get ready!" and must not leave the player without the prompt.
+    this.prompt = t(playerColor === 'w' ? 'white' : 'black') + ' ' + t('to_move_find');
+    if (!this.countingIn) $('rush-status').textContent = this.prompt;
     setTimeout(() => {
       if (!this.running) return;
       const m = this.applyUci(this.current.moves[0]);
       this.moveIdx = 1;
       this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
-      this.board.interactive = true;
+      // Stays frozen while the count-in is on screen; countIn() hands control
+      // back once the clock actually starts.
+      this.board.interactive = !this.countingIn;
     }, 300);
   },
 
@@ -2898,7 +2949,18 @@ const Rush = {
     } else {
       this.chess.undo();
       this.board.setPosition(this.chess.fen());
-      this.finish(t('rush_wrong_end'));
+      this.board.interactive = false;
+      this.strikes++;
+      this.updateHud();
+      Sound.play('puzzle-wrong');
+      if (this.strikes >= this.MAX_STRIKES) { this.finish(t('rush_strikes_out')); return; }
+      const left = this.MAX_STRIKES - this.strikes;
+      $('rush-status').textContent = left === 1
+        ? t('rush_strike_last')
+        : t('rush_strike_left').replace('{n}', left);
+      // Long enough to read how many chances are left, short enough not to
+      // feel like a penalty on a timed run.
+      setTimeout(() => { if (this.running) this.loadNext(); }, 1200);
     }
   },
 
@@ -4511,6 +4573,15 @@ const LEADERBOARD_FIELDS = {
   blindfoldElo: { label: 'blindfold_elo', fallback: 1200 },
 };
 
+// Rank bands worth showing off. Beyond the top 100 a row is just a row —
+// giving every position its own colour would flatten the distinction.
+function rankTier(rank) {
+  if (rank <= 3) return 'tier-podium tier-' + rank;
+  if (rank <= 10) return 'tier-top10';
+  if (rank <= 100) return 'tier-top100';
+  return '';
+}
+
 const Leaderboard = {
   entries: [],
   field: 'puzzleElo',
@@ -4569,14 +4640,19 @@ const Leaderboard = {
     el.innerHTML = '';
     if (q && !list.length) { $('leaderboard-status').textContent = t('leaderboard_no_match'); return; }
     const board = LEADERBOARD_FIELDS[this.field];
-    const label = t(board.label);
     const field = this.sortField();
     list.forEach((e, i) => {
+      const rank = i + 1;
       const value = Math.round(e[field] ?? board.fallback);
       const item = document.createElement('button');
-      item.className = 'list-item';
-      item.style.cssText = 'flex-direction:row; align-items:center; gap:10px;';
-      item.innerHTML = `${avatarHtml(e.avatarId, 34)}<span style="display:flex;flex-direction:column;align-items:flex-start;"><b>#${i + 1} ${esc(e.profileName || '?')}</b><span class="sub">${label}: ${value}</span></span>`;
+      // The metric is already named by the selected tab above the list, so the
+      // row shows only what differs between players: who, and how much.
+      item.className = 'lb-row ' + rankTier(rank);
+      item.innerHTML =
+        `<span class="lb-rank">${rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank}</span>` +
+        `${avatarHtml(e.avatarId, 36)}` +
+        `<span class="lb-name">${esc(e.profileName || '?')}</span>` +
+        `<span class="lb-value">${value}</span>`;
       item.onclick = () => PublicProfile.open(e);
       el.appendChild(item);
     });

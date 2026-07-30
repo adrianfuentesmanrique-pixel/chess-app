@@ -554,6 +554,65 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .list-item .sub { color: var(--muted); font-size: 13px; }
 .list-item .result { color: var(--accent); }
 
+/* ── leaderboard rows ──────────────────── */
+/* One line per player: rank, face, name, score. The metric is named by the
+   tab above the list, so repeating it on every row was pure noise. */
+.lb-row {
+  display: grid; grid-template-columns: 34px auto 1fr auto;
+  align-items: center; gap: 10px;
+  width: 100%; text-align: left; cursor: pointer;
+  background: var(--panel); border: none; color: var(--text);
+  border-radius: var(--radius); padding: 10px 14px;
+  font-size: 15px; position: relative; overflow: hidden;
+}
+.lb-row:active { background: var(--panel2); }
+.lb-rank { font-size: 15px; font-weight: 700; color: var(--muted); text-align: center; }
+.lb-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Same size and weight as the name — the score is information, not decoration. */
+.lb-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Rank bands. A tinted left edge + wash reads instantly while scrolling and
+   survives both themes, where a full colour fill would fight the palette. */
+.lb-row::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: transparent;
+}
+.tier-top100 { background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.tier-top100::before { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.tier-top10 { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.tier-top10::before { background: var(--accent); }
+.tier-top10 .lb-value { color: var(--accent2); }
+
+.tier-podium { background: var(--gold-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 40%, transparent); }
+.tier-podium::before { background: var(--gold); }
+.tier-podium .lb-name, .tier-podium .lb-value { color: var(--gold); }
+.tier-podium .lb-rank { font-size: 19px; }
+.tier-1 { box-shadow: inset 0 0 0 1px var(--gold), 0 0 14px -4px var(--gold-glow); }
+
+/* ── puzzle rush ───────────────────────── */
+.rush-board-stack { position: relative; }
+.rush-strike { color: var(--muted); opacity: .35; margin: 0 1px; }
+.rush-strike.used { color: var(--sq-check); opacity: 1; }
+#rush-strikes.danger { box-shadow: inset 0 0 0 1px var(--sq-check); }
+
+.rush-countdown {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  backdrop-filter: blur(2px); border-radius: var(--radius); z-index: 3;
+}
+.rush-countdown span {
+  font-size: 64px; font-weight: 800; color: var(--gold);
+  text-shadow: 0 2px 18px var(--gold-glow);
+}
+.rush-countdown span.pop { animation: rush-count .5s ease-out; }
+@keyframes rush-count {
+  from { transform: scale(1.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rush-countdown span.pop { animation: none; }
+}
+
 /* ── status bars & badges ──────────────── */
 .status-bar {
   background: var(--panel); border-radius: var(--radius);
