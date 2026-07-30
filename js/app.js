@@ -2454,7 +2454,21 @@ const Puzzles = {
       box.appendChild(randomRow);
 
       const themeRows = [];
+      // Motifs first, then the named mating patterns under their own heading.
+      // Patterns are trainable and rated, they just never become radar axes.
       for (const th of PUZZLE_THEMES) {
+        const row = document.createElement('label');
+        row.className = 'theme-pick-row';
+        row.innerHTML = `<input type="checkbox" data-th="${th}"><span>${t('theme_' + th)}</span>`;
+        box.appendChild(row);
+        themeRows.push(row);
+      }
+      const patternHead = document.createElement('div');
+      patternHead.className = 'hint';
+      patternHead.style.cssText = 'margin:10px 0 4px; font-weight:600;';
+      patternHead.textContent = t('theme_patterns_head');
+      box.appendChild(patternHead);
+      for (const th of PUZZLE_PATTERNS) {
         const row = document.createElement('label');
         row.className = 'theme-pick-row';
         row.innerHTML = `<input type="checkbox" data-th="${th}"><span>${t('theme_' + th)}</span>`;
@@ -4405,6 +4419,7 @@ const Profile = {
   charts: {},
 
   init() {
+    $('radar-pick').onclick = () => openRadarPicker();
     $('profile-edit-btn').onclick = () => this.openEditModal();
     $('profile-auth-btn').onclick = () => openAuthModal();
     $('profile-signout-btn').onclick = () => Auth.signOut();
@@ -4516,6 +4531,9 @@ const Profile = {
   },
 
   async refresh() {
+    // Re-read every time: the selection syncs across devices, so it can change
+    // underneath us after a sign-in pulls the cloud copy down.
+    radarSelection = await db.kvGet('radarThemes', null);
     await cleanStaleOpenings();
     await this.renderAccount();
     await Avatars.refresh();
@@ -4624,6 +4642,75 @@ function radarThemes() {
   const picked = (radarSelection ?? []).filter(th => PUZZLE_THEMES.includes(th));
   return picked.length ? picked.slice(0, MAX_RADAR_THEMES)
                        : PUZZLE_THEMES.slice(0, MAX_RADAR_THEMES);
+}
+
+// Lets the player choose which of the 28 radar-eligible themes to plot.
+// Mating patterns are deliberately absent: they are shapes, not skills, and
+// they would crowd out the motifs the chart exists to compare.
+function openRadarPicker() {
+  modal((box, close) => {
+    const chosen = new Set(radarThemes());
+    box.innerHTML = `<h3>${t('radar_pick_title')}</h3>
+      <p class="hint">${esc(t('radar_pick_hint'))}</p>`;
+
+    const counter = document.createElement('p');
+    counter.className = 'hint';
+    box.appendChild(counter);
+
+    const rows = PUZZLE_THEMES.map(th => {
+      const row = document.createElement('label');
+      row.className = 'theme-pick-row';
+      row.innerHTML = `<input type="checkbox" data-th="${th}"><span>${t('theme_' + th)}</span>`;
+      box.appendChild(row);
+      return row;
+    });
+
+    const sync = () => {
+      counter.textContent = t('radar_pick_count').replace('{n}', chosen.size);
+      const full = chosen.size >= MAX_RADAR_THEMES;
+      for (const row of rows) {
+        const cb = row.querySelector('input');
+        cb.checked = chosen.has(cb.dataset.th);
+        // Block the 14th rather than silently dropping it on save.
+        cb.disabled = full && !cb.checked;
+        row.classList.toggle('disabled', cb.disabled);
+      }
+    };
+    sync();
+
+    for (const row of rows) {
+      const cb = row.querySelector('input');
+      cb.onchange = () => {
+        if (cb.checked) {
+          if (chosen.size >= MAX_RADAR_THEMES) { cb.checked = false; toast(t('radar_pick_full')); return; }
+          chosen.add(cb.dataset.th);
+        } else {
+          chosen.delete(cb.dataset.th);
+        }
+        sync();
+      };
+    }
+
+    const apply = document.createElement('button');
+    apply.className = 'btn primary big';
+    apply.textContent = t('apply');
+    apply.onclick = async () => {
+      // An empty pick means "use the default set", not "plot nothing".
+      const list = chosen.size ? PUZZLE_THEMES.filter(th => chosen.has(th)) : null;
+      radarSelection = list;
+      await db.kvSet('radarThemes', list);
+      close(null);
+      Profile.refresh();
+    };
+
+    const reset = document.createElement('button');
+    reset.className = 'btn';
+    reset.style.marginTop = '8px';
+    reset.textContent = t('radar_reset');
+    reset.onclick = () => { chosen.clear(); PUZZLE_THEMES.slice(0, MAX_RADAR_THEMES).forEach(th => chosen.add(th)); sync(); };
+
+    box.append(apply, reset);
+  });
 }
 
 // Rank bands worth showing off. Beyond the top 100 a row is just a row —

@@ -31,7 +31,7 @@ const SYNCED_KEYS = [
   'puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'avatarId',
   'earnedBadges', 'bestStreak', 'endgameConverted', 'firstImportDone', 'firstEngineUsed',
   'rushBestScore', 'rushBest180', 'rushBest300',
-  'rushMonth180', 'rushMonth300', 'rushMonthKey', 'puzzleAttemptCount',
+  'rushMonth180', 'rushMonth300', 'rushMonthKey', 'puzzleAttemptCount', 'radarThemes',
   'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
 ];
 
