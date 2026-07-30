@@ -2781,6 +2781,9 @@ const Rush = {
     segInit($('rush-duration'), () => this.showBest());
     $('rush-start').onclick = () => this.start();
     $('rush-again').onclick = () => this.openIntro();
+    // The result screen was a dead end — "play again" or "share" only, with no
+    // way back to the other puzzle modes without using the device back button.
+    $('rush-exit').onclick = () => { this.stop(); showScreen('puzzles'); };
     $('rush-share').onclick = () => this.share();
   },
 

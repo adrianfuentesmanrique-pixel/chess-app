@@ -234,6 +234,7 @@ const DICT = {
   share_streak: { es: '📤 Compartir racha', en: '📤 Share streak' },
   rush_open: { es: '⚡ Rush', en: '⚡ Rush' },
   rush_title: { es: 'Puzzle Rush', en: 'Puzzle Rush' },
+  rush_back_puzzles: { es: '← Volver a Táctica', en: '← Back to Puzzles' },
   rush_get_ready: { es: '¡Prepárate!', en: 'Get ready!' },
   rush_go: { es: '¡Ya!', en: 'Go!' },
   rush_strikes_out: { es: '¡Tres fallos! Partida terminada.', en: 'Three strikes! Run over.' },
