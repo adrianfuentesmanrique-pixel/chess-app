@@ -1,25 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // The document as it would exist AFTER the write. Writes use merge:true,
+    // so this is the merged result, not just the changed fields.
+    function after() { return request.resource.data; }
+
+    // Optional numeric field: either absent, or a number within [lo, hi].
+    // Ranges are deliberately generous — they exist to reject impossible
+    // values (a scripted client writing 999999 to top a board), not to
+    // second-guess legitimate play.
+    function num(v, lo, hi) { return v is number && v >= lo && v <= hi; }
+
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
     match /leaderboard/{uid} {
       allow read: if true;
+
+      // Deleting your own entry must be allowed, otherwise account deletion
+      // leaves a public profile name on the leaderboard forever — which would
+      // contradict the Privacy Policy's deletion promise.
+      allow delete: if request.auth != null && request.auth.uid == uid;
+
       // hasOnly() must mirror PUBLIC_KEYS in js/firebase.js exactly — this
       // collection is world-readable, so restricting which fields a client
       // can write here (not just who) is what actually enforces the
       // Privacy Policy's promise that real name/email never go public,
       // independent of whether the client-side code can be trusted.
       allow write: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([
+        && after().keys().hasOnly([
           'profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo',
-          'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'blindfoldElo', 'updatedAt'
+          'openingElo', 'endgameElo', 'streakCount', 'rushBestScore',
+          'rushBest180', 'rushBest300', 'blindfoldElo', 'updatedAt'
         ])
-        && (!('profileName' in request.resource.data) ||
-            (request.resource.data.profileName is string && request.resource.data.profileName.size() <= 60))
-        && (!('username' in request.resource.data) ||
-            (request.resource.data.username is string && request.resource.data.username.size() <= 60));
+
+        // Text fields: bounded length so the public doc can't be used as
+        // free storage or to inject an oversized display name.
+        && (!('profileName' in after()) ||
+            (after().profileName is string && after().profileName.size() <= 60))
+        && (!('username' in after()) ||
+            (after().username is string && after().username.size() <= 60))
+        && (!('avatarId' in after()) ||
+            (after().avatarId is string && after().avatarId.size() <= 64))
+
+        // Ranked scalars — these are what the boards sort on, so they are the
+        // only fields worth forging. Everything here is range-checked.
+        && (!('puzzleElo' in after())    || num(after().puzzleElo, 0, 4000))
+        && (!('blindfoldElo' in after()) || num(after().blindfoldElo, 0, 4000))
+        && (!('rushBestScore' in after())|| num(after().rushBestScore, 0, 1000))
+        && (!('rushBest180' in after())  || num(after().rushBest180, 0, 1000))
+        && (!('rushBest300' in after())  || num(after().rushBest300, 0, 1000))
+        && (!('streakCount' in after())  || num(after().streakCount, 0, 30000))
+        && (!('updatedAt' in after())    || after().updatedAt is number)
+
+        // Per-theme / per-opening rating maps. No board sorts on these, so
+        // shape-checking is enough; Firestore's own 1 MB document cap bounds
+        // the size.
+        && (!('puzzleThemeElo' in after()) || after().puzzleThemeElo is map)
+        && (!('openingElo' in after())     || after().openingElo is map)
+        && (!('endgameElo' in after())     || after().endgameElo is map);
     }
   }
 }

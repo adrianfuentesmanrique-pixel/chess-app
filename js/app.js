@@ -2770,10 +2770,20 @@ const Rush = {
     this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('rush-back').onclick = () => { this.stop(); showScreen('puzzles'); };
     $('puzzle-rush-open').onclick = () => this.openIntro();
-    segInit($('rush-duration'), () => {});
+    segInit($('rush-duration'), () => this.showBest());
     $('rush-start').onclick = () => this.start();
     $('rush-again').onclick = () => this.openIntro();
     $('rush-share').onclick = () => this.share();
+  },
+
+  // 3-minute and 5-minute runs are different events, so each keeps its own
+  // best score and its own leaderboard. 'rushBestScore' stays as the best
+  // across both, since the achievements are phrased "N in a row" regardless
+  // of clock and shouldn't be lost when the boards split.
+  bestKey(duration = +segValue($('rush-duration'))) { return 'rushBest' + duration; },
+
+  async showBest() {
+    $('rush-best-score').textContent = await db.kvGet(this.bestKey(), 0);
   },
 
   async openIntro() {
@@ -2781,8 +2791,7 @@ const Rush = {
     $('rush-intro').classList.remove('hidden');
     $('rush-game').classList.add('hidden');
     $('rush-result').classList.add('hidden');
-    const best = await db.kvGet('rushBestScore', 0);
-    $('rush-best-score').textContent = best;
+    await this.showBest();
   },
 
   // Target rating ramps up directly with the current run's score (a rush
@@ -2881,9 +2890,14 @@ const Rush = {
     this.running = false;
     clearInterval(this.timer);
     this.board.interactive = false;
-    const best = await db.kvGet('rushBestScore', 0);
+    // Score the run against its own clock, not the combined best — a 3-minute
+    // record must not be beaten by a 5-minute one.
+    const key = this.bestKey(this.duration);
+    const best = await db.kvGet(key, 0);
     const isNewBest = this.score > best;
-    if (isNewBest) await db.kvSet('rushBestScore', this.score);
+    if (isNewBest) await db.kvSet(key, this.score);
+    const overall = await db.kvGet('rushBestScore', 0);
+    if (this.score > overall) await db.kvSet('rushBestScore', this.score);
     Badges.checkNew();
     Streak.recordActivity();
     $('rush-game').classList.add('hidden');
@@ -4466,6 +4480,16 @@ const Profile = {
 
 // ═════════════════════ LEADERBOARD ═════════════════════
 
+// Each board is one sortable field on the public /leaderboard doc. Keys must
+// match the data-v values on #leaderboard-mode and the PUBLIC_KEYS list in
+// firebase.js. `fallback` is what to show when a player has no score yet.
+const LEADERBOARD_FIELDS = {
+  puzzleElo:    { label: 'puzzle_elo',    fallback: 1200 },
+  rushBest180:  { label: 'rush_3min',     fallback: 0 },
+  rushBest300:  { label: 'rush_5min',     fallback: 0 },
+  blindfoldElo: { label: 'blindfold_elo', fallback: 1200 },
+};
+
 const Leaderboard = {
   entries: [],
   field: 'puzzleElo',
@@ -4502,11 +4526,10 @@ const Leaderboard = {
     const el = $('leaderboard-list');
     el.innerHTML = '';
     if (q && !list.length) { $('leaderboard-status').textContent = t('leaderboard_no_match'); return; }
-    const label = this.field === 'rushBestScore' ? t('rush_title')
-      : this.field === 'blindfoldElo' ? t('blindfold_elo') : t('puzzle_elo');
+    const board = LEADERBOARD_FIELDS[this.field];
+    const label = t(board.label);
     list.forEach((e, i) => {
-      const value = this.field === 'rushBestScore' ? Math.round(e.rushBestScore ?? 0)
-        : this.field === 'blindfoldElo' ? Math.round(e.blindfoldElo ?? 1200) : Math.round(e.puzzleElo ?? 1200);
+      const value = Math.round(e[this.field] ?? board.fallback);
       const item = document.createElement('button');
       item.className = 'list-item';
       item.style.cssText = 'flex-direction:row; align-items:center; gap:10px;';
