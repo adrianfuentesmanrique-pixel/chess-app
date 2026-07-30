@@ -234,6 +234,8 @@ const DICT = {
   share_streak: { es: '📤 Compartir racha', en: '📤 Share streak' },
   rush_open: { es: '⚡ Rush', en: '⚡ Rush' },
   rush_title: { es: 'Puzzle Rush', en: 'Puzzle Rush' },
+  lb_all_time: { es: 'Histórico', en: 'All time' },
+  lb_this_month: { es: 'Este mes', en: 'This month' },
   rush_3min: { es: 'Rush 3′', en: 'Rush 3′' },
   rush_5min: { es: 'Rush 5′', en: 'Rush 5′' },
   rush_explain: { es: 'Resuelve tantos rompecabezas como puedas antes de que se acabe el tiempo. ¡Un solo error termina la partida!', en: 'Solve as many puzzles as you can before time runs out. A single mistake ends the run!' },

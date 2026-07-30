@@ -33,7 +33,9 @@ service cloud.firestore {
         && after().keys().hasOnly([
           'profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo',
           'openingElo', 'endgameElo', 'streakCount', 'rushBestScore',
-          'rushBest180', 'rushBest300', 'blindfoldElo', 'updatedAt'
+          'rushBest180', 'rushBest300',
+          'rushMonth180', 'rushMonth300', 'rushMonthKey',
+          'blindfoldElo', 'updatedAt'
         ])
 
         // Text fields: bounded length so the public doc can't be used as
@@ -52,6 +54,10 @@ service cloud.firestore {
         && (!('rushBestScore' in after())|| num(after().rushBestScore, 0, 1000))
         && (!('rushBest180' in after())  || num(after().rushBest180, 0, 1000))
         && (!('rushBest300' in after())  || num(after().rushBest300, 0, 1000))
+        && (!('rushMonth180' in after()) || num(after().rushMonth180, 0, 1000))
+        && (!('rushMonth300' in after()) || num(after().rushMonth300, 0, 1000))
+        && (!('rushMonthKey' in after()) ||
+            (after().rushMonthKey is string && after().rushMonthKey.size() <= 7))
         && (!('streakCount' in after())  || num(after().streakCount, 0, 30000))
         && (!('updatedAt' in after())    || after().updatedAt is number)
 

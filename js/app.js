@@ -893,6 +893,8 @@ const DailyMissions = {
 };
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
+// 'YYYY-MM' — the season key for the monthly leaderboards.
+function monthStr() { return new Date().toISOString().slice(0, 7); }
 function isYesterday(dateStr, todayStrVal) {
   const d = new Date(dateStr + 'T00:00:00');
   const t = new Date(todayStrVal + 'T00:00:00');
@@ -2786,6 +2788,21 @@ const Rush = {
     $('rush-best-score').textContent = await db.kvGet(this.bestKey(), 0);
   },
 
+  // Monthly boards give newer players something reachable: an all-time board
+  // stops being a target once a few big scores are on it. The season is
+  // cleared lazily on the first run of a new month rather than by a scheduled
+  // job — there is no server here to run one.
+  async recordSeasonScore() {
+    const period = monthStr();
+    if (await db.kvGet('rushMonthKey', null) !== period) {
+      await db.kvSet('rushMonth180', 0);
+      await db.kvSet('rushMonth300', 0);
+      await db.kvSet('rushMonthKey', period);
+    }
+    const key = 'rushMonth' + this.duration;
+    if (this.score > await db.kvGet(key, 0)) await db.kvSet(key, this.score);
+  },
+
   async openIntro() {
     showScreen('rush');
     $('rush-intro').classList.remove('hidden');
@@ -2898,6 +2915,7 @@ const Rush = {
     if (isNewBest) await db.kvSet(key, this.score);
     const overall = await db.kvGet('rushBestScore', 0);
     if (this.score > overall) await db.kvSet('rushBestScore', this.score);
+    await this.recordSeasonScore();
     Badges.checkNew();
     Streak.recordActivity();
     $('rush-game').classList.add('hidden');
@@ -4483,30 +4501,54 @@ const Profile = {
 // Each board is one sortable field on the public /leaderboard doc. Keys must
 // match the data-v values on #leaderboard-mode and the PUBLIC_KEYS list in
 // firebase.js. `fallback` is what to show when a player has no score yet.
+// `season` names the equivalent this-month field, where one exists. Only the
+// Rush boards have seasons: ELO is a rating that already moves both ways, so
+// a "this month" ELO board would just be the all-time board again.
 const LEADERBOARD_FIELDS = {
   puzzleElo:    { label: 'puzzle_elo',    fallback: 1200 },
-  rushBest180:  { label: 'rush_3min',     fallback: 0 },
-  rushBest300:  { label: 'rush_5min',     fallback: 0 },
+  rushBest180:  { label: 'rush_3min',     fallback: 0, season: 'rushMonth180' },
+  rushBest300:  { label: 'rush_5min',     fallback: 0, season: 'rushMonth300' },
   blindfoldElo: { label: 'blindfold_elo', fallback: 1200 },
 };
 
 const Leaderboard = {
   entries: [],
   field: 'puzzleElo',
+  season: false,
 
   init() {
     $('leaderboard-back').onclick = () => showScreen('profile');
     $('leaderboard-search').addEventListener('input', () => this.filter($('leaderboard-search').value));
     segInit($('leaderboard-mode'), v => { this.field = v; this.open(); });
+    segInit($('leaderboard-period'), v => { this.season = v === 'month'; this.open(); });
+  },
+
+  // The sortable field for the current mode+period pair.
+  sortField() {
+    const board = LEADERBOARD_FIELDS[this.field];
+    return this.season && board.season ? board.season : this.field;
   },
 
   async open() {
     showScreen('leaderboard');
+    const board = LEADERBOARD_FIELDS[this.field];
+    // The period switch only appears on boards that actually have seasons.
+    $('leaderboard-period').classList.toggle('hidden', !board.season);
+    if (!board.season) this.season = false;
+
     $('leaderboard-search').value = '';
     $('leaderboard-list').innerHTML = '';
     $('leaderboard-status').textContent = t('loading');
     try {
-      this.entries = await fetchLeaderboard(200, this.field);
+      // Over-fetch when showing a season: entries are sorted on the monthly
+      // field, but players who set a score and then stopped playing still
+      // carry last month's value until their next run clears it, so those
+      // rows are dropped here rather than in the query. Firestore can't
+      // filter and sort on different fields without a composite index.
+      const entries = await fetchLeaderboard(this.season ? 500 : 200, this.sortField());
+      this.entries = this.season
+        ? entries.filter(e => e.rushMonthKey === monthStr())
+        : entries;
     } catch (e) {
       this.entries = [];
       $('leaderboard-status').textContent = '⚠️ ' + (e.message || e);
@@ -4528,8 +4570,9 @@ const Leaderboard = {
     if (q && !list.length) { $('leaderboard-status').textContent = t('leaderboard_no_match'); return; }
     const board = LEADERBOARD_FIELDS[this.field];
     const label = t(board.label);
+    const field = this.sortField();
     list.forEach((e, i) => {
-      const value = Math.round(e[this.field] ?? board.fallback);
+      const value = Math.round(e[field] ?? board.fallback);
       const item = document.createElement('button');
       item.className = 'list-item';
       item.style.cssText = 'flex-direction:row; align-items:center; gap:10px;';
