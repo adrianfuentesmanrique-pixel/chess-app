@@ -129,6 +129,32 @@ function askText(title, initial = '') {
   });
 }
 
+// Wraps a password input with a reveal button. Typing a password blind on a
+// phone keyboard is the single most common cause of a failed sign-in, and it
+// is worse on a confirm field where the user cannot tell the two apart.
+function withPasswordToggle(input) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pw-wrap';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pw-toggle';
+  const sync = () => {
+    const shown = input.type === 'text';
+    btn.textContent = shown ? '🙈' : '👁';
+    btn.setAttribute('aria-label', t(shown ? 'password_hide' : 'password_show'));
+    btn.setAttribute('aria-pressed', String(shown));
+  };
+  btn.onclick = () => {
+    input.type = input.type === 'password' ? 'text' : 'password';
+    sync();
+    input.focus();
+  };
+  sync();
+  input.replaceWith(wrap);
+  wrap.append(input, btn);
+  return wrap;
+}
+
 function askPassword(title) {
   return modal((box, close) => {
     box.innerHTML = `<h3>${title}</h3>`;
@@ -142,6 +168,7 @@ function askPassword(title) {
     inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); };
     row.append(ok, ca);
     box.append(inp, row);
+    withPasswordToggle(inp);
     setTimeout(() => inp.focus(), 50);
   });
 }
@@ -286,6 +313,7 @@ function openAuthModal() {
       const label = document.createElement('label'); label.className = 'fld-label'; label.textContent = t(labelKey);
       const input = document.createElement('input'); input.className = 'input'; input.type = type;
       wrap.append(label, input);
+      if (type === 'password') withPasswordToggle(input);
       return { wrap, input };
     }
 

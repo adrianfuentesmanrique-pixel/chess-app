@@ -213,6 +213,8 @@ const DICT = {
   email: { es: 'Correo electrónico', en: 'Email' },
   password: { es: 'Contraseña', en: 'Password' },
   confirm_password: { es: 'Confirmar contraseña', en: 'Confirm password' },
+  password_show: { es: 'Mostrar contraseña', en: 'Show password' },
+  password_hide: { es: 'Ocultar contraseña', en: 'Hide password' },
   first_name: { es: 'Nombre', en: 'First name' },
   last_name: { es: 'Apellido', en: 'Last name' },
   username_field: { es: 'Nombre de usuario', en: 'Username' },
