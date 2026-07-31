@@ -132,7 +132,7 @@ const DICT = {
   no_book_comment: { es: 'No hay comentario para esta jugada.', en: 'No comment for this move.' },
   not_an_opening_msg: { es: 'La posición que estás jugando no parece una apertura real, así que no la voy a añadir a tu perfil de aperturas.', en: 'The position you\'re playing doesn\'t look like a real opening, so it won\'t be added to your Opening profile.' },
   show_solution: { es: 'Ver solución', en: 'Show solution' },
-  next_puzzle: { es: 'Siguiente ejercicio', en: 'Next puzzle' },
+  next_puzzle: { es: 'Siguiente', en: 'Next' },
   solved_count: { es: 'resueltos', en: 'solved' },
   theme_mixed: { es: 'Mixto', en: 'Mixed' },
   select_theme: { es: '🎯 Elegir tema', en: '🎯 Select theme' },

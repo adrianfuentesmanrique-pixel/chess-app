@@ -171,10 +171,9 @@ main { flex: 1 1 auto; overflow-y: auto; padding: 10px; padding-bottom: 68px; }
 
 /* Puzzle actions: hint, solution and next must share one line on a phone,
    otherwise the primary action wraps below the fold and needs a scroll. */
-#puzzle-actions { flex-wrap: wrap; gap: 6px; align-items: stretch; }
-/* Sized so Hint, Show solution and Next share the first line on a 375px
-   phone. Nothing shrinks: a truncated "Siguiente ejercicio" is worse than a
-   second line, so once Analyse appears after solving it simply wraps. */
+/* One line on a 375px phone, including Analyse once the puzzle is solved.
+   Labels stay short ("Siguiente" / "Next") so nothing has to be truncated. */
+#puzzle-actions { flex-wrap: nowrap; gap: 6px; align-items: stretch; }
 #puzzle-actions .btn {
   font-size: 13px; padding: 9px 10px; white-space: nowrap; flex: 0 0 auto;
 }
