@@ -164,7 +164,21 @@ body.theme-wood { --sq-light: #ecdab9; --sq-dark: #ae8a68; }
 body.theme-green { --sq-light: #eeeed2; --sq-dark: #769656; }
 body.theme-blue { --sq-light: #dee3e6; --sq-dark: #8ca2ad; }
 
-main { flex: 1 1 auto; overflow-y: auto; padding: 10px; }
+/* The Kael button is fixed above the tab bar, so without this the last row of
+   any screen sits underneath it and cannot be tapped. Reserving its height
+   lets that content scroll clear instead. */
+main { flex: 1 1 auto; overflow-y: auto; padding: 10px; padding-bottom: 68px; }
+
+/* Puzzle actions: hint, solution and next must share one line on a phone,
+   otherwise the primary action wraps below the fold and needs a scroll. */
+#puzzle-actions { flex-wrap: wrap; gap: 6px; align-items: stretch; }
+/* Sized so Hint, Show solution and Next share the first line on a 375px
+   phone. Nothing shrinks: a truncated "Siguiente ejercicio" is worse than a
+   second line, so once Analyse appears after solving it simply wraps. */
+#puzzle-actions .btn {
+  font-size: 13px; padding: 9px 10px; white-space: nowrap; flex: 0 0 auto;
+}
+#puzzle-actions #puzzle-share { padding: 9px 8px; }
 
 #tabbar {
   flex: 0 0 auto;
