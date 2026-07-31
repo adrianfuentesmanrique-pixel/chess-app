@@ -1,6 +1,8 @@
 // IndexedDB storage: databases ("bases") of games + puzzle progress + settings.
 const DB_NAME = 'mi-ajedrez';
-const DB_VER = 1;
+// v2 adds search indexes on the games store so filtering can be done by the
+// database instead of scanning every record in memory.
+const DB_VER = 2;
 
 let dbPromise = null;
 
@@ -8,16 +10,28 @@ function open() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
-    req.onupgradeneeded = () => {
+    // Stepwise so an existing install upgrades in place instead of trying to
+    // recreate stores that already exist.
+    req.onupgradeneeded = (e) => {
       const db = req.result;
-      const bases = db.createObjectStore('bases', { keyPath: 'id', autoIncrement: true });
-      bases.createIndex('name', 'name');
-      const games = db.createObjectStore('games', { keyPath: 'id', autoIncrement: true });
-      games.createIndex('baseId', 'baseId');
-      db.createObjectStore('kv');
+      if (e.oldVersion < 1) {
+        const bases = db.createObjectStore('bases', { keyPath: 'id', autoIncrement: true });
+        bases.createIndex('name', 'name');
+        const games = db.createObjectStore('games', { keyPath: 'id', autoIncrement: true });
+        games.createIndex('baseId', 'baseId');
+        db.createObjectStore('kv');
+      }
+      if (e.oldVersion < 2) {
+        // IndexedDB backfills these from existing records during the upgrade.
+        const games = req.transaction.objectStore('games');
+        for (const f of ['white', 'black', 'event', 'date', 'result']) {
+          if (!games.indexNames.contains(f)) games.createIndex(f, f);
+        }
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('Database upgrade blocked — close other tabs of this app'));
   });
   return dbPromise;
 }
@@ -115,6 +129,37 @@ export async function listGameSummaries(baseId) {
       const g = cur.value;
       out.push({ id: g.id, baseId: g.baseId, white: g.white, black: g.black,
                  event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt });
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// Index-backed lookup for the advanced filter. Ranges are resolved by the
+// database, so only matching records are read — unlike a full scan, this does
+// not get slower as the rest of the base grows.
+// `field` must be one of the indexed columns: white, black, event, date, result.
+export async function findGamesBy(baseId, field, { equals, prefix, from, to } = {}, limit = 500) {
+  const database = await open();
+  let range = null;
+  if (equals !== undefined) range = IDBKeyRange.only(equals);
+  else if (prefix) range = IDBKeyRange.bound(prefix, prefix + '￿');
+  else if (from !== undefined || to !== undefined) {
+    range = from !== undefined && to !== undefined ? IDBKeyRange.bound(from, to)
+          : from !== undefined ? IDBKeyRange.lowerBound(from) : IDBKeyRange.upperBound(to);
+  }
+  return new Promise((resolve, reject) => {
+    const out = [];
+    const req = database.transaction('games').objectStore('games').index(field).openCursor(range);
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur || out.length >= limit) { resolve(out); return; }
+      const g = cur.value;
+      // The index spans every base, so filter to the one being viewed.
+      if (g.baseId === baseId) {
+        out.push({ id: g.id, baseId: g.baseId, white: g.white, black: g.black,
+                   event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt });
+      }
       cur.continue();
     };
     req.onerror = () => reject(req.error);

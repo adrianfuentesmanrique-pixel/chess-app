@@ -1663,8 +1663,14 @@ const Base = {
         this.showList();
       }
     };
-    $('game-search').addEventListener('input', () => this.renderGames());
-    $('base-search').addEventListener('input', () => this.renderBases());
+    // Debounced: re-filtering on every keystroke means a full pass over the
+    // base per character, which is imperceptible at 500 games and janky at
+    // 60,000. A short pause costs nothing and only runs the filter once.
+    $('game-search').addEventListener('input', debounce(() => {
+      this.gamesShown = 0;                 // a new query starts from page one
+      this.renderGames();
+    }, 250));
+    $('base-search').addEventListener('input', debounce(() => this.renderBases(), 150));
   },
 
   async refresh() {
@@ -1865,6 +1871,15 @@ const Base = {
     sharePgnText(`${base.name.replace(/[^\w-]+/g, '_')}.pgn`, all);
   },
 };
+
+// Runs fn once the caller has stopped calling for `wait` ms.
+function debounce(fn, wait) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), wait);
+  };
+}
 
 function normalizeSearch(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
