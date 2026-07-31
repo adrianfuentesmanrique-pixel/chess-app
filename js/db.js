@@ -99,6 +99,42 @@ export async function addGames(games) {
   return tx('games', 'readwrite', s => { for (const g of games) s.add(g); });
 }
 
+// Lightweight list for the games view: every field EXCEPT the PGN text.
+// getAll() pulls whole records, and the PGN is ~90% of each one, so listing a
+// large base used to drag megabytes of move text into memory just to draw
+// names. A cursor lets us keep only what the list actually shows.
+export async function listGameSummaries(baseId) {
+  const database = await open();
+  return new Promise((resolve, reject) => {
+    const out = [];
+    const idx = database.transaction('games').objectStore('games').index('baseId');
+    const req = idx.openCursor(IDBKeyRange.only(baseId));
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) { resolve(out); return; }
+      const g = cur.value;
+      out.push({ id: g.id, baseId: g.baseId, white: g.white, black: g.black,
+                 event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt });
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// Inserts one batch and resolves when the transaction commits, so an import
+// can await each chunk instead of opening a single transaction over the whole
+// file — which grows unboundedly and can time out.
+export function addGamesBatch(games) {
+  return open().then(database => new Promise((resolve, reject) => {
+    const t = database.transaction('games', 'readwrite');
+    const s = t.objectStore('games');
+    for (const g of games) s.add(g);
+    t.oncomplete = () => resolve(games.length);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  }));
+}
+
 // --- key/value (settings, puzzle progress) ---
 export async function kvGet(key, def = null) {
   const db = await open();

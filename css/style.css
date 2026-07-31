@@ -567,6 +567,27 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .list-item .sub { color: var(--muted); font-size: 13px; }
 .list-item .result { color: var(--accent); }
 
+/* ── import progress ───────────────────── */
+.import-overlay {
+  position: fixed; inset: 0; z-index: 999; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 78%, transparent); padding: 20px;
+}
+.import-card {
+  background: var(--panel); border-radius: var(--radius); padding: 20px;
+  width: 100%; max-width: 340px; text-align: center;
+  box-shadow: 0 10px 30px var(--shadow);
+}
+.import-card h3 { margin: 0 0 4px; }
+.import-bar {
+  height: 8px; border-radius: 4px; background: var(--panel2);
+  overflow: hidden; margin: 14px 0 8px;
+}
+.import-bar-fill {
+  height: 100%; width: 0; background: var(--accent);
+  transition: width .2s linear;
+}
+.import-count { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+
 /* ── password reveal ───────────────────── */
 .pw-wrap { position: relative; display: block; }
 /* Room for the button so a long password never slides under it. */

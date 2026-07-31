@@ -165,6 +165,38 @@ function withPasswordToggle(input) {
   return wrap;
 }
 
+// Blocking progress panel for a long import. Shown as a plain overlay rather
+// than through modal(), because modal() resolves on close and this needs to
+// stay up while the caller keeps working.
+function importProgress(filename, onCancel) {
+  const wrap = document.createElement('div');
+  wrap.className = 'import-overlay';
+  wrap.innerHTML =
+    `<div class="import-card">
+       <h3>${esc(t('importing'))}</h3>
+       <p class="hint">${esc(filename)}</p>
+       <div class="import-bar"><div class="import-bar-fill"></div></div>
+       <p class="import-count"></p>
+     </div>`;
+  const cancel = document.createElement('button');
+  cancel.className = 'btn';
+  cancel.textContent = t('cancel');
+  cancel.onclick = () => { cancel.disabled = true; onCancel(); };
+  wrap.querySelector('.import-card').appendChild(cancel);
+  document.body.appendChild(wrap);
+  const fill = wrap.querySelector('.import-bar-fill');
+  const count = wrap.querySelector('.import-count');
+  return {
+    update(imported, skipped, frac) {
+      fill.style.width = Math.min(100, Math.round(frac * 100)) + '%';
+      count.textContent = t('import_count')
+        .replace('{n}', imported.toLocaleString())
+        .replace('{s}', skipped.toLocaleString());
+    },
+    close() { wrap.remove(); },
+  };
+}
+
 function askPassword(title) {
   return modal((box, close) => {
     box.innerHTML = `<h3>${title}</h3>`;
@@ -1669,9 +1701,11 @@ const Base = {
     $('base-list-view').classList.add('hidden');
     $('base-games-view').classList.remove('hidden');
     $('base-games-title').textContent = base.name;
-    this.gamesCache = await db.listGames(id);
+    // Summaries only — the PGN text is fetched when a game is actually opened.
+    this.gamesCache = await db.listGameSummaries(id);
     this.gamesCache.sort((a, b) => b.updatedAt - a.updatedAt);
     $('game-search').value = '';
+    this.gamesShown = 0;
     this.renderGames();
   },
 
@@ -1689,7 +1723,13 @@ const Base = {
       el.innerHTML = `<p class="hint">${t('no_games')}</p>`;
       return;
     }
-    for (const g of games) {
+    // Draw a page at a time. One <button> per game meant a large base built
+    // tens of thousands of DOM nodes on open, which froze the tab even when
+    // the data itself fitted in memory.
+    const PAGE = 200;
+    this.gamesShown = Math.max(PAGE, Math.min(this.gamesShown || PAGE, games.length));
+    const page = games.slice(0, this.gamesShown);
+    for (const g of page) {
       const item = document.createElement('button');
       item.className = 'list-item';
       const sub = [g.event, g.date].filter(x => x && x !== '?').join(' · ');
@@ -1703,52 +1743,117 @@ const Base = {
       item.addEventListener('pointermove', () => clearTimeout(timer));
       el.appendChild(item);
     }
+    if (games.length > page.length) {
+      const more = document.createElement('button');
+      more.className = 'btn';
+      more.style.cssText = 'margin-top:8px; width:100%';
+      more.textContent = `${t('load_more')} (${t('games_shown')
+        .replace('{n}', page.length).replace('{total}', games.length)})`;
+      more.onclick = () => { this.gamesShown = page.length + PAGE; this.renderGames(); };
+      el.appendChild(more);
+    }
   },
 
   gameMenu(g) {
     sheet([
-      { label: '📤 ' + t('share_game'), action: () => sharePgnText(gameFilename({ White: g.white, Black: g.black }), g.pgn) },
+      { label: '📤 ' + t('share_game'), action: async () => {
+          const full = await db.getGame(g.id);          // summaries carry no PGN
+          if (full) sharePgnText(gameFilename({ White: g.white, Black: g.black }), full.pgn);
+        } },
       { label: '🗑 ' + t('delete'), action: async () => {
           if (await askConfirm(t('delete_game_confirm'))) { await db.deleteGame(g.id); this.openBase(this.currentBaseId); }
         }, danger: true },
     ]);
   },
 
-  openGame(g) {
+  async openGame(g) {
     try {
-      const tree = parsePgn(g.pgn);
-      Analysis.loadTree(tree, { baseId: g.baseId, gameId: g.id });
+      // The list holds summaries only, so fetch the move text on demand.
+      const full = g.pgn ? g : await db.getGame(g.id);
+      if (!full || !full.pgn) { toast(t('import_failed')); return; }
+      const tree = parsePgn(full.pgn);
+      Analysis.loadTree(tree, { baseId: full.baseId, gameId: full.id });
     } catch (e) {
       toast(t('import_failed'));
     }
   },
 
+  // Streams the file instead of reading it whole. The old version held the
+  // entire text, an array of every line, and an array of every parsed game in
+  // memory at once — about 3x the file size — so a large PGN killed the tab
+  // long before IndexedDB was ever the limit. Here memory stays flat: one
+  // buffer plus one batch, no matter how big the file is.
   async importFile(file) {
     if (!file) return;
     $('pgn-file').value = '';
     if (/\.cbh$/i.test(file.name)) { await modal((box, close) => { box.innerHTML = `<p>${t('cbh_note')}</p>`; const b = document.createElement('button'); b.className = 'btn primary'; b.textContent = t('ok'); b.onclick = () => close(null); box.appendChild(b); }); return; }
+
+    const BATCH = 500;
+    const baseId = this.currentBaseId;
+    let imported = 0, skipped = 0, cancelled = false;
+
+    const ui = importProgress(file.name, () => { cancelled = true; });
     try {
-      const text = await file.text();
-      const chunks = splitPgn(text);
-      const games = [];
-      for (const ch of chunks) {
-        const H = headersFromPgn(ch);
-        if (!H['White'] && !/\d+\./.test(ch)) continue;
-        games.push({
-          baseId: this.currentBaseId,
-          white: H['White'] ?? '?', black: H['Black'] ?? '?',
-          event: H['Event'] ?? '', date: H['Date'] ?? '',
-          result: H['Result'] ?? '*',
-          pgn: ch.trim(),
-          updatedAt: Date.now(),
-        });
+      // Read in slices rather than via streams: Blob.slice().text() is
+      // supported everywhere the app runs, and a 1 MB window is small enough
+      // that decoding never spikes memory.
+      const SLICE = 1 << 20;
+      let offset = 0, buf = '', batch = [], bytes = 0;
+      const readNext = async () => {
+        if (offset >= file.size) return null;
+        const blob = file.slice(offset, Math.min(offset + SLICE, file.size));
+        offset += SLICE;
+        return await blob.text();
+      };
+
+      const flush = async () => {
+        if (!batch.length) return;
+        await db.addGamesBatch(batch);
+        imported += batch.length;
+        batch = [];
+        ui.update(imported, skipped, bytes / file.size);
+      };
+      const take = (chunk) => {
+        const H = headersFromPgn(chunk);
+        if (!H['White'] && !/\d+\./.test(chunk)) { skipped++; return; }
+        batch.push({ baseId, white: H['White'] ?? '?', black: H['Black'] ?? '?',
+                     event: H['Event'] ?? '', date: H['Date'] ?? '',
+                     result: H['Result'] ?? '*', pgn: chunk.trim(), updatedAt: Date.now() });
+      };
+
+      for (;;) {
+        const value = await readNext();
+        if (value === null || cancelled) break;
+        bytes += value.length;
+        buf += value;
+        // Keep the trailing fragment: the last game in the buffer may be cut
+        // mid-way through this chunk, so only games before the final header
+        // block are complete.
+        const parts = splitPgn(buf);
+        if (parts.length > 1) {
+          buf = parts.pop();
+          for (const p of parts) take(p);
+          while (batch.length >= BATCH) {
+            const slice = batch.splice(0, BATCH);
+            await db.addGamesBatch(slice);
+            imported += slice.length;
+            ui.update(imported, skipped, bytes / file.size);
+          }
+        }
+        // let the UI paint between chunks
+        await new Promise(r => setTimeout(r, 0));
       }
-      if (!games.length) { toast(t('import_failed')); return; }
-      await db.addGames(games);
-      toast(`${games.length} ${t('imported')}`);
+      if (!cancelled && buf.trim()) for (const p of splitPgn(buf)) take(p);
+      await flush();
+
+      ui.close();
+      if (!imported) { toast(t('import_failed')); return; }
+      toast(`${imported} ${t('imported')}`);
       if (!(await db.kvGet('firstImportDone', false))) { await db.kvSet('firstImportDone', true); Badges.checkNew(); }
-      this.openBase(this.currentBaseId);
+      this.openBase(baseId);
     } catch (e) {
+      ui.close();
+      console.error('import failed', e);
       toast(t('import_failed'));
     }
   },
