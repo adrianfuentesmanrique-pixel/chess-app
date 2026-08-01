@@ -4146,8 +4146,12 @@ const Endgame = {
     if (!mv) { this.finishPractice(true); return; }
     this.moveIdx++;
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to });
-    if (this.checkEnd()) return;
+    // Running the book line to its end is a completed technique, so check that
+    // before the game-over test. Some studies are "the side to move is lost" —
+    // the player defends the losing side and the line ends in mate against
+    // them. Testing checkEnd() first scored a perfect replay as a failure.
     if (this.moveIdx >= this.current.moves.length) { this.finishPractice(true); return; }
+    if (this.checkEnd()) return;
     this.board.interactive = true;
     this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
   },
