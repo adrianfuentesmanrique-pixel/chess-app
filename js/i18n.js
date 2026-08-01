@@ -232,6 +232,7 @@ const DICT = {
   cat_minor: { es: 'Piezas menores', en: 'Minor pieces' },
   practice_start: { es: '🎯 Practicar contra el motor', en: '🎯 Practice vs the engine' },
   practice_you_are: { es: 'Juegas con', en: 'You play' },
+  practice_opponent_first: { es: 'El rival juega la jugada perdedora…', en: 'Your opponent plays the losing move…' },
   practice_win: { es: '¡Convertiste la posición! 🎉', en: 'You converted the position! 🎉' },
   practice_draw: { es: '¡Sostuviste las tablas! 🎉', en: 'You held the draw! 🎉' },
   practice_fail: { es: 'No se logró esta vez. ¡Sigue practicando!', en: "Didn't work out this time. Keep practicing!" },

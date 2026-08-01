@@ -3921,6 +3921,20 @@ const Blind = {
 
 const NOMINAL_PRACTICE_RATING = 1500; // difficulty baseline for graded endgame/opening practice
 
+// Which side the player takes in an endgame study.
+//
+// Normally it is the side to move — they are the one with something to prove.
+// The exception is a study marked `result: 'loss'`, which means the side to
+// move is LOST: the position exists to show how that mistake gets punished,
+// and the technique being taught belongs to the other side. Handing the player
+// the losing side there makes the study pointless — they would be practising
+// how to lose. So they take the winning side and the book plays the losing
+// move for them.
+function practiceColor(pos) {
+  const toMove = pos.fen.split(' ')[1];
+  return pos.result === 'loss' ? (toMove === 'w' ? 'b' : 'w') : toMove;
+}
+
 const Endgame = {
   board: null,
   category: null,
@@ -4009,7 +4023,9 @@ const Endgame = {
     $('endgame-practice-actions').style.display = 'none';
     $('endgame-practice-start').classList.remove('hidden');
     this.board.interactive = false;
-    this.board.setOrientation(pos.fen.split(' ')[1]);
+    // Show the board from the side the player will actually take, so the
+    // preview and the practice run never face opposite ways.
+    this.board.setOrientation(practiceColor(pos));
     this.board.setPosition(pos.fen);
   },
 
@@ -4056,20 +4072,43 @@ const Endgame = {
     $('endgame-engine-toggle').classList.remove('on');
     this.mode = 'practice';
     this.chess = new Chess(this.current.fen);
-    this.playerColor = this.current.fen.split(' ')[1];
     this.over = false;
     this.thinking = false;
     this.bookMode = true;      // still replaying the book's move sequence
     this.moveIdx = 0;          // index into current.moves
     this.mistakes = 0;
+    this.playerColor = practiceColor(this.current);
     $('endgame-comment').classList.add('hidden');
     $('endgame-status').classList.remove('hidden');
     $('endgame-practice-actions').style.display = 'flex';
     $('endgame-share').classList.add('hidden');
     $('endgame-practice-start').classList.add('hidden');
-    this.board.interactive = true;
     this.board.setOrientation(this.playerColor);
     this.board.setPosition(this.chess.fen());
+    // In a "the side to move is lost" study the player takes the winning side,
+    // so the book has to make the losing move first — the same shape as a
+    // tactics puzzle, where the opponent moves and you find the answer.
+    if (this.chess.turn() !== this.playerColor) {
+      this.board.interactive = false;
+      this.setStatus(t('practice_opponent_first'));
+      setTimeout(() => this.playOpeningBookMove(), 700);
+      return;
+    }
+    this.board.interactive = true;
+    this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
+  },
+
+  // Plays the losing side's first move so the player starts from the position
+  // where the winning procedure actually has to be found.
+  playOpeningBookMove() {
+    if (this.mode !== 'practice' || this.over) return;
+    let mv = null;
+    try { mv = this.chess.move(uciToMove(this.current.moves[0])); } catch { mv = null; }
+    if (mv) {
+      this.moveIdx = 1;
+      this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to });
+    }
+    this.board.interactive = true;
     this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
   },
 
