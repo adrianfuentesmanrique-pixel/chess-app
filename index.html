@@ -191,7 +191,11 @@
         <button id="base-rename" class="btn" data-i18n="rename"></button>
         <button id="base-delete" class="btn danger" data-i18n="delete_base"></button>
       </div>
-      <input type="text" id="game-search" class="input" data-i18n-ph="search">
+      <div class="row" style="gap:6px">
+        <input type="text" id="game-search" class="input" data-i18n-ph="search" style="margin:0">
+        <button id="game-advanced" class="btn ico" data-i18n-aria="adv_search">⚙</button>
+      </div>
+      <div id="game-filter-chip" class="filter-chip hidden"></div>
       <div id="game-list" class="list"></div>
       <input type="file" id="pgn-file" accept=".pgn,.txt,application/x-chess-pgn,text/plain" hidden>
     </div>
@@ -287,15 +291,27 @@
       <h2 data-i18n="puzzles_title"></h2>
       <span id="puzzle-elo" class="elo-badge"></span>
     </div>
+    <div class="seg puzzle-modes scroll" data-mode="puzzles">
+      <button data-v="puzzles" class="on" data-i18n="mode_puzzles"></button>
+      <button data-v="blind" data-i18n="mode_blind"></button>
+      <button data-v="rush" data-i18n="mode_rush"></button>
+    </div>
     <div class="row" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
       <span id="puzzle-timer" class="elo-badge"></span>
-      <div class="row" style="margin:0; gap:6px;">
-        <button id="puzzle-blind-open" class="btn" data-i18n="blind_open"></button>
-        <button id="puzzle-rush-open" class="btn" data-i18n="rush_open"></button>
-      </div>
     </div>
-    <button id="puzzle-theme-btn" class="btn" data-i18n="select_theme"></button>
+    <!-- One row: theme picker plus icon-only actions. Labels were pushing the
+         board below the fold on a phone; the icons carry a title/aria-label so
+         they are still announced and still show a tooltip on desktop. -->
+    <div class="row" id="puzzle-actions">
+      <button id="puzzle-theme-btn" class="btn ellipsis" data-i18n="select_theme_short" data-i18n-aria="select_theme"></button>
+      <button id="puzzle-options" class="btn ico" data-i18n-aria="puzzle_options">⚙</button>
+      <button id="puzzle-hint" class="btn ico" data-i18n-aria="hint">🔍</button>
+      <button id="puzzle-solution" class="btn ico" data-i18n-aria="show_solution">💡</button>
+      <button id="puzzle-share" class="btn ico" data-i18n-aria="share">📤</button>
+      <button id="puzzle-analyze" class="btn ico hidden" data-i18n-aria="analyze_short">📈</button>
+      <button id="puzzle-next" class="btn primary ico" data-i18n-aria="next_puzzle">➡</button>
+    </div>
     <div id="puzzle-status" class="status-bar"></div>
     <div id="puzzle-board" class="board-wrap"></div>
     <div id="puzzle-nav" class="toolbar">
@@ -304,13 +320,7 @@
       <button id="puzzle-nav-next" class="tool-btn">▶</button>
       <button id="puzzle-nav-last" class="tool-btn">⏭</button>
     </div>
-    <div class="row wrap" id="puzzle-actions">
-      <button id="puzzle-hint" class="btn" data-i18n="hint"></button>
-      <button id="puzzle-solution" class="btn" data-i18n="show_solution"></button>
-      <button id="puzzle-next" class="btn primary" data-i18n="next_puzzle"></button>
-      <button id="puzzle-share" class="btn">📤</button>
-      <button id="puzzle-analyze" class="btn hidden" data-i18n="analyze_short"></button>
-    </div>
+    <div id="puzzle-log" class="plog"></div>
   </section>
 
   <!-- ══════════ PUZZLE RUSH ══════════ -->
@@ -318,8 +328,12 @@
     <div id="rush-intro">
       <img src="icons/logo-mark.png" class="watermark" alt="">
       <div class="row screen-head">
-        <button id="rush-back" class="btn" data-i18n="back"></button>
         <h2 data-i18n="rush_title"></h2>
+      </div>
+      <div class="seg puzzle-modes scroll" data-mode="rush">
+        <button data-v="puzzles" data-i18n="mode_puzzles"></button>
+        <button data-v="blind" data-i18n="mode_blind"></button>
+        <button data-v="rush" class="on" data-i18n="mode_rush"></button>
       </div>
       <p class="hint" data-i18n="rush_explain"></p>
       <div class="row wrap profile-elo-row">
@@ -351,6 +365,10 @@
         <h2 id="rush-result-title"></h2>
         <div style="font-size:48px; font-weight:700; color:var(--accent)" id="rush-result-score"></div>
         <p id="rush-result-best" class="hint"></p>
+        <!-- The run's puzzles, reviewable once the clock has stopped. During a
+             timed run there is nothing to browse — every puzzle is either the
+             one on screen or already behind you. -->
+        <div id="rush-log" class="plog"></div>
         <div class="row wrap" style="justify-content:center">
           <button id="rush-share" class="btn">📤</button>
           <button id="rush-again" class="btn primary" data-i18n="rush_start"></button>
@@ -363,9 +381,13 @@
   <!-- ══════════ BLINDFOLD PUZZLES ══════════ -->
   <section id="screen-blind" class="screen hidden">
     <div class="row screen-head">
-      <button id="blind-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="blind_title"></h2>
       <span id="blind-elo" class="elo-badge"></span>
+    </div>
+    <div class="seg puzzle-modes scroll" data-mode="blind">
+      <button data-v="puzzles" data-i18n="mode_puzzles"></button>
+      <button data-v="blind" class="on" data-i18n="mode_blind"></button>
+      <button data-v="rush" data-i18n="mode_rush"></button>
     </div>
     <p class="hint" data-i18n="blind_explain"></p>
     <div id="blind-status" class="status-bar"></div>
@@ -378,6 +400,7 @@
       <button id="blind-share" class="btn hidden">📤</button>
       <button id="blind-next" class="btn primary" data-i18n="next_puzzle"></button>
     </div>
+    <div id="blind-log" class="plog"></div>
   </section>
 
   <!-- ══════════ ENDGAME ══════════ -->

@@ -1014,7 +1014,32 @@ function showScreen(name) {
   if (name === 'profile') Profile.refresh();
   if (name !== 'blind') Blind.cleanup();
   if (name !== 'puzzles') Puzzles.disarmCheckin();
+  // Leaving the Rush screen ends the run. Without this the clock kept ticking
+  // on a hidden board and the run "finished" while the player was elsewhere.
+  if (name !== 'rush') Rush.stop();
+  if (name === 'puzzles' || name === 'blind' || name === 'rush') syncPuzzleModeSeg(name);
 }
+
+// ── puzzle mode switcher ──
+// The same segmented control sits on all three puzzle screens, so any mode can
+// reach the others without going back out to the tab bar first.
+function syncPuzzleModeSeg(mode) {
+  document.querySelectorAll('.puzzle-modes').forEach(seg =>
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === mode)));
+}
+
+function openPuzzleMode(mode) {
+  if (mode === 'blind') Blind.open();
+  else if (mode === 'rush') Rush.openIntro();
+  else showScreen('puzzles');
+}
+
+document.querySelectorAll('.puzzle-modes').forEach(seg => {
+  seg.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b) openPuzzleMode(b.dataset.v);
+  });
+});
 
 document.querySelectorAll('#tabbar button').forEach(b =>
   b.addEventListener('click', () => showScreen(b.dataset.screen)));
@@ -1633,6 +1658,9 @@ const Base = {
   currentBaseId: null,
   gamesCache: [],
   basesCache: [],
+  filter: null,          // structured advanced-search criteria, or null
+  filterResults: null,   // summaries matching `filter`, or null when unfiltered
+  filterCapped: false,   // true when the result hit the row cap
 
   init() {
     $('base-new').onclick = async () => {
@@ -1671,6 +1699,191 @@ const Base = {
       this.renderGames();
     }, 250));
     $('base-search').addEventListener('input', debounce(() => this.renderBases(), 150));
+    $('game-advanced').onclick = () => this.openAdvanced();
+  },
+
+  // Structured filter over the fields a PGN header actually gives us. Elo, ECO
+  // and material are deliberately absent: they are not stored, and inventing
+  // them would mean re-parsing every game on import.
+  openAdvanced() {
+    modal((box, close) => {
+      const f = this.filter ?? {};
+      box.innerHTML = `<h3>${t('adv_search')}</h3>`;
+
+      const mkInput = (labelKey, value = '', extra = {}) => {
+        const wrap = document.createElement('div');
+        const lab = document.createElement('label');
+        lab.className = 'hint';
+        lab.style.cssText = 'display:block; margin-bottom:2px;';
+        lab.textContent = t(labelKey);
+        const inp = document.createElement('input');
+        inp.className = 'input';
+        inp.value = value;
+        Object.assign(inp, extra);
+        wrap.append(lab, inp);
+        return { wrap, inp };
+      };
+
+      const white = mkInput('adv_white', f.white ?? '');
+      const black = mkInput('adv_black', f.black ?? '');
+      box.append(white.wrap, black.wrap);
+
+      const eitherRow = document.createElement('label');
+      eitherRow.className = 'theme-pick-row';
+      eitherRow.innerHTML = `<input type="checkbox"><span>${esc(t('adv_either'))}</span>`;
+      const eitherCb = eitherRow.querySelector('input');
+      eitherCb.checked = !!f.either;
+      box.appendChild(eitherRow);
+
+      const event = mkInput('adv_event', f.event ?? '');
+      box.appendChild(event.wrap);
+
+      const yearsLab = document.createElement('label');
+      yearsLab.className = 'hint';
+      yearsLab.style.cssText = 'display:block; margin:8px 0 2px;';
+      yearsLab.textContent = t('adv_years');
+      const grid = document.createElement('div');
+      grid.className = 'adv-grid';
+      const from = document.createElement('input');
+      from.className = 'input'; from.type = 'number'; from.inputMode = 'numeric';
+      from.placeholder = t('adv_from'); from.value = f.yearFrom ?? '';
+      const to = document.createElement('input');
+      to.className = 'input'; to.type = 'number'; to.inputMode = 'numeric';
+      to.placeholder = t('adv_to'); to.value = f.yearTo ?? '';
+      grid.append(from, to);
+      box.append(yearsLab, grid);
+
+      const resLab = document.createElement('label');
+      resLab.className = 'hint';
+      resLab.style.cssText = 'display:block; margin:10px 0 4px;';
+      resLab.textContent = t('adv_result');
+      const seg = document.createElement('div');
+      seg.className = 'seg scroll';
+      for (const [v, label] of [['', t('adv_any')], ['1-0', '1-0'], ['0-1', '0-1'], ['1/2-1/2', '½-½'], ['*', '*']]) {
+        const b = document.createElement('button');
+        b.dataset.v = v; b.textContent = label;
+        if ((f.result ?? '') === v) b.classList.add('on');
+        seg.appendChild(b);
+      }
+      if (!seg.querySelector('button.on')) seg.firstElementChild.classList.add('on');
+      segInit(seg);
+      box.append(resLab, seg);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.marginTop = '12px';
+      const apply = document.createElement('button');
+      apply.className = 'btn primary'; apply.textContent = t('adv_apply');
+      const clear = document.createElement('button');
+      clear.className = 'btn'; clear.textContent = t('adv_clear');
+      apply.onclick = () => {
+        const next = {
+          white: white.inp.value.trim(),
+          black: black.inp.value.trim(),
+          either: eitherCb.checked,
+          event: event.inp.value.trim(),
+          yearFrom: from.value.trim(),
+          yearTo: to.value.trim(),
+          result: segValue(seg) ?? '',
+        };
+        close(null);
+        this.applyFilter(Object.values(next).some(v => v !== '' && v !== false) ? next : null);
+      };
+      clear.onclick = () => { close(null); this.applyFilter(null); };
+      row.append(apply, clear);
+      box.appendChild(row);
+    });
+  },
+
+  // Runs the structured filter and caches the result for renderGames().
+  //
+  // Only `date` and `result` are served from an index: their semantics are
+  // exact, so an index range means the same thing the user asked for. Name and
+  // tournament matching is case- and accent-insensitive substring matching,
+  // which an IndexedDB key range cannot express — using a prefix range there
+  // would silently drop "Magnus" from "Carlsen, Magnus". Those are applied as
+  // a predicate instead, either inside the index cursor or over the summaries
+  // already in memory.
+  async applyFilter(filter) {
+    this.filter = filter;
+    this.gamesShown = 0;
+    if (!filter) {
+      this.filterResults = null;
+      this.renderFilterChip();
+      this.renderGames();
+      return;
+    }
+
+    const nq = s => normalizeSearch(s);
+    const wantWhite = nq(filter.white), wantBlack = nq(filter.black);
+    const wantEvent = nq(filter.event);
+    const yFrom = filter.yearFrom, yTo = filter.yearTo;
+
+    const match = (g) => {
+      if (wantEvent && !nq(g.event).includes(wantEvent)) return false;
+      if (filter.either) {
+        // Either name may sit on either side of the board.
+        for (const want of [wantWhite, wantBlack].filter(Boolean)) {
+          if (!nq(g.white).includes(want) && !nq(g.black).includes(want)) return false;
+        }
+      } else {
+        if (wantWhite && !nq(g.white).includes(wantWhite)) return false;
+        if (wantBlack && !nq(g.black).includes(wantBlack)) return false;
+      }
+      // PGN dates are "YYYY.MM.DD"; a missing or "????" year fails a year filter.
+      if (yFrom || yTo) {
+        const year = parseInt(String(g.date ?? '').slice(0, 4), 10);
+        if (!Number.isFinite(year)) return false;
+        if (yFrom && year < +yFrom) return false;
+        if (yTo && year > +yTo) return false;
+      }
+      if (filter.result && g.result !== filter.result) return false;
+      return true;
+    };
+
+    const LIMIT = 2000;
+    try {
+      if (yFrom && yTo) {
+        this.filterResults = await db.findGamesBy(this.currentBaseId, 'date',
+          { from: String(yFrom), to: String(yTo) + '￿' }, { limit: LIMIT, match });
+      } else if (filter.result) {
+        this.filterResults = await db.findGamesBy(this.currentBaseId, 'result',
+          { equals: filter.result }, { limit: LIMIT, match });
+      } else {
+        this.filterResults = this.gamesCache.filter(match).slice(0, LIMIT);
+      }
+    } catch (e) {
+      // An index query can only fail if the upgrade did not run; falling back
+      // to the in-memory pass keeps search working rather than showing nothing.
+      this.filterResults = this.gamesCache.filter(match).slice(0, LIMIT);
+    }
+    this.filterResults.sort((a, b) => b.updatedAt - a.updatedAt);
+    this.filterCapped = this.filterResults.length >= LIMIT;
+    this.renderFilterChip();
+    this.renderGames();
+  },
+
+  renderFilterChip() {
+    const el = $('game-filter-chip');
+    el.classList.toggle('hidden', !this.filter);
+    if (!this.filter) return;
+    const f = this.filter;
+    const bits = [];
+    if (f.white) bits.push((f.either ? '' : '⚪ ') + f.white);
+    if (f.black) bits.push((f.either ? '' : '⚫ ') + f.black);
+    if (f.event) bits.push(f.event);
+    if (f.yearFrom || f.yearTo) bits.push(`${f.yearFrom || '…'}–${f.yearTo || '…'}`);
+    if (f.result) bits.push(f.result);
+    const count = t('adv_matches').replace('{n}', this.filterResults?.length ?? 0);
+    const label = document.createElement('span');
+    label.className = 'ellipsis';
+    label.textContent = `${bits.join(' · ')} — ${count}`;
+    const btn = document.createElement('button');
+    btn.textContent = t('filter_clear');
+    btn.onclick = () => this.applyFilter(null);
+    el.innerHTML = '';
+    el.append(label, btn);
+    if (this.filterCapped) toast(t('adv_capped').replace('{n}', this.filterResults.length));
   },
 
   async refresh() {
@@ -1712,6 +1925,11 @@ const Base = {
     this.gamesCache.sort((a, b) => b.updatedAt - a.updatedAt);
     $('game-search').value = '';
     this.gamesShown = 0;
+    // A filter belongs to the base it was built against.
+    this.filter = null;
+    this.filterResults = null;
+    this.filterCapped = false;
+    this.renderFilterChip();
     this.renderGames();
   },
 
@@ -1723,7 +1941,10 @@ const Base = {
     // excluded: repertoire-style PGNs (one big book, many chapters) tend to
     // repeat the same Event string across every game, which would make
     // search match nearly the whole database instead of narrowing it.
-    const games = this.gamesCache.filter(g =>
+    // The quick search narrows whatever the advanced filter left, so the two
+    // combine instead of overriding each other.
+    const source = this.filterResults ?? this.gamesCache;
+    const games = source.filter(g =>
       !q || normalizeSearch(`${g.white} ${g.black}`).includes(q));
     if (!games.length) {
       el.innerHTML = `<p class="hint">${t('no_games')}</p>`;
@@ -2566,7 +2787,118 @@ function nagMoveClass(nags) {
 }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ═════════════════════ PUZZLE SESSION LOG ═════════════════════
+// A per-mode record of the puzzles attempted since the app opened, drawn as a
+// strip of dots under the board: green solved, red missed. It exists so that
+// "next puzzle" is no longer a one-way door — any earlier puzzle can be
+// reopened and stepped through. Review happens on its own modal board so the
+// puzzle currently in play keeps its state untouched.
+
+const PuzzleLog = {
+  logs: { puzzles: [], blind: [], rush: [] },
+  containers: { puzzles: 'puzzle-log', blind: 'blind-log', rush: 'rush-log' },
+
+  add(mode, puzzle, solved) {
+    if (!puzzle) return;
+    this.logs[mode].push({ puzzle, solved });
+    this.render(mode);
+  },
+
+  reset(mode) { this.logs[mode] = []; this.render(mode); },
+
+  render(mode) {
+    const el = $(this.containers[mode]);
+    if (!el) return;
+    el.innerHTML = '';
+    this.logs[mode].forEach((entry, i) => {
+      const b = document.createElement('button');
+      b.className = 'plog-dot ' + (entry.solved ? 'ok' : 'miss');
+      b.textContent = i + 1;
+      const label = `${t('log_review_title').replace('{n}', i + 1)} — ${t(entry.solved ? 'log_solved' : 'log_missed')}`;
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.onclick = () => this.review(mode, i);
+      el.appendChild(b);
+    });
+  },
+
+  // Read-only replay: the position the player faced, then the solution one
+  // move at a time.
+  review(mode, i) {
+    const entry = this.logs[mode]?.[i];
+    if (!entry) return;
+    const p = entry.puzzle;
+    const chess = new Chess(p.fen);
+    const frames = [{ fen: chess.fen(), last: null }];
+    for (const u of p.moves) {
+      let m = null;
+      try { m = chess.move(uciToMove(u)); } catch { break; }
+      frames.push({ fen: chess.fen(), last: { from: m.from, to: m.to } });
+    }
+    // The side to move in a puzzle FEN is the opponent — their move is the
+    // first in the list — so the player has the other colour.
+    const playerColor = new Chess(p.fen).turn() === 'w' ? 'b' : 'w';
+
+    modal((box, close) => {
+      box.innerHTML = `<h3>${esc(t('log_review_title').replace('{n}', i + 1))}</h3>`;
+      const meta = document.createElement('p');
+      meta.className = 'hint';
+      meta.textContent = `${t(entry.solved ? 'log_solved' : 'log_missed')} · ${t('log_rating').replace('{n}', p.rating)}`;
+      box.appendChild(meta);
+
+      const holder = document.createElement('div');
+      holder.className = 'board-wrap';
+      box.appendChild(holder);
+      const board = new Board(holder, { interactive: false });
+      board.setOrientation(playerColor);
+
+      const nav = document.createElement('div');
+      nav.className = 'toolbar';
+      const mk = label => {
+        const b = document.createElement('button');
+        b.className = 'tool-btn'; b.textContent = label;
+        nav.appendChild(b); return b;
+      };
+      const bFirst = mk('⏮'), bPrev = mk('◀'), bNext = mk('▶'), bLast = mk('⏭');
+      box.appendChild(nav);
+
+      // Opens on the position the player actually saw — after the opponent's
+      // move — rather than the raw FEN, which is one ply earlier.
+      let idx = Math.min(1, frames.length - 1);
+      const draw = () => {
+        const f = frames[idx];
+        board.setPosition(f.fen, f.last);
+        bFirst.disabled = bPrev.disabled = idx <= 0;
+        bNext.disabled = bLast.disabled = idx >= frames.length - 1;
+      };
+      bFirst.onclick = () => { idx = 0; draw(); };
+      bPrev.onclick = () => { idx = Math.max(0, idx - 1); draw(); };
+      bNext.onclick = () => { idx = Math.min(frames.length - 1, idx + 1); draw(); };
+      bLast.onclick = () => { idx = frames.length - 1; draw(); };
+      draw();
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'btn primary big';
+      closeBtn.style.marginTop = '8px';
+      closeBtn.textContent = t('close');
+      closeBtn.onclick = () => close(null);
+      box.appendChild(closeBtn);
+    });
+  },
+};
+
 // ═════════════════════ PUZZLES ═════════════════════
+
+// How far from the player's own ELO each difficulty aims. A 2000-rated player
+// solving 1700s gains ~3 ELO a puzzle, which feels like standing still; this
+// lets them ask for puzzles at or above their level instead.
+const DIFFICULTY_LEVELS = [
+  { v: -500, key: 'diff_easiest' },
+  { v: -250, key: 'diff_easy' },
+  { v: 0, key: 'diff_normal' },
+  { v: 250, key: 'diff_hard' },
+  { v: 500, key: 'diff_harder' },
+];
 
 const Puzzles = {
   board: null,
@@ -2581,6 +2913,9 @@ const Puzzles = {
   themeElo: {},
   attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
   themeFilter: 'random',      // 'random' | Set<themeId>
+  difficulty: 0,              // ELO offset applied when picking the next puzzle
+  autoNext: false,            // load the next puzzle as soon as this one is solved
+  logged: false,              // this puzzle already recorded in the session log
   isDailyPuzzle: false,
   posHistory: [],             // [{fen, lastMove}] snapshots for the nav buttons
   viewIdx: -1,                 // index into posHistory currently shown on the board
@@ -2591,6 +2926,7 @@ const Puzzles = {
   async init() {
     this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('puzzle-theme-btn').onclick = () => this.openThemePicker();
+    $('puzzle-options').onclick = () => this.openOptions();
     $('puzzle-next').onclick = () => this.nextPuzzle();
     $('puzzle-hint').onclick = () => this.hint();
     $('puzzle-solution').onclick = () => this.showSolution();
@@ -2670,15 +3006,78 @@ const Puzzles = {
     });
   },
 
+  // Difficulty and auto-advance live together: both change how the flow of a
+  // session feels rather than what a single puzzle is.
+  openOptions() {
+    modal((box, close) => {
+      box.innerHTML = `<h3>${t('puzzle_options')}</h3>`;
+
+      const diffLabel = document.createElement('label');
+      diffLabel.className = 'hint';
+      diffLabel.style.cssText = 'display:block; margin-bottom:6px; font-weight:600;';
+      diffLabel.textContent = t('difficulty');
+      const seg = document.createElement('div');
+      seg.className = 'seg scroll';
+      for (const lv of DIFFICULTY_LEVELS) {
+        const b = document.createElement('button');
+        b.dataset.v = String(lv.v);
+        b.textContent = t(lv.key);
+        if (lv.v === this.difficulty) b.classList.add('on');
+        seg.appendChild(b);
+      }
+      const target = document.createElement('p');
+      target.className = 'hint';
+      target.style.marginTop = '6px';
+      const showTarget = () => {
+        target.textContent = t('difficulty_target').replace('{n}', Math.round(this.targetRating()));
+      };
+      segInit(seg, v => { this.difficulty = +v; db.kvSet('puzzleDifficulty', this.difficulty); showTarget(); });
+      showTarget();
+
+      const diffHint = document.createElement('p');
+      diffHint.className = 'hint';
+      diffHint.textContent = t('difficulty_hint');
+
+      const autoRow = document.createElement('label');
+      autoRow.className = 'theme-pick-row';
+      autoRow.style.marginTop = '10px';
+      autoRow.innerHTML = `<input type="checkbox"><span>${esc(t('auto_next'))}</span>`;
+      const autoCb = autoRow.querySelector('input');
+      autoCb.checked = this.autoNext;
+      autoCb.onchange = () => { this.autoNext = autoCb.checked; db.kvSet('puzzleAutoNext', this.autoNext); };
+      const autoHint = document.createElement('p');
+      autoHint.className = 'hint';
+      autoHint.textContent = t('auto_next_hint');
+
+      const okBtn = document.createElement('button');
+      okBtn.className = 'btn primary big';
+      okBtn.textContent = t('close');
+      // Applying a new difficulty mid-puzzle would yank the board away, so it
+      // takes effect on the next puzzle — which is the very next thing the
+      // player does anyway.
+      okBtn.onclick = () => close(null);
+
+      box.append(diffLabel, seg, target, diffHint, autoRow, autoHint, okBtn);
+    });
+  },
+
+  // The rating band the picker aims at. Clamped to the library's real range so
+  // "Harder" at the very top still returns puzzles rather than nothing.
+  targetRating() {
+    return Math.max(600, Math.min(3000, this.elo + this.difficulty));
+  },
+
   async ensureLoaded() {
     if (this.loaded) { return; }
     this.solved = await db.kvGet('puzzlesSolved', {});
     this.elo = await db.kvGet('puzzleElo', 1200);
     this.themeElo = await db.kvGet('puzzleThemeElo', {});
     this.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
+    this.difficulty = await db.kvGet('puzzleDifficulty', 0);
+    this.autoNext = await db.kvGet('puzzleAutoNext', false);
     $('puzzle-progress').textContent = t('puzzles_loading');
     try {
-      await ensureForRating(this.elo);
+      await ensureForRating(this.targetRating());
     } catch {
       $('puzzle-progress').textContent = t('puzzles_unavailable');
       return;                                   // stay unloaded so a retry works
@@ -2797,14 +3196,24 @@ const Puzzles = {
     this.updateNavButtons();
   },
 
-  nextPuzzle() {
+  async nextPuzzle() {
+    // Moving on from a puzzle that was attempted and got away still counts as
+    // a miss in the strip; skipping one that was never touched does not.
+    if (this.current && !this.logged && this.failedThis) this.log(false);
+    const target = this.targetRating();
+    // Bands used to be fetched once, at the rating the app started with. If the
+    // rating then moved — climbing through a session, or arriving from the
+    // cloud after sign-in — the pool stayed where it was, and the picker could
+    // only serve puzzles hundreds of points below the player. Ask for the band
+    // that matches the target every time; loadBand() is a no-op once cached.
+    try { await ensureForRating(target); } catch { /* keep playing what we have */ }
     const pool = this.pool();
     if (!pool.length) return;
     const fresh = pool.filter(p => !this.solved[p.id]);
     const list = fresh.length ? fresh : pool;
     let windowSize = 100, candidates = [];
     while (candidates.length === 0 && windowSize <= 1200) {
-      candidates = list.filter(p => Math.abs(p.rating - this.elo) <= windowSize);
+      candidates = list.filter(p => Math.abs(p.rating - target) <= windowSize);
       windowSize += 100;
     }
     if (!candidates.length) candidates = list;
@@ -2819,6 +3228,7 @@ const Puzzles = {
     this.moveIdx = 0;
     this.failedThis = false;
     this.eloRecorded = false;
+    this.logged = false;
     this.posHistory = [];
     this.viewIdx = -1;
     this.updateProgress();
@@ -2870,9 +3280,19 @@ const Puzzles = {
           db.kvSet('puzzlesSolved', this.solved);
         }
         this.recordResult(!this.failedThis);
+        this.log(!this.failedThis);
         this.updateProgress();
         $('puzzle-analyze').classList.remove('hidden');
         this.setLiveInteractive(false);
+        // Long enough to see the final move land and hear the sound, short
+        // enough that a session keeps its rhythm. The identity check stops a
+        // queued jump from firing after the player already moved on by hand.
+        if (this.autoNext) {
+          const solvedPuzzle = this.current;
+          setTimeout(() => {
+            if (activeScreen === 'puzzles' && this.current === solvedPuzzle) this.nextPuzzle();
+          }, 1100);
+        }
         return;
       }
       this.setStatus(t('correct'));
@@ -2897,6 +3317,14 @@ const Puzzles = {
     }
   },
 
+  // Records the puzzle in the session strip exactly once, however it ended
+  // (solved, given up on, or revealed with the solution button).
+  log(solved) {
+    if (this.logged || !this.current) return;
+    this.logged = true;
+    PuzzleLog.add('puzzles', this.current, solved);
+  },
+
   hint() {
     if (!this.current || this.moveIdx >= this.current.moves.length) return;
     this.failedThis = true;
@@ -2911,6 +3339,7 @@ const Puzzles = {
     this.failedThis = true;
     this.stopTimer();
     this.recordResult(false);
+    this.log(false);
     this.setLiveInteractive(false);
     while (this.moveIdx < this.current.moves.length) {
       const m = this.applyUci(this.current.moves[this.moveIdx]);
@@ -2974,8 +3403,6 @@ const Rush = {
 
   init() {
     this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
-    $('rush-back').onclick = () => { this.stop(); showScreen('puzzles'); };
-    $('puzzle-rush-open').onclick = () => this.openIntro();
     segInit($('rush-duration'), () => this.showBest());
     $('rush-start').onclick = () => this.start();
     $('rush-again').onclick = () => this.openIntro();
@@ -3047,6 +3474,7 @@ const Rush = {
     }
     $('rush-start').disabled = false;
     this.usedIds = new Set();
+    PuzzleLog.reset('rush');           // the strip shows one run at a time
     this.duration = +segValue($('rush-duration'));
     this.timeLeft = this.duration;
     this.score = 0;
@@ -3148,6 +3576,7 @@ const Rush = {
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
       if (this.moveIdx >= this.current.moves.length || isMate) {
         this.score++;
+        PuzzleLog.add('rush', this.current, true);
         this.updateHud();
         setTimeout(() => { if (this.running) this.loadNext(); }, 350);
         return;
@@ -3165,6 +3594,7 @@ const Rush = {
       this.board.setPosition(this.chess.fen());
       this.board.interactive = false;
       this.strikes++;
+      PuzzleLog.add('rush', this.current, false);
       this.updateHud();
       Sound.play('puzzle-wrong');
       if (this.strikes >= this.MAX_STRIKES) { this.finish(t('rush_strikes_out')); return; }
@@ -3232,14 +3662,13 @@ const Blind = {
   countdownTimer: null,
   peekTimer: null,
   loaded: false,
+  logged: false,
   elo: 1200,
   hintWarningSeen: false,
   greetedThisOpen: false,
 
   init() {
     this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
-    $('puzzle-blind-open').onclick = () => this.open();
-    $('blind-back').onclick = () => { this.cleanup(); showScreen('puzzles'); };
     $('blind-peek').onclick = () => this.peek();
     $('blind-solution').onclick = () => this.showSolution();
     $('blind-next').onclick = () => this.nextPuzzle();
@@ -3292,10 +3721,21 @@ const Blind = {
     $('blind-turn').textContent = `${t(turnColor)} ${t('to_move_short')}`;
   },
 
-  nextPuzzle() {
+  // Shares the difficulty offset chosen in the Puzzles options — it is the
+  // same player asking for the same kind of challenge, just without sight of
+  // the pieces.
+  targetRating() {
+    return Math.max(600, Math.min(3000, this.elo + Puzzles.difficulty));
+  },
+
+  async nextPuzzle() {
+    if (this.current && !this.logged && this.failedThis) this.log(false);
     this.cleanup();
     $('blind-share').classList.add('hidden');
-    const candidates = PUZZLES.filter(p => Math.abs(p.rating - this.elo) <= 300);
+    const target = this.targetRating();
+    try { await ensureForRating(target); } catch { /* play what is already loaded */ }
+    if (!PUZZLES.length) return;
+    const candidates = PUZZLES.filter(p => Math.abs(p.rating - target) <= 300);
     const list = candidates.length ? candidates : PUZZLES;
     this.current = list[Math.floor(Math.random() * list.length)];
     this.chess = new Chess(this.current.fen);
@@ -3304,6 +3744,7 @@ const Blind = {
     this.peekedThis = false;
     this.failedThis = false;
     this.eloRecorded = false;
+    this.logged = false;
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
     this.board.setPiecesHidden(false);
@@ -3412,8 +3853,15 @@ const Blind = {
         KaelQuotes.show(pickKael(KAEL_PRAISE), 4500);
         this.setStatus(t('solved'));
         this.recordResult(true);
+        this.log(!this.failedThis);
         $('blind-share').classList.remove('hidden');
         Streak.recordActivity();
+        if (Puzzles.autoNext) {
+          const solvedPuzzle = this.current;
+          setTimeout(() => {
+            if (activeScreen === 'blind' && this.current === solvedPuzzle) this.nextPuzzle();
+          }, 1400);   // a beat longer than Puzzles: the pieces reappear first
+        }
         return;
       }
       this.setStatus(t('correct'));
@@ -3437,10 +3885,17 @@ const Blind = {
     }
   },
 
+  log(solved) {
+    if (this.logged || !this.current) return;
+    this.logged = true;
+    PuzzleLog.add('blind', this.current, solved);
+  },
+
   async showSolution() {
     if (!this.current) return;
     clearTimeout(this.peekTimer);
     this.recordResult(false);
+    this.log(false);
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     while (this.moveIdx < this.current.moves.length) {
@@ -3530,7 +3985,8 @@ const Endgame = {
     for (const pos of ENDGAMES.filter(e => e.category === cat)) {
       const item = document.createElement('button');
       item.className = 'list-item';
-      item.innerHTML = `<b>${esc(pos.name[getLang()])}</b>`;
+      const sub = pos.subtitle ? `<span class="sub">${esc(pos.subtitle[getLang()])}</span>` : '';
+      item.innerHTML = `<b>${esc(pos.name[getLang()])}</b>${sub}`;
       item.onclick = () => this.openPosition(pos);
       el.appendChild(item);
     }
@@ -3543,7 +3999,8 @@ const Endgame = {
     engine.stop();
     $('endgame-positions-view').classList.add('hidden');
     $('endgame-viewer-view').classList.remove('hidden');
-    $('endgame-pos-title').textContent = pos.name[getLang()];
+    $('endgame-pos-title').innerHTML = `<span class="ttl">${esc(pos.name[getLang()])}</span>`
+      + (pos.subtitle ? `<span class="sub">${esc(pos.subtitle[getLang()])}</span>` : '');
     $('endgame-comment').textContent = pos.comment[getLang()];
     $('endgame-comment').classList.remove('hidden');
     $('endgame-status').classList.add('hidden');
@@ -5053,8 +5510,15 @@ async function main() {
       Puzzles.themeElo = await db.kvGet('puzzleThemeElo', {});
       Puzzles.solved = await db.kvGet('puzzlesSolved', {});
       Puzzles.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
+      Puzzles.difficulty = await db.kvGet('puzzleDifficulty', 0);
+      Puzzles.autoNext = await db.kvGet('puzzleAutoNext', false);
       Puzzles.updateEloBadge();
       Puzzles.updateProgress();
+      // Signing in can move the rating by hundreds of points. The band loaded
+      // for the pre-sign-in rating is now the wrong one, so pull the right one
+      // in — otherwise the next puzzle is drawn from a pool the player has
+      // long outgrown.
+      ensureForRating(Puzzles.targetRating()).catch(() => {});
     }
     Endgame.elo = await db.kvGet('endgameElo', {});
     if (Blind.loaded) {

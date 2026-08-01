@@ -169,15 +169,54 @@ body.theme-blue { --sq-light: #dee3e6; --sq-dark: #8ca2ad; }
    lets that content scroll clear instead. */
 main { flex: 1 1 auto; overflow-y: auto; padding: 10px; padding-bottom: 68px; }
 
-/* Puzzle actions: hint, solution and next must share one line on a phone,
-   otherwise the primary action wraps below the fold and needs a scroll. */
-/* One line on a 375px phone, including Analyse once the puzzle is solved.
-   Labels stay short ("Siguiente" / "Next") so nothing has to be truncated. */
-#puzzle-actions { flex-wrap: nowrap; gap: 6px; align-items: stretch; }
-#puzzle-actions .btn {
-  font-size: 13px; padding: 9px 10px; white-space: nowrap; flex: 0 0 auto;
+/* Puzzle actions: the theme picker plus every action on one line. The actions
+   are icon-only (see .btn.ico) so they fit a 375px phone even when Analyse
+   appears after a solve; the theme button takes whatever width is left and
+   ellipsises. overflow-x is a safety valve — on a very narrow phone the row
+   scrolls rather than pushing a button off-screen. */
+#puzzle-actions {
+  flex-wrap: nowrap; gap: 6px; align-items: stretch;
+  overflow-x: auto; scrollbar-width: none;
 }
-#puzzle-actions #puzzle-share { padding: 9px 8px; }
+#puzzle-actions::-webkit-scrollbar { display: none; }
+#puzzle-theme-btn { flex: 1 1 auto; min-width: 84px; font-size: 13px; padding: 9px 10px; }
+
+/* Square, label-free action button. The accessible name lives on
+   title/aria-label via data-i18n-aria, so screen readers and desktop
+   tooltips still get real words. */
+.btn.ico {
+  flex: 0 0 auto; width: 38px; padding: 9px 0;
+  font-size: 17px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* ── puzzle session log ────────────────── */
+/* One dot per puzzle attempted this session, newest last. Tapping one opens a
+   read-only review of that puzzle, so browsing back never disturbs the puzzle
+   currently in play. */
+.plog { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 10px; }
+.plog-dot {
+  width: 22px; height: 22px; border: none; border-radius: 50%;
+  font-size: 10px; font-weight: 700; color: #fff; cursor: pointer;
+  display: grid; place-items: center; padding: 0;
+}
+.plog-dot.ok { background: var(--success); }
+.plog-dot.miss { background: var(--danger); }
+.plog-dot:active { transform: scale(.9); }
+.plog-empty { color: var(--muted); font-size: 12px; }
+
+/* ── advanced search ───────────────────── */
+.filter-chip {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--gold-bg); border-radius: 8px;
+  padding: 7px 10px; margin: 6px 0; font-size: 13px; color: var(--text);
+}
+.filter-chip button {
+  background: none; border: none; color: var(--accent2);
+  font-size: 13px; font-weight: 600; cursor: pointer; flex: 0 0 auto; padding: 2px 4px;
+}
+.adv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.adv-grid .input { margin: 0; }
 
 #tabbar {
   flex: 0 0 auto;
@@ -566,6 +605,12 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .list-item:active { background: var(--panel2); }
 .list-item .sub { color: var(--muted); font-size: 13px; }
 .list-item .result { color: var(--accent); }
+
+/* endgame viewer title: "Example 2 — Black to move, draw" under the heading */
+#endgame-pos-title { display: flex; flex-direction: column; gap: 2px; }
+#endgame-pos-title .ttl,
+#endgame-pos-title .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#endgame-pos-title .sub { color: var(--muted); font-size: 13px; font-weight: 400; }
 
 /* ── import progress ───────────────────── */
 .import-overlay {

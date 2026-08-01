@@ -139,7 +139,12 @@ export async function listGameSummaries(baseId) {
 // database, so only matching records are read — unlike a full scan, this does
 // not get slower as the rest of the base grows.
 // `field` must be one of the indexed columns: white, black, event, date, result.
-export async function findGamesBy(baseId, field, { equals, prefix, from, to } = {}, limit = 500) {
+//
+// `match` is an optional extra predicate applied to each candidate. It runs
+// inside the cursor so `limit` counts games the caller actually wants: capping
+// before the predicate would return a short page of mostly-rejected rows.
+export async function findGamesBy(baseId, field, { equals, prefix, from, to } = {},
+                                  { limit = 500, match = null } = {}) {
   const database = await open();
   let range = null;
   if (equals !== undefined) range = IDBKeyRange.only(equals);
@@ -157,8 +162,9 @@ export async function findGamesBy(baseId, field, { equals, prefix, from, to } = 
       const g = cur.value;
       // The index spans every base, so filter to the one being viewed.
       if (g.baseId === baseId) {
-        out.push({ id: g.id, baseId: g.baseId, white: g.white, black: g.black,
-                   event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt });
+        const summary = { id: g.id, baseId: g.baseId, white: g.white, black: g.black,
+                          event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt };
+        if (!match || match(summary)) out.push(summary);
       }
       cur.continue();
     };
