@@ -522,6 +522,16 @@ const Onboarding = {
 const KaelQuotes = {
   lastIdx: -1,
   timer: null,
+  hideTimer: null,
+  lastShownAt: 0,
+
+  // Encouragement is decoration, not information. It used to fire on every
+  // solved puzzle and every first mistake, which with auto-advance turned into
+  // a bubble every few seconds. Chatter now has to clear both a quiet period
+  // and a dice roll. Anything that actually tells the player something — a
+  // badge, a mission, a hint they asked for — calls show() and always appears.
+  MIN_GAP_MS: 90000,
+  CHATTER_CHANCE: 0.25,
 
   init() {
     $('kael-fab').onclick = () => this.showRandom();
@@ -554,9 +564,32 @@ const KaelQuotes = {
       ? `<div class="kael-quote-row"><img src="${item.image}" class="${imgClass}" alt=""><div>${text}</div></div>`
       : text;
     bubble.classList.add('show');
+    $('kael-corner').classList.add('speaking');    // slide in from the edge
     Sound.play('kael-pop');
+    this.lastShownAt = Date.now();
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => bubble.classList.remove('show'), duration);
+    clearTimeout(this.hideTimer);
+    this.timer = setTimeout(() => this.hide(), duration);
+  },
+
+  hide() {
+    const bubble = $('kael-bubble');
+    bubble.classList.remove('show');
+    $('kael-corner').classList.remove('speaking');
+    // Emptying it matters as much as fading it. The bubble kept its text after
+    // hiding, so it went on holding its full ~184x136px of layout at opacity 0
+    // — which is what made the corner of the screen dead to touch, and what
+    // would otherwise stop Kael parking neatly off the edge.
+    clearTimeout(this.hideTimer);
+    this.hideTimer = setTimeout(() => { bubble.innerHTML = ''; }, 400);
+  },
+
+  // Optional flavour: skipped unless things have been quiet for a while, and
+  // then only sometimes.
+  chatter(item, duration = 4500) {
+    if (Date.now() - this.lastShownAt < this.MIN_GAP_MS) return;
+    if (Math.random() > this.CHATTER_CHANCE) return;
+    this.show(item, duration);
   },
 
   showRandom() { this.show(this.pick()); },
@@ -2652,7 +2685,7 @@ const Trainer = {
     const name = classifyOpening(this.chess.history());
     if (!name || name === this.announcedOpening) return;
     this.announcedOpening = name;
-    KaelQuotes.show({ text: openingFlavorMsg(name), author: null }, 5500);
+    KaelQuotes.chatter({ text: openingFlavorMsg(name), author: null }, 5500);
   },
 
   async userMove(mv) {
@@ -3269,7 +3302,7 @@ const Puzzles = {
         this.disarmCheckin();
         this.stopTimer();
         Sound.play('puzzle-correct');
-        KaelQuotes.show(pickKael(KAEL_PRAISE), 4500);
+        KaelQuotes.chatter(pickKael(KAEL_PRAISE));
         this.setStatus(t('solved'));
         if (!this.failedThis) {
           // Store the themes, not just a flag. The library is split across
@@ -3309,7 +3342,7 @@ const Puzzles = {
       this.chess.undo();
       this.failedThis = true;
       Sound.play('puzzle-wrong');
-      if (firstMistake) KaelQuotes.show(pickKael(KAEL_MISTAKE), 4500);
+      if (firstMistake) KaelQuotes.chatter(pickKael(KAEL_MISTAKE));
       this.board.setPosition(this.chess.fen());
       this.setStatus(t('wrong_try'));
       $('puzzle-board').classList.add('shake');
@@ -3755,7 +3788,7 @@ const Blind = {
     this.updateTurnIndicator();
     if (!this.greetedThisOpen) {
       this.greetedThisOpen = true;
-      setTimeout(() => KaelQuotes.show(pickKael(KAEL_BLINDFOLD), 5000), 900);
+      setTimeout(() => KaelQuotes.chatter(pickKael(KAEL_BLINDFOLD), 5000), 900);
     }
     setTimeout(() => {
       const m = this.applyUci(this.current.moves[0]);
@@ -3850,7 +3883,7 @@ const Blind = {
         clearTimeout(this.peekTimer);
         this.board.setPiecesHidden(false);
         Sound.play('puzzle-correct');
-        KaelQuotes.show(pickKael(KAEL_PRAISE), 4500);
+        KaelQuotes.chatter(pickKael(KAEL_PRAISE));
         this.setStatus(t('solved'));
         this.recordResult(true);
         this.log(!this.failedThis);
@@ -3878,7 +3911,7 @@ const Blind = {
       this.chess.undo();
       this.board.setPosition(this.chess.fen());
       Sound.play('puzzle-wrong');
-      if (firstMistake) KaelQuotes.show(pickKael(KAEL_MISTAKE), 4500);
+      if (firstMistake) KaelQuotes.chatter(pickKael(KAEL_MISTAKE));
       this.setStatus(t('wrong_try'));
       $('blind-board').classList.add('shake');
       setTimeout(() => $('blind-board').classList.remove('shake'), 500);
@@ -4158,7 +4191,7 @@ const Endgame = {
     if (cpLoss <= 50) {
       this.bookMode = false;
       Sound.play('puzzle-correct');
-      KaelQuotes.show(pickKael(KAEL_ALT_MOVE), 4500);
+      KaelQuotes.chatter(pickKael(KAEL_ALT_MOVE));
       if (this.checkEnd()) return;
       this.board.interactive = true;
       this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
@@ -4167,7 +4200,7 @@ const Endgame = {
       this.chess.undo();
       this.board.setPosition(preFen);
       Sound.play('puzzle-wrong');
-      KaelQuotes.show(pickKael(KAEL_MISTAKE), 4500);
+      KaelQuotes.chatter(pickKael(KAEL_MISTAKE));
       this.setStatus(t('wrong_try'));
       $('endgame-board').classList.add('shake');
       setTimeout(() => $('endgame-board').classList.remove('shake'), 500);

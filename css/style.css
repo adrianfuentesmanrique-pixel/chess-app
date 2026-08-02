@@ -27,6 +27,9 @@
   --shadow: rgba(0, 0, 0, .5);
   --btn-text: #0b1526;
   --disabled: #5c6675;
+  /* Translucent panel for overlays that must not hide what is behind them. */
+  --panel-glass: rgba(24, 32, 43, .74);
+  --glass-edge: rgba(255, 255, 255, .10);
 }
 
 body.mode-light {
@@ -55,6 +58,8 @@ body.mode-light {
   --shadow: rgba(0, 0, 0, .12);
   --btn-text: #f6f7fb;
   --disabled: #b6bdc8;
+  --panel-glass: rgba(255, 255, 255, .78);
+  --glass-edge: rgba(16, 42, 67, .14);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -755,26 +760,51 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 }
 
 /* ── Kael corner (quotes & encouragement) ── */
+/* This container is a POSITIONER ONLY and must never receive a tap.
+   It is a fixed-position flex box that grows to fit the speech bubble, and it
+   used to be hit-testable: once Kael had spoken, its box stayed ~184x136px --
+   about half the width of a phone -- sitting at z-index 40 over the bottom
+   right of the board. Every tap in that rectangle landed on this empty div
+   instead of the board, so that corner of the screen simply stopped working.
+   Only the button inside it takes input. */
 #kael-corner {
   position: fixed; right: 12px;
   bottom: calc(62px + env(safe-area-inset-bottom));
   z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  pointer-events: none;
+  /* Idle, Kael parks off the right edge with only a sliver showing, so he is
+     never in the way of the board but can still be pulled back for a quote. */
+  transform: translateX(34px);
+  transition: transform .35s cubic-bezier(.22, .8, .25, 1), opacity .35s ease;
+  opacity: .55;
 }
+#kael-corner.speaking { transform: translateX(0); opacity: 1; }
 #kael-fab {
   width: 48px; height: 48px; border-radius: 50%; padding: 0; border: none;
   background: #f2eee6; box-shadow: 0 3px 10px var(--shadow); cursor: pointer;
   overflow: hidden; flex: 0 0 auto;
+  pointer-events: auto;          /* the one thing here that is tappable */
 }
 #kael-fab img { width: 100%; height: 100%; object-fit: cover; }
 #kael-fab:active { transform: scale(.94); }
 .kael-quote-bubble {
-  max-width: 240px; background: var(--panel); color: var(--text);
+  max-width: 240px; color: var(--text);
   border-radius: 14px; padding: 10px 12px; font-size: 13px; line-height: 1.4;
+  /* Translucent so the position behind stays readable while Kael talks. The
+     blur keeps the text legible over a busy board; without support for it the
+     panel tint alone still gives enough contrast. */
+  background: var(--panel-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-edge);
   box-shadow: 0 4px 14px var(--shadow);
   opacity: 0; transform: translateY(6px) scale(.97); pointer-events: none;
   transition: opacity .25s ease, transform .25s ease;
 }
 .kael-quote-bubble.show { opacity: 1; transform: translateY(0) scale(1); }
+@media (prefers-reduced-motion: reduce) {
+  #kael-corner, .kael-quote-bubble { transition: none; }
+}
 .kael-quote-bubble .kael-quote-author {
   display: block; margin-top: 4px; color: var(--muted); font-size: 11px; text-align: right;
 }
