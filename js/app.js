@@ -1122,26 +1122,29 @@ const SWIPE_EDGE = 28;   // px from a screen edge that counts as an edge swipe
 const SWIPE_MIN = 60;    // px of horizontal travel before it counts as a swipe
 let swipeStart = null;
 
-document.addEventListener('touchstart', e => {
-  if (e.touches.length !== 1) { swipeStart = null; return; }
-  const p = e.touches[0];
-  swipeStart = swipeBlocked(e.target) ? null : { x: p.clientX, y: p.clientY, t: Date.now() };
-}, { passive: true });
+// Deliberately pointer events, not touch events. A document-level touchstart /
+// touchmove listener changes how the browser routes touch gestures, and that
+// killed piece dragging on every board: the board sets `touch-action: none` on
+// itself at pointerdown to claim the gesture, and once the page listens for
+// touch the browser has already decided the gesture is a scroll and answers
+// with pointercancel instead of pointermove. Pointer listeners take no part in
+// that decision, and board.js is on pointer events already.
+// A non-primary pointer is a second finger — a pinch or a zoom, never a swipe.
+document.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch' || !e.isPrimary) { swipeStart = null; return; }
+  swipeStart = swipeBlocked(e.target) ? null : { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+});
 
-// A second finger means a pinch or a zoom, never a tab swipe.
-document.addEventListener('touchmove', e => {
-  if (e.touches.length !== 1) swipeStart = null;
-}, { passive: true });
+// The browser took the gesture over (a scroll started, or the piece drag on the
+// board claimed it) — whatever it turned into, it is not a tab swipe.
+document.addEventListener('pointercancel', () => { swipeStart = null; });
 
-document.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
-
-document.addEventListener('touchend', e => {
+document.addEventListener('pointerup', e => {
   const start = swipeStart;
   swipeStart = null;
-  const p = e.changedTouches[0];
-  if (!start || !p) return;
+  if (!start || e.pointerId !== start.id) return;
   if (Date.now() - start.t > 700) return; // a slow drag is not a swipe
-  const dx = p.clientX - start.x, dy = p.clientY - start.y;
+  const dx = e.clientX - start.x, dy = e.clientY - start.y;
   if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 2) return;
   // An inward swipe that starts at either edge is "back"; the same motion
   // started anywhere else steps to the neighbouring tab.
@@ -1149,7 +1152,7 @@ document.addEventListener('touchend', e => {
                    (start.x >= window.innerWidth - SWIPE_EDGE && dx < 0);
   if (fromEdge) goBackTab();
   else goAdjacentTab(dx < 0 ? 1 : -1);
-}, { passive: true });
+});
 
 // ── puzzle mode switcher ──
 // The same segmented control sits on all three puzzle screens, so any mode can
