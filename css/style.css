@@ -300,8 +300,12 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
    scroll, fires pointercancel and kills the drag halfway — which is why a
    straight g1-f3 failed while a looping, sideways drag to the same square
    worked. Empty squares and pieces that are not to move keep pan-y, so a
-   finger that starts on the board can still scroll the page. */
-.board.live .sq.grabbable { touch-action: none; }
+   finger that starts on the board can still scroll the page.
+   The piece image is named too: it is the element the finger actually lands
+   on, so this does not depend on how the browser combines touch-action with
+   the square behind it. */
+.board.live .sq.grabbable,
+.board.live .sq.grabbable img { touch-action: none; }
 .sq { position: absolute; width: 12.5%; height: 12.5%; }
 .sq img.dragging-source { opacity: 0; }
 .drag-ghost {
