@@ -2267,7 +2267,7 @@ const Play = {
       if (this.over) return;
       if (await askConfirm(t('resign') + '?')) this.finish(t('you_resigned'));
     };
-    $('play-new').onclick = () => { engine.stop(); $('play-game').classList.add('hidden'); $('play-setup').classList.remove('hidden'); };
+    $('play-back').onclick = () => { engine.stop(); $('play-game').classList.add('hidden'); $('play-setup').classList.remove('hidden'); };
     $('play-analyze').onclick = () => this.toAnalysis();
     $('play-undo').onclick = () => this.undo();
   },
@@ -2610,7 +2610,7 @@ const Trainer = {
     this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     $('trainer-base').addEventListener('change', () => this.previewBook());
     $('trainer-start').onclick = () => this.start();
-    $('trainer-new-btn').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
+    $('trainer-back').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
     $('trainer-analyze').onclick = () => this.toAnalysis();
     $('trainer-first').onclick = () => this.gotoHistory(0);
     $('trainer-prev').onclick = () => this.gotoHistory(this.viewIdx - 1);

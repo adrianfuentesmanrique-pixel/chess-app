@@ -256,13 +256,27 @@ if (window.Sentry && window.Sentry.onLoad) {
       <button id="play-start" class="btn primary big" data-i18n="start_game"></button>
     </div>
     <div id="play-game" class="hidden">
+      <div class="nav-row">
+        <button id="play-back" class="nav-back" data-i18n-aria="back">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span data-i18n="back"></span>
+        </button>
+      </div>
       <div id="play-status" class="status-bar"></div>
       <div id="play-board" class="board-wrap"></div>
-      <div class="row" id="play-actions">
-        <button id="play-undo" class="btn" data-i18n="undo_move"></button>
-        <button id="play-resign" class="btn danger">🏳️ <span data-i18n="resign"></span></button>
-        <button id="play-new" class="btn" data-i18n="new_game"></button>
-        <button id="play-analyze" class="btn" data-i18n="analyze_game"></button>
+      <!-- Icon-only actions: the accessible name lives on title/aria-label via
+           data-i18n-aria, matching the Openings toolbar. -->
+      <div class="toolbar" id="play-actions">
+        <button id="play-undo" class="tool-btn" data-i18n-aria="undo_move">↩️</button>
+        <button id="play-resign" class="tool-btn danger" data-i18n-aria="resign">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M6 3.5v17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M7.5 4.5h10l-2.4 3.6 2.4 3.6h-10z" fill="currentColor"/>
+          </svg>
+        </button>
+        <button id="play-analyze" class="tool-btn" data-i18n-aria="analyze_game">🔬</button>
       </div>
       <div id="play-moves" class="movelist small"></div>
     </div>
@@ -293,15 +307,12 @@ if (window.Sentry && window.Sentry.onLoad) {
       <button id="trainer-start" class="btn primary big" data-i18n="start_game"></button>
     </div>
     <div id="trainer-game" class="hidden">
-      <div class="row" style="justify-content:flex-end; margin:0 0 6px;">
-        <button id="trainer-new-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="new_game">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="1" y="1" width="8" height="8" rx="1.5" fill="currentColor"/>
-            <rect x="10.5" y="1" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
-            <rect x="1" y="10.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
-            <circle cx="17.5" cy="17.5" r="6" fill="var(--accent)"/>
-            <path d="M17.5 14.7v5.6M14.7 17.5h5.6" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+      <div class="nav-row">
+        <button id="trainer-back" class="nav-back" data-i18n-aria="back">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
+          <span data-i18n="back"></span>
         </button>
       </div>
       <div id="trainer-status" class="status-bar"></div>
@@ -313,7 +324,12 @@ if (window.Sentry && window.Sentry.onLoad) {
         <button id="trainer-next" class="tool-btn">▶</button>
         <button id="trainer-last" class="tool-btn">⏭</button>
         <button id="trainer-hint" class="tool-btn" data-i18n-aria="hint">🔎</button>
-        <button id="trainer-resign" class="tool-btn" data-i18n-aria="resign">🏳️</button>
+        <button id="trainer-resign" class="tool-btn danger" data-i18n-aria="resign">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M6 3.5v17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M7.5 4.5h10l-2.4 3.6 2.4 3.6h-10z" fill="currentColor"/>
+          </svg>
+        </button>
         <button id="trainer-analyze" class="tool-btn" data-i18n-aria="analyze_game">🔬</button>
       </div>
       <div id="trainer-moves" class="movelist small"></div>
@@ -680,14 +696,17 @@ if (window.Sentry && window.Sentry.onLoad) {
         <label><input type="checkbox" id="cast-q"> ♚ O-O-O</label>
       </div>
     </div>
-    <div class="row wrap">
-      <button id="setup-start" class="btn" data-i18n="start_position"></button>
-      <button id="setup-clear" class="btn" data-i18n="clear_board"></button>
+    <!-- Two tiers: board utilities in a gold-tinted pair, then the exits in a
+         single column so the primary action is unmissable on a phone. Icons
+         come from CSS ::before because data-i18n overwrites textContent. -->
+    <div class="setup-tools">
+      <button id="setup-start" class="btn util" data-i18n="start_position"></button>
+      <button id="setup-clear" class="btn util" data-i18n="clear_board"></button>
     </div>
-    <div class="row wrap">
+    <div class="setup-actions">
       <button id="setup-analyze" class="btn primary" data-i18n="analyze_this"></button>
-      <button id="setup-play" class="btn" data-i18n="play_from_here"></button>
-      <button id="setup-cancel" class="btn" data-i18n="cancel"></button>
+      <button id="setup-play" class="btn outline" data-i18n="play_from_here"></button>
+      <button id="setup-cancel" class="btn quiet" data-i18n="cancel"></button>
     </div>
   </section>
 </main>
