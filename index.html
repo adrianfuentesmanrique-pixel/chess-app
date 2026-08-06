@@ -10,6 +10,25 @@
   crossorigin="anonymous"
 ></script>
 <script>
+// Same reasoning as the crash guard below: extension and cross-origin errors
+// are not this app's bugs. Reporting them buries the real ones -- a dashboard
+// nobody trusts is a dashboard nobody reads.
+if (window.Sentry && window.Sentry.onLoad) {
+  window.Sentry.onLoad(function () {
+    Sentry.init({
+      denyUrls: [/^chrome-extension:\/\//, /^moz-extension:\/\//,
+                 /^safari-extension:\/\//, /^webkit-masked-url:/, /^chrome:\/\//],
+      ignoreErrors: [
+        'Script error.',
+        // Benign browser noise, not a fault in anything we ship.
+        'ResizeObserver loop limit exceeded',
+        'ResizeObserver loop completed with undelivered notifications',
+      ],
+    });
+  });
+}
+</script>
+<script>
 // Standalone crash guard — deliberately has zero dependency on the app's own
 // modules, CSS, or i18n, so it still works if THOSE are what crashed. Catches
 // uncaught errors and rejected promises anywhere in the app and shows a
@@ -47,7 +66,23 @@
     overlay.appendChild(btn);
     (document.body || document.documentElement).appendChild(overlay);
   }
+  // Browser extensions and injected scripts share this page, and their
+  // exceptions arrive on window.onerror looking exactly like ours. Blaming the
+  // app for someone else's bug is bad twice over: the user gets a full-screen
+  // "the app crashed" panel over a working app, and the error is reported as
+  // if we had to fix it. Only skip what is provably not ours -- an extension
+  // URL, or the opaque cross-origin "Script error." that carries no detail at
+  // all -- and let everything else through, so a real crash is never hidden.
+  var FOREIGN = /^(chrome|moz|safari|ms-browser)-extension:|^webkit-masked-url:|^chrome:/;
+  function notOurs(e) {
+    if (e.filename && FOREIGN.test(e.filename)) return true;
+    // No filename AND no stack means the browser withheld the details because
+    // the script was cross-origin; there is nothing here we could act on.
+    if (!e.filename && !(e.error && e.error.stack) && /^Script error\.?$/i.test(e.message || '')) return true;
+    return false;
+  }
   window.addEventListener('error', function (e) {
+    if (notOurs(e)) { console.warn('[crash-guard] ignoring third-party error', e.message); return; }
     showCrashOverlay(e.error || e.message);
   });
   window.addEventListener('unhandledrejection', function (e) {

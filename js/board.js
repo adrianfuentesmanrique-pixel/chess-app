@@ -257,6 +257,11 @@ export class Board {
     img.classList.add('dragging-source');
 
     let moved = false;
+    // Claim the gesture for the duration of the drag; see .board.dragging.
+    this.el.classList.add('dragging');
+    if (downEvent.pointerId != null) {
+      try { this.el.setPointerCapture(downEvent.pointerId); } catch { /* mouse, or already released */ }
+    }
     const place = (x, y) => {
       ghost.style.left = (x - size / 2) + 'px';
       ghost.style.top = (y - size / 2) + 'px';
@@ -271,6 +276,10 @@ export class Board {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onUp);
+      this.el.classList.remove('dragging');
+      if (ev.pointerId != null) {
+        try { this.el.releasePointerCapture(ev.pointerId); } catch { /* already gone */ }
+      }
       ghost.remove();
       img.classList.remove('dragging-source');
       if (!moved) return; // plain tap already handled by the _tap(name) call at pointerdown

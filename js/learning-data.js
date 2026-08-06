@@ -142,7 +142,7 @@ export const LEARNING_CATEGORIES = [
   },
   {
     id: 'mates',
-    title: { es: 'Jaques mate básicos', en: 'Basic Checkmates' },
+    title: { es: 'Jaque mates básicos', en: 'Basic Checkmates' },
     lessons: [
       {
         id: 'kq_vs_k',

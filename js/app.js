@@ -2689,7 +2689,12 @@ const Trainer = {
   },
 
   async userMove(mv) {
-    if (this.over || this.thinking) return;
+    // Before a game is started `chess` is null, `over`/`thinking` are false and
+    // viewIdx (-1) already equals posHistory.length - 1 (-1) — so every guard
+    // below used to pass and the next line dereferenced null, throwing the user
+    // into the full-screen crash overlay. Play.userMove was fixed for exactly
+    // this; its twin here was missed.
+    if (!this.chess || this.over || this.thinking) return;
     if (this.viewIdx !== this.posHistory.length - 1) return;
     if (this.chess.turn() !== this.playerColor) return;
     let m;
@@ -4627,11 +4632,6 @@ const Setup = {
         pal.appendChild(b);
       }
     }
-    const trash = document.createElement('button');
-    trash.className = 'pal-btn'; trash.textContent = '🗑';
-    trash.dataset.piece = 'trash';
-    trash.onclick = () => this.pick(trash, 'trash');
-    pal.appendChild(trash);
   },
 
   pick(btn, piece) {
@@ -4658,9 +4658,12 @@ const Setup = {
   },
 
   tap(sq) {
-    if (this.palettePiece === 'trash' || (this.palettePiece === null && this.grid[sq])) {
+    // Two gestures already delete a piece: tap an occupied square with nothing
+    // selected in the palette, or tap a square holding the piece you have
+    // selected. A dedicated trash button was a third route to the same thing.
+    if (!this.palettePiece) {
       delete this.grid[sq];
-    } else if (this.palettePiece && this.palettePiece !== 'trash') {
+    } else {
       const p = this.palettePiece;
       const same = this.grid[sq] && this.grid[sq].color === p.color && this.grid[sq].type === p.type;
       if (same) delete this.grid[sq];

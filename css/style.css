@@ -252,9 +252,16 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   position: relative; width: 100%; aspect-ratio: 1/1;
   border-radius: 6px; overflow: hidden;
   box-shadow: 0 3px 14px var(--shadow);
-  touch-action: none;
+  /* Was `none`, which tells the browser this element consumes every gesture --
+     so a finger that started on the board could never scroll the page, and on
+     a phone the board IS most of the page. `pan-y` hands vertical scrolling
+     back while still suppressing pinch and double-tap zoom. */
+  touch-action: pan-y;
   user-select: none;
 }
+/* Once a drag is genuinely under way the board takes the gesture back, so a
+   piece being dragged never turns into a page scroll halfway through. */
+.board.dragging { touch-action: none; }
 .sq { position: absolute; width: 12.5%; height: 12.5%; }
 .sq img.dragging-source { opacity: 0; }
 .drag-ghost {
