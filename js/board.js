@@ -103,7 +103,13 @@ export class Board {
     this._renderShapes();
   }
 
-  setDrawColor(color) { this.drawColor = color; }
+  // Drawing an arrow is a drag in any direction, straight up the board very
+  // much included, so while a colour is picked the whole board has to claim
+  // the gesture — the piece-only rule is not enough. See .board.drawing.
+  setDrawColor(color) {
+    this.drawColor = color;
+    this.el.classList.toggle('drawing', !!color);
+  }
 
   clearShapes() {
     this.shapes = { squares: [], arrows: [] };

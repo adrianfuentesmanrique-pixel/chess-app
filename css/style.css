@@ -325,6 +325,11 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
    the square behind it. */
 .board.live .sq.grabbable,
 .board.live .sq.grabbable img { touch-action: none; }
+/* While a colour is picked, every square is a drag handle for an arrow — including
+   straight up or down the board, which the browser would otherwise read as a
+   scroll and cancel. The whole board claims the gesture until the colour is
+   deselected, which is also when scrolling from the board comes back. */
+.board.drawing { touch-action: none; }
 .sq { position: absolute; width: 12.5%; height: 12.5%; }
 .sq img.dragging-source { opacity: 0; }
 .drag-ghost {
@@ -655,7 +660,19 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .annotate-btn.yellow { background: #e0b400; }
 .annotate-btn.red { background: #d0392b; }
 .annotate-btn.clear { background: var(--panel2); border-radius: 10px; font-size: 16px; width: auto; padding: 0 14px; }
-.annotate-btn.active { border-color: #fff; }
+/* The selected colour has to be obvious on a swatch that is already a strong
+   colour, so the marker sits outside the circle instead of on its edge: a white
+   rim for contrast against green, yellow or red alike, plus a gold ring held
+   off the button so it reads as a frame rather than part of the swatch. */
+.annotate-btn.active {
+  border-color: #fff;
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+/* Gold sits on a dark panel in dark mode and reads instantly; on the white
+   panel of light mode it nearly disappears, so the ring switches to the deep
+   navy accent there. Both are house colours — only the contrast changes. */
+body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 
 /* ── engine panel ──────────────────────── */
 .engine-panel {
