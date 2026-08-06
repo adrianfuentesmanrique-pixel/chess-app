@@ -197,7 +197,13 @@ body.theme-blue { --sq-light: #dee3e6; --sq-dark: #8ca2ad; }
 /* The Kael button is fixed above the tab bar, so without this the last row of
    any screen sits underneath it and cannot be tapped. Reserving its height
    lets that content scroll clear instead. */
-main { flex: 1 1 auto; overflow-y: auto; padding: 10px; padding-bottom: 68px; }
+/* Vertical gestures scroll the page, horizontal ones belong to the app (swipe
+   between tabs). Without pan-y the browser treats a swipe that drifts off-axis
+   as the start of a pan, cancels the pointer, and the swipe never completes.
+   Strips that scroll sideways are unaffected: the browser stops intersecting
+   touch-action at the first scrolling ancestor, which for them is the strip
+   itself, not this element. */
+main { flex: 1 1 auto; overflow-y: auto; touch-action: pan-y; padding: 10px; padding-bottom: 68px; }
 
 /* Puzzle actions: the theme picker plus every action on one line. The actions
    are icon-only (see .btn.ico) so they fit a 375px phone even when Analyse
@@ -285,8 +291,17 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   user-select: none;
 }
 /* Once a drag is genuinely under way the board takes the gesture back, so a
-   piece being dragged never turns into a page scroll halfway through. */
+   piece being dragged never turns into a page scroll halfway through. This
+   arrives too late on its own: the browser settles what a touch gesture means
+   before the drag starts, so it is the rule below that does the real work. */
 .board.dragging { touch-action: none; }
+/* A piece that can actually be picked up claims the whole gesture up front.
+   With the board left on pan-y the browser reads a vertical drag as a page
+   scroll, fires pointercancel and kills the drag halfway — which is why a
+   straight g1-f3 failed while a looping, sideways drag to the same square
+   worked. Empty squares and pieces that are not to move keep pan-y, so a
+   finger that starts on the board can still scroll the page. */
+.board.live .sq.grabbable { touch-action: none; }
 .sq { position: absolute; width: 12.5%; height: 12.5%; }
 .sq img.dragging-source { opacity: 0; }
 .drag-ghost {

@@ -26,7 +26,7 @@ export class Board {
     this.el = container;
     this.el.classList.add('board');
     this.onMove = opts.onMove || (() => {});
-    this.interactive = opts.interactive !== false;
+    this.interactive = opts.interactive !== false;   // see the accessor below
     this.orientation = opts.orientation || 'w';
     this.fen = opts.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
     this.selected = null;
@@ -44,6 +44,15 @@ export class Board {
     this._bindEvents();
     ALL_BOARDS.push(this);
     this.render();
+  }
+
+  // Mirrored onto the element because CSS cannot see a plain JS property, and
+  // `.sq.grabbable` must only claim the touch gesture on a board that can
+  // actually be played — see the touch-action rules in the stylesheet.
+  get interactive() { return this._interactive; }
+  set interactive(v) {
+    this._interactive = !!v;
+    this.el.classList.toggle('live', this._interactive);
   }
 
   _buildSquares() {
@@ -169,6 +178,10 @@ export class Board {
           if (src !== want) img.setAttribute('src', want);
           img.style.visibility = this.piecesHidden ? 'hidden' : '';
         } else if (img) img.remove();
+        // A piece the user could pick up right now needs the whole gesture,
+        // not just the vertical half the board otherwise leaves to scrolling.
+        sq.classList.toggle('grabbable',
+          !!piece && !this.editorMode && (this.freeMove || !ok || piece.color === chess.turn()));
         const isLastMove = !!this.lastMove && (this.lastMove.from === name || this.lastMove.to === name);
         sq.classList.toggle('lastmove', isLastMove && this.lastMoveColor !== 'yellow');
         sq.classList.toggle('lastmove-outbook', isLastMove && this.lastMoveColor === 'yellow');
