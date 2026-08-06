@@ -1090,7 +1090,21 @@ function goAdjacentTab(dir) {
   const i = TAB_ORDER.indexOf(activeScreen);
   if (i === -1) return; // a sub-screen (Rush, Blind, a public profile) — no neighbours
   const next = TAB_ORDER[i + dir];
-  if (next) showScreen(next);
+  if (!next) return;
+  showScreen(next);
+  slideScreenIn(next, dir);
+}
+
+// Slides the arriving screen in from the side the swipe came from. Swiping
+// left walks forward through the tab bar, so the new screen arrives from the
+// right, and the other way round. Called after showScreen so the section is
+// already visible when the animation starts.
+function slideScreenIn(name, dir) {
+  const el = $('screen-' + name);
+  if (!el) return;
+  el.classList.remove('from-right', 'from-left');
+  void el.offsetWidth;   // restarts the animation when the same screen is swiped back to
+  el.classList.add(dir > 0 ? 'from-right' : 'from-left');
 }
 
 // A gesture must not be stolen from anything that legitimately wants a

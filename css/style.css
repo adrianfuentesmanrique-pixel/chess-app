@@ -203,7 +203,26 @@ body.theme-blue { --sq-light: #dee3e6; --sq-dark: #8ca2ad; }
    Strips that scroll sideways are unaffected: the browser stops intersecting
    touch-action at the first scrolling ancestor, which for them is the strip
    itself, not this element. */
-main { flex: 1 1 auto; overflow-y: auto; touch-action: pan-y; padding: 10px; padding-bottom: 68px; }
+/* overflow-x is clipped rather than left to compute to auto: the incoming
+   screen animates in from a few pixels off-centre, and without this that
+   briefly makes the page horizontally scrollable and the layout twitches. */
+main { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; padding: 10px; padding-bottom: 68px; }
+
+/* A swiped tab change slides the arriving screen in from the side the swipe
+   came from, so it reads as movement instead of a jump cut — matching the
+   animation Android already gives the back gesture. Short and small on
+   purpose: this runs on every swipe, and a long travel would feel sluggish
+   and delay the board becoming usable.
+   Starting at 0.4 rather than 0: if the animation ever stalls — a backgrounded
+   app, a throttled renderer — a dimmed screen is recoverable, an invisible one
+   looks like the app broke. */
+@keyframes screen-from-right { from { transform: translateX(26px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes screen-from-left  { from { transform: translateX(-26px); opacity: .4; } to { transform: none; opacity: 1; } }
+.screen.from-right { animation: screen-from-right .2s ease-out; }
+.screen.from-left  { animation: screen-from-left  .2s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .screen.from-right, .screen.from-left { animation: none; }
+}
 
 /* Puzzle actions: the theme picker plus every action on one line. The actions
    are icon-only (see .btn.ico) so they fit a 375px phone even when Analyse
