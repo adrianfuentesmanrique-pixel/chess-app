@@ -1,0 +1,56 @@
+# Keep graphify to the actual CODE of the chess app.
+#
+# Why this file matters: graphify reads code structurally (free, no AI), but it
+# reads images, PDFs and prose with an AI — which costs real tokens. This folder
+# has 233 images and 5.1 MB of puzzle data. Without this file, mapping the app
+# would cost far more than it saves, which is the opposite of the point.
+#
+# After this, graphify sees ~7 real code files instead of 296 files.
+
+# --- Images: 233 of them. Vision extraction is the single most expensive thing
+# --- graphify can do, and none of this art tells it anything about the code.
+*.png
+*.svg
+*.jpg
+*.jpeg
+*.webp
+*.ico
+icons/
+streaks/
+avatars/
+pieces/
+pieces2/
+
+# --- Puzzle content: 11 files, 5.1 MB of pure data. Not architecture.
+puzzles/
+
+# --- Third-party libraries. Not my code, and stockfish is a 6.9 MB binary.
+vendor/
+*.wasm
+
+# --- Data-as-JavaScript. These are big content arrays, not logic. Excluding
+# --- them keeps the map about how the app actually works.
+js/endgames-data.js
+js/quotes-data.js
+js/legal-data.js
+js/openings-eco.js
+js/learning-data.js
+js/i18n.js
+
+# --- Graphify's own output. Never map the map.
+graphify-out/
+
+# --- My notes TO Claude, not part of the app. The 2026-08-05 run indexed these
+# --- and produced junk edges like "Token Rules For Session -> Endgame Tab".
+HANDOVER.md
+WORK-ORDER.md
+READ-TAB-PROMPT.md
+DESIGN-AUDIT-PROMPT.md
+
+# --- Build and tooling noise
+node_modules/
+android/
+*.apk
+*.aab
+*.keystore
+*.jks
