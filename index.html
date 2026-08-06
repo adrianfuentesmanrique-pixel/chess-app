@@ -438,14 +438,60 @@ if (window.Sentry && window.Sentry.onLoad) {
     <div id="blind-log" class="plog"></div>
   </section>
 
-  <!-- ══════════ ENDGAME ══════════ -->
+  <!-- ══════════ LEARN ══════════
+       Host screen for the three sections: Rules, Basic Checkmates, Endings.
+       The id stays `screen-endgame` on purpose — 'endgame' is one of the four
+       ELO domains (puzzle/opening/endgame/blindfold) and is used as a storage
+       key. Only the visible label says "Learn". -->
   <section id="screen-endgame" class="screen hidden">
-    <div id="endgame-list-view">
+    <div id="endgame-sections-view">
       <img src="icons/logo-mark.png" class="watermark" alt="">
       <div class="row screen-head">
         <h2 data-i18n="tab_endgame"></h2>
       </div>
+      <div id="endgame-section-list" class="list"></div>
+    </div>
+
+    <!-- ── Sections 1 & 2: lessons (no progress is persisted, by design) ── -->
+    <div id="learn-lesson-list-view" class="hidden">
+      <div class="row screen-head">
+        <button id="learn-back-cat" class="btn" data-i18n="back"></button>
+        <h2 id="learn-cat-title"></h2>
+      </div>
+      <div id="learn-lesson-list" class="list"></div>
+    </div>
+    <div id="learn-lesson-view" class="hidden">
+      <div class="row screen-head">
+        <button id="learn-back-lessons" class="btn" data-i18n="back"></button>
+        <h2 id="learn-lesson-title" class="ellipsis"></h2>
+      </div>
+      <div id="learn-board" class="board-wrap"></div>
+      <div id="learn-demo-nav" class="row hidden" style="justify-content:center; align-items:center; gap:10px; margin:8px 0;">
+        <button id="learn-demo-prev" class="tool-btn">◀</button>
+        <button id="learn-demo-play" class="tool-btn">▶️</button>
+        <span id="learn-demo-counter" class="hint" style="min-width:64px; text-align:center;"></span>
+        <button id="learn-demo-next" class="tool-btn">▶</button>
+      </div>
+      <div id="learn-practice-status" class="status-bar hidden"></div>
+      <p id="learn-lesson-text" class="hint learn-text"></p>
+      <button id="learn-practice-btn" class="btn primary big hidden" data-i18n="learn_practice_btn"></button>
+      <div class="row" id="learn-lesson-nav">
+        <button id="learn-prev-lesson" class="btn">◀</button>
+        <button id="learn-next-lesson" class="btn primary">▶</button>
+      </div>
+    </div>
+
+    <!-- ── Section 3: Endings — the only section wired to the endgame ELO ── -->
+    <div id="endgame-list-view" class="hidden">
+      <div class="row screen-head">
+        <button id="endgame-back-sections" class="btn" data-i18n="back"></button>
+        <h2 data-i18n="sec_endings"></h2>
+      </div>
       <div id="endgame-cat-list" class="list"></div>
+      <figure class="quote-card">
+        <blockquote data-i18n="endings_quote"></blockquote>
+        <figcaption data-i18n="endings_quote_author"></figcaption>
+      </figure>
     </div>
     <div id="endgame-positions-view" class="hidden">
       <div class="row screen-head">
@@ -474,44 +520,6 @@ if (window.Sentry && window.Sentry.onLoad) {
         <button id="endgame-undo" class="btn" data-i18n="undo_move"></button>
         <button id="endgame-resign" class="btn danger" data-i18n="resign"></button>
         <button id="endgame-share" class="btn hidden">📤</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- ══════════ LEARN ══════════ -->
-  <section id="screen-learn" class="screen hidden">
-    <div id="learn-cat-view">
-      <img src="icons/logo-mark.png" class="watermark" alt="">
-      <div class="row screen-head">
-        <h2 data-i18n="tab_learn"></h2>
-      </div>
-      <div id="learn-cat-list" class="list"></div>
-    </div>
-    <div id="learn-lesson-list-view" class="hidden">
-      <div class="row screen-head">
-        <button id="learn-back-cat" class="btn" data-i18n="back"></button>
-        <h2 id="learn-cat-title"></h2>
-      </div>
-      <div id="learn-lesson-list" class="list"></div>
-    </div>
-    <div id="learn-lesson-view" class="hidden">
-      <div class="row screen-head">
-        <button id="learn-back-lessons" class="btn" data-i18n="back"></button>
-        <h2 id="learn-lesson-title" class="ellipsis"></h2>
-      </div>
-      <div id="learn-board" class="board-wrap"></div>
-      <div id="learn-demo-nav" class="row hidden" style="justify-content:center; align-items:center; gap:10px; margin:8px 0;">
-        <button id="learn-demo-prev" class="tool-btn">◀</button>
-        <button id="learn-demo-play" class="tool-btn">▶️</button>
-        <span id="learn-demo-counter" class="hint" style="min-width:64px; text-align:center;"></span>
-        <button id="learn-demo-next" class="tool-btn">▶</button>
-      </div>
-      <div id="learn-practice-status" class="status-bar hidden"></div>
-      <p id="learn-lesson-text" class="hint learn-text"></p>
-      <button id="learn-practice-btn" class="btn primary big hidden" data-i18n="learn_practice_btn"></button>
-      <div class="row" id="learn-lesson-nav">
-        <button id="learn-prev-lesson" class="btn">◀</button>
-        <button id="learn-next-lesson" class="btn primary">▶</button>
       </div>
     </div>
   </section>
@@ -686,12 +694,11 @@ if (window.Sentry && window.Sentry.onLoad) {
 
 <nav id="tabbar">
   <button data-screen="analysis"><span class="tab-ico">🔍</span><span data-i18n="tab_analysis"></span></button>
+  <button data-screen="endgame"><span class="tab-ico">🎓</span><span data-i18n="tab_endgame"></span></button>
   <button data-screen="base"><span class="tab-ico">📚</span><span data-i18n="tab_base"></span></button>
-  <button data-screen="play"><span class="tab-ico">🤖</span><span data-i18n="tab_play"></span></button>
   <button data-screen="trainer"><span class="tab-ico">📖</span><span data-i18n="tab_trainer"></span></button>
   <button data-screen="puzzles"><span class="tab-ico">🧩</span><span data-i18n="tab_puzzles"></span></button>
-  <button data-screen="endgame"><span class="tab-ico">🏁</span><span data-i18n="tab_endgame"></span></button>
-  <button data-screen="learn"><span class="tab-ico">🎓</span><span data-i18n="tab_learn"></span></button>
+  <button data-screen="play"><span class="tab-ico">🤖</span><span data-i18n="tab_play"></span></button>
   <button data-screen="profile"><span class="tab-ico">👤</span><span data-i18n="tab_profile"></span></button>
 </nav>
 

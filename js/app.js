@@ -1029,7 +1029,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'learn', 'profile', 'leaderboard', 'public-profile', 'rush', 'blind'];
+const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'rush', 'blind'];
 let activeScreen = 'analysis';
 
 function showScreen(name) {
@@ -1043,7 +1043,6 @@ function showScreen(name) {
   if (name === 'trainer') Trainer.refreshBases();
   if (name === 'puzzles') Puzzles.ensureLoaded();
   if (name === 'endgame') Endgame.ensureLoaded();
-  if (name === 'learn') Learning.showCategories();
   if (name === 'profile') Profile.refresh();
   if (name !== 'blind') Blind.cleanup();
   if (name !== 'puzzles') Puzzles.disarmCheckin();
@@ -3973,6 +3972,13 @@ function practiceColor(pos) {
   return pos.result === 'loss' ? (toMove === 'w' ? 'b' : 'w') : toMove;
 }
 
+// The six sibling views inside #screen-endgame (the "Learn" tab).
+const VIEWS = [
+  'endgame-sections-view',
+  'learn-lesson-list-view', 'learn-lesson-view',
+  'endgame-list-view', 'endgame-positions-view', 'endgame-viewer-view',
+];
+
 const Endgame = {
   board: null,
   category: null,
@@ -3987,6 +3993,7 @@ const Endgame = {
 
   init() {
     this.board = new Board($('endgame-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    $('endgame-back-sections').onclick = () => this.showSections();
     $('endgame-back-cat').onclick = () => this.showCategories();
     $('endgame-back-pos').onclick = () => this.openCategory(this.category);
     $('endgame-flip').onclick = () => this.board.flip();
@@ -4002,17 +4009,54 @@ const Endgame = {
       title: t('card_endgame_title'),
       subtitle: t('cat_' + this.current.category),
     }, 'final-convertido.png');
-    this.showCategories();
+    this.Lessons.init();
+    this.showSections();
   },
 
   async ensureLoaded() {
     this.elo = await db.kvGet('endgameElo', {});
   },
 
+  // The Learn screen holds six sibling views; exactly one is ever visible.
+  showView(id) {
+    for (const v of VIEWS) $(v).classList.toggle('hidden', v !== id);
+  },
+
+  // ── the three sections ──
+  // Rules and Basic Checkmates are lessons and persist NOTHING. Only Endings
+  // feeds `endgameElo` / the profile radar, so its categories stay in their own
+  // list (ENDGAME_CATEGORIES) and never mix with LEARNING_CATEGORIES.
+  showSections() {
+    this.showView('endgame-sections-view');
+    this.renderSections();
+  },
+
+  renderSections() {
+    const el = $('endgame-section-list');
+    el.innerHTML = '';
+    for (const cat of LEARNING_CATEGORIES) {
+      const item = document.createElement('button');
+      item.className = 'list-item';
+      item.innerHTML = `<b>${esc(cat.title[getLang()])}</b><span class="sub">${cat.lessons.length} ${t('lessons_count')}</span>`;
+      item.onclick = () => this.Lessons.openCategory(cat);
+      el.appendChild(item);
+    }
+    const endings = document.createElement('button');
+    endings.className = 'list-item';
+    endings.innerHTML = `<b>${t('sec_endings')}</b><span class="sub">${ENDGAMES.length} ${t('games')}</span>`;
+    endings.onclick = () => this.showCategories();
+    el.appendChild(endings);
+  },
+
+  // Re-render whichever list is on screen after a language change or a sign-in
+  // that replaced the ratings — without switching views under the user's feet.
+  refreshLists() {
+    if (!$('endgame-sections-view').classList.contains('hidden')) this.renderSections();
+    else if (!$('endgame-list-view').classList.contains('hidden')) this.showCategories();
+  },
+
   showCategories() {
-    $('endgame-list-view').classList.remove('hidden');
-    $('endgame-positions-view').classList.add('hidden');
-    $('endgame-viewer-view').classList.add('hidden');
+    this.showView('endgame-list-view');
     const el = $('endgame-cat-list');
     el.innerHTML = '';
     for (const cat of ENDGAME_CATEGORIES) {
@@ -4028,9 +4072,7 @@ const Endgame = {
 
   openCategory(cat) {
     this.category = cat;
-    $('endgame-list-view').classList.add('hidden');
-    $('endgame-positions-view').classList.remove('hidden');
-    $('endgame-viewer-view').classList.add('hidden');
+    this.showView('endgame-positions-view');
     $('endgame-cat-title').textContent = t('cat_' + cat);
     const el = $('endgame-pos-list');
     el.innerHTML = '';
@@ -4049,8 +4091,7 @@ const Endgame = {
     this.mode = 'study';
     this.engineOn = false;
     engine.stop();
-    $('endgame-positions-view').classList.add('hidden');
-    $('endgame-viewer-view').classList.remove('hidden');
+    this.showView('endgame-viewer-view');
     $('endgame-pos-title').innerHTML = `<span class="ttl">${esc(pos.name[getLang()])}</span>`
       + (pos.subtitle ? `<span class="sub">${esc(pos.subtitle[getLang()])}</span>` : '');
     $('endgame-comment').textContent = pos.comment[getLang()];
@@ -4302,9 +4343,13 @@ const Endgame = {
   },
 };
 
-// ═════════════════════ LEARN ═════════════════════
+// ═════════ LEARN TAB — sections 1 & 2 (Rules, Basic Checkmates) ═════════
+// Lives on the Endgame object because it shares its screen, but it is a
+// separate namespace with separate state. It persists NOTHING: no ELO, no
+// history, no badges. That isolation is deliberate — only the Endings section
+// may touch `endgameElo`, which is one of the four rated domains.
 
-const Learning = {
+Endgame.Lessons = {
   board: null,
   category: null,
   lessons: [],
@@ -4325,7 +4370,7 @@ const Learning = {
       onMove: mv => this.checkPracticeMove(mv),
       onSound: type => Sound.play(type),
     });
-    $('learn-back-cat').onclick = () => this.showCategories();
+    $('learn-back-cat').onclick = () => Endgame.showSections();
     $('learn-back-lessons').onclick = () => this.openCategory(this.category);
     $('learn-prev-lesson').onclick = () => this.openLesson(this.lessonIdx - 1);
     $('learn-next-lesson').onclick = () => this.openLesson(this.lessonIdx + 1);
@@ -4335,26 +4380,9 @@ const Learning = {
     $('learn-demo-play').onclick = () => this.demoTogglePlay();
   },
 
-  showCategories() {
-    $('learn-cat-view').classList.remove('hidden');
-    $('learn-lesson-list-view').classList.add('hidden');
-    $('learn-lesson-view').classList.add('hidden');
-    const el = $('learn-cat-list');
-    el.innerHTML = '';
-    for (const cat of LEARNING_CATEGORIES) {
-      const item = document.createElement('button');
-      item.className = 'list-item';
-      item.innerHTML = `<b>${esc(cat.title[getLang()])}</b><span class="sub">${cat.lessons.length} ${t('lessons_count')}</span>`;
-      item.onclick = () => this.openCategory(cat);
-      el.appendChild(item);
-    }
-  },
-
   openCategory(cat) {
     this.category = cat;
-    $('learn-cat-view').classList.add('hidden');
-    $('learn-lesson-list-view').classList.remove('hidden');
-    $('learn-lesson-view').classList.add('hidden');
+    Endgame.showView('learn-lesson-list-view');
     $('learn-cat-title').textContent = cat.title[getLang()];
     this.lessons = cat.lessons;
     const el = $('learn-lesson-list');
@@ -4372,8 +4400,7 @@ const Learning = {
     if (idx < 0 || idx >= this.lessons.length) return;
     this.lessonIdx = idx;
     const lesson = this.lessons[idx];
-    $('learn-lesson-list-view').classList.add('hidden');
-    $('learn-lesson-view').classList.remove('hidden');
+    Endgame.showView('learn-lesson-view');
     $('learn-lesson-title').textContent = lesson.title[getLang()];
     $('learn-lesson-text').textContent = lesson.text[getLang()];
     this.practicing = false;
@@ -4823,7 +4850,7 @@ function relabel() {
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
   if (activeScreen === 'profile') Profile.refresh();
-  if (activeScreen === 'endgame') Endgame.showCategories();
+  if (activeScreen === 'endgame') Endgame.refreshLists();
 }
 
 const Themes = {
@@ -5572,7 +5599,6 @@ async function main() {
   Rush.init();
   Blind.init();
   Endgame.init();
-  Learning.init();
   KaelQuotes.init();
   Profile.init();
   Leaderboard.init();
@@ -5605,7 +5631,7 @@ async function main() {
       Blind.elo = await db.kvGet('blindfoldElo', 1200);
       Blind.updateEloBadge();
     }
-    if (activeScreen === 'endgame') Endgame.showCategories();
+    if (activeScreen === 'endgame') Endgame.refreshLists();
     if (activeScreen === 'profile') Profile.refresh();
     if (Auth.user && Auth.needsProfileCompletion) openCompleteProfileModal();
   });

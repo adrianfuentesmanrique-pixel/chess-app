@@ -148,7 +148,7 @@ body.mode-light .brand-logo { filter: none; }
   pointer-events: none;
 }
 body.mode-light .watermark { filter: none; }
-#play-setup, #trainer-setup, #rush-intro, #base-list-view, #endgame-list-view, #learn-cat-view {
+#play-setup, #trainer-setup, #rush-intro, #base-list-view, #endgame-sections-view {
   position: relative; isolation: isolate; overflow: hidden;
 }
 /* Screens with a single "start" action: keep the button anchored to the
@@ -162,7 +162,32 @@ body.mode-light .watermark { filter: none; }
 /* List-style landing screens don't have a single bottom button to anchor,
    but still need full-viewport height so the watermark isn't clipped short
    like it would be if it only sized to the (short) list content. */
-#base-list-view, #endgame-list-view, #learn-cat-view { min-height: calc(100dvh - 190px); }
+#base-list-view, #endgame-sections-view { min-height: calc(100dvh - 190px); }
+
+/* ── pull quote (Endings section) ───────── */
+.quote-card {
+  margin: 22px 2px 8px;
+  padding: 16px 18px 14px 20px;
+  border-left: 3px solid var(--gold);
+  background: var(--gold-bg);
+  border-radius: 0 12px 12px 0;
+}
+.quote-card blockquote {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px; font-style: italic; line-height: 1.5;
+  color: var(--text);
+}
+.quote-card blockquote::before { content: '\201C'; }
+.quote-card blockquote::after  { content: '\201D'; }
+.quote-card figcaption {
+  margin-top: 8px; text-align: right;
+  font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--gold);
+}
+/* Pale gold on a light panel is unreadable at this size — the light theme's
+   navy carries the same navy-and-gold pairing with real contrast. */
+body.mode-light .quote-card figcaption { color: var(--accent); }
 
 /* ── board color themes ────────────────── */
 body.theme-wood { --sq-light: #ecdab9; --sq-dark: #ae8a68; }

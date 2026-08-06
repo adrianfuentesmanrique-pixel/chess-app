@@ -1,11 +1,13 @@
-// Learning tab content: chess rules + basic checkmate technique.
+// Learn tab, sections 1 & 2: chess rules + basic checkmate technique.
+// Kept separate from ENDGAME_CATEGORIES on purpose — nothing in here is rated,
+// so none of it may ever reach the endgame ELO or the profile radar chart.
 // Each lesson has a diagram (FEN + optional arrows/highlighted squares,
 // verified legal via chess.js) and bilingual explanatory text.
 
 export const LEARNING_CATEGORIES = [
   {
     id: 'rules',
-    title: { es: 'Reglas básicas', en: 'Basic Rules' },
+    title: { es: 'Reglas', en: 'Rules' },
     lessons: [
       {
         id: 'board',

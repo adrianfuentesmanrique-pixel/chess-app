@@ -6,8 +6,16 @@ const DICT = {
   tab_play: { es: 'Jugar', en: 'Play' },
   tab_trainer: { es: 'Aperturas', en: 'Openings' },
   tab_puzzles: { es: 'Táctica', en: 'Puzzles' },
-  tab_endgame: { es: 'Finales', en: 'Endgame' },
-  tab_learn: { es: 'Aprender', en: 'Learn' },
+  // The Learn tab hosts three sections: Rules, Basic Checkmates and Endings.
+  // Its internal screen/storage key is still 'endgame' (one of the four ELO
+  // domains), so only this visible label changed — do not rename the key.
+  tab_endgame: { es: 'Aprender', en: 'Learn' },
+  sec_endings: { es: 'Finales', en: 'Endings' },
+  endings_quote: {
+    es: 'Para mejorar tu juego, debes estudiar los finales antes que cualquier otra cosa.',
+    en: 'In order to improve your game, you must study the endgame before everything else.',
+  },
+  endings_quote_author: { es: 'José Raúl Capablanca', en: 'Jose Raul Capablanca' },
   lessons_count: { es: 'lecciones', en: 'lessons' },
   learn_practice_btn: { es: '🎯 Practicar', en: '🎯 Practice' },
   learn_practice_prompt: { es: 'Ahora te toca: haz la jugada en el tablero.', en: "Now it's your turn: make the move on the board." },
