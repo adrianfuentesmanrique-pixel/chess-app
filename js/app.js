@@ -4947,16 +4947,17 @@ function openEloHistoryModal(historyKey, titleKey) {
   });
 }
 
-// ═════════════════════ AVATARS (placeholder set) ═════════════════════
-// Simple built-in icon set until real artwork is supplied; swapping later
-// only means changing this table, not the storage/selection logic.
+// ═════════════════════ AVATARS ═════════════════════
+// The pictures come from tools/build_avatars.py; this table is only the
+// catalogue, so new art drops in without touching the storage or selection
+// logic. Ids are permanent -- they are what a player's choice is saved as.
 
 const AVATAR_OPTIONS = [
   // free
   { id: 'pawn_w' }, { id: 'pawn_b' }, { id: 'knight_w' }, { id: 'knight_b' },
   { id: 'bishop_w' }, { id: 'bishop_b' }, { id: 'rook_w' }, { id: 'rook_b' },
-  { id: 'queen_w' }, { id: 'king_w' }, { id: 'king_b' },
-  { id: 'wolf' }, { id: 'fox' }, { id: 'lion' }, { id: 'tiger' },
+  { id: 'queen_w' }, { id: 'queen_b' }, { id: 'king_w' }, { id: 'king_b' },
+  { id: 'wolf' }, { id: 'lion' }, { id: 'tiger' },
   { id: 'eagle' }, { id: 'owl' }, { id: 'bear' }, { id: 'raven' },
   // coming soon — shown locked to everyone as a preview of future content
   { id: 'dragon', locked: true }, { id: 'phoenix', locked: true }, { id: 'griffin', locked: true },
