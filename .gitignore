@@ -29,3 +29,7 @@ graphify-out/
 **/serviceAccountKey*.json
 google-services.json
 android/keystore.properties
+
+# Python bytecode from tools/
+__pycache__/
+*.pyc

@@ -158,30 +158,70 @@ BADGES: dict[str, tuple[str, str]] = {
 # pixel as min(R, B) - G separates it from everything in the art, including the
 # red gems (low blue) and the blue gems (low red), which a naive "how magenta
 # is it" distance would eat into.
-KEY_OPAQUE = 45     # score at or below this is definitely artwork
-KEY_CLEAR = 130     # score at or above this is definitely backdrop
+# The threshold has to be measured per file, not fixed. Most of the art sits on
+# a bright magenta scoring ~165, but puzzlegold's backdrop is a dark vignette
+# scoring 56-129; against a fixed threshold half of it survived as a
+# semi-transparent rectangle behind the badge. So the backdrop level is read off
+# the image border -- which is always backdrop -- and the thresholds hang off
+# that. The 2nd percentile rather than the median, because the border spans the
+# whole vignette and the darkest end is what has to key out cleanly.
+KEY_FLOOR = 35      # never key below this, whatever the border suggests
+# Below this score a pixel is artwork no matter what, even in a file whose
+# backdrop is dark enough to score close to it. This is what protects the red
+# gems on the puzzle symbols, which sit only ~20 above puzzlegold's dark
+# vignette; without it they wash out to 60% opacity.
+ART_FLOOR = 26
+
+
+def border_stats(px: list, scores: list[int], w: int, h: int):
+    """Backdrop colour and level, read off the image border, which is always
+    backdrop. The level is a low percentile rather than the median because
+    puzzlegold's backdrop is a vignette running 56-129: the dark end is what
+    has to key out cleanly, so that is what sets the threshold."""
+    margin = max(2, int(min(w, h) * 0.02))
+    idx = [i for i in range(len(scores))
+           if (i // w) < margin or (i // w) >= h - margin
+           or (i % w) < margin or (i % w) >= w - margin]
+    level = sorted(scores[i] for i in idx)[len(idx) // 20]
+    mid = len(idx) // 2
+    colour = tuple(sorted(px[i][c] for i in idx)[mid] for c in range(3))
+    return colour, max(KEY_FLOOR, level)
 
 
 def key_magenta(img: Image.Image) -> Image.Image:
-    """Replace the magenta backdrop with transparency, feathering the edge."""
+    """Replace the magenta backdrop with transparency.
+
+    The alpha comes from how much backdrop is still showing through -- a pixel
+    scoring the full backdrop level is pure backdrop, one scoring zero is solid
+    art -- and the colour is then unpremultiplied against the backdrop that was
+    measured off the border.
+
+    That second step is what matters for the soft glows on advancedpawn and
+    quietMove. A glow is thin white over magenta, so it lands mid-ramp and used
+    to survive at near-full alpha still stained pink, giving those two badges a
+    magenta halo the other 62 did not have. Backing the known backdrop out of
+    the pixel recovers what the glow actually is: white, at partial alpha.
+    """
     img = img.convert("RGBA")
     px = list(img.getdata())
-    span = KEY_CLEAR - KEY_OPAQUE
+    scores = [min(r, b) - g for r, g, b, _ in px]
+    bg, level = border_stats(px, scores, img.width, img.height)
     out = []
-    for r, g, b, a in px:
-        score = min(r, b) - g
-        if score <= KEY_OPAQUE:
+    for (r, g, b, a), score in zip(px, scores):
+        if score <= ART_FLOOR:
             out.append((r, g, b, a))
             continue
-        if score >= KEY_CLEAR:
+        if score >= level:
             out.append((0, 0, 0, 0))
             continue
-        # Partly keyed: this is the fringe, where the backdrop bleeds into the
-        # art and leaves a pink rim. Pull red and blue back down to green's
-        # level by the amount of spill measured, so the rim goes neutral.
-        alpha = int(a * (KEY_CLEAR - score) / span)
-        spill = score - KEY_OPAQUE
-        out.append((max(0, r - spill), g, max(0, b - spill), alpha))
+        f = 1 - score / level          # how much of the pixel is really art
+        keep = 1 - f                   # ...and how much is backdrop
+        out.append((
+            min(255, max(0, round((r - keep * bg[0]) / f))),
+            min(255, max(0, round((g - keep * bg[1]) / f))),
+            min(255, max(0, round((b - keep * bg[2]) / f))),
+            round(a * f),
+        ))
     img.putdata(out)
     return img
 
@@ -244,11 +284,19 @@ def drop_specks(img: Image.Image) -> Image.Image:
     return img
 
 
+# Alpha below this is invisible against the navy well, but `getbbox` still
+# counts it. Keying leaves a rim of 1-20 alpha around the art, and where that
+# rim is lopsided it drags the bounding box with it -- which is what had
+# intermezzo, skewer and the opening book all sitting visibly high in the frame.
+VISIBLE_ALPHA = 24
+
+
 def trim(img: Image.Image) -> Image.Image:
-    """Crop to the visible pixels so every symbol is centred and scaled by its
+    """Crop to the *visible* pixels so every symbol is centred and scaled by its
     real extent, not by whatever padding it happened to be exported with. This
     is what stops one badge's icon looking bigger than the next."""
-    bbox = img.getbbox()
+    solid = img.getchannel("A").point(lambda a: 255 if a > VISIBLE_ALPHA else 0)
+    bbox = solid.getbbox()
     return img.crop(bbox) if bbox else img
 
 
@@ -343,6 +391,35 @@ def load_symbol(name: str, pieces: dict[str, Image.Image],
     return cache[name]
 
 
+def optical_offset(sym: Image.Image) -> tuple[int, int]:
+    """How far the symbol's centre of mass sits from its bounding-box centre.
+
+    Centring by bounding box alone leaves several badges looking off: quietMove
+    is a pawn with a thin swoosh trailing away from it, promotion a piece with a
+    sparkle beam off one corner. The box is centred, but the eye tracks the
+    heavy part, which is not. Shifting by the alpha-weighted centroid puts the
+    weight in the middle, which is what reads as centred.
+    """
+    alpha = list(sym.getchannel("A").getdata())
+    w = sym.width
+    total = sum(alpha)
+    if not total:
+        return 0, 0
+    sx = sum(a * (i % w) for i, a in enumerate(alpha) if a)
+    sy = sum(a * (i // w) for i, a in enumerate(alpha) if a)
+    dx = (w - 1) / 2 - sx / total
+    dy = (sym.height - 1) / 2 - sy / total
+    # Capped so the correction can never walk a symbol into the frame ring:
+    # the gap between the symbol box and the frame's inner opening is only a
+    # few percent of the badge. A part-corrected badge still reads far better
+    # than one whose art touches the metal.
+    cap = SIZE * MAX_OPTICAL_NUDGE
+    return round(max(-cap, min(cap, dx))), round(max(-cap, min(cap, dy)))
+
+
+MAX_OPTICAL_NUDGE = 0.04
+
+
 def compose(symbol: Image.Image, frame: Image.Image) -> Image.Image:
     target = int(SIZE * SYMBOL_FRACTION)
     scale = min(target / symbol.width, target / symbol.height)
@@ -350,8 +427,9 @@ def compose(symbol: Image.Image, frame: Image.Image) -> Image.Image:
         (max(1, round(symbol.width * scale)), max(1, round(symbol.height * scale))),
         Image.LANCZOS,
     )
+    dx, dy = optical_offset(sym)
     out = frame.copy()
-    out.alpha_composite(sym, ((SIZE - sym.width) // 2, (SIZE - sym.height) // 2))
+    out.alpha_composite(sym, ((SIZE - sym.width) // 2 + dx, (SIZE - sym.height) // 2 + dy))
     return out
 
 
