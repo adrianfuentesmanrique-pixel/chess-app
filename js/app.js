@@ -1033,6 +1033,7 @@ const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'end
 let activeScreen = 'analysis';
 
 function showScreen(name) {
+  const prev = activeScreen;
   activeScreen = name;
   for (const s of SCREENS) $('screen-' + s).classList.toggle('hidden', s !== name);
   document.querySelectorAll('#tabbar button').forEach(b =>
@@ -1050,7 +1051,105 @@ function showScreen(name) {
   // on a hidden board and the run "finished" while the player was elsewhere.
   if (name !== 'rush') Rush.stop();
   if (name === 'puzzles' || name === 'blind' || name === 'rush') syncPuzzleModeSeg(name);
+  if (name !== prev) pushTabHistory(name);
 }
+
+// ── tab history & swipe navigation ─────────────────────────────────────────
+// Analysis is home. Every move to a different screen also pushes an entry into
+// the browser history, so the Android back gesture arrives here as a popstate
+// and walks back through the screens the user actually visited instead of
+// closing the app on the first swipe. Once the stack is back down to Analysis
+// none of our entries are left, so the next system back exits — the behaviour
+// Android users expect from a home screen.
+const HOME_SCREEN = 'analysis';
+const tabStack = [HOME_SCREEN];
+let poppingTab = false;
+
+function pushTabHistory(name) {
+  if (poppingTab) return;
+  // Only mirror the stack once the history entry really exists, so the two can
+  // never drift apart if pushState is refused (file:// and friends).
+  try { history.pushState({ tab: name }, ''); } catch { return; }
+  tabStack.push(name);
+}
+
+window.addEventListener('popstate', () => {
+  if (tabStack.length <= 1) return; // nothing of ours left — the system back exits
+  tabStack.pop();
+  poppingTab = true;
+  try { showScreen(tabStack[tabStack.length - 1]); } finally { poppingTab = false; }
+});
+
+function goBackTab() {
+  if (tabStack.length > 1) history.back(); // the popstate handler above does the work
+}
+
+const TAB_ORDER = [...document.querySelectorAll('#tabbar button')].map(b => b.dataset.screen);
+
+function goAdjacentTab(dir) {
+  const i = TAB_ORDER.indexOf(activeScreen);
+  if (i === -1) return; // a sub-screen (Rush, Blind, a public profile) — no neighbours
+  const next = TAB_ORDER[i + dir];
+  if (next) showScreen(next);
+}
+
+// A gesture must not be stolen from anything that legitimately wants a
+// horizontal drag: the board (piece dragging, which also takes pointer
+// capture) and the sideways strips. The strips are named explicitly rather
+// than detected, because whether they overflow depends on the language and on
+// how many buttons the current state shows — a swipe that works on one phone
+// and not the next is worse than one that never fires there. The walk below
+// then catches any other real horizontal scroller.
+const SWIPE_SAFE = '.board, .modal-back, .drag-ghost, input, textarea, select, ' +
+  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .streak-timeline, .movelist';
+
+function swipeBlocked(el) {
+  if (!el || !el.closest) return true;
+  if (el.closest(SWIPE_SAFE)) return true;
+  // Stop at <main>: it is the page scroller and computes to overflow-x:auto
+  // just because overflow-y is set, so any stray pixel of horizontal overflow
+  // there would otherwise kill swiping across the whole app.
+  for (let n = el; n && n !== document.body && n.tagName !== 'MAIN'; n = n.parentElement) {
+    if (n.scrollWidth - n.clientWidth > 4) {
+      const ox = getComputedStyle(n).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return true;
+    }
+  }
+  return false;
+}
+
+const SWIPE_EDGE = 28;   // px from a screen edge that counts as an edge swipe
+const SWIPE_MIN = 60;    // px of horizontal travel before it counts as a swipe
+let swipeStart = null;
+
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) { swipeStart = null; return; }
+  const p = e.touches[0];
+  swipeStart = swipeBlocked(e.target) ? null : { x: p.clientX, y: p.clientY, t: Date.now() };
+}, { passive: true });
+
+// A second finger means a pinch or a zoom, never a tab swipe.
+document.addEventListener('touchmove', e => {
+  if (e.touches.length !== 1) swipeStart = null;
+}, { passive: true });
+
+document.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
+
+document.addEventListener('touchend', e => {
+  const start = swipeStart;
+  swipeStart = null;
+  const p = e.changedTouches[0];
+  if (!start || !p) return;
+  if (Date.now() - start.t > 700) return; // a slow drag is not a swipe
+  const dx = p.clientX - start.x, dy = p.clientY - start.y;
+  if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 2) return;
+  // An inward swipe that starts at either edge is "back"; the same motion
+  // started anywhere else steps to the neighbouring tab.
+  const fromEdge = (start.x <= SWIPE_EDGE && dx > 0) ||
+                   (start.x >= window.innerWidth - SWIPE_EDGE && dx < 0);
+  if (fromEdge) goBackTab();
+  else goAdjacentTab(dx < 0 ? 1 : -1);
+}, { passive: true });
 
 // ── puzzle mode switcher ──
 // The same segmented control sits on all three puzzle screens, so any mode can
@@ -2535,6 +2634,7 @@ const Trainer = {
     this.viewIdx = this.posHistory.length - 1;
     this.updateBadgeForView();
     this.updateNavButtons();
+    this.applyInteractive();
   },
 
   updateNavButtons() {
@@ -2546,15 +2646,54 @@ const Trainer = {
     $('trainer-last').disabled = atEnd;
   },
 
+  atLive() { return this.viewIdx === this.posHistory.length - 1; },
+
+  // Whose move it is in the position on screen, which is not necessarily the
+  // live one once the player has stepped back through the game.
+  viewTurn() {
+    const snap = this.posHistory[this.viewIdx];
+    return snap ? snap.fen.split(' ')[1] : null;
+  },
+
+  // The board is playable at the live position (the normal case) and also at
+  // any earlier position where it is the player's move — playing there starts
+  // a variation, see rewindTo. It stays locked while the computer thinks.
+  applyInteractive() {
+    const live = this.atLive();
+    const mine = this.viewTurn() === this.playerColor;
+    this.board.interactive = mine && !(live && this.over) && (live ? this.liveInteractive : !this.thinking);
+  },
+
   gotoHistory(idx) {
     if (!this.posHistory.length) return;
     idx = Math.max(0, Math.min(idx, this.posHistory.length - 1));
     this.viewIdx = idx;
     const snap = this.posHistory[idx];
     this.board.setPosition(snap.fen, snap.lastMove);
-    const live = idx === this.posHistory.length - 1;
-    this.board.interactive = live && this.liveInteractive;
+    this.applyInteractive();
     this.updateBadgeForView();
+    this.updateNavButtons();
+  },
+
+  // Drops everything played after position `idx` so a different move can be
+  // tried from there. The game object is rebuilt by replaying the moves that
+  // led to that position, which keeps the notation, the opening classifier and
+  // the book lookups all working off a real move history rather than a bare
+  // FEN. The book is consulted again from the new position on the computer's
+  // next turn, so the selected database keeps driving the game.
+  rewindTo(idx) {
+    const hist = this.chess.history();
+    const c = new Chess();
+    for (let i = 0; i < idx; i++) {
+      try { c.move(hist[i]); } catch { break; }
+    }
+    this.chess = c;
+    this.posHistory = this.posHistory.slice(0, idx + 1);
+    this.viewIdx = idx;
+    this.over = false;
+    this.inBook = this.posHistory[idx].inBook;
+    this.announcedOpening = null;
+    this.renderMoves();
     this.updateNavButtons();
   },
 
@@ -2563,16 +2702,19 @@ const Trainer = {
     if (snap) this.updateBadge(snap.inBook);
   },
 
+  // Works at whatever position is on screen, so the player can ask what the
+  // book plays before deciding to branch off there.
   hint() {
-    if (this.over || this.thinking) return;
-    if (this.viewIdx !== this.posHistory.length - 1) return;
-    if (this.chess.turn() !== this.playerColor) return;
-    const key = fenKey(this.chess.fen());
+    if (this.thinking) return;
+    if (this.atLive() && this.over) return;
+    if (this.viewTurn() !== this.playerColor) return;
+    const fen = this.posHistory[this.viewIdx].fen;
+    const key = fenKey(fen);
     const entry = this.book?.get(key);
     if (!entry) { toast(t('no_book_hint')); return; }
     const moves = Object.entries(entry);
     const bestSan = moves.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
-    const c = new Chess(this.chess.fen());
+    const c = new Chess(fen);
     let mv;
     try { mv = c.move(bestSan); } catch { mv = null; }
     if (!mv) return;
@@ -2666,12 +2808,11 @@ const Trainer = {
 
   setStatus(msg) { $('trainer-status').textContent = msg; },
 
-  // Sets whether the board should be interactive once the player is
-  // viewing the live (most recent) position — and applies it immediately
-  // if so, matching the Puzzles nav pattern.
+  // Sets whether the board should be interactive at the live (most recent)
+  // position. Earlier positions have their own rule — see applyInteractive.
   setLiveInteractive(v) {
     this.liveInteractive = v;
-    if (this.viewIdx === this.posHistory.length - 1) this.board.interactive = v;
+    this.applyInteractive();
   },
 
   updateBadge(usedBook) {
@@ -2693,11 +2834,17 @@ const Trainer = {
     // below used to pass and the next line dereferenced null, throwing the user
     // into the full-screen crash overlay. Play.userMove was fixed for exactly
     // this; its twin here was missed.
-    if (!this.chess || this.over || this.thinking) return;
-    if (this.viewIdx !== this.posHistory.length - 1) return;
-    if (this.chess.turn() !== this.playerColor) return;
+    if (!this.chess || this.thinking) return;
+    const live = this.atLive();
+    if (live && this.over) return;
+    if (this.viewTurn() !== this.playerColor) return;
+    // Moving from an earlier position is not an undo — it branches the game
+    // into a new variation and the trainer carries on from there.
+    if (!live) { this.rewindTo(this.viewIdx); toast(t('variation_started')); }
     let m;
-    try { m = this.chess.move(mv); } catch { return; }
+    // On a rejected move put the board back in step with the game state — it
+    // has already drawn the attempted move optimistically.
+    try { m = this.chess.move(mv); } catch { this.gotoHistory(this.viewIdx); return; }
     this.place(this.chess.fen(), { from: m.from, to: m.to }, this.inBook);
     this.renderMoves();
     this.announceOpeningIfNew();

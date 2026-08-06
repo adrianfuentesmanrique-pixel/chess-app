@@ -126,6 +126,7 @@ const DICT = {
   out_of_book: { es: '🧠 Fuera de la base (motor)', en: '🧠 Out of book (engine)' },
   no_book_bases: { es: 'Primero crea una base con partidas en la pestaña Bases.', en: 'First create a database with games in the Databases tab.' },
   book_moves: { es: 'jugadas en el libro', en: 'book moves' },
+  variation_started: { es: 'Nueva variante desde aquí.', en: 'New variation from here.' },
   // Puzzles
   puzzles_title: { es: 'Táctica', en: 'Puzzles' },
   puzzle: { es: 'Ejercicio', en: 'Puzzle' },
