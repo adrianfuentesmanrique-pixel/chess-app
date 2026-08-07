@@ -191,7 +191,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '3. Qué es público',
-        p: `Solo un subconjunto limitado de tu perfil (nombre de usuario, avatar, ELO de táctica/aperturas/finales/a ciegas, racha) aparece en el leaderboard público si tienes cuenta. Tu correo, nombre y apellido reales, y fecha de nacimiento nunca se hacen públicos.`,
+        p: `Solo un subconjunto limitado de tu perfil (nombre de usuario, avatar, ELO de táctica/aperturas/finales/a ciegas, racha) aparece en el leaderboard público si tienes cuenta. Tu correo, nombre y apellido reales, y fecha de nacimiento nunca se hacen públicos. En Ajustes > Privacidad puedes marcar tu perfil como Privado: entonces solo se publican tu nombre de usuario, tu avatar y tus ELO, y el desglose por tema, apertura y final —y tu racha— deja de publicarse y se borra de la copia pública.`,
       },
       {
         h: '4. Dónde se almacenan los datos y transferencias internacionales',
@@ -215,7 +215,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '9. Tus derechos',
-        p: `Puedes acceder, corregir, exportar o eliminar tus datos, así como cambiar qué información se muestra públicamente, en cualquier momento desde la sección Perfil de la App. Dependiendo de tu país de residencia, puedes tener derechos adicionales de protección de datos (por ejemplo, portabilidad, oposición al tratamiento, o presentar una reclamación ante la autoridad de protección de datos correspondiente); contáctanos si deseas ejercerlos y no encuentras la opción directamente en la App.`,
+        p: `Puedes acceder, corregir, exportar o eliminar tus datos, así como cambiar qué información se muestra públicamente, en cualquier momento desde la sección Perfil de la App y desde Ajustes > Privacidad. Dependiendo de tu país de residencia, puedes tener derechos adicionales de protección de datos (por ejemplo, portabilidad, oposición al tratamiento, o presentar una reclamación ante la autoridad de protección de datos correspondiente); contáctanos si deseas ejercerlos y no encuentras la opción directamente en la App.`,
       },
       {
         h: '10. Menores de edad',
@@ -245,7 +245,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '3. What is public',
-        p: `Only a limited subset of your profile (username, avatar, puzzle/opening/endgame/blindfold ELO, streak) appears on the public leaderboard if you have an account. Your email, real first/last name, and date of birth are never made public.`,
+        p: `Only a limited subset of your profile (username, avatar, puzzle/opening/endgame/blindfold ELO, streak) appears on the public leaderboard if you have an account. Your email, real first/last name, and date of birth are never made public. In Settings > Privacy you can mark your profile as Private: only your username, avatar and ELO ratings are then published, and the per-theme, per-opening and per-endgame breakdown — along with your streak — stops being published and is deleted from the public copy.`,
       },
       {
         h: '4. Where data is stored and international transfers',
@@ -269,7 +269,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '9. Your rights',
-        p: `You can access, correct, export, or delete your data, and change what information is shown publicly, at any time from the App's Profile section. Depending on your country of residence, you may have additional data-protection rights (for example, portability, objection to processing, or lodging a complaint with your local data protection authority); contact us if you'd like to exercise a right you can't find directly in the App.`,
+        p: `You can access, correct, export, or delete your data, and change what information is shown publicly, at any time from the App's Profile section and from Settings > Privacy. Depending on your country of residence, you may have additional data-protection rights (for example, portability, objection to processing, or lodging a complaint with your local data protection authority); contact us if you'd like to exercise a right you can't find directly in the App.`,
       },
       {
         h: '10. Children\'s privacy',
