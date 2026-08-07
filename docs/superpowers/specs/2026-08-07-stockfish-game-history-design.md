@@ -116,9 +116,9 @@ Both hooks live in `Play` and call into `js/history.js`.
 stalemate and every draw type. It gains a save call. `endReason` is derived
 from the `chess.js` position: `isCheckmate()`, `isStalemate()`,
 `isThreefoldRepetition()`, `isInsufficientMaterial()`, fifty-move via the
-halfmove clock, resignation from the finish message, otherwise `'draw'`. The
-exact draw-detection method names must be confirmed against the bundled
-`chess.js` build in stage 1 rather than assumed.
+resignation from the finish message, otherwise `'draw'`. The bundled
+`vendor/chess.js` was checked and exposes all of these directly, including
+`isDrawByFiftyMoves()`.
 
 **On abandon** — `#play-back` currently hides the game panel and stops the
 engine. It gains a save with `result: '*'`, `outcome: 'unfinished'`,
