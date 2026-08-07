@@ -251,3 +251,12 @@ export function pvWithNumbers(fen, sanMoves) {
   });
   return out.join(' ');
 }
+
+// Engine difficulty levels. Index is the level id and is persisted in
+// `engineLevelsBeaten`, so entries must never be reordered.
+export const LEVELS = [
+  { elo: 1320, movetime: 300 }, { elo: 1450, movetime: 400 },
+  { elo: 1600, movetime: 500 }, { elo: 1800, movetime: 600 },
+  { elo: 2000, movetime: 800 }, { elo: 2200, movetime: 1000 },
+  { elo: 2500, movetime: 1500 }, { elo: null, movetime: 2000 },
+];
