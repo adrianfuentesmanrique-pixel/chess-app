@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v19';
+const CACHE = 'chess-training-center-v20';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -21,6 +21,7 @@ const ASSETS = [
   'puzzles/puzzles-3.json',
   'js/endgames-data.js',
   'js/tree.js',
+  'js/tour.js',
   'vendor/chess.js',
   'vendor/chart.umd.js',
   'vendor/stockfish-17.1-lite-single-03e3232.js',

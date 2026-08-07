@@ -14,6 +14,7 @@ import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLIND
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
+import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
 // constants so they're easy to loosen for supporting users once that
@@ -449,11 +450,20 @@ function kaelRecoText(levelId) {
   return t('kael_reco_middle');
 }
 
+// Everything the tour needs from this file, handed over explicitly so the two
+// modules do not import each other.
+function tourCtx() {
+  return { db, modal, toast, showScreen, activeScreen: () => activeScreen };
+}
+
 const Onboarding = {
   async maybeShow() {
     const done = await db.kvGet('onboardingDone', false);
     if (done) return false;
     await this.run();
+    // Straight after the level picker, offer the guided tour. Declining is
+    // remembered, so this is the only time it ever appears by itself.
+    if (await db.kvGet('tourDone', null) === null) await Tour.offer(tourCtx());
     return true;
   },
 
@@ -4992,6 +5002,13 @@ function openSettings() {
       seg4.appendChild(b);
     }
     segInit(seg4, v => Themes.setPieceSetChoice(v));
+    // guided tour — the only way back into it once the first launch is over
+    const lTour = document.createElement('label'); lTour.className = 'fld-label'; lTour.textContent = t('tour_prompt_title');
+    const tourBtn = document.createElement('button'); tourBtn.className = 'btn'; tourBtn.style.width = '100%';
+    tourBtn.textContent = t('tour_replay');
+    // Close the settings sheet first: the tour dims the whole screen and the
+    // first steps are on the Analysis board behind this modal.
+    tourBtn.onclick = () => { close(null); setTimeout(() => Tour.start(tourCtx()), 120); };
     // legal
     const lLegal = document.createElement('label'); lLegal.className = 'fld-label'; lLegal.textContent = t('legal_section');
     const termsBtn = document.createElement('button'); termsBtn.className = 'btn'; termsBtn.textContent = t('view_terms');
@@ -5004,7 +5021,7 @@ function openSettings() {
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
     const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
     ok.onclick = () => close(null);
-    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, lLegal, legalRow, about, ok);
+    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, lTour, tourBtn, lLegal, legalRow, about, ok);
   });
 }
 

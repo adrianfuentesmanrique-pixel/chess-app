@@ -4,8 +4,8 @@
     {
       "name": "chess-app",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", "-p", "8801", "-c-1", "--silent"],
-      "port": 8801
+      "runtimeArgs": ["--yes", "http-server", "-p", "8807", "-c-1", "--silent"],
+      "port": 8807
     }
   ]
 }
