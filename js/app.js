@@ -109,7 +109,7 @@ function toast(msg, ms = 2200) {
   toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
 }
 
-function modal(contentBuilder) {
+export function modal(contentBuilder) {
   return new Promise(resolve => {
     const root = $('modal-root');
     const back = document.createElement('div');
@@ -217,7 +217,7 @@ function askPassword(title) {
   });
 }
 
-function askConfirm(msg) {
+export function askConfirm(msg) {
   return modal((box, close) => {
     box.innerHTML = `<p>${msg}</p>`;
     const row = document.createElement('div'); row.className = 'row';
@@ -1204,7 +1204,7 @@ document.querySelectorAll('#tabbar button').forEach(b =>
   b.addEventListener('click', () => showScreen(b.dataset.screen)));
 
 // segment control helper
-function segInit(el, onChange) {
+export function segInit(el, onChange) {
   el.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -1213,7 +1213,7 @@ function segInit(el, onChange) {
     if (onChange) onChange(b.dataset.v);
   });
 }
-function segValue(el) { return el.querySelector('button.on')?.dataset.v; }
+export function segValue(el) { return el.querySelector('button.on')?.dataset.v; }
 
 // engine levels
 const LEVELS = [

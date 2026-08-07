@@ -291,6 +291,17 @@ if (window.Sentry && window.Sentry.onLoad) {
         </button>
       </div>
       <h2 data-i18n="history_title"></h2>
+      <div class="seg scroll" id="hist-chips">
+        <button data-v="" class="on" data-i18n="hist_all"></button>
+        <button data-v="win" data-i18n="hist_wins"></button>
+        <button data-v="loss" data-i18n="hist_losses"></button>
+        <button data-v="draw" data-i18n="hist_draws"></button>
+      </div>
+      <div class="row">
+        <button id="hist-filters" class="btn" data-i18n="hist_filters"></button>
+        <button id="hist-sort" class="btn" data-i18n="hist_newest"></button>
+      </div>
+      <div id="hist-filter-chip" class="filter-chip hidden"></div>
       <div id="hist-list" class="list"></div>
     </div>
   </section>
