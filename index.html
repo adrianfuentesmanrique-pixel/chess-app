@@ -254,6 +254,7 @@ if (window.Sentry && window.Sentry.onLoad) {
         <div class="seg wrap" id="play-level"></div>
       </div>
       <button id="play-start" class="btn primary big" data-i18n="start_game"></button>
+      <button id="play-history-btn" class="btn big" data-i18n="history_title"></button>
     </div>
     <div id="play-game" class="hidden">
       <div class="nav-row">
@@ -279,6 +280,18 @@ if (window.Sentry && window.Sentry.onLoad) {
         <button id="play-analyze" class="tool-btn" data-i18n-aria="analyze_game">🔬</button>
       </div>
       <div id="play-moves" class="movelist small"></div>
+    </div>
+    <div id="play-history" class="hidden">
+      <div class="nav-row">
+        <button id="hist-back" class="nav-back" data-i18n-aria="back">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span data-i18n="back"></span>
+        </button>
+      </div>
+      <h2 data-i18n="history_title"></h2>
+      <div id="hist-list" class="list"></div>
     </div>
   </section>
 

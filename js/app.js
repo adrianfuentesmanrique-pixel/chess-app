@@ -2293,6 +2293,7 @@ const Play = {
       if (c === 'r') c = Math.random() < 0.5 ? 'w' : 'b';
       this.begin(c, START_FEN);
     };
+    $('play-history-btn').onclick = () => History.open();
     $('play-resign').onclick = async () => {
       if (this.over) return;
       if (await askConfirm(t('resign') + '?')) this.finish(t('you_resigned'));
@@ -5884,6 +5885,7 @@ async function main() {
   Analysis.init();
   Base.init();
   Play.init();
+  History.init();
   Trainer.init();
   Puzzles.init();
   Rush.init();
