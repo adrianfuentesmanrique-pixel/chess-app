@@ -17,6 +17,7 @@ import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
 import { Sound } from './sound.js';
 import { Themes, ColorMode } from './appearance.js';
+import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -62,7 +63,7 @@ function openingFlavorMsg(name) {
   return getLang() === 'es' ? `${name}, ¡${flavor.es}!` : `${name}, ${flavor.en}!`;
 }
 
-const $ = id => document.getElementById(id);
+export const $ = id => document.getElementById(id);
 const engine = new Engine();
 
 // The engine is a 7 MB WebAssembly download. When it fails — nearly always a
@@ -5210,52 +5211,6 @@ function openEloHistoryModal(historyKey, titleKey) {
     render('30');
   });
 }
-
-// ═════════════════════ AVATARS ═════════════════════
-// The pictures come from tools/build_avatars.py; this table is only the
-// catalogue, so new art drops in without touching the storage or selection
-// logic. Ids are permanent -- they are what a player's choice is saved as.
-
-const AVATAR_OPTIONS = [
-  // free
-  { id: 'pawn_w' }, { id: 'pawn_b' }, { id: 'knight_w' }, { id: 'knight_b' },
-  { id: 'bishop_w' }, { id: 'bishop_b' }, { id: 'rook_w' }, { id: 'rook_b' },
-  { id: 'queen_w' }, { id: 'queen_b' }, { id: 'king_w' }, { id: 'king_b' },
-  { id: 'wolf' }, { id: 'lion' }, { id: 'tiger' },
-  { id: 'eagle' }, { id: 'owl' }, { id: 'bear' }, { id: 'raven' },
-  // coming soon — shown locked to everyone as a preview of future content
-  { id: 'dragon', locked: true }, { id: 'phoenix', locked: true }, { id: 'griffin', locked: true },
-  { id: 'kraken', locked: true }, { id: 'hydra', locked: true }, { id: 'galaxy', locked: true },
-  { id: 'crystal', locked: true }, { id: 'shadow', locked: true }, { id: 'storm', locked: true },
-  { id: 'fire', locked: true }, { id: 'ice', locked: true }, { id: 'void', locked: true },
-];
-
-function avatarHtml(avatarId, sizePx = 40) {
-  const opt = AVATAR_OPTIONS.find(a => a.id === avatarId) ?? AVATAR_OPTIONS[0];
-  return `<div class="avatar-badge" style="width:${sizePx}px;height:${sizePx}px"><img src="avatars/${opt.id}.png" alt="" width="${sizePx}" height="${sizePx}"></div>`;
-}
-
-const Avatars = {
-  async renderGridInto(container, selectedId, onPick) {
-    container.innerHTML = '';
-    for (const opt of AVATAR_OPTIONS) {
-      const locked = !!opt.locked;
-      const cell = document.createElement('div');
-      cell.className = 'avatar-pick-cell' + (locked ? ' locked' : '');
-      cell.dataset.id = opt.id;
-      cell.classList.toggle('selected', opt.id === selectedId);
-      cell.innerHTML = avatarHtml(opt.id, 44) + (locked ? '<span class="avatar-lock">🔒</span>' : '');
-      cell.onclick = () => { if (locked) toast(t('avatar_locked_toast')); else onPick(opt.id); };
-      container.appendChild(cell);
-    }
-  },
-
-  async refresh() {
-    const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
-    $('profile-avatar-wrap').innerHTML = avatarHtml(id, 56);
-    return id;
-  },
-};
 
 // ═════════════════════ ACHIEVEMENTS / BADGES ═════════════════════
 
