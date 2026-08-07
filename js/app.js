@@ -16,6 +16,7 @@ import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
 import { Sound } from './sound.js';
+import { Themes, ColorMode } from './appearance.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -1017,7 +1018,7 @@ async function recordEloHistory(key, value) {
 // ═════════════════════ tabs ═════════════════════
 
 const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'rush', 'blind'];
-let activeScreen = 'analysis';
+export let activeScreen = 'analysis';
 
 function showScreen(name) {
   const prev = activeScreen;
@@ -4888,7 +4889,7 @@ Endgame.Lessons = {
 
 // ═════════════════════ POSITION SETUP ═════════════════════
 
-const Setup = {
+export const Setup = {
   board: null,
   grid: {},            // sq -> {color,type}
   palettePiece: null,  // {color,type} | 'trash' | null
@@ -5140,57 +5141,6 @@ function relabel() {
   if (activeScreen === 'endgame') Endgame.refreshLists();
 }
 
-const Themes = {
-  async init() {
-    const boardTheme = await db.kvGet('boardTheme', 'wood');
-    document.body.classList.add('theme-' + boardTheme);
-    const pieceSet = await db.kvGet('pieceSet', 'pieces');
-    setPieceSet(pieceSet);
-  },
-  setBoardTheme(v) {
-    document.body.classList.remove('theme-wood', 'theme-green', 'theme-blue');
-    document.body.classList.add('theme-' + v);
-    db.kvSet('boardTheme', v);
-  },
-  setPieceSetChoice(v) {
-    setPieceSet(v);
-    db.kvSet('pieceSet', v);
-    Setup.buildPalette();
-  },
-};
-
-const ColorMode = {
-  mode: 'dark',        // user preference: 'light' | 'dark' | 'system'
-  mql: null,
-
-  async init() {
-    this.mode = await db.kvGet('colorMode', 'system');
-    this.mql = window.matchMedia('(prefers-color-scheme: light)');
-    this.mql.addEventListener('change', () => { if (this.mode === 'system') this.apply(); });
-    this.apply();
-  },
-
-  set(mode) {
-    this.mode = mode;
-    db.kvSet('colorMode', mode);
-    this.apply();
-  },
-
-  effective() {
-    if (this.mode === 'system') return this.mql.matches ? 'light' : 'dark';
-    return this.mode;
-  },
-
-  apply() {
-    const eff = this.effective();
-    document.body.classList.remove('mode-light', 'mode-dark');
-    document.body.classList.add('mode-' + eff);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', eff === 'light' ? '#f5f3ef' : '#1a1714');
-    if (activeScreen === 'profile') Profile.refresh();
-  },
-};
-
 function openEloHistoryModal(historyKey, titleKey) {
   return modal(async (box, close) => {
     const hist = await db.kvGet(historyKey, []);
@@ -5439,7 +5389,7 @@ const Badges = {
 
 const RADAR_MIN = 800, RADAR_MAX = 2200;
 
-const Profile = {
+export const Profile = {
   charts: {},
 
   init() {

@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v25';
+const CACHE = 'chess-training-center-v26';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -17,6 +17,7 @@ const ASSETS = [
   'js/firebase.js',
   'js/puzzles.js',
   'js/sound.js',
+  'js/appearance.js',
   // Only the band a new account starts in (ELO 1200). The other nine are
   // fetched on demand and cached by the network-first handler below — bundling
   // all 5 MB into install would be slow and mostly unused.
