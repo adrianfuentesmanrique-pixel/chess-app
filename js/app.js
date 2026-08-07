@@ -14,6 +14,7 @@ import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLIND
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
+import * as History from './history.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -100,7 +101,7 @@ const Sound = {
 // ═════════════════════ small UI helpers ═════════════════════
 
 let toastTimer = null;
-function toast(msg, ms = 2200) {
+export function toast(msg, ms = 2200) {
   const el = $('toast');
   el.textContent = msg;
   el.classList.remove('hidden');
@@ -108,7 +109,7 @@ function toast(msg, ms = 2200) {
   toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
 }
 
-function modal(contentBuilder) {
+export function modal(contentBuilder) {
   return new Promise(resolve => {
     const root = $('modal-root');
     const back = document.createElement('div');
@@ -216,7 +217,7 @@ function askPassword(title) {
   });
 }
 
-function askConfirm(msg) {
+export function askConfirm(msg) {
   return modal((box, close) => {
     box.innerHTML = `<p>${msg}</p>`;
     const row = document.createElement('div'); row.className = 'row';
@@ -229,7 +230,7 @@ function askConfirm(msg) {
 }
 
 // Bottom-sheet menu; items = [{label, action, danger}]
-function sheet(items) {
+export function sheet(items) {
   return modal((box, close) => {
     box.classList.add('sheet');
     for (const it of items) {
@@ -612,7 +613,7 @@ function pickKael(dict) {
   return { text: lines[Math.floor(Math.random() * lines.length)], author: null };
 }
 
-async function sharePgnText(filename, text) {
+export async function sharePgnText(filename, text) {
   const file = new File([text], filename, { type: 'application/x-chess-pgn' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: filename }); return; } catch (e) { if (e.name === 'AbortError') return; }
@@ -1203,7 +1204,7 @@ document.querySelectorAll('#tabbar button').forEach(b =>
   b.addEventListener('click', () => showScreen(b.dataset.screen)));
 
 // segment control helper
-function segInit(el, onChange) {
+export function segInit(el, onChange) {
   el.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -1212,7 +1213,7 @@ function segInit(el, onChange) {
     if (onChange) onChange(b.dataset.v);
   });
 }
-function segValue(el) { return el.querySelector('button.on')?.dataset.v; }
+export function segValue(el) { return el.querySelector('button.on')?.dataset.v; }
 
 // engine levels
 const LEVELS = [
@@ -1235,7 +1236,7 @@ function buildLevelSeg(el, def = 2) {
 
 // ═════════════════════ ANALYSIS ═════════════════════
 
-const Analysis = {
+export const Analysis = {
   tree: new GameTree(),
   board: null,
   engineOn: false,
@@ -1300,6 +1301,9 @@ const Analysis = {
     $('ana-gr-exit').onclick = () => this.exitGameReview();
     $('ana-base-prev').onclick = () => this.gotoAdjacentGame(-1);
     $('ana-base-next').onclick = () => this.gotoAdjacentGame(1);
+    $('ana-hist-back').onclick = () => this.backToHistory();
+    $('ana-hist-prev').onclick = () => this.gotoAdjacentHistory(-1);
+    $('ana-hist-next').onclick = () => this.gotoAdjacentHistory(1);
     $('ana-annotate-toggle').onclick = () => {
       const nowHidden = $('ana-annotate').classList.toggle('hidden');
       if (nowHidden) {
@@ -1390,6 +1394,32 @@ const Analysis = {
       $('ana-base-next').disabled = idx === -1 || idx >= Base.gamesCache.length - 1;
     }
     $('ana-gr-nav').classList.toggle('hidden', !this.ctx.fromGameReview);
+
+    const inHist = !!this.ctx.historyId;
+    $('ana-hist-nav').classList.toggle('hidden', !inHist);
+    if (inHist) {
+      // Keep the player oriented: they came from the Play tab, so that is the
+      // tab that stays lit.
+      document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.screen === 'play'));
+      const idx = History.state.items.findIndex(g => g.id === this.ctx.historyId);
+      $('ana-hist-prev').disabled = idx <= 0;
+      $('ana-hist-next').disabled = idx === -1 || idx >= History.state.items.length - 1;
+      const rec = History.state.items[idx];
+      $('ana-hist-head').textContent = rec ? History.headline(rec) : '';
+    }
+  },
+
+  backToHistory() {
+    showScreen('play');
+    History.open();
+  },
+
+  gotoAdjacentHistory(dir) {
+    const idx = History.state.items.findIndex(g => g.id === this.ctx.historyId);
+    if (idx === -1) return;
+    const next = History.state.items[idx + dir];
+    if (!next) return;
+    History.openGame(next);
   },
 
   backToBase() {
@@ -1401,7 +1431,7 @@ const Analysis = {
   // Leaves the base-linked context without leaving the game on screen —
   // stays on this position, but as a normal, un-linked Analysis session.
   exitBase() {
-    this.ctx = { baseId: null, gameId: null };
+    this.ctx = { baseId: null, gameId: null, historyId: null };
     showScreen('analysis');
     this.updateBaseNav();
   },
@@ -1410,7 +1440,7 @@ const Analysis = {
   // the position on screen — same idea as exitBase() but for games that
   // arrived here via Game Review's "Analyze the game" button.
   exitGameReview() {
-    this.ctx = { baseId: null, gameId: null };
+    this.ctx = { baseId: null, gameId: null, historyId: null };
     this.updateBaseNav();
   },
 
@@ -1727,13 +1757,47 @@ const Analysis = {
       { label: '📤 ' + t('share_game'), action: () => sharePgnText(gameFilename(this.tree.headers), this.tree.toPgn()) },
       { label: '📋 ' + t('copy_pgn'), action: () => { copyText(this.tree.toPgn()); } },
       { label: '📋 ' + t('copy_fen'), action: () => { copyText(this.tree.fen()); } },
+      { label: t('hist_view_pgn'), action: () => this.viewPgn() },
       { label: '🤖 ' + t('play_from_here'), action: () => Play.startFromFen(this.tree.fen()) },
     ];
     if (this.tree.current.san) {
       items.push({ label: '⬆️ ' + t('promote_var'), action: () => { this.pushUndo(); this.tree.promote(this.tree.current); this.refresh(); } });
       items.push({ label: '🗑 ' + t('delete'), action: () => this.deleteSubmenu(this.tree.current) });
     }
+    if (this.ctx.historyId) {
+      items.push({ label: t('hist_delete_game'), danger: true, action: async () => {
+        if (await askConfirm(t('history_delete_confirm'))) {
+          await db.deleteHistoryGame(this.ctx.historyId);
+          this.ctx = { baseId: null, gameId: null, historyId: null };
+          this.backToHistory();
+        }
+      } });
+    }
     sheet(items);
+  },
+
+  // Copy and Export already exist; this is for actually reading the game text.
+  viewPgn() {
+    const text = this.tree.toPgn();
+    modal((box, close) => {
+      box.innerHTML = `<h3>PGN</h3>`;
+      const pre = document.createElement('pre');
+      pre.className = 'pgn-view';
+      pre.textContent = text;
+      box.appendChild(pre);
+      const row = document.createElement('div');
+      row.className = 'row';
+      const copy = document.createElement('button');
+      copy.className = 'btn primary';
+      copy.textContent = t('copy_pgn');
+      copy.onclick = () => copyText(text);
+      const ok = document.createElement('button');
+      ok.className = 'btn';
+      ok.textContent = t('ok');
+      ok.onclick = () => close(null);
+      row.append(copy, ok);
+      box.appendChild(row);
+    });
   },
 
   editDetails() {
@@ -2278,6 +2342,8 @@ const Play = {
   startFen: START_FEN,
   over: false,
   thinking: false,
+  playedAt: 0,
+  saved: false,
 
   init() {
     buildLevelSeg($('play-level'));
@@ -2290,11 +2356,17 @@ const Play = {
       if (c === 'r') c = Math.random() < 0.5 ? 'w' : 'b';
       this.begin(c, START_FEN);
     };
+    $('play-history-btn').onclick = () => History.open();
     $('play-resign').onclick = async () => {
       if (this.over) return;
       if (await askConfirm(t('resign') + '?')) this.finish(t('you_resigned'));
     };
-    $('play-back').onclick = () => { engine.stop(); $('play-game').classList.add('hidden'); $('play-setup').classList.remove('hidden'); };
+    $('play-back').onclick = () => {
+      engine.stop();
+      if (!this.over) this.saveToHistory({ abandoned: true });
+      $('play-game').classList.add('hidden');
+      $('play-setup').classList.remove('hidden');
+    };
     $('play-analyze').onclick = () => this.toAnalysis();
     $('play-undo').onclick = () => this.undo();
   },
@@ -2325,6 +2397,8 @@ const Play = {
     this.chess = new Chess(fen);
     this.over = false;
     this.thinking = false;
+    this.playedAt = Date.now();
+    this.saved = false;
     $('play-setup').classList.add('hidden');
     $('play-game').classList.remove('hidden');
     this.board.setOrientation(color);
@@ -2414,6 +2488,43 @@ const Play = {
         blackName: this.playerColor === 'b' ? me : sf,
         outcome,
       });
+    }
+    this.saveToHistory({ resigned: msg === t('you_resigned') });
+  },
+
+  // Saves the finished game to history. `resigned` and `abandoned` are the two
+  // things the final position cannot tell us. Guarded by `saved` so a game
+  // cannot be recorded twice — leaving the screen after a normal finish must
+  // not add a second, "abandoned" copy of the same game.
+  async saveToHistory({ resigned = false, abandoned = false } = {}) {
+    if (this.saved || !this.chess) return;
+    const hist = this.chess.history();
+    if (hist.length < History.HISTORY_MIN_PLIES) return;
+    this.saved = true;
+    try {
+      const profileName = await db.kvGet('profileName', '');
+      const me = profileName || t('history_you');
+      const bot = t('history_bot_name').replace('{lvl}', t('level_names')[this.level]);
+      const tree = treeFromHistory(this.startFen, hist);
+      tree.setHeader('White', this.playerColor === 'w' ? me : bot);
+      tree.setHeader('Black', this.playerColor === 'b' ? me : bot);
+      tree.setHeader('Date', new Date().toISOString().slice(0, 10).replace(/-/g, '.'));
+      tree.setHeader('Event', t('history_event'));
+      const rec = History.buildRecord({
+        chess: this.chess,
+        startFen: this.startFen,
+        playerColor: this.playerColor,
+        level: this.level,
+        levelElo: LEVELS[this.level].elo,
+        playedAt: this.playedAt,
+        pgn: '',
+        resigned, abandoned,
+      });
+      tree.setHeader('Result', rec.result);
+      rec.pgn = tree.toPgn();
+      await History.saveGame(rec);
+    } catch (e) {
+      console.error('history save failed', e);
     }
   },
 
@@ -5837,6 +5948,7 @@ async function main() {
   Analysis.init();
   Base.init();
   Play.init();
+  History.init();
   Trainer.init();
   Puzzles.init();
   Rush.init();

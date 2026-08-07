@@ -1053,6 +1053,20 @@ body.tour-on #kael-corner { opacity: 0; pointer-events: none; }
 .tour-skipbtn { width: 100%; margin-top: 6px; font-size: 13px; }
 .tour-card.is-final .tour-btns .btn { flex: 1; }
 
+/* ── PGN viewer ─────────────────────────────────────── */
+/* Capped and scrollable: a long game must scroll inside the modal instead of
+   growing it until the buttons are pushed off a 375px screen. */
+.pgn-view {
+  max-height: 45vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: .85em;
+  background: var(--panel);
+  padding: 10px;
+  border-radius: 8px;
+}
+
 /* Scroll prompt — deliberately large and centred, because a first-time user
    has no reason to guess that anything lives below the fold. */
 .tour-scroll {
@@ -1096,3 +1110,34 @@ body.tour-on #kael-corner { opacity: 0; pointer-events: none; }
   .tour-scroll { bottom: 12px; }
   .tour-arrow { font-size: 44px; }
 }
+
+/* ── Game history cards ─────────────────────────────── */
+/* Built on .list-item so light/dark, spacing and press feedback are inherited.
+   The result is carried by a thick right-edge bar: at 375px a colour you can
+   spot while scrolling beats a word you have to read. */
+.hist-item {
+  position: relative;
+  padding-right: 16px;
+  border-right: 6px solid var(--muted);
+}
+.hist-item.win { border-right-color: var(--success); }
+.hist-item.loss { border-right-color: var(--danger); }
+.hist-item.draw { border-right-color: var(--muted); }
+.hist-item.unfinished { border-right-color: var(--warning); }
+
+.hist-players {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 600;
+}
+.hist-players .hist-result {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hist-line2 { font-size: .88em; opacity: .85; }
+.hist-meta { font-size: .82em; opacity: .65; }
+
+.kael-empty { text-align: center; padding: 32px 16px; }
+.kael-empty .kael-portrait { width: 96px; height: auto; opacity: .9; margin-bottom: 12px; }

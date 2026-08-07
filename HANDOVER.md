@@ -1,8 +1,33 @@
-# Chess app — where things stand (updated 2026-08-05, evening)
+# Chess app — where things stand (updated 2026-08-07)
 
 ## Already done and pushed — do NOT redo these
 
-Latest commit: `dc59beb`
+- **Game History (Stockfish games) — COMPLETE, all 4 tasks.** Every game you
+  play against the engine is saved automatically and can be browsed, filtered
+  and replayed. Reach it from **Play → 📜 Game History**.
+  - New module **`js/history.js`** — record building, the history screen, and
+    replay. New IndexedDB store `playHistory` (DB v2 → **v3**).
+  - Replay opens the normal Analysis board with a `historyId` context, so the
+    tab bar stays lit on Play and there is a back / prev / next bar plus a
+    one-line headline. `⋯ → 👁 View PGN` shows the game text; games can be
+    exported or deleted from the card long-press or from `⋯`.
+  - Plan: `docs/superpowers/plans/2026-08-07-stockfish-game-history.md`.
+    Commits `a8705f7`, `9a90522`, `d302722`, `a86947e`.
+  - **`js/app.js` now exports things.** It used to export nothing. `toast`,
+    `modal`, `askConfirm`, `sheet`, `segInit`, `segValue`, `sharePgnText` and
+    `Analysis` are exported so `js/history.js` can import them instead of
+    copying them. app.js and history.js import each other — the cycle is
+    deliberate and safe, but `js/history.js` must never touch an app.js
+    binding at module top level. See "The module boundary" in the plan.
+  - Deliberately left out: resuming an unfinished game, board thumbnails,
+    clocks, cloud sync. The record shape already supports all four.
+
+- **`sw.js` is at `chess-training-center-v24`.** The `v11` written here
+  earlier was stale for a long time — trust the file, not this note, and bump
+  it whenever `index.html`, any `js/*.js` or `css/style.css` changes, or
+  returning users get served stale files.
+
+Latest commit: `a86947e`
 
 - **Work order #1 — both Sentry errors.** One was a real null-dereference:
   tapping the Openings board before pressing Start crashed the app. The other
@@ -16,7 +41,6 @@ Latest commit: `dc59beb`
   hides off-screen when silent, and the bubble is see-through. This was the
   urgent touchscreen bug; it is FIXED.
 - Endgame tab: 265 endgames, bilingual, live.
-- `sw.js` at cache version v11 with the cross-origin caching fix.
 
 ## Still to do
 
@@ -38,6 +62,11 @@ Lower priority, not in the work order:
 3. Restrict the Firebase web API key by HTTP referrer in Google Cloud Console.
 4. Puzzle difficulty does not scale with ELO (Adrian is 2000+, still gets easy
    problems).
+5. History dates older than yesterday show the month in the *device's*
+   language, not the app's — `formatWhen()` in `js/history.js` calls
+   `toLocaleDateString(undefined, …)`. In Spanish on an English phone you get
+   "Aug 5 13:16". Passing `getLang()` instead of `undefined` fixes it. Cosmetic
+   and pre-existing to Task 2; not fixed because it was outside Task 4.
 5. New "Read" tab — PDF reader, brief in `READ-TAB-PROMPT.md`. Later.
 
 ## Token rules — paste these into every new chess session
