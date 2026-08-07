@@ -1053,6 +1053,20 @@ body.tour-on #kael-corner { opacity: 0; pointer-events: none; }
 .tour-skipbtn { width: 100%; margin-top: 6px; font-size: 13px; }
 .tour-card.is-final .tour-btns .btn { flex: 1; }
 
+/* ── PGN viewer ─────────────────────────────────────── */
+/* Capped and scrollable: a long game must scroll inside the modal instead of
+   growing it until the buttons are pushed off a 375px screen. */
+.pgn-view {
+  max-height: 45vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: .85em;
+  background: var(--panel);
+  padding: 10px;
+  border-radius: 8px;
+}
+
 /* Scroll prompt — deliberately large and centred, because a first-time user
    has no reason to guess that anything lives below the fold. */
 .tour-scroll {

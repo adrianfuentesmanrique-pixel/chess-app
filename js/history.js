@@ -8,11 +8,15 @@
 import * as db from './db.js';
 import { classifyOpening } from './openings-eco.js';
 import { t } from './i18n.js';
+// parsePgn lives in tree.js, not app.js — taken straight from the source so it
+// does not have to travel through the cycle below.
+import { parsePgn } from './tree.js';
 // Circular by design — js/app.js imports this module too. Safe because every
 // one of these is either a hoisted function declaration or only touched inside
 // an event handler. Never call them at module top level. See "The module
 // boundary" in docs/superpowers/plans/2026-08-07-stockfish-game-history.md.
-import { modal, askConfirm, segInit, segValue } from './app.js';
+import { modal, askConfirm, segInit, segValue,
+         toast, sheet, sharePgnText, Analysis } from './app.js';
 
 const $ = id => document.getElementById(id);
 
@@ -252,7 +256,50 @@ function card(rec) {
     `<span class="hist-result">${esc(displayResult(rec))}</span></span>` +
     `<span class="hist-line2 ellipsis">${esc(line2)}</span>` +
     `<span class="hist-meta">${esc(meta)}</span>`;
+
+  item.onclick = () => openGame(rec);
+  item.oncontextmenu = (e) => { e.preventDefault(); gameMenu(rec); };
+  // Long-press for touch, matching the games list in the Databases tab.
+  let timer = null;
+  item.addEventListener('pointerdown', () => { timer = setTimeout(() => { timer = null; gameMenu(rec); }, 550); });
+  item.addEventListener('pointerup', () => clearTimeout(timer));
+  item.addEventListener('pointermove', () => clearTimeout(timer));
   return item;
+}
+
+// The one line the card had no room for.
+export function headline(rec) {
+  const { white, black } = namesFor(rec);
+  return [
+    `${white} – ${black}`,
+    displayResult(rec),
+    t(`history_end_${rec.endReason}`),
+    formatDuration(rec.endedAt - rec.playedAt),
+    formatWhen(rec.playedAt),
+  ].filter(Boolean).join(' · ');
+}
+
+// The list holds summaries only, so the moves are fetched on demand.
+export async function openGame(rec) {
+  const full = await db.getHistoryGame(rec.id);
+  if (!full || !full.pgn) { toast(t('import_failed')); return; }
+  const tree = parsePgn(full.pgn);
+  Analysis.loadTree(tree, { baseId: null, gameId: null, historyId: full.id });
+}
+
+function gameMenu(rec) {
+  sheet([
+    { label: t('hist_export_pgn'), action: async () => {
+        const full = await db.getHistoryGame(rec.id);
+        if (full) sharePgnText(`game_${rec.id}.pgn`, full.pgn);
+      } },
+    { label: t('hist_delete_game'), danger: true, action: async () => {
+        if (await askConfirm(t('history_delete_confirm'))) {
+          await db.deleteHistoryGame(rec.id);
+          load();
+        }
+      } },
+  ]);
 }
 
 // close() clears the filter state; this puts the controls back in agreement

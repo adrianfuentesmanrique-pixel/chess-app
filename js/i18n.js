@@ -156,6 +156,9 @@ const DICT = {
   hist_delete_all: { es: '🗑 Borrar todo el historial', en: '🗑 Delete all history' },
   hist_delete_all_confirm: { es: '¿Borrar TODAS las partidas del historial? No se puede deshacer.', en: 'Delete ALL games from your history? This cannot be undone.' },
   hist_none_match: { es: 'Ninguna partida coincide con el filtro.', en: 'No games match this filter.' },
+  hist_view_pgn: { es: '👁 Ver PGN', en: '👁 View PGN' },
+  hist_delete_game: { es: '🗑 Borrar partida', en: '🗑 Delete game' },
+  hist_export_pgn: { es: '📤 Exportar PGN', en: '📤 Export PGN' },
   // Trainer
   trainer_title: { es: 'Entrenar aperturas', en: 'Opening training' },
   trainer_explain: { es: 'Elige una base con tus estudios de apertura. La máquina jugará las jugadas de esa base mientras pueda; cuando se salga de la teoría, seguirá jugando sola.', en: 'Choose a database with your opening studies. The computer plays moves from that base while it can; once out of theory it plays on its own.' },

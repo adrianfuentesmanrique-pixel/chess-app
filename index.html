@@ -126,6 +126,16 @@ if (window.Sentry && window.Sentry.onLoad) {
         <button id="ana-base-next" class="btn small">▶</button>
       </div>
     </div>
+    <div id="ana-hist-nav" class="row wrap hidden" style="justify-content:space-between; margin:0 0 6px;">
+      <div class="row" style="margin:0; gap:4px;">
+        <button id="ana-hist-back" class="btn small">← <span data-i18n="history_title"></span></button>
+      </div>
+      <div class="row" style="margin:0; gap:4px;">
+        <button id="ana-hist-prev" class="btn small">◀</button>
+        <button id="ana-hist-next" class="btn small">▶</button>
+      </div>
+      <div id="ana-hist-head" class="hint ellipsis" style="flex:1 1 100%; margin:2px 0 0;"></div>
+    </div>
     <div class="row" style="justify-content:flex-end; gap:6px; margin:0 0 6px;">
       <button id="ana-undo-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="undo_annotation">↩️</button>
       <button id="ana-new-game-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="new_game">

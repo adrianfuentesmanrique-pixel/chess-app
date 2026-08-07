@@ -101,7 +101,7 @@ const Sound = {
 // ═════════════════════ small UI helpers ═════════════════════
 
 let toastTimer = null;
-function toast(msg, ms = 2200) {
+export function toast(msg, ms = 2200) {
   const el = $('toast');
   el.textContent = msg;
   el.classList.remove('hidden');
@@ -230,7 +230,7 @@ export function askConfirm(msg) {
 }
 
 // Bottom-sheet menu; items = [{label, action, danger}]
-function sheet(items) {
+export function sheet(items) {
   return modal((box, close) => {
     box.classList.add('sheet');
     for (const it of items) {
@@ -613,7 +613,7 @@ function pickKael(dict) {
   return { text: lines[Math.floor(Math.random() * lines.length)], author: null };
 }
 
-async function sharePgnText(filename, text) {
+export async function sharePgnText(filename, text) {
   const file = new File([text], filename, { type: 'application/x-chess-pgn' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: filename }); return; } catch (e) { if (e.name === 'AbortError') return; }
@@ -1236,7 +1236,7 @@ function buildLevelSeg(el, def = 2) {
 
 // ═════════════════════ ANALYSIS ═════════════════════
 
-const Analysis = {
+export const Analysis = {
   tree: new GameTree(),
   board: null,
   engineOn: false,
@@ -1301,6 +1301,9 @@ const Analysis = {
     $('ana-gr-exit').onclick = () => this.exitGameReview();
     $('ana-base-prev').onclick = () => this.gotoAdjacentGame(-1);
     $('ana-base-next').onclick = () => this.gotoAdjacentGame(1);
+    $('ana-hist-back').onclick = () => this.backToHistory();
+    $('ana-hist-prev').onclick = () => this.gotoAdjacentHistory(-1);
+    $('ana-hist-next').onclick = () => this.gotoAdjacentHistory(1);
     $('ana-annotate-toggle').onclick = () => {
       const nowHidden = $('ana-annotate').classList.toggle('hidden');
       if (nowHidden) {
@@ -1391,6 +1394,32 @@ const Analysis = {
       $('ana-base-next').disabled = idx === -1 || idx >= Base.gamesCache.length - 1;
     }
     $('ana-gr-nav').classList.toggle('hidden', !this.ctx.fromGameReview);
+
+    const inHist = !!this.ctx.historyId;
+    $('ana-hist-nav').classList.toggle('hidden', !inHist);
+    if (inHist) {
+      // Keep the player oriented: they came from the Play tab, so that is the
+      // tab that stays lit.
+      document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.screen === 'play'));
+      const idx = History.state.items.findIndex(g => g.id === this.ctx.historyId);
+      $('ana-hist-prev').disabled = idx <= 0;
+      $('ana-hist-next').disabled = idx === -1 || idx >= History.state.items.length - 1;
+      const rec = History.state.items[idx];
+      $('ana-hist-head').textContent = rec ? History.headline(rec) : '';
+    }
+  },
+
+  backToHistory() {
+    showScreen('play');
+    History.open();
+  },
+
+  gotoAdjacentHistory(dir) {
+    const idx = History.state.items.findIndex(g => g.id === this.ctx.historyId);
+    if (idx === -1) return;
+    const next = History.state.items[idx + dir];
+    if (!next) return;
+    History.openGame(next);
   },
 
   backToBase() {
@@ -1402,7 +1431,7 @@ const Analysis = {
   // Leaves the base-linked context without leaving the game on screen —
   // stays on this position, but as a normal, un-linked Analysis session.
   exitBase() {
-    this.ctx = { baseId: null, gameId: null };
+    this.ctx = { baseId: null, gameId: null, historyId: null };
     showScreen('analysis');
     this.updateBaseNav();
   },
@@ -1411,7 +1440,7 @@ const Analysis = {
   // the position on screen — same idea as exitBase() but for games that
   // arrived here via Game Review's "Analyze the game" button.
   exitGameReview() {
-    this.ctx = { baseId: null, gameId: null };
+    this.ctx = { baseId: null, gameId: null, historyId: null };
     this.updateBaseNav();
   },
 
@@ -1728,13 +1757,47 @@ const Analysis = {
       { label: '📤 ' + t('share_game'), action: () => sharePgnText(gameFilename(this.tree.headers), this.tree.toPgn()) },
       { label: '📋 ' + t('copy_pgn'), action: () => { copyText(this.tree.toPgn()); } },
       { label: '📋 ' + t('copy_fen'), action: () => { copyText(this.tree.fen()); } },
+      { label: t('hist_view_pgn'), action: () => this.viewPgn() },
       { label: '🤖 ' + t('play_from_here'), action: () => Play.startFromFen(this.tree.fen()) },
     ];
     if (this.tree.current.san) {
       items.push({ label: '⬆️ ' + t('promote_var'), action: () => { this.pushUndo(); this.tree.promote(this.tree.current); this.refresh(); } });
       items.push({ label: '🗑 ' + t('delete'), action: () => this.deleteSubmenu(this.tree.current) });
     }
+    if (this.ctx.historyId) {
+      items.push({ label: t('hist_delete_game'), danger: true, action: async () => {
+        if (await askConfirm(t('history_delete_confirm'))) {
+          await db.deleteHistoryGame(this.ctx.historyId);
+          this.ctx = { baseId: null, gameId: null, historyId: null };
+          this.backToHistory();
+        }
+      } });
+    }
     sheet(items);
+  },
+
+  // Copy and Export already exist; this is for actually reading the game text.
+  viewPgn() {
+    const text = this.tree.toPgn();
+    modal((box, close) => {
+      box.innerHTML = `<h3>PGN</h3>`;
+      const pre = document.createElement('pre');
+      pre.className = 'pgn-view';
+      pre.textContent = text;
+      box.appendChild(pre);
+      const row = document.createElement('div');
+      row.className = 'row';
+      const copy = document.createElement('button');
+      copy.className = 'btn primary';
+      copy.textContent = t('copy_pgn');
+      copy.onclick = () => copyText(text);
+      const ok = document.createElement('button');
+      ok.className = 'btn';
+      ok.textContent = t('ok');
+      ok.onclick = () => close(null);
+      row.append(copy, ok);
+      box.appendChild(row);
+    });
   },
 
   editDetails() {
