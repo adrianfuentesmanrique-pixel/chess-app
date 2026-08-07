@@ -24,19 +24,34 @@ service cloud.firestore {
       // contradict the Privacy Policy's deletion promise.
       allow delete: if request.auth != null && request.auth.uid == uid;
 
-      // hasOnly() must mirror PUBLIC_KEYS in js/firebase.js exactly — this
-      // collection is world-readable, so restricting which fields a client
-      // can write here (not just who) is what actually enforces the
-      // Privacy Policy's promise that real name/email never go public,
-      // independent of whether the client-side code can be trusted.
+      // hasOnly() must mirror PUBLISHED_KEYS in js/firebase.js exactly (plus
+      // the two derived averages and updatedAt) — this collection is
+      // world-readable, so restricting which fields a client can write here
+      // (not just who) is what actually enforces the Privacy Policy's promise
+      // that real name/email never go public, independent of whether the
+      // client-side code can be trusted.
       allow write: if request.auth != null && request.auth.uid == uid
         && after().keys().hasOnly([
           'profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo',
           'openingElo', 'endgameElo', 'streakCount', 'rushBestScore',
           'rushBest180', 'rushBest300',
           'rushMonth180', 'rushMonth300', 'rushMonthKey',
-          'blindfoldElo', 'updatedAt'
+          'blindfoldElo', 'openingEloAvg', 'endgameEloAvg',
+          'profileVisibility', 'updatedAt'
         ])
+
+        // Profile privacy. A word rather than a flag, so extra levels can be
+        // added without a schema change; anything else is rejected outright so
+        // a typo can't silently read as "public" downstream.
+        && (!('profileVisibility' in after()) ||
+            after().profileVisibility in ['public', 'private'])
+
+        // The privacy guarantee itself, enforced here rather than trusted to
+        // the client: a private profile may not carry the detail fields at
+        // all. Not publishing them is what makes them private — the UI hiding
+        // them would mean nothing on a world-readable document.
+        && (after().get('profileVisibility', 'public') == 'public' ||
+            !after().keys().hasAny(['puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount']))
 
         // Text fields: bounded length so the public doc can't be used as
         // free storage or to inject an oversized display name.
@@ -51,6 +66,8 @@ service cloud.firestore {
         // only fields worth forging. Everything here is range-checked.
         && (!('puzzleElo' in after())    || num(after().puzzleElo, 0, 4000))
         && (!('blindfoldElo' in after()) || num(after().blindfoldElo, 0, 4000))
+        && (!('openingEloAvg' in after())|| num(after().openingEloAvg, 0, 4000))
+        && (!('endgameEloAvg' in after())|| num(after().endgameEloAvg, 0, 4000))
         && (!('rushBestScore' in after())|| num(after().rushBestScore, 0, 1000))
         && (!('rushBest180' in after())  || num(after().rushBest180, 0, 1000))
         && (!('rushBest300' in after())  || num(after().rushBest300, 0, 1000))

@@ -281,6 +281,20 @@ const DICT = {
   terms_link_text: { es: 'Términos y Condiciones', en: 'Terms & Conditions' },
   agree_terms_middle: { es: 'y la', en: 'and' },
   privacy_link_text: { es: 'Política de Privacidad', en: 'Privacy Policy' },
+  // Profile privacy (Settings sheet + the public profile screen)
+  privacy_section: { es: 'Privacidad', en: 'Privacy' },
+  privacy_public: { es: 'Público', en: 'Public' },
+  privacy_private: { es: 'Privado', en: 'Private' },
+  privacy_hint: {
+    es: 'Controla lo que ven los demás jugadores cuando abren tu perfil desde la clasificación. En privado solo verán tu avatar, tu nombre y tus ELO. Tú siempre ves tu perfil completo.',
+    en: 'Controls what other players see when they open your profile from the leaderboard. When private they only see your avatar, your name and your ELO ratings. You always see your own full profile.',
+  },
+  privacy_now_private: { es: 'Tu perfil ahora es privado.', en: 'Your profile is now private.' },
+  privacy_now_public: { es: 'Tu perfil ahora es público.', en: 'Your profile is now public.' },
+  pubprofile_private: {
+    es: 'Este jugador ha decidido mantener su perfil privado.',
+    en: 'This player has chosen to keep their profile private.',
+  },
   legal_section: { es: 'Legal', en: 'Legal' },
   view_terms: { es: 'Ver Términos y Condiciones', en: 'View Terms & Conditions' },
   view_privacy: { es: 'Ver Política de Privacidad', en: 'View Privacy Policy' },

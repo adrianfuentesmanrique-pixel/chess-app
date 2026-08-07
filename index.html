@@ -654,20 +654,26 @@ if (window.Sentry && window.Sentry.onLoad) {
       <div class="elo-card"><span data-i18n="endgame_elo"></span><b id="pubprofile-elo-endgame"></b></div>
       <div class="elo-card"><span data-i18n="blindfold_elo"></span><b id="pubprofile-elo-blindfold"></b></div>
     </div>
-    <div class="profile-card">
+    <!-- Everything below the ELO cards is gated on the player's privacy
+         setting: .pubprofile-detail is hidden as a block and the note below
+         takes its place. -->
+    <div id="pubprofile-private-note" class="profile-card hidden" style="text-align:center">
+      <p class="hint" style="margin:0" data-i18n="pubprofile_private"></p>
+    </div>
+    <div class="profile-card pubprofile-detail">
       <h3 data-i18n="radar_overall"></h3>
       <div class="radar-wrap"><canvas id="chart-pub-overall"></canvas></div>
     </div>
-    <div class="profile-card">
+    <div class="profile-card pubprofile-detail">
       <h3 data-i18n="radar_opening"></h3>
       <div class="radar-wrap"><canvas id="chart-pub-opening"></canvas></div>
       <p id="pubprofile-opening-empty" class="hint hidden" data-i18n="no_opening_data"></p>
     </div>
-    <div class="profile-card">
+    <div class="profile-card pubprofile-detail">
       <h3 data-i18n="radar_puzzle"></h3>
       <div class="radar-wrap"><canvas id="chart-pub-puzzle"></canvas></div>
     </div>
-    <div class="profile-card">
+    <div class="profile-card pubprofile-detail">
       <h3 data-i18n="radar_endgame"></h3>
       <div class="radar-wrap"><canvas id="chart-pub-endgame"></canvas></div>
     </div>

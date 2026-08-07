@@ -8,7 +8,7 @@ import {
   deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, orderBy, limit, getDocs,
+  getFirestore, doc, getDoc, setDoc, deleteDoc, deleteField, collection, query, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -24,7 +24,7 @@ const firebaseConfig = {
 
 // Keys that follow the signed-in user across devices.
 const SYNCED_KEYS = [
-  'profileName', 'username', 'firstName', 'lastName', 'dateOfBirth',
+  'profileName', 'username', 'firstName', 'lastName', 'dateOfBirth', 'profileVisibility',
   'streakCount', 'streakLastDate',
   'puzzleElo', 'puzzleThemeElo', 'puzzlesSolved',
   'openingElo', 'endgameElo', 'boardTheme', 'pieceSet', 'colorMode',
@@ -35,10 +35,38 @@ const SYNCED_KEYS = [
   'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
 ];
 
+// Profile visibility is stored as a WORD, not a yes/no, so further levels
+// ('friends', …) can be added later without changing the stored shape or
+// rewriting the security rules. Anything unrecognised reads as public.
+export const VISIBILITY = { PUBLIC: 'public', PRIVATE: 'private' };
+const VISIBILITY_LEVELS = Object.values(VISIBILITY);
+
 // Subset that gets mirrored into the PUBLIC /leaderboard/{uid} doc — never
 // email, real name, or date of birth. Changing any of these re-publishes it.
-const PUBLIC_KEYS = ['profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount', 'rushBestScore', 'rushBest180', 'rushBest300',
+//
+// Split in two because /leaderboard is world-readable: hiding a section in the
+// UI would hide nothing, so privacy is enforced by NOT PUBLISHING the data.
+// These always go out — the leaderboard rows sort and draw on them, so they
+// are identical for every player whatever their privacy setting.
+const PUBLIC_ALWAYS_KEYS = ['profileName', 'username', 'avatarId', 'puzzleElo',
+  'rushBestScore', 'rushBest180', 'rushBest300',
   'rushMonth180', 'rushMonth300', 'rushMonthKey', 'blindfoldElo'];
+
+// These only go out while the profile is public. On a private profile they are
+// actively DELETED from the public doc — merge writes never remove a field, so
+// merely skipping them would leave yesterday's copy readable forever.
+const PUBLIC_DETAIL_KEYS = ['puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount'];
+
+// Any of these changing means the public doc needs rewriting.
+const PUBLISHED_KEYS = [...PUBLIC_ALWAYS_KEYS, ...PUBLIC_DETAIL_KEYS, 'profileVisibility'];
+
+// Mean of a {name: rating} map, or null when there is nothing to average.
+// Published as a plain number so a private profile can still show its Opening
+// and Endgame ELO without exposing the per-opening breakdown behind it.
+function avgOf(map) {
+  const vals = Object.values(map || {}).filter(v => typeof v === 'number');
+  return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+}
 
 const app = initializeApp(firebaseConfig);
 
@@ -203,11 +231,27 @@ export function authErrorMessage(code, lang) {
 }
 
 async function updatePublicLeaderboardDoc(uid) {
-  const pub = {};
-  for (const key of PUBLIC_KEYS) {
+  const visibility = await db.kvGet('profileVisibility', VISIBILITY.PUBLIC);
+  const isPublic = visibility !== VISIBILITY.PRIVATE;
+  const pub = { profileVisibility: VISIBILITY_LEVELS.includes(visibility) ? visibility : VISIBILITY.PUBLIC };
+
+  for (const key of PUBLIC_ALWAYS_KEYS) {
     const v = await db.kvGet(key, null);
     if (v !== null) pub[key] = v;
   }
+
+  // Averages of the two breakdown maps. Always published: they are what a
+  // private profile shows in place of the maps themselves.
+  const openingAvg = avgOf(await db.kvGet('openingElo', null));
+  const endgameAvg = avgOf(await db.kvGet('endgameElo', null));
+  pub.openingEloAvg = openingAvg === null ? deleteField() : openingAvg;
+  pub.endgameEloAvg = endgameAvg === null ? deleteField() : endgameAvg;
+
+  for (const key of PUBLIC_DETAIL_KEYS) {
+    const v = await db.kvGet(key, null);
+    pub[key] = (isPublic && v !== null) ? v : deleteField();
+  }
+
   pub.updatedAt = Date.now();
   await setDoc(doc(firestore, 'leaderboard', uid), pub, { merge: true });
 }
@@ -218,7 +262,7 @@ db.setSyncHook((key, value) => {
   setDoc(doc(firestore, 'users', uid), { [key]: value }, { merge: true }).catch(e => {
     console.error('Firestore sync failed for', key, e);
   });
-  if (PUBLIC_KEYS.includes(key)) {
+  if (PUBLISHED_KEYS.includes(key)) {
     updatePublicLeaderboardDoc(uid).catch(e => console.error('Leaderboard sync failed', e));
   }
 });

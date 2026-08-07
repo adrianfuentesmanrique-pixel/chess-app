@@ -5009,6 +5009,25 @@ function openSettings() {
     // Close the settings sheet first: the tour dims the whole screen and the
     // first steps are on the Analysis board behind this modal.
     tourBtn.onclick = () => { close(null); setTimeout(() => Tour.start(tourCtx()), 120); };
+    // privacy — what other players see when they open your profile from the
+    // leaderboard. Same seg control as every setting above, so the sheet's
+    // spacing and its light/dark styling come for free. Applies on tap: the
+    // kvSet republishes the public doc immediately, like the rest of this sheet.
+    const lPriv = document.createElement('label'); lPriv.className = 'fld-label'; lPriv.textContent = t('privacy_section');
+    const segPriv = document.createElement('div'); segPriv.className = 'seg';
+    const curVis = await db.kvGet('profileVisibility', 'public');
+    for (const [v, key] of [['public', 'privacy_public'], ['private', 'privacy_private']]) {
+      const b = document.createElement('button');
+      b.textContent = t(key); b.dataset.v = v;
+      if (curVis === v) b.classList.add('on');
+      segPriv.appendChild(b);
+    }
+    segInit(segPriv, async v => {
+      await db.kvSet('profileVisibility', v);
+      toast(t(v === 'private' ? 'privacy_now_private' : 'privacy_now_public'));
+    });
+    const privHint = document.createElement('p'); privHint.className = 'hint'; privHint.textContent = t('privacy_hint');
+
     // legal
     const lLegal = document.createElement('label'); lLegal.className = 'fld-label'; lLegal.textContent = t('legal_section');
     const termsBtn = document.createElement('button'); termsBtn.className = 'btn'; termsBtn.textContent = t('view_terms');
@@ -5021,7 +5040,7 @@ function openSettings() {
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
     const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
     ok.onclick = () => close(null);
-    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, lTour, tourBtn, lLegal, legalRow, about, ok);
+    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, lPriv, segPriv, privHint, lTour, tourBtn, lLegal, legalRow, about, ok);
   });
 }
 
@@ -5719,37 +5738,80 @@ const Leaderboard = {
 
 // ═════════════════════ PUBLIC PROFILE ═════════════════════
 
+// Which sections of a public profile each privacy level exposes. Adding a
+// level later ('friends', 'hide activity', …) means adding a line here, not
+// rewriting the screen — every check below goes through canSee().
+const VISIBILITY_SECTIONS = {
+  public:  ['identity', 'elo', 'charts'],
+  private: ['identity', 'elo'],
+};
+
+// The single gate for "may this viewer see that section". `isSelf` short-
+// circuits it: a private setting hides you from other players, never from you.
+// An unknown or missing level reads as public, matching the default.
+function canSee(section, entry, isSelf) {
+  if (isSelf) return true;
+  const level = entry.profileVisibility || 'public';
+  return (VISIBILITY_SECTIONS[level] || VISIBILITY_SECTIONS.public).includes(section);
+}
+
+// Your own public document stops carrying the breakdown maps once you go
+// private, so for your own row they are read back off this device instead.
+async function withLocalDetail(entry) {
+  const [puzzleThemeElo, openingElo, endgameElo] = await Promise.all([
+    db.kvGet('puzzleThemeElo', {}),
+    db.kvGet('openingElo', {}),
+    db.kvGet('endgameElo', {}),
+  ]);
+  return { ...entry, puzzleThemeElo, openingElo, endgameElo };
+}
+
 const PublicProfile = {
   init() {
     $('pubprofile-back').onclick = () => showScreen('leaderboard');
   },
 
-  open(entry) {
+  async open(entry) {
     showScreen('public-profile');
-    $('pubprofile-name').textContent = entry.profileName || '?';
-    $('pubprofile-avatar-wrap').innerHTML = avatarHtml(entry.avatarId, 64);
+    const isSelf = !!Auth.user && entry.uid === Auth.user.uid;
+    const data = isSelf ? await withLocalDetail(entry) : entry;
+    const charts = canSee('charts', entry, isSelf);
 
-    const puzzleElo = entry.puzzleElo ?? 1200;
-    const themeElo = entry.puzzleThemeElo ?? {};
-    const openingElo = entry.openingElo ?? {};
-    const endgameElo = entry.endgameElo ?? {};
-    const blindfoldElo = entry.blindfoldElo ?? 1200;
+    $('pubprofile-name').textContent = data.profileName || '?';
+    $('pubprofile-avatar-wrap').innerHTML = avatarHtml(data.avatarId, 64);
 
+    const puzzleElo = data.puzzleElo ?? 1200;
+    const themeElo = data.puzzleThemeElo ?? {};
+    const openingElo = data.openingElo ?? {};
+    const endgameElo = data.endgameElo ?? {};
+    const blindfoldElo = data.blindfoldElo ?? 1200;
+
+    // A private profile publishes only the averages, so fall back to those:
+    // all four ELO cards stay filled without the breakdown behind them.
+    // null means "no data at all" — shown as a dash, as before.
     const openingNames = Object.keys(openingElo);
     const openingAvg = openingNames.length
-      ? openingNames.reduce((s, k) => s + openingElo[k], 0) / openingNames.length : 1200;
+      ? openingNames.reduce((s, k) => s + openingElo[k], 0) / openingNames.length
+      : (data.openingEloAvg ?? null);
     const endgameNames = ENDGAME_CATEGORIES.filter(c => endgameElo[c] != null);
     const endgameAvg = endgameNames.length
-      ? endgameNames.reduce((s, c) => s + endgameElo[c], 0) / endgameNames.length : 1200;
+      ? endgameNames.reduce((s, c) => s + endgameElo[c], 0) / endgameNames.length
+      : (data.endgameEloAvg ?? null);
 
     $('pubprofile-elo-puzzle').textContent = Math.round(puzzleElo);
-    $('pubprofile-elo-opening').textContent = openingNames.length ? Math.round(openingAvg) : '—';
-    $('pubprofile-elo-endgame').textContent = endgameNames.length ? Math.round(endgameAvg) : '—';
+    $('pubprofile-elo-opening').textContent = openingAvg == null ? '—' : Math.round(openingAvg);
+    $('pubprofile-elo-endgame').textContent = endgameAvg == null ? '—' : Math.round(endgameAvg);
     $('pubprofile-elo-blindfold').textContent = Math.round(blindfoldElo);
+
+    $('pubprofile-private-note').classList.toggle('hidden', charts);
+    for (const card of document.querySelectorAll('.pubprofile-detail')) {
+      card.classList.toggle('hidden', !charts);
+    }
+    if (!charts) return;
 
     Profile.drawRadar('pub-overall',
       [t('radar_axis_opening'), t('radar_axis_puzzle'), t('radar_axis_endgame')],
-      [openingNames.length ? openingAvg : RADAR_MIN, puzzleElo, endgameNames.length ? endgameAvg : RADAR_MIN]);
+      [openingAvg ?? RADAR_MIN, puzzleElo, endgameAvg ?? RADAR_MIN]);
 
     $('pubprofile-opening-empty').classList.toggle('hidden', openingNames.length > 0);
     $('chart-pub-opening').classList.toggle('hidden', openingNames.length === 0);
