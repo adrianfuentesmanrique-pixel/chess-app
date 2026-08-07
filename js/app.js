@@ -14,6 +14,7 @@ import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLIND
 import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
+import * as History from './history.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -2278,6 +2279,8 @@ const Play = {
   startFen: START_FEN,
   over: false,
   thinking: false,
+  playedAt: 0,
+  saved: false,
 
   init() {
     buildLevelSeg($('play-level'));
@@ -2294,7 +2297,12 @@ const Play = {
       if (this.over) return;
       if (await askConfirm(t('resign') + '?')) this.finish(t('you_resigned'));
     };
-    $('play-back').onclick = () => { engine.stop(); $('play-game').classList.add('hidden'); $('play-setup').classList.remove('hidden'); };
+    $('play-back').onclick = () => {
+      engine.stop();
+      if (!this.over) this.saveToHistory({ abandoned: true });
+      $('play-game').classList.add('hidden');
+      $('play-setup').classList.remove('hidden');
+    };
     $('play-analyze').onclick = () => this.toAnalysis();
     $('play-undo').onclick = () => this.undo();
   },
@@ -2325,6 +2333,8 @@ const Play = {
     this.chess = new Chess(fen);
     this.over = false;
     this.thinking = false;
+    this.playedAt = Date.now();
+    this.saved = false;
     $('play-setup').classList.add('hidden');
     $('play-game').classList.remove('hidden');
     this.board.setOrientation(color);
@@ -2414,6 +2424,43 @@ const Play = {
         blackName: this.playerColor === 'b' ? me : sf,
         outcome,
       });
+    }
+    this.saveToHistory({ resigned: msg === t('you_resigned') });
+  },
+
+  // Saves the finished game to history. `resigned` and `abandoned` are the two
+  // things the final position cannot tell us. Guarded by `saved` so a game
+  // cannot be recorded twice — leaving the screen after a normal finish must
+  // not add a second, "abandoned" copy of the same game.
+  async saveToHistory({ resigned = false, abandoned = false } = {}) {
+    if (this.saved || !this.chess) return;
+    const hist = this.chess.history();
+    if (hist.length < History.HISTORY_MIN_PLIES) return;
+    this.saved = true;
+    try {
+      const profileName = await db.kvGet('profileName', '');
+      const me = profileName || t('history_you');
+      const bot = t('history_bot_name').replace('{lvl}', t('level_names')[this.level]);
+      const tree = treeFromHistory(this.startFen, hist);
+      tree.setHeader('White', this.playerColor === 'w' ? me : bot);
+      tree.setHeader('Black', this.playerColor === 'b' ? me : bot);
+      tree.setHeader('Date', new Date().toISOString().slice(0, 10).replace(/-/g, '.'));
+      tree.setHeader('Event', t('history_event'));
+      const rec = History.buildRecord({
+        chess: this.chess,
+        startFen: this.startFen,
+        playerColor: this.playerColor,
+        level: this.level,
+        levelElo: LEVELS[this.level].elo,
+        playedAt: this.playedAt,
+        pgn: '',
+        resigned, abandoned,
+      });
+      tree.setHeader('Result', rec.result);
+      rec.pgn = tree.toPgn();
+      await History.saveGame(rec);
+    } catch (e) {
+      console.error('history save failed', e);
     }
   },
 

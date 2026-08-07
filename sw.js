@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v22';
+const CACHE = 'chess-training-center-v23';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -11,6 +11,7 @@ const ASSETS = [
   'js/app.js',
   'js/board.js',
   'js/db.js',
+  'js/history.js',
   'js/engine.js',
   'js/i18n.js',
   'js/firebase.js',

@@ -96,7 +96,7 @@ If the app fails to load with a `Cannot access '...' before initialization` erro
   - `saveGame(rec) -> Promise<number>`
   - `HISTORY_MIN_PLIES = 4`
 
-- [ ] **Step 1: Bump the DB version and add the store**
+- [x] **Step 1: Bump the DB version and add the store**
 
 In `js/db.js`, change line 5:
 
@@ -126,7 +126,7 @@ Then inside `onupgradeneeded`, after the existing `if (e.oldVersion < 2) { ... }
       }
 ```
 
-- [ ] **Step 2: Add the history store functions to `js/db.js`**
+- [x] **Step 2: Add the history store functions to `js/db.js`**
 
 Append after the `addGamesBatch` function, before the `// --- key/value ---` section:
 
@@ -182,7 +182,7 @@ export async function pageHistory({ count = 30, dir = 'prev', match = null } = {
 }
 ```
 
-- [ ] **Step 3: Include the new store in the wipe**
+- [x] **Step 3: Include the new store in the wipe**
 
 In `js/db.js`, in `clearAllLocalData()`, change the store list:
 
@@ -192,7 +192,7 @@ In `js/db.js`, in `clearAllLocalData()`, change the store list:
 
 Leave `clearSyncedProfileData()` alone — history is local work, not account identity, so signing out must not delete it.
 
-- [ ] **Step 4: Create `js/history.js` with record building**
+- [x] **Step 4: Create `js/history.js` with record building**
 
 ```js
 // Game history: every game played against the engine, stored locally.
@@ -274,7 +274,7 @@ export function saveGame(rec) {
 }
 ```
 
-- [ ] **Step 5: Wire the save into `Play`**
+- [x] **Step 5: Wire the save into `Play`**
 
 In `js/app.js`, find `const Play = {` (around line 2273).
 
@@ -344,7 +344,7 @@ Replace the `#play-back` handler in `Play.init()`:
     };
 ```
 
-- [ ] **Step 6: Import the module in `js/app.js`**
+- [x] **Step 6: Import the module in `js/app.js`**
 
 Add near the other imports at the top of `js/app.js` (the `classifyOpening` import is at line 16):
 
@@ -352,7 +352,7 @@ Add near the other imports at the top of `js/app.js` (the `classifyOpening` impo
 import * as History from './history.js';
 ```
 
-- [ ] **Step 7: Add the strings used above to `js/i18n.js`**
+- [x] **Step 7: Add the strings used above to `js/i18n.js`**
 
 Add to `DICT`:
 
@@ -362,7 +362,7 @@ Add to `DICT`:
   history_event: { es: 'Partida contra el motor', en: 'Game vs engine' },
 ```
 
-- [ ] **Step 8: Precache the new module and bump the cache**
+- [x] **Step 8: Precache the new module and bump the cache**
 
 In `sw.js`, change line 1:
 
@@ -378,7 +378,7 @@ and add to `ASSETS`, after `'js/db.js',`:
 
 Missing this breaks the app offline for every existing user.
 
-- [ ] **Step 9: Verify — a decisive win**
+- [x] **Step 9: Verify — a decisive win**
 
 Start the server (`preview_start` with `{name: "chess-app"}`), open http://localhost:8811, go to the **Play** tab, pick **Beginner**, and play a short game to checkmate (Scholar's mate: e4 e5, Bc4, Qh5, Qxf7#).
 
@@ -391,7 +391,7 @@ r.onsuccess = () => r.result.transaction('playHistory').objectStore('playHistory
 
 Expected: **one row**, with `outcome: 'win'`, `endReason: 'checkmate'`, `result: '1-0'`, `level: 0`, `playerColor: 'w'`, `moveCount: 4`, a non-empty `pgn`, and `opening` set. Confirm `endedAt > playedAt`.
 
-- [ ] **Step 10: Verify — resignation, abandonment, and the double-save guard**
+- [x] **Step 10: Verify — resignation, abandonment, and the double-save guard**
 
 1. Start a new game, play 3 full moves, press **Resign**, confirm.
 2. Then press **Back**.
@@ -403,7 +403,7 @@ Re-run the console query. Expected: **exactly three rows total** (the win, the r
 - The abandoned row: `outcome: 'unfinished'`, `endReason: 'abandoned'`, `result: '*'`.
 - **No fourth row** — the one-move game is below the threshold, and pressing Back after the resignation must NOT have added a duplicate. If there are four rows, the `saved` guard is wrong.
 
-- [ ] **Step 11: Verify the upgrade path**
+- [x] **Step 11: Verify the upgrade path**
 
 The migration matters more than the feature: an existing user must not lose data. In the console:
 
@@ -414,7 +414,7 @@ q.onsuccess = () => console.log('version', q.result.version, [...q.result.object
 
 Expected: `version 3` and `['bases', 'games', 'kv', 'playHistory']`. Then open the **Databases** tab and confirm any existing databases and games are still listed, and the **Profile** tab still shows your ELO and streak.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add js/db.js js/history.js js/app.js js/i18n.js sw.js

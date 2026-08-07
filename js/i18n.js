@@ -118,6 +118,10 @@ const DICT = {
   analyze_game: { es: 'Analizar la partida', en: 'Analyze the game' },
   analyze_short: { es: 'Análisis', en: 'Analysis' },
   level_names: { es: ['Principiante', 'Fácil', 'Casual', 'Club', 'Club fuerte', 'Experto', 'Maestro', 'Máximo'], en: ['Beginner', 'Easy', 'Casual', 'Club', 'Strong club', 'Expert', 'Master', 'Maximum'] },
+  // Game history
+  history_you: { es: 'Tú', en: 'You' },
+  history_bot_name: { es: 'Bot {lvl}', en: '{lvl} bot' },
+  history_event: { es: 'Partida contra el motor', en: 'Game vs engine' },
   // Trainer
   trainer_title: { es: 'Entrenar aperturas', en: 'Opening training' },
   trainer_explain: { es: 'Elige una base con tus estudios de apertura. La máquina jugará las jugadas de esa base mientras pueda; cuando se salga de la teoría, seguirá jugando sola.', en: 'Choose a database with your opening studies. The computer plays moves from that base while it can; once out of theory it plays on its own.' },

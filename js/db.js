@@ -2,7 +2,8 @@
 const DB_NAME = 'mi-ajedrez';
 // v2 adds search indexes on the games store so filtering can be done by the
 // database instead of scanning every record in memory.
-const DB_VER = 2;
+// v3 adds the playHistory store for games played against the engine.
+const DB_VER = 3;
 
 let dbPromise = null;
 
@@ -27,6 +28,14 @@ function open() {
         for (const f of ['white', 'black', 'event', 'date', 'result']) {
           if (!games.indexNames.contains(f)) games.createIndex(f, f);
         }
+      }
+      if (e.oldVersion < 3) {
+        const hist = db.createObjectStore('playHistory', { keyPath: 'id', autoIncrement: true });
+        hist.createIndex('playedAt', 'playedAt');
+        hist.createIndex('outcome', 'outcome');
+        hist.createIndex('playerColor', 'playerColor');
+        hist.createIndex('level', 'level');
+        hist.createIndex('opening', 'opening');
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -186,6 +195,56 @@ export function addGamesBatch(games) {
   }));
 }
 
+// --- play history (games against the engine) ---
+export function addHistoryGame(rec) {
+  return tx('playHistory', 'readwrite', s => reqToPromise(s.add(rec)));
+}
+
+export async function getHistoryGame(id) {
+  const db = await open();
+  return reqToPromise(db.transaction('playHistory').objectStore('playHistory').get(id));
+}
+
+export function deleteHistoryGame(id) {
+  return tx('playHistory', 'readwrite', s => s.delete(id));
+}
+
+export function clearHistory() {
+  return tx('playHistory', 'readwrite', s => s.clear());
+}
+
+// One page of history, newest first by default.
+//
+// Reads through a cursor on the playedAt index and stops as soon as `count`
+// matching records have been collected, so the whole history is never loaded.
+// The PGN is stripped: it is roughly 90% of a record and the list never shows
+// it, so pulling it would drag megabytes of move text in just to draw cards.
+//
+// "Load more" re-requests from the top with a larger `count` rather than
+// resuming a cursor. Resuming across an await needs continuePrimaryKey and
+// breaks if the anchor record was deleted meanwhile; re-scanning a few hundred
+// tiny records costs nothing and is the same approach the games list uses.
+export async function pageHistory({ count = 30, dir = 'prev', match = null } = {}) {
+  const database = await open();
+  return new Promise((resolve, reject) => {
+    const out = [];
+    const idx = database.transaction('playHistory').objectStore('playHistory').index('playedAt');
+    const req = idx.openCursor(null, dir);
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) { resolve({ items: out, hasMore: false }); return; }
+      const g = cur.value;
+      if (!match || match(g)) {
+        if (out.length >= count) { resolve({ items: out, hasMore: true }); return; }
+        const { pgn, ...summary } = g;
+        out.push(summary);
+      }
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
 // --- key/value (settings, puzzle progress) ---
 export async function kvGet(key, def = null) {
   const db = await open();
@@ -208,7 +267,7 @@ export async function kvSet(key, value) {
 // once the cloud account and its data are gone.
 export async function clearAllLocalData() {
   const database = await open();
-  await Promise.all(['bases', 'games', 'kv'].map(store => new Promise((resolve, reject) => {
+  await Promise.all(['bases', 'games', 'kv', 'playHistory'].map(store => new Promise((resolve, reject) => {
     const t = database.transaction(store, 'readwrite');
     t.objectStore(store).clear();
     t.oncomplete = resolve;
