@@ -169,6 +169,23 @@ Normal / Harder / Much harder** — not `Easiest … Harder`, which sounds absol
 and does not even pair up. Superlatives (`Easiest`, `Hardest`) are only correct
 when the ends of the scale really are fixed.
 
+**Peek is not a Hint — settled by Adrian 2026-08-08 (batch 8), do not reopen.**
+The Hint row above still holds for every puzzle nudge, but the Blindfold screen
+has a control that does not nudge: it briefly reveals the hidden pieces. That
+one is **`Peek`**, which is what the code (`peeksUsed`, `peek()`) and the
+out-of-peeks toast already call it. Naming it "Hint" told the user it would
+point at the answer, which it does not. `Peek` is a named exception to the Hint
+rule, not a second general-purpose word — everywhere else, a nudge is a Hint.
+
+**Never advertise a tier that does not exist — settled by Adrian 2026-08-08
+(batch 8), do not reopen.** UI copy states what the app actually does today. The
+out-of-peeks toast used to read "You've used your **free** peeks. Become a
+**Member** for unlimited peeks!", but there is no membership tier — the peek
+limit is a flat 2 per puzzle and `js/app.js:25` records that the gating "does
+not exist again" yet. It now states the real rule instead. If a paid tier ships
+later, the copy can change with it; until then no string implies one, and
+"free"/"Member" are out of the vocabulary.
+
 **Close vs Exit — settled by Adrian 2026-08-08, do not reopen.** `Close` shuts
 something that sits *on top of* the screen: a dialog, a sheet, a panel. `Exit`
 leaves a *mode* the whole screen was in and puts you back where you came from —

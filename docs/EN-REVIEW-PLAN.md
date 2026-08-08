@@ -15,15 +15,15 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
    The Claude browser pane does not composite; use the headless-Chrome CDP
    recipe (`~/.claude/launch.json`, add a NEW port — last used **9175** for the
    static server and **9176** for the Chrome debugger; take the next free pair).
-   Third gotcha found in batch 8: `colorMode`, `onboardingDone` and `tourDone`
-   live in **IndexedDB**, not `localStorage` — set them with
+   Three gotchas: `websocket-client` must be created with `suppress_origin=True`
+   or Chrome answers the CDP handshake with 403; the app boots in Spanish, so
+   set `localStorage.lang = 'en'` and reload before reading any copy; and
+   — found in batch 8 — `colorMode`, `onboardingDone` and `tourDone` live in
+   **IndexedDB**, not `localStorage`. Set those with
    `import('./js/db.js').then(d => d.kvSet('onboardingDone', true))`, or the
    Kael welcome modal covers every screenshot. Only `lang` is in `localStorage`.
-   For light/dark, `Emulation.setEmulatedMedia` with `prefers-color-scheme`
-   works because the default `colorMode` is `system`.
-   Two gotchas: `websocket-client` must be created with `suppress_origin=True`
-   or Chrome answers the CDP handshake with 403, and the app boots in Spanish,
-   so set `localStorage.lang = 'en'` and reload before reading any copy.
+   For light/dark, `Emulation.setEmulatedMedia` with `prefers-color-scheme` also
+   works, because the default `colorMode` is `system`.
 5. Confirm the DICT key count is unchanged (see the command below).
 6. Bump the cache version in `sw.js` — **read** the current number, do not
    assume it.
@@ -611,35 +611,39 @@ the Blindfold screen and the Learn → Endings category list.
 - `👁 Hint (2)` is 100.3px on one 40px line in the three-button Blindfold
   action row.
 
-Waiting on Adrian's yes:
+Answered by Adrian on 2026-08-08 and applied in a follow-up commit — **both are
+settled, written into STYLE-EN §6, and must not be reopened:**
 
-- **`blind_no_peeks_toast` promises a product that does not exist.** It reads
-  "You've used your free peeks. **Become a Member for unlimited peeks!**" —
-  but there is no membership tier: `js/app.js:25` says the free-tier limits are
-  "not membership-gated yet", and `Blind.peek()` (`js/app.js:4132`) just stops
-  at a hard 2. Both "free" and "Become a Member" are claims about a paid plan
-  the app cannot sell. This is a product-truth call like batch 2's
-  `tour_engine_b`, not a grammar fix, so it was left exactly as it is. If the
-  tier is coming, keep it; if not, something like "That's both peeks for this
-  puzzle — solve the rest from memory." says the true thing.
-- **`blind_peek_btn` is now just `Hint`, and "peek" may be the better word.**
-  It was `'Hint (peek)'`, and code wraps it as `` `👁 ${t(...)} (${left})` ``
-  (`js/app.js:4124`), so the button actually rendered **`👁 Hint (peek) (2)`** —
-  two bracketed asides in a row, the second of which is the count. Dropping the
-  parenthetical was a clear fix and it is applied. The open question is the
-  remaining word: §6 makes **Hint** the house word for a puzzle nudge, so Hint
-  is what §6 gives; but this control does not hint at the answer, it briefly
-  shows the pieces, and both the code (`peeksUsed`) and
-  `blind_no_peeks_toast` call it a **peek**. `👁 Peek (2)` would be more
-  honest. Left as `Hint` because that is what the written rule says.
+- **`blind_no_peeks_toast` no longer advertises a tier that does not exist.** It
+  read "You've used your **free** peeks. Become a **Member** for unlimited
+  peeks!" — but there is no membership tier. `Blind.peek()` (`js/app.js:4132`)
+  stops at a flat 2, `peeksUsed` is reset in `nextPuzzle()` (`js/app.js:4071`)
+  so the limit is **per puzzle, not per session**, and `js/app.js:25` records
+  that the gating will need to exist "again". This was the **only** string in
+  either language that mentioned a Member. It now states the real rule:
+  **"That's both peeks for this puzzle — solve it from memory."** STYLE-EN §6
+  gained the rule that UI copy never implies a tier the app cannot sell.
+- **`blind_peek_btn` is `Peek`, not `Hint`.** It was `'Hint (peek)'` and code
+  wraps it as `` `👁 ${t(...)} (${left})` `` (`js/app.js:4124`), so the button
+  rendered **`👁 Hint (peek) (2)`** — two bracketed asides in a row, the second
+  of which is the count. Batch 8 dropped the parenthetical; Adrian then chose
+  the honest word over the house word. §6 makes **Hint** the term for a puzzle
+  nudge, but this control does not nudge — it reveals the hidden pieces, and the
+  code and the toast both call it a peek. Now **`👁 Peek (2)`**. §6 carries it as
+  a **named exception**: Hint still governs every actual nudge.
+
+Confirmed by Adrian on 2026-08-08 — applied in batch 8 itself, no follow-up
+edit needed:
+
 - **`rush_strike_left` / `rush_strike_last` no longer say "Wrong!"** They were
   `'Wrong! {n} left'` and `'Wrong! Last chance'`; STYLE-EN §7 says never blame
   the user and gives "That wasn't it — try again" as the model, so they are now
   **"That wasn't it — {n} left"** and **"That wasn't it — last chance"**. Flagged
   rather than filed as a plain fix because Puzzle Rush is a timed mode where a
-  three-word toast may genuinely beat a five-word one. Reverting is one line
-  each if you prefer the terser version.
-- **`cat_minor` ('Minor pieces') is the only plural among the six endgame
+  three-word toast may genuinely beat a five-word one. **Adrian confirmed the
+  longer, non-blaming version on 2026-08-08. Settled.**
+- **`cat_minor` ('Minor pieces') stays plural — confirmed by Adrian
+  2026-08-08.** It is the only plural among the six endgame
   categories** — its siblings are `Pawn`, `Rook`, `Queen`, `Bishop`, `Knight`.
   Singular is the right attributive form ("rook endgames"), and the badge
   built from these reads **"Converted: Minor pieces"** next to "Converted:
@@ -867,15 +871,31 @@ Ordered worst first.
 
 15. **`js/i18n.js`, `blind_peek_btn` — the Spanish carries an explanation the
     English no longer has, and it is now too long for the button.** Spanish is
-    **"Pista (ver piezas)"**; the English was `'Hint (peek)'` and is now just
-    `'Hint'`, because the code renders `` `👁 ${label} (${left})` `` and the old
-    value produced "👁 Hint (peek) (2)" — two bracketed asides in a row. The
+    **"Pista (ver piezas)"**; the English was `'Hint (peek)'` and is now
+    **`'Peek'`**, because the code renders `` `👁 ${label} (${left})` `` and the
+    old value produced "👁 Hint (peek) (2)" — two bracketed asides in a row. The
     Spanish produces the same double-bracket problem, **"👁 Pista (ver piezas)
-    (2)"**, and it is much wider: the English button measures 100.3px in a
+    (2)"**, and it is much wider: the English button measures 107.9px in a
     three-button row on a 355px screen, and the Spanish is roughly double that.
-    Should become plain **"Pista"** (or "Vistazo", which matches
-    `blind_no_peeks_toast`'s "vistazos"). **Measure the row at 375px when
-    applying** — the other two buttons are `show_solution` and `next`.
+    Adrian settled on 2026-08-08 that this control is a **peek**, not a hint
+    (STYLE-EN §6, named exception), so the Spanish should follow the same logic
+    and read **"Vistazo"** — which also matches `blind_no_peeks_toast`'s own
+    *vistazos* — rather than "Pista", which is the Spanish word for hint and is
+    presumably already used for the real puzzle hint. **Check `hint` first and
+    make sure the two do not collide**, and measure the row at 375px when
+    applying — the other two buttons are `show_solution` and `next`.
+    *(batch 8)*
+
+16. **`js/i18n.js`, `blind_no_peeks_toast` — the Spanish still advertises a
+    membership tier that does not exist.** It reads "Ya usaste tus vistazos
+    **gratis**. ¡Hazte **Miembro** para vistazos ilimitados!" There is no
+    membership tier (`js/app.js:25`), and the peek limit is a flat 2 **per
+    puzzle**, not per session. Adrian settled on 2026-08-08 that no string may
+    imply a tier the app cannot sell (STYLE-EN §6); the English is now "That's
+    both peeks for this puzzle — solve it from memory." The Spanish needs the
+    same treatment, e.g. **"Ya usaste tus dos vistazos en este puzzle —
+    resuélvelo de memoria."** This was the only string in either language that
+    mentioned a Member, so once it is done the word is gone from the app.
     *(batch 8)*
 
 Later batches must keep appending here.
