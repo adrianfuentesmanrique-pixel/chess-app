@@ -22,7 +22,7 @@
   - Deliberately left out: resuming an unfinished game, board thumbnails,
     clocks, cloud sync. The record shape already supports all four.
 
-- **`sw.js` is at `chess-training-center-v24`.** The `v11` written here
+- **`sw.js` is at `chess-training-center-v29`.** The `v11` written here
   earlier was stale for a long time — trust the file, not this note, and bump
   it whenever `index.html`, any `js/*.js` or `css/style.css` changes, or
   returning users get served stale files.
