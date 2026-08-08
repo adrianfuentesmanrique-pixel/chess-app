@@ -422,7 +422,9 @@ const LEVEL_TIERS = [
   { id: 'beginner', min: 0, max: 1200, color: '#2bb673', icon: '♟' },
   { id: 'intermediate', min: 1201, max: 1900, color: '#3659d9', icon: '♞' },
   { id: 'expert', min: 1901, max: 2300, color: '#f5b942', icon: '♝' },
-  { id: 'master', min: 2301, max: 3000, color: '#eb5757', icon: '♛' },
+  // The top tier is open-ended on purpose: a hard "-3000" ceiling reads as
+  // fiction when the world number one sits around 2830.
+  { id: 'master', min: 2301, max: 2700, color: '#eb5757', icon: '♛', openEnded: true },
 ];
 
 function kaelRecoText(levelId) {
@@ -481,7 +483,7 @@ const Onboarding = {
             cell.innerHTML = `
               <span class="kael-level-icon" style="background:${tier.color}">${tier.icon}</span>
               <b>${t('level_' + tier.id + '_name')}</b>
-              <span class="kael-level-range">ELO ${tier.min}-${tier.max}</span>
+              <span class="kael-level-range">ELO ${tier.min}-${tier.max}${tier.openEnded ? '+' : ''}</span>
               <span class="kael-level-desc">${t('level_' + tier.id + '_desc')}</span>
             `;
             cell.onclick = () => { chosen = tier.id; step = 3; render(); };
