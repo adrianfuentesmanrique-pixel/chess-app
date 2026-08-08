@@ -154,6 +154,21 @@ Also:
   writing a file.
 - **A draw must say it is a draw.** See §5.
 
+**Settings covers per-feature sheets too — settled by Adrian 2026-08-08 (batch
+7), do not reopen.** The Settings row above is not limited to the app-wide
+Settings screen. A sheet that holds one feature's own preferences is named
+`<Feature> settings`, never `Options`: the gear on the Puzzles tab opens
+**`Puzzle settings`**, which is both its screen-reader label and the sheet's
+heading. "Options" is out of the vocabulary.
+
+**A relative scale must be worded relatively — settled by Adrian 2026-08-08
+(batch 7), do not reopen.** If a control's steps are offsets from something the
+user already has, the labels say so. The puzzle difficulty steps are ±500 and
+±250 ELO around the player's own rating, so they read **Much easier / Easier /
+Normal / Harder / Much harder** — not `Easiest … Harder`, which sounds absolute
+and does not even pair up. Superlatives (`Easiest`, `Hardest`) are only correct
+when the ends of the scale really are fixed.
+
 **Close vs Exit — settled by Adrian 2026-08-08, do not reopen.** `Close` shuts
 something that sits *on top of* the screen: a dialog, a sheet, a panel. `Exit`
 leaves a *mode* the whole screen was in and puts you back where you came from —
@@ -202,6 +217,16 @@ English, and longer labels break layouts.
 - List lines using `.ellipsis` may be long — they truncate by design.
 - If the better wording is longer than the budget, keep the shorter wording and
   note it in the batch report rather than silently overflowing the layout.
+
+**The character counts are a proxy; a real measurement beats them — settled by
+Adrian 2026-08-08 (batch 7).** They exist so nobody has to boot a browser for an
+obvious call. When a longer string is required by another rule, measure the
+rendered width at 375px and report the number: if it genuinely fits, the budget
+yields. That is how `⚡ Rush` became **`⚡ Puzzle Rush`** (13 characters in a
+12-character segmented control) — §4 forbids the bare "Rush", and the three
+buttons measure 349px of the 355px strip, so nothing scrolls. **That strip now
+has about 5px of slack: treat all three mode labels as frozen.** Never widen a
+control on a string-length guess — measure first, or keep the short wording.
 
 ## 10. Strings that are written into saved files
 

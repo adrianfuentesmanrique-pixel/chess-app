@@ -445,34 +445,34 @@ Openings setup screen, the Puzzles tab, the Puzzle Rush and Blindfold strips,
 the puzzle options modal, the 47-row theme picker and the advanced search sheet.
 `trainer_explain` still occupies three lines (56.5px) in its 355px hint box.
 
-Waiting on Adrian's yes:
+Answered by Adrian on 2026-08-08 and applied in a follow-up commit — **all three
+are settled, written into STYLE-EN, and must not be reopened:**
 
-- **`mode_rush` is '⚡ Rush', which STYLE-EN §4 forbids.** §4 reserves **Puzzle
-  Rush** and lists the bare "Rush" as a name never to write — batch 4 fixed
-  exactly this in the badge names. Two rules collide here, so it was left alone:
-  §9 caps a `.seg` option at 12 characters and `⚡ Puzzle Rush` is 13, and §9's
-  own escape clause says keep the shorter wording and report it. **Measured, it
-  would fit**: the three-button strip uses 303px of a 355px `.seg.scroll`
-  container, and `⚡ Puzzle Rush` adds about 26px, so it lands near 329px and
-  still does not scroll. The strip appears on three screens (Puzzles, Puzzle
-  Rush, Blindfold). If Adrian says yes, the Spanish `mode_rush` needs the same
-  change — see item 11 in the repair list.
-- **The difficulty ladder is asymmetric and sounds absolute.** `diff_easiest`
-  … `diff_harder` read **Easiest / Easy / Normal / Hard / Harder**, but they are
-  relative offsets to the player's own ELO (−500, −250, 0, +250, +500) and
-  `difficulty_hint` says so. "Easiest" and "Harder" are not a matching pair. The
-  Spanish already gets this right (*Muy fácil … Muy difícil*), so **Much easier /
-  Easier / Normal / Harder / Much harder** would match it and describe what the
-  buttons do. Left alone because re-labelling all five is a sweep, not a typo.
-  Measured: that seg is `.seg scroll` and **already scrolls today** (343px
-  visible, 362px of content), so the longer labels would scroll further — no
-  layout breakage either way.
-- **`puzzle_options` is 'Options'**, which STYLE-EN §6 lists under **Settings**.
-  It is both the gear button's `aria-label` (`index.html:393`) and the modal's
-  own `<h3>`, so a screen reader announces a bare "Options" with no context.
-  **'Puzzle settings'** would fix both. Not applied because §6's Settings entry
-  was written for the app-wide Settings screen and extending it to a per-feature
-  sheet is a vocabulary decision.
+- **`mode_rush` is now '⚡ Puzzle Rush'.** STYLE-EN §4 forbids the bare "Rush"
+  (batch 4 fixed exactly this in the badge names), but §9 caps a `.seg` option at
+  12 characters and this is 13. Adrian chose the feature name. **Measured on all
+  three screens that carry the strip** (Puzzles, Puzzle Rush, Blindfold), light
+  and dark: the three buttons plus the 6px gaps come to **349–350.5px of the
+  355px container**, `scrollWidth === clientWidth`, so nothing scrolls and
+  `document.scrollWidth` stays 375. **That leaves under 5px of slack — all three
+  mode labels are now frozen**, and §9 gained the rule that a measurement beats
+  the character proxy. The Spanish `mode_rush` needs the same change — item 11 in
+  the repair list is now live rather than conditional.
+- **The difficulty ladder is now relative.** `Easiest / Easy / Normal / Hard /
+  Harder` sounded absolute, but the steps are offsets from the player's own ELO
+  (−500, −250, 0, +250, +500) and "Easiest"/"Harder" were not even a matching
+  pair. Now **Much easier / Easier / Normal / Harder / Much harder**, which also
+  matches the Spanish (*Muy fácil … Muy difícil*) that was already right.
+  `diff_normal` is unchanged. That seg is `.seg scroll` and **already scrolled
+  before this change** (343px visible, 362px of content); it now holds 450px and
+  still scrolls cleanly, with the page itself at 375. The rule is STYLE-EN §6.
+- **`puzzle_options` is now 'Puzzle settings'.** STYLE-EN §6 lists "Options"
+  under **Settings**. The key is both the gear button's `aria-label`
+  (`index.html:393`) and the sheet's own `<h3>`, so a screen reader used to
+  announce a bare "Options" with no context; both now say Puzzle settings, on one
+  25px line. §6 was extended to say the Settings rule covers per-feature sheets,
+  not just the app-wide Settings screen. The Spanish `Opciones` needs the same
+  treatment — item 13 in the repair list.
 
 Not touched, deliberately:
 
@@ -605,10 +605,13 @@ Ordered worst first.
     settled on **Puzzles** everywhere (STYLE-EN §4); Spanish needs one word
     picked and applied to all four. *(batch 7)*
 
-    Also here: `mode_rush` is **"⚡ Rush"** in both languages while `rush_title`
-    is **"Puzzle Rush"**. **Only change this if Adrian approves the English
-    change first** — it is still an open judgement call in the batch-7 notes
-    above, and the two languages should move together. *(batch 7)*
+    Also here: `mode_rush` is **"⚡ Rush"** while `rush_title` is **"Puzzle
+    Rush"**. **Adrian approved the English change on 2026-08-08** — the English
+    now reads "⚡ Puzzle Rush", so the Spanish should follow to
+    **"⚡ Puzzle Rush"** and the two languages stop naming the mode differently.
+    Check the width when applying: the strip has under 5px of slack at 375px, and
+    Spanish `🧩 Puzzles` / `🙈 A ciegas` are not the same widths as the English
+    ones — measure before committing. *(batch 7)*
 
 12. **`js/i18n.js`, `log_rating` — the Spanish labels the wrong quantity.**
     English is **"Rating {n}"** and the number is the puzzle's own rating;
@@ -617,5 +620,14 @@ Ordered worst first.
     session log looks as though it is reporting the slider rather than the
     puzzle. Should read **"ELO {n}"** or **"Dificultad del puzzle {n}"** — a
     wording choice, but the current word is genuinely ambiguous. *(batch 7)*
+
+13. **`js/i18n.js`, `puzzle_options` — "Opciones" needs to name its feature.**
+    Adrian settled on 2026-08-08 that a per-feature settings sheet is called
+    `<Feature> settings`, not "Options" (STYLE-EN §6). The English is now
+    **"Puzzle settings"**; the Spanish still reads **"Opciones"**. It is both the
+    gear button's `aria-label` and the sheet's heading, so a Spanish screen
+    reader announces a bare "Opciones" with no context. Should read **"Ajustes
+    del puzzle"** (or whatever word the Spanish Settings screen already uses —
+    check `settings_title` first and match it). *(batch 7)*
 
 Later batches must keep appending here.
