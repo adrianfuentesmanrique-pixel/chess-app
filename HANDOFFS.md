@@ -33,21 +33,98 @@ and push.
 
 ## B — Learn reorganisation + tab reorder (work order #8 and #12)
 
-These two MUST ship together. The tab list has no Endgame tab because #8 moves
-Endgame into Learn. Reordering alone would orphan 265 endgames.
+These two MUST ship together. The final tab list has no Endgame tab, because
+Endgame becomes Learn.
+
+**Direction reversed on Adrian's call (2026-08-05).** The original plan moved
+265 endgames into Learn. Instead, move Learn's content INTO Endgame and rename
+the tab. Verified reasons:
+- `endgames-data.js` is **212,037 bytes**; `learning-data.js` is **19,708** —
+  the Learn side is **10.8x smaller**, so far less code moves.
+- The Endgame screen carries the fragile machinery: lazy loading
+  (`Endgame.ensureLoaded()`), engine integration (`Endgame.engineOn`, and
+  `engine.stop()` when leaving the screen at js/app.js:1041), ELO tracking
+  (`endgameElo`), and a radar-chart domain key. Keeping it as the host means
+  none of that has to be re-plumbed.
+- **Existing users keep their endgame ELO and progress.** That is the real win.
 
 ```
-In C:\Users\Adrian\chess-app, restructure the Learn tab into three sections:
-Rules, Basic Checkmates, Endings. Move the entire Endgame tab (screen-endgame,
-the Endgame object in js/app.js, all 265 positions from js/endgames-data.js, its
-ELO tracking and badges) under Learn → Endings, preserving every behaviour
-including practice mode and per-category ELO. Below "Minor Piece Endgames" add
-the Capablanca quote in elegant typography matching the app: "In order to
-improve your game, you must study the endgame before everything else." — José
-Raúl Capablanca (bilingual ES/EN). Then reorder the tab bar to exactly:
-Analysis, Learn, Bases, Openings, Puzzles, Play, Profile — Endgame is removed as
-a tab since it now lives in Learn. Keep icons, active-tab state, routing and
-transitions working. Verify in the browser pane at 375px, then commit and push.
+In C:\Users\Adrian\chess-app, merge the Learn tab into the Endgame tab and
+rename the result "Learn". Do NOT move the 265 endgame positions anywhere.
+
+DO NOT read js/app.js in full — it is 232 KB. Grep for the symbols below and
+read with offset/limit.
+
+DIRECTION
+The Endgame screen survives and becomes the host. Move the contents of the
+Learning object (js/app.js around line 4307) and LEARNING_CATEGORIES
+(js/learning-data.js — categories 'rules' and 'mates') into it. Then retire
+screen-learn and the Learning object.
+
+THE THREE SECTIONS, in this order
+1. Rules            <- from LEARNING_CATEGORIES 'rules'
+2. Basic Checkmates <- from LEARNING_CATEGORIES 'mates'
+3. Endings          <- the existing endgame categories, unchanged
+
+HARD RULE — rename only what the user sees
+The internal key 'endgame' must NOT be renamed anywhere. It appears in the
+SCREENS array (js/app.js:1032), in show/hide logic (lines 1041, 1045, 4826,
+5607), in `endgameElo` (lines 4009, 4290, 4293, 5138, 5257, 5263, 5265) and as
+a radar-chart domain in drawRadar('endgame', ...) at line 5286. It is one of
+four ELO domains (puzzle/opening/endgame/blindfold). Renaming it would wipe
+every existing user's endgame rating and break the profile radar chart.
+So: screen id stays `screen-endgame`, storage keys stay 'endgame', only the
+visible tab label and its i18n strings become "Learn" / "Aprender".
+
+HARD RULE 2 — ONLY "Endings" may touch endgame progress
+Rules and Basic Checkmates must have ZERO effect on the endgame ELO, the radar
+chart, ELO history, or any badge or feature fed by them. Adrian was explicit
+about this.
+
+How the current code makes that easy — do not break it:
+- `endgameElo` is a dictionary keyed by ENDGAME_CATEGORIES. The radar chart
+  reads exactly `ENDGAME_CATEGORIES.map(c => endgameElo[c] ?? 1200)`
+  (js/app.js:5288, and again at :5555 for public profiles). The profile average
+  at :5265 and :5534 also filters through ENDGAME_CATEGORIES.
+- The only writes are `db.kvSet('endgameElo', this.elo)` at :4290 and
+  `recordEloHistory('endgameEloHistory', avg)` at :4293, both inside the
+  Endgame object's own completion path.
+- The Learning object persists NO progress at all. Its `progressEvals` is
+  in-lesson state only, never saved.
+
+THE TRAP: when merging two screens it is tempting to unify the two category
+lists into one array. DO NOT. If a Rules or Checkmates category ever lands in
+ENDGAME_CATEGORIES, it immediately appears on the radar chart and drags the
+endgame ELO average. Keep ENDGAME_CATEGORIES containing ONLY the ending
+categories, exactly as it is today, and keep LEARNING_CATEGORIES separate.
+Sections 1 and 2 must never reach the `db.kvSet('endgameElo', ...)` /
+`recordEloHistory` path.
+
+Keep Learning's behaviour exactly as it is now — no persisted progress. This
+task only relocates its UI. If you think Rules/Checkmates should track their own
+separate progress, ASK Adrian first; do not add it unprompted.
+
+ALSO
+- Below "Minor Piece Endgames" in the Endings section, add this quote in
+  elegant typography matching the app's navy-and-gold language:
+  "In order to improve your game, you must study the endgame before everything
+  else." - Jose Raul Capablanca
+  Bilingual ES/EN via the existing data-i18n system.
+- Reorder the bottom tab bar to exactly: Analysis, Learn, Bases, Openings,
+  Puzzles, Play, Profile. There is no separate Endgame tab afterwards.
+- Keep icons, active-tab state, routing and transitions working.
+- Check for orphans afterwards: any leftover reference to screen-learn, the
+  Learning object, or a 'learn' entry in SCREENS.
+
+VERIFY BEFORE COMMITTING
+- All three sections open and render at 375px width, light and dark mode.
+- Endgame practice mode still works and still records ELO.
+- An existing profile still shows its endgame rating on the radar chart.
+- ISOLATION CHECK: note the radar chart's endgame value, then complete a lesson
+  in Rules and one in Basic Checkmates. The endgame ELO, the radar chart and
+  the ELO history must be completely unchanged. Show me the before and after.
+- Confirm ENDGAME_CATEGORIES still contains only ending categories.
+Then commit and push.
 ```
 
 ---
