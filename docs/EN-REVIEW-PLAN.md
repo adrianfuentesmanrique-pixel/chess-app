@@ -44,10 +44,14 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       scope is Kael onboarding, Settings and Game Review.
 - [x] **3 — `js/learning-data.js`** — Learn lessons, 59 `en:` strings. Screens:
       Learn → Rules, Basic Checkmates. *Done 2026-08-08.*
-- [ ] **4 — `js/app.js` badges + `js/badges.js`** — 72 `en:` + the three
+- [x] **4 — `js/app.js` badges + `js/badges.js`** — 72 `en:` + the three
       `label: lang =>` functions. Screens: Profile → trophies, badge toasts.
       `js/app.js` is 235 KB — grep for the symbol, then read with offset/limit.
-      Never read it whole.
+      Never read it whole. *Done 2026-08-08.*
+      **Every badge `en:` name lives in `js/badges.js`** (23 of them) — `js/app.js`
+      holds no badge strings. The only badge-adjacent `en:` values in app.js are
+      the 38 `STREAK_TIERS` labels (`js/app.js:767–804`), which this batch read
+      and left alone. The trophy grid is **64 cells**, 3 columns at 375px.
 - [ ] **5 — `js/i18n.js` lines 3–91** — Tabs, Generic, Analysis. Highest-risk
       batch for the 375px rule: this is where the bottom tab bar lives.
 - [ ] **6 — `js/i18n.js` lines 92–161** — Databases, Play, Game History.
@@ -177,6 +181,53 @@ Not touched, deliberately:
   comma before "o" in a simple Spanish list is correct here, but *corona* and
   *convierte* repeat the same idea back to back. Style, not an error.
 
+### From batch 4 (the badges)
+
+Fixed: `rush_10` and `rush_30` said **"Rush: 10 in a row" / "Rush: 30 in a row"**.
+STYLE-EN §4 reserves **Puzzle Rush** and forbids the bare "Rush", and the
+lowercase tail was the only one of the 23 badge names not in Title Case — the
+sibling badges read `First Puzzle Rush` and `Daily Mission: 1 Week`. Now
+**"Puzzle Rush: 10 in a Row" / "Puzzle Rush: 30 in a Row"**. The ids are
+untouched, so nobody loses a badge. Verified at 375px: both wrap to two lines
+inside the 92px cell and the `-webkit-line-clamp: 2` on `.badge-name` does not
+cut them; the toast still fits on one line.
+
+Waiting on Adrian's yes:
+
+- **A badge is called `Opening Explorer`** (`opening_3`, three openings
+  trained). STYLE-EN §4 gives that exact name to the **move-tree panel inside
+  Analysis**, so the app now uses one name for two unrelated things. Renaming
+  the badge is safe (`id: 'opening_3'` never changes) but picking the
+  replacement — `Opening Repertoire`? `Three Openings Trained`? — is a naming
+  decision, not a typo. Left alone.
+- **`Daily Mission: 1 Week` and friends are singular.** The badge is earned by a
+  *streak* of daily missions, so a week of them is plural: `Daily Missions:
+  1 Week`. `daily_1` ("First Daily Mission") stays singular either way. Left
+  alone because the Spanish is singular too and the pair should move together.
+- **`STREAK_TIERS` counts in months forever** (`js/app.js:767–804`) — the ladder
+  runs `1 month` … `240 months`. A native speaker says **20 years**, not
+  240 months, somewhere past the two-year mark. Changing only the English would
+  split the two languages, and where the switch happens is a design call.
+
+Not touched, deliberately:
+
+- **`trophy_case` ('Achievements') and `badge_earned` ('Achievement
+  unlocked!')** — `js/i18n.js:370–371`, inside the Profile block, which is
+  **batch 8**. Both already read correctly.
+- **The three `label: lang =>` functions.** Their English prefixes — `Master: `,
+  `Converted: `, `Beat ` — are correct as they stand. What follows each prefix
+  comes from `t('theme_…')`, `t('cat_…')` and `t('level_names')`, all of which
+  belong to **batches 7 and 8**. Editing them here would split one commit across
+  two batches.
+- **The 38 `STREAK_TIERS` labels** beyond the months point above — `1 day`,
+  `7 days`, `3 months` are all correct English.
+- **Badge Title Case.** All 23 names are Title Case, like batch 3's lesson
+  titles. STYLE-EN §2 puts headings in sentence case, but these are trophy
+  names, they are internally consistent, and re-casing 23 of them is a visible
+  sweep rather than a copy fix.
+
+**Spanish (reported, never fixed):** see items 7 and 8 in the repair list below.
+
 ---
 
 ## Spanish repair list — do this AFTER the English review
@@ -209,5 +260,14 @@ Ordered worst first.
 6. **`js/learning-data.js`, `promotion` — style only, not an error.** "se
    corona: se convierte en dama, torre, alfil o caballo" repeats *corona* and
    *convierte* back to back. *(batch 3)*
+7. **`js/badges.js`, `rush_10` / `rush_30` — feature name.** "Rush: 10 en una
+   racha" uses the bare **"Rush"**, while `rush_1` right above it says
+   **"Primer Puzzle Rush"**. The English side was fixed to "Puzzle Rush: …" in
+   batch 4, so the two languages now name the mode differently. *(batch 4)*
+8. **`js/badges.js` — mixed voice across the badge names.** Most are noun
+   phrases ("Novato de la táctica", "Explorador de aperturas"), but the engine
+   badges are past-tense verbs ("**Venció a** Principiante", "Venció a todos los
+   niveles del motor") and so is "Convirtió: …". Not an error, but a trophy case
+   reads better all in one voice. *(batch 4)*
 
 Later batches must keep appending here.

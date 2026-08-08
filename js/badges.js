@@ -47,8 +47,8 @@ export const BADGE_DEFS = [
   { id: 'first_engine', icon: '💡', name: { es: 'Primer análisis con motor', en: 'First Engine Analysis' }, check: s => !!s.firstEngineUsed },
   // puzzle rush
   { id: 'rush_1', icon: '⚡', name: { es: 'Primer Puzzle Rush', en: 'First Puzzle Rush' }, check: s => s.rushBestScore >= 1 },
-  { id: 'rush_10', icon: '⚡', name: { es: 'Rush: 10 en una racha', en: 'Rush: 10 in a row' }, check: s => s.rushBestScore >= 10 },
-  { id: 'rush_30', icon: '👑', name: { es: 'Rush: 30 en una racha', en: 'Rush: 30 in a row' }, check: s => s.rushBestScore >= 30 },
+  { id: 'rush_10', icon: '⚡', name: { es: 'Rush: 10 en una racha', en: 'Puzzle Rush: 10 in a Row' }, check: s => s.rushBestScore >= 10 },
+  { id: 'rush_30', icon: '👑', name: { es: 'Rush: 30 en una racha', en: 'Puzzle Rush: 30 in a Row' }, check: s => s.rushBestScore >= 30 },
   // beating the engine, per difficulty level + one for sweeping all of them
   ...LEVELS.map((lv, i) => ({
     id: 'beat_engine_' + i, icon: '🤖',
