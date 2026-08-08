@@ -65,6 +65,14 @@
 
 ## Still to do
 
+### English copy review — IN PROGRESS, multi-session
+
+Making every English string read like a native speaker who knows chess.
+Spanish is out of scope. **Read `docs/STYLE-EN.md` (the rules) and
+`docs/EN-REVIEW-PLAN.md` (the batch checklist) before touching any English
+text.** One batch per commit. Batch 1 of 10 is done (`js/quotes-data.js`);
+batch 2 is `js/tour.js`. Nothing is pushed until all ten are done.
+
 **`HANDOFFS.md` is stale — tasks A–D in it are all done.** Ignore the table
 below and the prompts in that file until someone rewrites them.
 
