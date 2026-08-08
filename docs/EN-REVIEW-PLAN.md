@@ -13,7 +13,8 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
 4. Spot-check at **375px in light and dark mode** on the screens that batch
    touched — nothing overflows, truncates badly, or pushes the layout.
    The Claude browser pane does not composite; use the headless-Chrome CDP
-   recipe (`~/.claude/launch.json`, add a NEW port — last used **9164**).
+   recipe (`~/.claude/launch.json`, add a NEW port — last used **9167** for the
+   static server and **9168** for the Chrome debugger; take the next free pair).
    Two gotchas: `websocket-client` must be created with `suppress_origin=True`
    or Chrome answers the CDP handshake with 403, and the app boots in Spanish,
    so set `localStorage.lang = 'en'` and reload before reading any copy.
@@ -52,8 +53,13 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       holds no badge strings. The only badge-adjacent `en:` values in app.js are
       the 38 `STREAK_TIERS` labels (`js/app.js:767–804`), which this batch read
       and left alone. The trophy grid is **64 cells**, 3 columns at 375px.
-- [ ] **5 — `js/i18n.js` lines 3–91** — Tabs, Generic, Analysis. Highest-risk
+- [x] **5 — `js/i18n.js` lines 3–91** — Tabs, Generic, Analysis. Highest-risk
       batch for the 375px rule: this is where the bottom tab bar lives.
+      *Done 2026-08-08.* **The seven tab labels were already correct and were
+      not touched.** Measured, not guessed: at 375px the bar is exactly full —
+      six buttons of 53.1px plus `Databases` at 56.6px = 375.2px, and the widest
+      label (`Databases`, 52.6px) has about 2px of clearance each side. **No tab
+      label can grow by a single character in either language.**
 - [ ] **6 — `js/i18n.js` lines 92–161** — Databases, Play, Game History.
       Do **not** change `history_you`, `history_bot_name`, `history_event`
       (baked into saved PGNs — see STYLE-EN §10).
@@ -228,6 +234,70 @@ Not touched, deliberately:
 
 **Spanish (reported, never fixed):** see items 7 and 8 in the repair list below.
 
+### From batch 5 (i18n.js 3–91 — Tabs, Generic, Analysis)
+
+Fixed (5 plain fixes): `endings_quote_author` English had the accents stripped
+(`Jose Raul Capablanca`) while batch 1 already settled on **José Raúl
+Capablanca** in `js/quotes-data.js` — restored, so the two files now agree.
+`loading`, `comment_hint` and `explore_searching` used the typographic `…`;
+STYLE-EN §3 requires three ASCII dots. `explore_need_base` read "You need to
+upload a database first to explore", where "first to explore" parses two ways —
+now "before you can explore".
+
+**The `Analysis` naming carry-over from batch 2 is settled.** The whole Analysis
+block was read: it contains **no self-referential name at all**. Nothing in it
+says "board", "study board" or "analysis board" — the screen's only name
+anywhere in the app is the tab label `Analysis` (`tab_analysis`). So there is no
+house phrase to invent: STYLE-EN §4 already has the answer, and the three tour
+lines (`tour_board_b`, `tour_base_games_b`, `tour_play_ana_b`) should simply say
+**Analysis**. *Conflict to resolve first:* batch 2 is closed and the batch-2 note
+tells batch 9 to **skip every `tour_*` key**, so as the plan stands nobody owns
+this edit. It needs either a batch-9 exception for these three keys or a small
+follow-up commit.
+
+Waiting on Adrian's yes:
+
+- **`play_from_here`: "Play the computer from here".** Everything else in the
+  app calls the opponent the **engine** (`engine_on` "Engine on",
+  `engine_timeout` "The engine didn't respond", `history_event` "Game vs
+  engine"). "Play the computer" is idiomatic US chess English, so this is a
+  one-word-per-concept call, not an error. Left for **batch 6**, which owns the
+  Play block, so engine/computer/machine gets decided once across both tabs.
+- **`exit_base` "Exit database" / `exit_game` "Exit game".** STYLE-EN §6 prefers
+  **Close** over **Exit** "when it just closes a view". These leave a mode
+  rather than close a view, and "Close game" reads wrong for leaving a reviewed
+  game, so §6 does not cleanly decide it. Left alone; if Adrian wants them
+  changed, §6 needs the mode/view distinction written down.
+- **`delete_move`: "Delete move (and what follows)".** Understandable but
+  clunky; "(and everything after)" reads better. Its siblings `delete_remaining`
+  and `delete_previous` are already clear, so this is polish, not a fix.
+- **`no_bases_yet`: "No databases yet. One called \"My games\" will be
+  created."** Passive, which STYLE-EN §7 discourages, but every active rewrite
+  either invents a corporate "we" or gets longer. Left as-is.
+
+Not touched, deliberately:
+
+- **The seven tab labels.** All already match STYLE-EN §4 and all are inside the
+  10-character budget: `Analysis` 8, `Learn` 5, `Databases` 9, `Openings` 8,
+  `Puzzles` 7, `Play` 4, `Profile` 7. Measured at 375px in light and dark, in
+  both languages: nothing clipped, no horizontal scroll, and the bar is exactly
+  full at 375px — see the batch-5 note above. **Treat every tab label as frozen.**
+- **`start_position` "Start position"** — chess English normally says
+  **starting position** (FIDE, Lichess). Measured instead of guessed: it is a
+  half-width `.btn util` in the two-up `.setup-tools` grid, 173.5px wide, and
+  "Starting position" wraps to a second line (button height 43px → 60px), which
+  breaks the equal-height tiers the comment in `index.html` is explicit about.
+  STYLE-EN §9 says keep the shorter wording and report it. Reported.
+- **`ok: 'OK'`** — §2 wants sentence case on buttons, but OK is an initialism.
+- **`endings_quote`** — a Capablanca quotation, not app copy. "before everything
+  else" is the standard English rendering; left verbatim.
+- **`event`, `date`, `result`** — these label PGN header fields, so the wording
+  tracks the PGN spec rather than house style.
+- **`invalid_position: 'Invalid position: '`** — the trailing space is
+  structural; the error text is appended to it.
+
+**Spanish (reported, never fixed):** see item 9 in the repair list below.
+
 ---
 
 ## Spanish repair list — do this AFTER the English review
@@ -269,5 +339,11 @@ Ordered worst first.
    badges are past-tense verbs ("**Venció a** Principiante", "Venció a todos los
    niveles del motor") and so is "Convirtió: …". Not an error, but a trophy case
    reads better all in one voice. *(batch 4)*
+
+9. **`js/i18n.js`, `play_from_here` — inconsistent name for the opponent.**
+   "Jugar contra **la máquina** desde aquí", but everywhere else the Spanish
+   calls it the **motor** (`engine_on` "Encender motor", `engine_timeout` "El
+   motor no respondió"). Whatever English settles on for engine/computer, the
+   Spanish should pick one word too. *(batch 5)*
 
 Later batches must keep appending here.
