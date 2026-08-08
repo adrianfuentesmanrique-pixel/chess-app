@@ -83,15 +83,38 @@ Lower priority, not in the work order:
 2. Test the Firestore WRITE rules. Read rules were verified live; write rules
    never were. Writes to production — ask first.
 3. Restrict the Firebase web API key by HTTP referrer in Google Cloud Console.
-4. Puzzle difficulty does not scale with ELO (Adrian is 2000+, still gets easy
-   problems).
-5. History dates older than yesterday show the month in the *device's*
+4. ~~Puzzle difficulty does not scale with ELO~~ — **NOT A BUG ANY MORE. Fixed
+   on 31 Jul in `7bfc92e`; verified empirically 7 Aug, no code changed.** The
+   old cause was that puzzle bands were fetched once at startup, so a rating
+   that climbed during a session kept drawing from the band it started in.
+   `nextPuzzle()` now calls `ensureForRating(target)` every puzzle
+   (`js/app.js:3514`). Measured by seeding `puzzleElo` 2050 with the
+   calibration window spent, then reading the rating the status line prints:
+   Normal served avg **2065** (1999–2122), Harder (+500) served avg **2494**
+   (2457–2549). Theme filters cannot starve it either — the rarest motif
+   (`doubleBishopMate`) still has 17 puzzles within ±100 of 2050, so the
+   ±100→±1200 widening never fires. If this is ever reported again, suspect a
+   **stale service-worker cache** first: the number in parentheses under the
+   board is the puzzle's own rating, so it is checkable on the device in two
+   seconds. Do not "fix" the picker, the K-factor or `DIFFICULTY_LEVELS` —
+   fast calibration (K=192 for the first 10 attempts, `js/app.js:3409`) is
+   already there too.
+5. **Dead write: `userLevel`.** Kael's onboarding asks the player's strength
+   and shows real ELO ranges on the cards (Expert is labelled "ELO 1901-2300"),
+   then saves the answer as `userLevel` (`js/app.js:498`) — and nothing in
+   `js/` ever reads it. So a strong new player tells the app they are 2000 and
+   still starts at `puzzleElo` 1200. The fix is to seed `puzzleElo` from the
+   chosen tier at first run only. Adrian was told and chose to leave it for
+   now; it does nothing for him (he is past onboarding and already rated
+   correctly), it only helps new strong users. **Must stay first-run only —
+   never rewrite an existing user's stored `puzzleElo`.**
+6. History dates older than yesterday show the month in the *device's*
    language, not the app's — `formatWhen()` in `js/history.js` calls
    `toLocaleDateString(undefined, …)`. In Spanish on an English phone you get
    "Aug 5 13:16". Passing `getLang()` instead of `undefined` fixes it. Cosmetic
    and pre-existing to Task 2; not fixed because it was outside Task 4.
-6. New "Read" tab — PDF reader, brief in `READ-TAB-PROMPT.md`. Later.
-7. **Repo is 137 MB, and 138 MB of the working tree is
+7. New "Read" tab — PDF reader, brief in `READ-TAB-PROMPT.md`. Later.
+8. **Repo is 137 MB, and 138 MB of the working tree is
    `avatars/CTC new arts/`** — the full-size source PNGs, several over 3 MB
    (`frame-obsidian.png` 3.6 MB, `flamegold.png` 3.2 MB). Nothing loads them at
    runtime, but GitHub Pages serves this repo, so every one is publicly
