@@ -176,3 +176,38 @@ Not touched, deliberately:
 - `promotion`: "se corona: se convierte en dama, torre, alfil o caballo" — no
   comma before "o" in a simple Spanish list is correct here, but *corona* and
   *convierte* repeat the same idea back to back. Style, not an error.
+
+---
+
+## Spanish repair list — do this AFTER the English review
+
+Every Spanish problem found while reviewing English, gathered in one place so
+none of them is lost in a per-batch section. **Nothing here has been fixed** —
+the English review never edits an `es:` value. Work through this as its own
+task once all ten batches are done.
+
+Ordered worst first.
+
+1. **`js/learning-data.js`, `board` lesson — factually wrong.**
+   "la casilla h1 ... siempre es **oscura**". h1 is a light square, so it must
+   read **"clara"**. Batch 3 fixed the English side, so right now the app
+   teaches the opposite fact in each language. *(batch 3)*
+2. **`js/i18n.js`, `tour_learn_tab_b` / `tour_learn_sec_t` — inconsistent with
+   the tab.** They say **"Jaques mates básicos"**; work order #9 renamed the
+   Learn section to **"Jaque mates"**. Both are defensible Spanish, but the tour
+   and the tab now disagree on screen. *(batch 2)*
+3. **`js/i18n.js`, `tour_base_games_b` — wrong agreement.** "Cualquier partida
+   que toques se abre en el tablero de análisis. Ahora está **vacía**" —
+   *vacía* agrees with *partida*, but the empty thing is the *base*. Reads as
+   if the game is empty. *(batch 2)*
+4. **`js/learning-data.js`, `castling_illegal` — verb mood.** "Lo mismo ocurre
+   si el rey **tendría** que pasar por una casilla atacada" — conditional after
+   *si*; Spanish wants **"tuviera que"**. *(batch 3)*
+5. **`js/i18n.js`, `tour_puz_modes_b` — punctuation.** "Táctica normal, a
+   ciegas, o Rush contrarreloj" — Spanish does not normally take a comma before
+   **o** in a simple list. *(batch 2)*
+6. **`js/learning-data.js`, `promotion` — style only, not an error.** "se
+   corona: se convierte en dama, torre, alfil o caballo" repeats *corona* and
+   *convierte* back to back. *(batch 3)*
+
+Later batches must keep appending here.
