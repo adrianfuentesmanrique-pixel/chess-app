@@ -251,3 +251,18 @@ export function pvWithNumbers(fen, sanMoves) {
   });
   return out.join(' ');
 }
+
+// Engine difficulty levels. Index is the level id and is persisted in
+// `engineLevelsBeaten`, so entries must never be reordered.
+// `range` is display only — the strength band each level covers, shown in the
+// Play level picker. `elo` is what the engine is actually told to play at.
+export const LEVELS = [
+  { elo: 1320, movetime: 300, range: '1300-1450' },
+  { elo: 1450, movetime: 400, range: '1450-1600' },
+  { elo: 1600, movetime: 500, range: '1600-1800' },
+  { elo: 1800, movetime: 600, range: '1800-2000' },
+  { elo: 2000, movetime: 800, range: '2000-2200' },
+  { elo: 2200, movetime: 1000, range: '2200-2500' },
+  { elo: 2500, movetime: 1500, range: '2500-2800' },
+  { elo: null, movetime: 2000, range: '2800+' },
+];

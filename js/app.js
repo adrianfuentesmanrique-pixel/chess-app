@@ -3,7 +3,7 @@ import { Chess, validateFen } from '../vendor/chess.js';
 import { t, getLang, setLang, applyStatic } from './i18n.js';
 import { GameTree, parsePgn, splitPgn, START_FEN, nagText } from './tree.js';
 import { Board, parsePlacement, setPieceSet, getPieceSet } from './board.js';
-import { Engine, uciToMove, pvWithNumbers } from './engine.js';
+import { Engine, uciToMove, pvWithNumbers, LEVELS } from './engine.js';
 import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES, PUZZLE_PATTERNS, TRACKED_THEMES,
          BANDS as PUZZLE_BANDS, bandOf, loadBand, ensureForRating,
@@ -15,6 +15,11 @@ import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
+import { Sound } from './sound.js';
+import { Themes, ColorMode } from './appearance.js';
+import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
+import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
+import { Leaderboard, PublicProfile } from './leaderboard.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -60,7 +65,7 @@ function openingFlavorMsg(name) {
   return getLang() === 'es' ? `${name}, ¡${flavor.es}!` : `${name}, ${flavor.en}!`;
 }
 
-const $ = id => document.getElementById(id);
+export const $ = id => document.getElementById(id);
 const engine = new Engine();
 
 // The engine is a 7 MB WebAssembly download. When it fails — nearly always a
@@ -72,31 +77,6 @@ function engineErrorText(e) {
     ? t('engine_download_failed')
     : (raw || t('engine_download_failed'));
 }
-
-// ═════════════════════ sound ═════════════════════
-
-const Sound = {
-  enabled: true,
-  cache: {},
-
-  async init() {
-    this.enabled = await db.kvGet('soundEnabled', true);
-  },
-
-  async setEnabled(v) {
-    this.enabled = v;
-    await db.kvSet('soundEnabled', v);
-  },
-
-  play(name) {
-    if (!this.enabled) return;
-    let audio = this.cache[name];
-    if (!audio) { audio = new Audio(`sounds/${name}.wav`); this.cache[name] = audio; }
-    const el = audio.paused ? audio : audio.cloneNode(true);
-    el.volume = 0.6;
-    el.play().catch(() => {});
-  },
-};
 
 // ═════════════════════ small UI helpers ═════════════════════
 
@@ -530,7 +510,7 @@ const Onboarding = {
 // A small, non-blocking corner widget — never a modal — so it never
 // interrupts whatever the player is doing on the board.
 
-const KaelQuotes = {
+export const KaelQuotes = {
   lastIdx: -1,
   timer: null,
   hideTimer: null,
@@ -1020,7 +1000,7 @@ const DailyMissions = {
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 // 'YYYY-MM' — the season key for the monthly leaderboards.
-function monthStr() { return new Date().toISOString().slice(0, 7); }
+export function monthStr() { return new Date().toISOString().slice(0, 7); }
 function isYesterday(dateStr, todayStrVal) {
   const d = new Date(dateStr + 'T00:00:00');
   const t = new Date(todayStrVal + 'T00:00:00');
@@ -1041,9 +1021,9 @@ async function recordEloHistory(key, value) {
 // ═════════════════════ tabs ═════════════════════
 
 const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'rush', 'blind'];
-let activeScreen = 'analysis';
+export let activeScreen = 'analysis';
 
-function showScreen(name) {
+export function showScreen(name) {
   const prev = activeScreen;
   activeScreen = name;
   for (const s of SCREENS) $('screen-' + s).classList.toggle('hidden', s !== name);
@@ -1215,20 +1195,23 @@ export function segInit(el, onChange) {
 }
 export function segValue(el) { return el.querySelector('button.on')?.dataset.v; }
 
-// engine levels
-const LEVELS = [
-  { elo: 1320, movetime: 300 }, { elo: 1450, movetime: 400 },
-  { elo: 1600, movetime: 500 }, { elo: 1800, movetime: 600 },
-  { elo: 2000, movetime: 800 }, { elo: 2200, movetime: 1000 },
-  { elo: 2500, movetime: 1500 }, { elo: null, movetime: 2000 },
-];
-function buildLevelSeg(el, def = 2) {
+// `rich` renders the Play tab's card grid — robot badge, name and strength
+// range. Without it you get the compact button strip the Trainer tab uses.
+function buildLevelSeg(el, def = 2, rich = false) {
   el.innerHTML = '';
+  el.classList.toggle('lvgrid', rich);
+  el.classList.toggle('seg', !rich);
   const names = t('level_names');
   LEVELS.forEach((lv, i) => {
     const b = document.createElement('button');
     b.dataset.v = i;
-    b.textContent = (i + 1) + '·' + names[i];
+    if (rich) {
+      b.innerHTML = `<img src="icons/badges/beat_engine_${i}.png" alt="" width="64" height="64">`
+        + `<span class="lv-name">${esc(names[i])}</span>`
+        + `<span class="lv-elo">${lv.range}</span>`;
+    } else {
+      b.textContent = (i + 1) + '·' + names[i];
+    }
     if (i === def) b.classList.add('on');
     el.appendChild(b);
   });
@@ -2328,7 +2311,7 @@ function normalizeSearch(s) {
   return String(s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-function esc(s) {
+export function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
@@ -2346,7 +2329,7 @@ const Play = {
   saved: false,
 
   init() {
-    buildLevelSeg($('play-level'));
+    buildLevelSeg($('play-level'), 2, true);
     segInit($('play-color'));
     segInit($('play-level'));
     this.board = new Board($('play-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
@@ -4912,7 +4895,7 @@ Endgame.Lessons = {
 
 // ═════════════════════ POSITION SETUP ═════════════════════
 
-const Setup = {
+export const Setup = {
   board: null,
   grid: {},            // sq -> {color,type}
   palettePiece: null,  // {color,type} | 'trash' | null
@@ -5157,63 +5140,12 @@ function openSettings() {
 
 function relabel() {
   applyStatic();
-  buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2));
+  buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2), true);
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.refreshLists();
 }
-
-const Themes = {
-  async init() {
-    const boardTheme = await db.kvGet('boardTheme', 'wood');
-    document.body.classList.add('theme-' + boardTheme);
-    const pieceSet = await db.kvGet('pieceSet', 'pieces');
-    setPieceSet(pieceSet);
-  },
-  setBoardTheme(v) {
-    document.body.classList.remove('theme-wood', 'theme-green', 'theme-blue');
-    document.body.classList.add('theme-' + v);
-    db.kvSet('boardTheme', v);
-  },
-  setPieceSetChoice(v) {
-    setPieceSet(v);
-    db.kvSet('pieceSet', v);
-    Setup.buildPalette();
-  },
-};
-
-const ColorMode = {
-  mode: 'dark',        // user preference: 'light' | 'dark' | 'system'
-  mql: null,
-
-  async init() {
-    this.mode = await db.kvGet('colorMode', 'system');
-    this.mql = window.matchMedia('(prefers-color-scheme: light)');
-    this.mql.addEventListener('change', () => { if (this.mode === 'system') this.apply(); });
-    this.apply();
-  },
-
-  set(mode) {
-    this.mode = mode;
-    db.kvSet('colorMode', mode);
-    this.apply();
-  },
-
-  effective() {
-    if (this.mode === 'system') return this.mql.matches ? 'light' : 'dark';
-    return this.mode;
-  },
-
-  apply() {
-    const eff = this.effective();
-    document.body.classList.remove('mode-light', 'mode-dark');
-    document.body.classList.add('mode-' + eff);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', eff === 'light' ? '#f5f3ef' : '#1a1714');
-    if (activeScreen === 'profile') Profile.refresh();
-  },
-};
 
 function openEloHistoryModal(historyKey, titleKey) {
   return modal(async (box, close) => {
@@ -5285,185 +5217,9 @@ function openEloHistoryModal(historyKey, titleKey) {
   });
 }
 
-// ═════════════════════ AVATARS ═════════════════════
-// The pictures come from tools/build_avatars.py; this table is only the
-// catalogue, so new art drops in without touching the storage or selection
-// logic. Ids are permanent -- they are what a player's choice is saved as.
+export const RADAR_MIN = 800, RADAR_MAX = 2200;
 
-const AVATAR_OPTIONS = [
-  // free
-  { id: 'pawn_w' }, { id: 'pawn_b' }, { id: 'knight_w' }, { id: 'knight_b' },
-  { id: 'bishop_w' }, { id: 'bishop_b' }, { id: 'rook_w' }, { id: 'rook_b' },
-  { id: 'queen_w' }, { id: 'queen_b' }, { id: 'king_w' }, { id: 'king_b' },
-  { id: 'wolf' }, { id: 'lion' }, { id: 'tiger' },
-  { id: 'eagle' }, { id: 'owl' }, { id: 'bear' }, { id: 'raven' },
-  // coming soon — shown locked to everyone as a preview of future content
-  { id: 'dragon', locked: true }, { id: 'phoenix', locked: true }, { id: 'griffin', locked: true },
-  { id: 'kraken', locked: true }, { id: 'hydra', locked: true }, { id: 'galaxy', locked: true },
-  { id: 'crystal', locked: true }, { id: 'shadow', locked: true }, { id: 'storm', locked: true },
-  { id: 'fire', locked: true }, { id: 'ice', locked: true }, { id: 'void', locked: true },
-];
-
-function avatarHtml(avatarId, sizePx = 40) {
-  const opt = AVATAR_OPTIONS.find(a => a.id === avatarId) ?? AVATAR_OPTIONS[0];
-  return `<div class="avatar-badge" style="width:${sizePx}px;height:${sizePx}px"><img src="avatars/${opt.id}.png" alt="" width="${sizePx}" height="${sizePx}"></div>`;
-}
-
-const Avatars = {
-  async renderGridInto(container, selectedId, onPick) {
-    container.innerHTML = '';
-    for (const opt of AVATAR_OPTIONS) {
-      const locked = !!opt.locked;
-      const cell = document.createElement('div');
-      cell.className = 'avatar-pick-cell' + (locked ? ' locked' : '');
-      cell.dataset.id = opt.id;
-      cell.classList.toggle('selected', opt.id === selectedId);
-      cell.innerHTML = avatarHtml(opt.id, 44) + (locked ? '<span class="avatar-lock">🔒</span>' : '');
-      cell.onclick = () => { if (locked) toast(t('avatar_locked_toast')); else onPick(opt.id); };
-      container.appendChild(cell);
-    }
-  },
-
-  async refresh() {
-    const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
-    $('profile-avatar-wrap').innerHTML = avatarHtml(id, 56);
-    return id;
-  },
-};
-
-// ═════════════════════ ACHIEVEMENTS / BADGES ═════════════════════
-
-const BADGE_DEFS = [
-  // puzzle count milestones
-  { id: 'puz_10', icon: '🧩', name: { es: 'Novato de la táctica', en: 'Puzzle Novice' }, check: s => s.puzzlesSolved >= 10 },
-  { id: 'puz_50', icon: '🧩', name: { es: 'Aficionado', en: 'Puzzle Enthusiast' }, check: s => s.puzzlesSolved >= 50 },
-  { id: 'puz_200', icon: '🧩', name: { es: 'Táctico', en: 'Tactician' }, check: s => s.puzzlesSolved >= 200 },
-  { id: 'puz_1000', icon: '🧩', name: { es: 'Veterano', en: 'Puzzle Veteran' }, check: s => s.puzzlesSolved >= 1000 },
-  { id: 'puz_5000', icon: '👑', name: { es: 'Maestro Táctico', en: 'Tactics Master' }, check: s => s.puzzlesSolved >= 5000 },
-  // per-theme mastery
-  ...PUZZLE_THEMES.map(th => ({
-    id: 'theme_' + th, icon: '🎯',
-    label: lang => `${lang === 'en' ? 'Master' : 'Maestro'}: ${t('theme_' + th)}`,
-    check: s => (s.themeCounts[th] ?? 0) >= 15,
-  })),
-  // streak
-  { id: 'streak_3', icon: '🔥', name: { es: 'Racha de 3 días', en: '3-Day Streak' }, check: s => s.bestStreak >= 3 },
-  { id: 'streak_7', icon: '🔥', name: { es: 'Racha de 7 días', en: '7-Day Streak' }, check: s => s.bestStreak >= 7 },
-  { id: 'streak_30', icon: '⚡', name: { es: 'Racha de 30 días', en: '30-Day Streak' }, check: s => s.bestStreak >= 30 },
-  { id: 'streak_100', icon: '👑', name: { es: 'Racha de 100 días', en: '100-Day Streak' }, check: s => s.bestStreak >= 100 },
-  // endgame conversions
-  ...ENDGAME_CATEGORIES.map(cat => ({
-    id: 'endgame_' + cat, icon: '🏁',
-    label: lang => `${lang === 'en' ? 'Converted' : 'Convirtió'}: ${t('cat_' + cat)}`,
-    check: s => !!s.endgameConverted[cat],
-  })),
-  // opening trainer
-  { id: 'opening_1', icon: '📖', name: { es: 'Primera apertura entrenada', en: 'First Opening Trained' }, check: s => s.openingCount >= 1 },
-  { id: 'opening_3', icon: '📖', name: { es: 'Explorador de aperturas', en: 'Opening Explorer' }, check: s => s.openingCount >= 3 },
-  // study / onboarding
-  { id: 'first_import', icon: '📥', name: { es: 'Primera partida importada', en: 'First Game Imported' }, check: s => !!s.firstImportDone },
-  { id: 'first_engine', icon: '💡', name: { es: 'Primer análisis con motor', en: 'First Engine Analysis' }, check: s => !!s.firstEngineUsed },
-  // puzzle rush
-  { id: 'rush_1', icon: '⚡', name: { es: 'Primer Puzzle Rush', en: 'First Puzzle Rush' }, check: s => s.rushBestScore >= 1 },
-  { id: 'rush_10', icon: '⚡', name: { es: 'Rush: 10 en una racha', en: 'Rush: 10 in a row' }, check: s => s.rushBestScore >= 10 },
-  { id: 'rush_30', icon: '👑', name: { es: 'Rush: 30 en una racha', en: 'Rush: 30 in a row' }, check: s => s.rushBestScore >= 30 },
-  // beating the engine, per difficulty level + one for sweeping all of them
-  ...LEVELS.map((lv, i) => ({
-    id: 'beat_engine_' + i, icon: '🤖',
-    label: lang => `${lang === 'en' ? 'Beat' : 'Venció a'} ${t('level_names')[i]}`,
-    check: s => !!s.engineLevelsBeaten[i],
-  })),
-  { id: 'beat_engine_all', icon: '👑', name: { es: 'Venció a todos los niveles del motor', en: 'Beat Every Engine Level' }, check: s => LEVELS.every((lv, i) => !!s.engineLevelsBeaten[i]) },
-  // daily missions streak
-  { id: 'daily_1', icon: '🎯', name: { es: 'Primera misión diaria', en: 'First Daily Mission' }, check: s => s.bestDailyMissionStreak >= 1 },
-  { id: 'daily_7', icon: '🎯', name: { es: 'Misión diaria: 1 semana', en: 'Daily Mission: 1 Week' }, check: s => s.bestDailyMissionStreak >= 7 },
-  { id: 'daily_30', icon: '🎯', name: { es: 'Misión diaria: 1 mes', en: 'Daily Mission: 1 Month' }, check: s => s.bestDailyMissionStreak >= 30 },
-  { id: 'daily_180', icon: '⚡', name: { es: 'Misión diaria: 6 meses', en: 'Daily Mission: 6 Months' }, check: s => s.bestDailyMissionStreak >= 180 },
-  { id: 'daily_365', icon: '👑', name: { es: 'Misión diaria: 1 año', en: 'Daily Mission: 1 Year' }, check: s => s.bestDailyMissionStreak >= 365 },
-];
-
-function badgeLabel(def) {
-  return def.label ? def.label(getLang()) : def.name[getLang()];
-}
-
-const Badges = {
-  earned: {},   // id -> timestamp
-
-  async gatherState() {
-    const solved = await db.kvGet('puzzlesSolved', {});
-    const themeCounts = {};
-    for (const [id, rec] of Object.entries(solved)) {
-      // Newer records carry their own themes; pre-split records are `true`
-      // and still need the lookup, which only works if their band is loaded.
-      const themes = Array.isArray(rec) ? rec : PUZZLES.find(pz => pz.id === id)?.themes;
-      if (themes) for (const th of themes) themeCounts[th] = (themeCounts[th] ?? 0) + 1;
-    }
-    const endgameConverted = await db.kvGet('endgameConverted', {});
-    const openingElo = await db.kvGet('openingElo', {});
-    return {
-      puzzlesSolved: Object.keys(solved).length,
-      themeCounts,
-      bestStreak: await db.kvGet('bestStreak', 0),
-      endgameConverted,
-      openingCount: Object.keys(openingElo).length,
-      firstImportDone: await db.kvGet('firstImportDone', false),
-      firstEngineUsed: await db.kvGet('firstEngineUsed', false),
-      rushBestScore: await db.kvGet('rushBestScore', 0),
-      engineLevelsBeaten: await db.kvGet('engineLevelsBeaten', {}),
-      bestDailyMissionStreak: await db.kvGet('bestDailyMissionStreak', 0),
-    };
-  },
-
-  // delayMs lets a caller that's already occupying the Kael bubble (the streak
-  // tier-up celebration) push these back instead of talking over itself.
-  async checkNew(delayMs = 0) {
-    this.earned = await db.kvGet('earnedBadges', {});
-    const state = await this.gatherState();
-    let changed = false;
-    const newlyEarned = [];
-    for (const def of BADGE_DEFS) {
-      if (!this.earned[def.id] && def.check(state)) {
-        this.earned[def.id] = Date.now();
-        changed = true;
-        newlyEarned.push(def);
-      }
-    }
-    newlyEarned.forEach((def, i) => {
-      setTimeout(() => {
-        KaelQuotes.show({
-          title: '🏆 ' + t('badge_earned'),
-          text: badgeLabel(def),
-          image: `icons/badges/${def.id}.png`,
-        }, 5000);
-      }, delayMs + i * 5200);
-    });
-    if (changed) await db.kvSet('earnedBadges', this.earned);
-    if (activeScreen === 'profile') this.renderTrophyCase();
-    return changed;
-  },
-
-  async renderTrophyCase() {
-    this.earned = await db.kvGet('earnedBadges', {});
-    const el = $('trophy-case');
-    if (!el) return;
-    el.innerHTML = '';
-    const earnedCount = BADGE_DEFS.filter(d => this.earned[d.id]).length;
-    $('trophy-count').textContent = `${earnedCount}/${BADGE_DEFS.length}`;
-    for (const def of BADGE_DEFS) {
-      const got = !!this.earned[def.id];
-      const label = badgeLabel(def);
-      const cell = document.createElement('div');
-      cell.className = 'badge-cell' + (got ? ' earned' : '');
-      cell.title = label;
-      cell.innerHTML = `<div class="badge-icon"><img src="icons/badges/${def.id}.png" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode('${def.icon}'))"></div><div class="badge-name">${esc(label)}</div>`;
-      el.appendChild(cell);
-    }
-  },
-};
-
-const RADAR_MIN = 800, RADAR_MAX = 2200;
-
-const Profile = {
+export const Profile = {
   charts: {},
 
   init() {
@@ -5666,27 +5422,12 @@ const Profile = {
   },
 };
 
-// ═════════════════════ LEADERBOARD ═════════════════════
-
-// Each board is one sortable field on the public /leaderboard doc. Keys must
-// match the data-v values on #leaderboard-mode and the PUBLIC_KEYS list in
-// firebase.js. `fallback` is what to show when a player has no score yet.
-// `season` names the equivalent this-month field, where one exists. Only the
-// Rush boards have seasons: ELO is a rating that already moves both ways, so
-// a "this month" ELO board would just be the all-time board again.
-const LEADERBOARD_FIELDS = {
-  puzzleElo:    { label: 'puzzle_elo',    fallback: 1200 },
-  rushBest180:  { label: 'rush_3min',     fallback: 0, season: 'rushMonth180' },
-  rushBest300:  { label: 'rush_5min',     fallback: 0, season: 'rushMonth300' },
-  blindfoldElo: { label: 'blindfold_elo', fallback: 1200 },
-};
-
 // Every tracked theme earns a rating, but a radar with 28 spokes is unreadable
 // on a phone, so the chart shows at most 13 at a time. Defaults to the original
 // thirteen; the picker (still to build) writes a different set here.
 const MAX_RADAR_THEMES = 13;
 let radarSelection = null;
-function radarThemes() {
+export function radarThemes() {
   const picked = (radarSelection ?? []).filter(th => PUZZLE_THEMES.includes(th));
   return picked.length ? picked.slice(0, MAX_RADAR_THEMES)
                        : PUZZLE_THEMES.slice(0, MAX_RADAR_THEMES);
@@ -5760,183 +5501,6 @@ function openRadarPicker() {
     box.append(apply, reset);
   });
 }
-
-// Rank bands worth showing off. Beyond the top 100 a row is just a row —
-// giving every position its own colour would flatten the distinction.
-function rankTier(rank) {
-  if (rank <= 3) return 'tier-podium tier-' + rank;
-  if (rank <= 10) return 'tier-top10';
-  if (rank <= 100) return 'tier-top100';
-  return '';
-}
-
-const Leaderboard = {
-  entries: [],
-  field: 'puzzleElo',
-  season: false,
-
-  init() {
-    $('leaderboard-back').onclick = () => showScreen('profile');
-    $('leaderboard-search').addEventListener('input', () => this.filter($('leaderboard-search').value));
-    segInit($('leaderboard-mode'), v => { this.field = v; this.open(); });
-    segInit($('leaderboard-period'), v => { this.season = v === 'month'; this.open(); });
-  },
-
-  // The sortable field for the current mode+period pair.
-  sortField() {
-    const board = LEADERBOARD_FIELDS[this.field];
-    return this.season && board.season ? board.season : this.field;
-  },
-
-  async open() {
-    showScreen('leaderboard');
-    const board = LEADERBOARD_FIELDS[this.field];
-    // The period switch only appears on boards that actually have seasons.
-    $('leaderboard-period').classList.toggle('hidden', !board.season);
-    if (!board.season) this.season = false;
-
-    $('leaderboard-search').value = '';
-    $('leaderboard-list').innerHTML = '';
-    $('leaderboard-status').textContent = t('loading');
-    try {
-      // Over-fetch when showing a season: entries are sorted on the monthly
-      // field, but players who set a score and then stopped playing still
-      // carry last month's value until their next run clears it, so those
-      // rows are dropped here rather than in the query. Firestore can't
-      // filter and sort on different fields without a composite index.
-      const entries = await fetchLeaderboard(this.season ? 500 : 200, this.sortField());
-      this.entries = this.season
-        ? entries.filter(e => e.rushMonthKey === monthStr())
-        : entries;
-    } catch (e) {
-      this.entries = [];
-      $('leaderboard-status').textContent = '⚠️ ' + (e.message || e);
-      return;
-    }
-    this.render(this.entries);
-  },
-
-  filter(qstr) {
-    const q = qstr.trim().toLowerCase();
-    const list = q ? this.entries.filter(e => (e.profileName || '').toLowerCase().includes(q)) : this.entries;
-    this.render(list, q);
-  },
-
-  render(list, q) {
-    $('leaderboard-status').textContent = this.entries.length ? '' : t('leaderboard_empty');
-    const el = $('leaderboard-list');
-    el.innerHTML = '';
-    if (q && !list.length) { $('leaderboard-status').textContent = t('leaderboard_no_match'); return; }
-    const board = LEADERBOARD_FIELDS[this.field];
-    const field = this.sortField();
-    list.forEach((e, i) => {
-      const rank = i + 1;
-      const value = Math.round(e[field] ?? board.fallback);
-      const item = document.createElement('button');
-      // The metric is already named by the selected tab above the list, so the
-      // row shows only what differs between players: who, and how much.
-      item.className = 'lb-row ' + rankTier(rank);
-      item.innerHTML =
-        `<span class="lb-rank">${rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank}</span>` +
-        `${avatarHtml(e.avatarId, 36)}` +
-        `<span class="lb-name">${esc(e.profileName || '?')}</span>` +
-        `<span class="lb-value">${value}</span>`;
-      item.onclick = () => PublicProfile.open(e);
-      el.appendChild(item);
-    });
-  },
-};
-
-// ═════════════════════ PUBLIC PROFILE ═════════════════════
-
-// Which sections of a public profile each privacy level exposes. Adding a
-// level later ('friends', 'hide activity', …) means adding a line here, not
-// rewriting the screen — every check below goes through canSee().
-const VISIBILITY_SECTIONS = {
-  public:  ['identity', 'elo', 'charts'],
-  private: ['identity', 'elo'],
-};
-
-// The single gate for "may this viewer see that section". `isSelf` short-
-// circuits it: a private setting hides you from other players, never from you.
-// An unknown or missing level reads as public, matching the default.
-function canSee(section, entry, isSelf) {
-  if (isSelf) return true;
-  const level = entry.profileVisibility || 'public';
-  return (VISIBILITY_SECTIONS[level] || VISIBILITY_SECTIONS.public).includes(section);
-}
-
-// Your own public document stops carrying the breakdown maps once you go
-// private, so for your own row they are read back off this device instead.
-async function withLocalDetail(entry) {
-  const [puzzleThemeElo, openingElo, endgameElo] = await Promise.all([
-    db.kvGet('puzzleThemeElo', {}),
-    db.kvGet('openingElo', {}),
-    db.kvGet('endgameElo', {}),
-  ]);
-  return { ...entry, puzzleThemeElo, openingElo, endgameElo };
-}
-
-const PublicProfile = {
-  init() {
-    $('pubprofile-back').onclick = () => showScreen('leaderboard');
-  },
-
-  async open(entry) {
-    showScreen('public-profile');
-    const isSelf = !!Auth.user && entry.uid === Auth.user.uid;
-    const data = isSelf ? await withLocalDetail(entry) : entry;
-    const charts = canSee('charts', entry, isSelf);
-
-    $('pubprofile-name').textContent = data.profileName || '?';
-    $('pubprofile-avatar-wrap').innerHTML = avatarHtml(data.avatarId, 64);
-
-    const puzzleElo = data.puzzleElo ?? 1200;
-    const themeElo = data.puzzleThemeElo ?? {};
-    const openingElo = data.openingElo ?? {};
-    const endgameElo = data.endgameElo ?? {};
-    const blindfoldElo = data.blindfoldElo ?? 1200;
-
-    // A private profile publishes only the averages, so fall back to those:
-    // all four ELO cards stay filled without the breakdown behind them.
-    // null means "no data at all" — shown as a dash, as before.
-    const openingNames = Object.keys(openingElo);
-    const openingAvg = openingNames.length
-      ? openingNames.reduce((s, k) => s + openingElo[k], 0) / openingNames.length
-      : (data.openingEloAvg ?? null);
-    const endgameNames = ENDGAME_CATEGORIES.filter(c => endgameElo[c] != null);
-    const endgameAvg = endgameNames.length
-      ? endgameNames.reduce((s, c) => s + endgameElo[c], 0) / endgameNames.length
-      : (data.endgameEloAvg ?? null);
-
-    $('pubprofile-elo-puzzle').textContent = Math.round(puzzleElo);
-    $('pubprofile-elo-opening').textContent = openingAvg == null ? '—' : Math.round(openingAvg);
-    $('pubprofile-elo-endgame').textContent = endgameAvg == null ? '—' : Math.round(endgameAvg);
-    $('pubprofile-elo-blindfold').textContent = Math.round(blindfoldElo);
-
-    $('pubprofile-private-note').classList.toggle('hidden', charts);
-    for (const card of document.querySelectorAll('.pubprofile-detail')) {
-      card.classList.toggle('hidden', !charts);
-    }
-    if (!charts) return;
-
-    Profile.drawRadar('pub-overall',
-      [t('radar_axis_opening'), t('radar_axis_puzzle'), t('radar_axis_endgame')],
-      [openingAvg ?? RADAR_MIN, puzzleElo, endgameAvg ?? RADAR_MIN]);
-
-    $('pubprofile-opening-empty').classList.toggle('hidden', openingNames.length > 0);
-    $('chart-pub-opening').classList.toggle('hidden', openingNames.length === 0);
-    if (openingNames.length) Profile.drawRadar('pub-opening', openingNames, openingNames.map(k => openingElo[k]));
-
-    Profile.drawRadar('pub-puzzle',
-      radarThemes().map(th => t('theme_' + th)),
-      radarThemes().map(th => themeElo[th] ?? 1200));
-
-    Profile.drawRadar('pub-endgame',
-      ENDGAME_CATEGORIES.map(c => t('cat_' + c)),
-      ENDGAME_CATEGORIES.map(c => endgameElo[c] ?? 1200));
-  },
-};
 
 // ═════════════════════ init ═════════════════════
 
