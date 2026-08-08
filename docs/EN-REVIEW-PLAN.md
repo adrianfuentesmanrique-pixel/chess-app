@@ -33,8 +33,12 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
 - [x] **1 — `js/quotes-data.js`** — Kael's quotes, praise, mistake, blindfold,
       hint warning, alt-move and game-review lines, plus the historical quote
       list. *Done 2026-08-07.*
-- [ ] **2 — `js/tour.js`** — Kael's guided tour, 31 `en:` strings. Screens: the
-      whole tour overlay, every tab.
+- [x] **2 — the guided tour** — Kael's 31 tour steps plus the tour chrome.
+      Screens: the whole tour overlay, every tab. *Done 2026-08-07.*
+      **`js/tour.js` holds no `en:` strings** — it is step data and layout code
+      that calls `t('tour_…')`. The strings are `js/i18n.js:456–538`, all 66 of
+      them (`tour_*`). Batch 9 must therefore skip `tour_*`; its remaining
+      scope is Kael onboarding, Settings and Game Review.
 - [ ] **3 — `js/learning-data.js`** — Learn lessons, 59 `en:` strings. Screens:
       Learn → Rules, Basic Checkmates.
 - [ ] **4 — `js/app.js` badges + `js/badges.js`** — 72 `en:` + the three
@@ -50,9 +54,8 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       display names, named mating patterns. Theme **ids** must never change.
 - [ ] **8 — `js/i18n.js` lines 276–435** — Endgame ELO, Profile, profile
       privacy. Watch the four ELO domain keys.
-- [ ] **9 — `js/i18n.js` lines 436–585** — Kael onboarding, guided tour
-      strings, Settings, Game Review. Cross-check against batch 2 so tour text
-      in both files agrees.
+- [ ] **9 — `js/i18n.js` lines 436–585** — Kael onboarding, Settings, Game
+      Review. **Skip every `tour_*` key — batch 2 already did them.**
 - [ ] **10 — `js/endgames-data.js`** — 872 `en:` entries, 212 KB, **on its own**.
       Never read the file whole. Procedure:
       1. Throwaway script in the scratchpad extracts every `en:` value with its
@@ -86,3 +89,41 @@ Things noticed that were **not** fixed, for Adrian to decide.
   alone.
 - **Spanish (reported, not fixed):** none found in this batch. The Spanish
   Kael lines read correctly.
+
+### From batch 2 (the guided tour)
+
+Waiting on Adrian's yes:
+
+- **"the study board" vs "Analysis".** Three tour lines call the Analysis screen
+  "the study board" (`tour_board_b`, `tour_base_games_b`, `tour_play_ana_b`).
+  STYLE-EN §4 names the feature **Analysis**, and "study board" appears nowhere
+  else in the app, so a new user is told a name the UI never repeats. Changing
+  it means picking a house phrase ("your analysis board"?) that §4 does not yet
+  have. Left alone — this is a naming decision, not a typo.
+- **"puzzle rating" vs "Puzzle ELO".** `tour_puz_more_b` says "Your puzzle
+  rating sits up top". The thing it points at is literally labelled
+  **Puzzle ELO: 1200** on screen, and `Puzzle ELO` is one of the four rating
+  domains. "Your puzzle ELO sits up top" would match. Left for batch 8, which
+  owns the ELO domain labels, so the wording gets decided once.
+- **`tour_engine_b` overstates the engine slightly.** "it will show you the best
+  moves and who stands better" — Stockfish shows one best line by default here.
+  Accurate copy would be "the best move". A product-truth call, not grammar.
+
+Not touched, deliberately:
+
+- **`js/i18n.js:215` `adv_either: 'Ignore colours'`** — British spelling, but it
+  is in the Openings block (lines 162–275), which is **batch 7**. Left so each
+  batch stays one commit.
+- **Kael's tour lines were reworded in batch 1 already** (`js/quotes-data.js`).
+  Nothing in this batch contradicts them.
+
+**Spanish (reported, never fixed):**
+
+- `tour_learn_tab_b` / `tour_learn_sec_t` say **"Jaques mates básicos"**. Work
+  order #9 changed the Learn tab to **"Jaque mates"**. Both are defensible
+  Spanish, but the app now shows the tour one way and the tab another.
+- `tour_puz_modes_b`: "Táctica normal, a ciegas, o Rush contrarreloj" — Spanish
+  does not normally take a comma before **o** in a simple list.
+- `tour_base_games_b`: "Cualquier partida que toques se abre en el tablero de
+  análisis. **Ahora está vacía**" — "vacía" agrees with *partida*, but the
+  empty thing is the *base*. Reads as if the game is empty.
