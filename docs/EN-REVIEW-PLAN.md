@@ -13,7 +13,10 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
 4. Spot-check at **375px in light and dark mode** on the screens that batch
    touched — nothing overflows, truncates badly, or pushes the layout.
    The Claude browser pane does not composite; use the headless-Chrome CDP
-   recipe (`~/.claude/launch.json`, add a NEW port — last used **9160**).
+   recipe (`~/.claude/launch.json`, add a NEW port — last used **9163**).
+   Two gotchas: `websocket-client` must be created with `suppress_origin=True`
+   or Chrome answers the CDP handshake with 403, and the app boots in Spanish,
+   so set `localStorage.lang = 'en'` and reload before reading any copy.
 5. Confirm the DICT key count is unchanged (see the command below).
 6. Bump the cache version in `sw.js` — **read** the current number, do not
    assume it.
