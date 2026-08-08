@@ -93,8 +93,14 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       truncation**: unclamping `-webkit-line-clamp` on all 64 `.badge-name`
       boxes changed no height, so nothing is being cut, including
       `Converted: Minor pieces` and `Master: Removing the defender`.
-- [ ] **9 — `js/i18n.js` lines 436–585** — Kael onboarding, Settings, Game
+- [ ] **9 — `js/i18n.js` lines 436–570** — Kael onboarding, Settings, Game
       Review. **Skip every `tour_*` key — batch 2 already did them.**
+      *Range corrected by batch 8: the DICT closes at line 570, and 571–585 is
+      the `t()` / `applyI18n()` helper code, not strings.* The real sub-ranges
+      are **436–455 Kael onboarding**, **456–539 `tour_*` (skip)**,
+      **540–558 Settings**, **559–569 Game review**. This is the **last i18n.js
+      batch** — after it only `js/endgames-data.js` (batch 10) remains, so any
+      i18n.js loose end not closed here needs its own follow-up commit.
 - [ ] **10 — `js/endgames-data.js`** — 872 `en:` entries, 212 KB, **on its own**.
       Never read the file whole. Procedure:
       1. Throwaway script in the scratchpad extracts every `en:` value with its
