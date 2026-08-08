@@ -255,25 +255,34 @@ tells batch 9 to **skip every `tour_*` key**, so as the plan stands nobody owns
 this edit. It needs either a batch-9 exception for these three keys or a small
 follow-up commit.
 
-Waiting on Adrian's yes:
+Answered by Adrian on 2026-08-08 and applied in a follow-up commit — **these
+are settled, do not reopen them in batch 6:**
 
-- **`play_from_here`: "Play the computer from here".** Everything else in the
-  app calls the opponent the **engine** (`engine_on` "Engine on",
-  `engine_timeout` "The engine didn't respond", `history_event` "Game vs
-  engine"). "Play the computer" is idiomatic US chess English, so this is a
-  one-word-per-concept call, not an error. Left for **batch 6**, which owns the
-  Play block, so engine/computer/machine gets decided once across both tabs.
-- **`exit_base` "Exit database" / `exit_game` "Exit game".** STYLE-EN §6 prefers
-  **Close** over **Exit** "when it just closes a view". These leave a mode
-  rather than close a view, and "Close game" reads wrong for leaving a reviewed
-  game, so §6 does not cleanly decide it. Left alone; if Adrian wants them
-  changed, §6 needs the mode/view distinction written down.
-- **`delete_move`: "Delete move (and what follows)".** Understandable but
-  clunky; "(and everything after)" reads better. Its siblings `delete_remaining`
-  and `delete_previous` are already clear, so this is polish, not a fix.
-- **`no_bases_yet`: "No databases yet. One called \"My games\" will be
-  created."** Passive, which STYLE-EN §7 discourages, but every active rewrite
-  either invents a corporate "we" or gets longer. Left as-is.
+- **The opponent is the engine, never the computer.** `play_from_here` was
+  "Play the computer from here"; it is now **"Play against the engine from
+  here"**, matching `engine_on`, `engine_timeout` and `history_event`. Adrian
+  asked for the more professional register explicitly. Written into STYLE-EN §6
+  as a rule, so **batch 6 applies it to the Play block without asking again** —
+  every "computer"/"machine"/"bot" in running text becomes "engine".
+  (`history_bot_name` "{lvl} bot" is frozen by §10 and is the one exception.)
+- **`exit_base` / `exit_game` keep "Exit".** Adrian chose to leave both. STYLE-EN
+  §6 now carries the distinction that was missing: **Close** shuts something
+  sitting on top of the screen (dialog, sheet, panel); **Exit** leaves a *mode*
+  the whole screen was in. They are not synonyms and both stay.
+- **`delete_move`** is now **"Delete move (and everything after)"**, replacing
+  "(and what follows)".
+
+Closed without a decision needed:
+
+- **`no_bases_yet` is a dead string.** "No databases yet. One called \"My
+  games\" will be created." is defined in `js/i18n.js` and referenced **nowhere
+  else in the repo** — grepped across `js/`, `index.html` and the manifest.
+  `chooseBase()` (`js/app.js:230`) silently creates a database named
+  `t('my_games')` and goes straight to the picker, so the sentence never
+  reaches a screen. Its passive voice therefore costs nothing. Left in place
+  rather than deleted: removing a key is a code change, not a copy edit, and
+  it is a plausible thing to want later. Flagged here so nobody spends time
+  polishing invisible copy.
 
 Not touched, deliberately:
 
@@ -343,7 +352,9 @@ Ordered worst first.
 9. **`js/i18n.js`, `play_from_here` — inconsistent name for the opponent.**
    "Jugar contra **la máquina** desde aquí", but everywhere else the Spanish
    calls it the **motor** (`engine_on` "Encender motor", `engine_timeout` "El
-   motor no respondió"). Whatever English settles on for engine/computer, the
-   Spanish should pick one word too. *(batch 5)*
+   motor no respondió"). **English is now settled: the opponent is always the
+   engine** (STYLE-EN §6), so the Spanish should read "Jugar contra el motor
+   desde aquí" and every other "máquina" in the Spanish should be swept to
+   "motor" at the same time. *(batch 5)*
 
 Later batches must keep appending here.

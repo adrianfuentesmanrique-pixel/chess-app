@@ -125,12 +125,25 @@ Also:
 | Save | Store, Keep |
 | Cancel | Close (when it aborts an action) |
 | Close | Dismiss, Exit (when it just closes a view) |
+| Exit | Close, Leave (when it leaves a *mode* you were inside) |
 | Back | Return, Go back |
 | Import / Export | Load / Download |
 | Settings | Preferences, Options |
 | Hint | Clue, Tip (Tip = a teaching note, not a puzzle nudge) |
 | Level | Difficulty (Difficulty = the puzzle slider only) |
 | Streak | Run |
+
+**Close vs Exit — settled by Adrian 2026-08-08, do not reopen.** `Close` shuts
+something that sits *on top of* the screen: a dialog, a sheet, a panel. `Exit`
+leaves a *mode* the whole screen was in and puts you back where you came from —
+`Exit database`, `Exit game`. Both stay in the vocabulary; they are not
+synonyms.
+
+**The engine, not the computer.** The opponent Stockfish provides is the
+**engine**, everywhere, in every string: `Engine on`, `The engine didn't
+respond`, `Play against the engine from here`, `Game vs engine`. Never "the
+computer", "the machine", "the bot" or "the AI" in running text. (`{lvl} bot` in
+`history_bot_name` is the one exception and is frozen by §10 anyway.)
 
 ## 7. Voice
 
