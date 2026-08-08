@@ -8,6 +8,9 @@ it, apply it, and **add it here**. That is the point of the file.
 
 ---
 
+**Adrian confirmed on 2026-08-07:** US spelling (§1), full names on quote
+attributions, and Kael's reworded lines. Settled — do not reopen.
+
 ## 1. Spelling: US English
 
 Counted across the real strings before choosing: `color` 60+, `colour` 4;
