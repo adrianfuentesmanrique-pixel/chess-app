@@ -13,8 +13,8 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
 4. Spot-check at **375px in light and dark mode** on the screens that batch
    touched — nothing overflows, truncates badly, or pushes the layout.
    The Claude browser pane does not composite; use the headless-Chrome CDP
-   recipe (`~/.claude/launch.json`, add a NEW port — last used **9167** for the
-   static server and **9168** for the Chrome debugger; take the next free pair).
+   recipe (`~/.claude/launch.json`, add a NEW port — last used **9171** for the
+   static server and **9172** for the Chrome debugger; take the next free pair).
    Two gotchas: `websocket-client` must be created with `suppress_origin=True`
    or Chrome answers the CDP handshake with 403, and the app boots in Spanish,
    so set `localStorage.lang = 'en'` and reload before reading any copy.
@@ -60,9 +60,13 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       six buttons of 53.1px plus `Databases` at 56.6px = 375.2px, and the widest
       label (`Databases`, 52.6px) has about 2px of clearance each side. **No tab
       label can grow by a single character in either language.**
-- [ ] **6 — `js/i18n.js` lines 92–161** — Databases, Play, Game History.
+- [x] **6 — `js/i18n.js` lines 92–161** — Databases, Play, Game History.
       Do **not** change `history_you`, `history_bot_name`, `history_event`
-      (baked into saved PGNs — see STYLE-EN §10).
+      (baked into saved PGNs — see STYLE-EN §10). *Done 2026-08-08.* All three
+      frozen keys were left untouched. **The Play level cards have room to
+      spare**: measured at 375px the cards are 173.5px wide and the longest
+      name, `Strong club`, renders at 77.8px on one 16px line — under half the
+      card. A level name could grow to roughly 14 characters before wrapping.
 - [ ] **7 — `js/i18n.js` lines 162–275** — Openings, Puzzles, puzzle theme
       display names, named mating patterns. Theme **ids** must never change.
 - [ ] **8 — `js/i18n.js` lines 276–435** — Endgame ELO, Profile, profile
@@ -307,6 +311,90 @@ Not touched, deliberately:
 
 **Spanish (reported, never fixed):** see item 9 in the repair list below.
 
+### From batch 6 (i18n.js 92–161 — Databases, Play, Game History)
+
+Fixed (8 plain fixes):
+
+- **The engine sweep, per STYLE-EN §6** — three strings said "the computer":
+  `play_title` 'Play the computer' → **'Play against the engine'**,
+  `you_resigned` → **'You resigned. The engine wins.'**, `checkmate_loss` →
+  **'Checkmate. The engine wins.'** No "machine", "bot" or "AI" remained in the
+  range. `history_you`, `history_bot_name` and `history_event` were left
+  untouched (STYLE-EN §10) — so a saved PGN still says `{lvl} bot` in its Black
+  header while the live screens say engine. That is deliberate.
+- `search` 'Search…' and `thinking` 'Thinking…' used the typographic `…`;
+  STYLE-EN §3 requires three ASCII dots. Same fix batch 5 made to `loading`.
+- `checkmate_win` was **'Checkmate! You win! 🎉'** — two exclamation marks, and
+  STYLE-EN §3 allows one per string. Now **'Checkmate — you win! 🎉'** with the
+  spaced em dash §3 asks for.
+- `hist_color` was **'Colour'** — the only British spelling left in the range.
+  Now **'Color'**, per STYLE-EN §1. (The Spanish value is already `Color`.)
+- `database_limit_toast` was **'{n}-database limit reached.'** The hyphenated
+  compound reads like a compiler message; now **'Limit of {n} databases
+  reached.'** The `{n}` token is unchanged.
+
+Measured at 375px in light and dark, with eight seeded history games covering
+every `history_end_*` reason: `document.scrollWidth` is exactly 375 on every
+screen, nothing is clipped, and there were zero console errors.
+`Play against the engine` fits on one line (355px box, 27px tall). The three
+result strings each fit the status bar on one 42px line. The level cards are
+173.5px wide and every name renders on one 16px line.
+
+Waiting on Adrian's yes:
+
+- **`export_base` is 'Share database (PGN)' but `hist_export_pgn` is
+  '📤 Export PGN'** — and both call the same `sharePgnText()`. STYLE-EN §6 makes
+  **Export** the house word, and the button sits directly beside `Import PGN`,
+  so 'Export database (PGN)' would make the pair symmetrical. Left alone because
+  on a phone the button really does open the system share sheet, so "Share" is
+  arguably the more honest word. This is a naming decision, not a typo. (Width
+  is not a constraint: measured 184.6px in a wrapping `.row`, and the shorter
+  wording would only shrink it.)
+- **`start_game` is 'Start game', which STYLE-EN §6 explicitly forbids** in
+  favour of **New game**. But `new_game` already exists as a different button on
+  the Databases screen, where it creates an empty game record — using one label
+  for both would be worse than the rule it breaks. `start_game` is also shared
+  with the Openings trainer (`index.html:341`), which belongs to batch 7, so
+  changing it here would split one string across two commits. Left alone; §6 may
+  need an exception written into it.
+- **`history_end_resign` is 'Resigned'** while its seven siblings are all nouns
+  (`Checkmate`, `Stalemate`, `Threefold repetition`, `Fifty-move rule`,
+  `Insufficient material`, `Draw`, `Unfinished`, `Time forfeit`). They render in
+  the same slot on the history card, so **'Resignation'** would match the set —
+  and the Spanish already uses the noun, `Abandono`. Not wrong as it stands, so
+  left for Adrian.
+
+Not touched, deliberately:
+
+- **`history_you`, `history_bot_name`, `history_event`** — frozen by STYLE-EN
+  §10; they are written into saved PGN headers.
+- **`level_names`** — all eight are correct English and correctly sentence-cased
+  per §2 (`Strong club`, not `Strong Club`).
+- **Singular/plural is broken in two strings, and copy cannot fix it.**
+  `games` renders as `${count} games` (`js/app.js:254`) and `imported` as
+  `${n} games imported ✓` (`js/app.js:2298`), so a database with one game reads
+  **"My games (1 games)"** and importing one game says **"1 games imported"**.
+  The same applies to `history_moves` — a 1-move game would say "1 moves",
+  though in practice `HISTORY_MIN_PLIES` makes that unreachable. Fixing this
+  needs a plural helper in code, not a new string, so it is out of a copy
+  batch's scope.
+- **`undo_move` is '↩ Undo' and is used as an `aria-label`** on the Play toolbar
+  (`index.html:283`), so a screen reader announces the arrow character before
+  the word. It is a visible button label on the Endgame screen, where the arrow
+  is right. Splitting it into two keys is a code change, and the Endgame screen
+  belongs to a later batch.
+- **`cbh_note`** — passive ("cannot be read directly"), but it is a statement
+  about a file format, not about the user, and the active rewrite is longer for
+  no gain.
+- **`resign` 'Resign'** — locked by STYLE-EN §5.
+- **`trainer_explain` says "The computer plays moves from that base"** — the
+  same §6 violation as `play_title`, but it is `js/i18n.js:164`, inside the
+  Openings block, which is **batch 7**. Left so each batch stays one commit.
+  **Batch 7 must sweep it.**
+
+**Spanish (reported, never fixed):** see item 9 in the repair list below — this
+batch added three more `máquina` hits to it.
+
 ---
 
 ## Spanish repair list — do this AFTER the English review
@@ -356,5 +444,20 @@ Ordered worst first.
    engine** (STYLE-EN §6), so the Spanish should read "Jugar contra el motor
    desde aquí" and every other "máquina" in the Spanish should be swept to
    "motor" at the same time. *(batch 5)*
+
+   **Batch 6 grepped the whole file and found the other four.** The sweep is now
+   a finite, known job rather than an open search:
+   - `play_title` — "Jugar contra **la máquina**" → "Jugar contra el motor".
+     The English title is now "Play against the engine". *(batch 6)*
+   - `you_resigned` — "Abandonaste. **La máquina** gana." → "El motor gana."
+     *(batch 6)*
+   - `checkmate_loss` — "Jaque mate. **La máquina** gana." → "El motor gana."
+     *(batch 6)*
+   - `trainer_explain` — "**La máquina** jugará las jugadas de esa base" → "El
+     motor jugará…". Its English half is batch 7's to fix. *(batch 6)*
+
+   **Do not touch `history_bot_name` ("Bot {lvl}") in this sweep** — it is
+   written into saved PGN headers and is frozen by STYLE-EN §10 in both
+   languages.
 
 Later batches must keep appending here.
