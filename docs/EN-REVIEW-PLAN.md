@@ -13,8 +13,14 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
 4. Spot-check at **375px in light and dark mode** on the screens that batch
    touched — nothing overflows, truncates badly, or pushes the layout.
    The Claude browser pane does not composite; use the headless-Chrome CDP
-   recipe (`~/.claude/launch.json`, add a NEW port — last used **9173** for the
-   static server and **9174** for the Chrome debugger; take the next free pair).
+   recipe (`~/.claude/launch.json`, add a NEW port — last used **9175** for the
+   static server and **9176** for the Chrome debugger; take the next free pair).
+   Third gotcha found in batch 8: `colorMode`, `onboardingDone` and `tourDone`
+   live in **IndexedDB**, not `localStorage` — set them with
+   `import('./js/db.js').then(d => d.kvSet('onboardingDone', true))`, or the
+   Kael welcome modal covers every screenshot. Only `lang` is in `localStorage`.
+   For light/dark, `Emulation.setEmulatedMedia` with `prefers-color-scheme`
+   works because the default `colorMode` is `system`.
    Two gotchas: `websocket-client` must be created with `suppress_origin=True`
    or Chrome answers the CDP handshake with 403, and the app boots in Spanish,
    so set `localStorage.lang = 'en'` and reload before reading any copy.
@@ -76,8 +82,17 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       every `Master: <theme>` label longer than about 15 characters already uses
       both lines — measured, the new label wraps to exactly 2 lines (26.3px),
       the same as the old one and as the longest existing theme badge.
-- [ ] **8 — `js/i18n.js` lines 276–435** — Endgame ELO, Profile, profile
-      privacy. Watch the four ELO domain keys.
+- [x] **8 — `js/i18n.js` lines 276–435** — Endgame ELO, Profile, profile
+      privacy. Watch the four ELO domain keys. *Done 2026-08-08.* **All four ELO
+      domain labels were already correct and none was touched** — `Puzzle ELO`,
+      `Opening ELO`, `Endgame ELO`, `Blindfold ELO`, exactly STYLE-EN §4. No
+      storage key was renamed. **The Profile ELO cards have room to spare**:
+      measured at 375px the `.profile-elo-row` is 355px, each `.elo-card` is
+      113px, and the label span inside is 93px on one 17px line — the widest,
+      `Blindfold ELO`, does not wrap. **The 64-cell trophy grid has zero
+      truncation**: unclamping `-webkit-line-clamp` on all 64 `.badge-name`
+      boxes changed no height, so nothing is being cut, including
+      `Converted: Minor pieces` and `Master: Removing the defender`.
 - [ ] **9 — `js/i18n.js` lines 436–585** — Kael onboarding, Settings, Game
       Review. **Skip every `tour_*` key — batch 2 already did them.**
 - [ ] **10 — `js/endgames-data.js`** — 872 `en:` entries, 212 KB, **on its own**.
@@ -512,6 +527,189 @@ Not touched, deliberately:
 `trainer_explain`'s *máquina*; its English half is now done. Two new items —
 **11** and **12** — added below.
 
+### From batch 8 (i18n.js 276–435 — Endgame ELO, Profile, profile privacy)
+
+**The three items earlier batches deferred here are resolved:**
+
+- **The house term is `Puzzle ELO`, and the four domain labels are final.**
+  `puzzle_elo` (`js/i18n.js:275`, batch 7's last line, edited here by explicit
+  exception) was read and **left as `Puzzle ELO`** — it already matched
+  STYLE-EN §4 and its three siblings, and it is the string the user actually
+  sees under the puzzle board (`Puzzle ELO: 1200`, 134.6px on one 27px line)
+  and on the Profile card. So the answer to **batch 2's "puzzle rating vs
+  Puzzle ELO"** question is: the app says **Puzzle ELO**, and `tour_puz_more_b`
+  ("Your puzzle rating sits up top") is the string that is wrong, not the
+  label. **Not edited — `tour_*` is frozen** (batch 2 closed it; batch 9 is
+  told to skip it). It joins the three "study board" lines batch 5 logged in
+  the same orphaned state: **nobody currently owns `tour_board_b`,
+  `tour_base_games_b`, `tour_play_ana_b` or `tour_puz_more_b`.** They need one
+  small follow-up commit after batch 10, or a named batch-9 exception.
+- **`trophy_case` ('Achievements') and `badge_earned` ('Achievement
+  unlocked!') are confirmed, unchanged.** Batch 4 was right: both read
+  correctly, `Achievements` is the standard word for a trophy case and is
+  sentence case per §2, and `badge_earned` earns its one exclamation mark under
+  §3 as a celebration string. `badge_earned` is prefixed with `🏆 ` in code
+  (`js/badges.js:116`), which §8 leaves alone.
+
+Fixed (16 plain fixes):
+
+- **The engine sweep, per STYLE-EN §6.** `mission_play` was **'Play a game
+  against the computer'** → **'Play a game against the engine'**. The whole
+  range was then grepped for "computer", "machine", "bot" and "AI": **no other
+  hit**. (`practice_start` already said "🎯 Practice vs the engine".)
+- **Six typographic ellipses → three ASCII dots** (STYLE-EN §3, the same fix
+  batches 5–7 made): `practice_opponent_first`, `checking_move`, `importing`,
+  `search_player`, `puzzles_loading`, `blind_watch_now`. All six are genuinely
+  unfinished actions or search placeholders, so `...` is the right form rather
+  than deletion.
+- `privacy_hint` had **two punctuation errors in one sentence**: a missing
+  comma after the fronted clause and a missing Oxford comma (§3). Now "When
+  private, they only see your avatar, your name, and your ELO ratings."
+- `delete_account_done` said **"Thanks for using the App!"** — "App" is
+  capitalized mid-sentence and is not a feature name in §4. Now **"the app"**.
+  (The brand name was not substituted in: it would be a longer string in a
+  toast, and §2 does not require it.)
+- `delete_account_confirm` said the account data "will be permanently
+  **erased**". §6 puts **Delete** in the vocabulary and **Erase** out of it, and
+  the button right above says `Delete account`. Now "permanently **deleted**".
+- `delete_account_failed` was **'Could not delete the account.'** — the only
+  uncontracted failure message in the file; its neighbours are "Couldn't load
+  puzzles." and "Couldn't download the chess engine". Now **"Couldn't delete
+  your account. Please try again."**, which also stops calling the user's own
+  account "the account".
+- `card_blind_title` was **'Blindfold Puzzle solved!'** — a share-card sentence,
+  not a heading, so §2 sentence case applies to the common noun. Now
+  **'Blindfold puzzle solved!'**
+- **The bare "Rush" sweep, per STYLE-EN §4** — five strings, the same rule
+  batch 4 applied to the badge names and batch 7 to `mode_rush`:
+  `rush_3min` **'Rush 3′'** → **'Puzzle Rush 3 min'**, `rush_5min` likewise;
+  `rush_result_title` **'Rush Result'** → **'Puzzle Rush result'** (also §2 —
+  it is a heading, not a feature name); `rush_open` **'⚡ Rush'** →
+  **'⚡ Puzzle Rush'**; and `rush_strikes_out` / `rush_wrong_end` ended with the
+  garden-path fragment **"Run over."**, now **"Your run is over."**
+  The `′` prime in `rush_3min` / `rush_5min` went with it: the Puzzle Rush
+  duration control on the same feature already says a plain **`3 min` / `5 min`**
+  (hardcoded in `index.html:430–431`, not an i18n key), so the leaderboard now
+  matches the app's own vocabulary. `rush_title` was already **'Puzzle Rush'**
+  and `rush_explain` already avoided the bare word — neither was touched.
+
+Measured at 375px in light and dark, zero console errors, and the language
+toggled both ways with every Spanish value unchanged. `document.scrollWidth` is
+exactly 375 on the Profile tab, the Puzzles tab, the Puzzle Rush setup screen,
+the Blindfold screen and the Learn → Endings category list.
+
+- **The leaderboard mode strip got *better*, not worse.** It is a wrapping
+  `.seg`, not a scrolling one, so the longer labels cost nothing:
+  `Puzzle ELO` 104.2px, `Puzzle Rush 3 min` and `Puzzle Rush 5 min` 144.7px
+  each, `Blindfold ELO` 113.6px, `scrollWidth === clientWidth === 355`. Before
+  the change it wrapped 3 + 1 (`Blindfold ELO` alone on row two); it now wraps
+  **2 + 2**, which is tidier. **This is not the frozen strip** — the frozen
+  one from batch 7 §9 is the three-option `mode_*` strip on Puzzles / Puzzle
+  Rush / Blindfold, which this batch did not touch.
+- **The endgame radar is fine.** Its six axis labels are the `cat_*` values on a
+  327px canvas; all six, `Minor pieces` included, render complete and unclipped.
+- `👁 Hint (2)` is 100.3px on one 40px line in the three-button Blindfold
+  action row.
+
+Waiting on Adrian's yes:
+
+- **`blind_no_peeks_toast` promises a product that does not exist.** It reads
+  "You've used your free peeks. **Become a Member for unlimited peeks!**" —
+  but there is no membership tier: `js/app.js:25` says the free-tier limits are
+  "not membership-gated yet", and `Blind.peek()` (`js/app.js:4132`) just stops
+  at a hard 2. Both "free" and "Become a Member" are claims about a paid plan
+  the app cannot sell. This is a product-truth call like batch 2's
+  `tour_engine_b`, not a grammar fix, so it was left exactly as it is. If the
+  tier is coming, keep it; if not, something like "That's both peeks for this
+  puzzle — solve the rest from memory." says the true thing.
+- **`blind_peek_btn` is now just `Hint`, and "peek" may be the better word.**
+  It was `'Hint (peek)'`, and code wraps it as `` `👁 ${t(...)} (${left})` ``
+  (`js/app.js:4124`), so the button actually rendered **`👁 Hint (peek) (2)`** —
+  two bracketed asides in a row, the second of which is the count. Dropping the
+  parenthetical was a clear fix and it is applied. The open question is the
+  remaining word: §6 makes **Hint** the house word for a puzzle nudge, so Hint
+  is what §6 gives; but this control does not hint at the answer, it briefly
+  shows the pieces, and both the code (`peeksUsed`) and
+  `blind_no_peeks_toast` call it a **peek**. `👁 Peek (2)` would be more
+  honest. Left as `Hint` because that is what the written rule says.
+- **`rush_strike_left` / `rush_strike_last` no longer say "Wrong!"** They were
+  `'Wrong! {n} left'` and `'Wrong! Last chance'`; STYLE-EN §7 says never blame
+  the user and gives "That wasn't it — try again" as the model, so they are now
+  **"That wasn't it — {n} left"** and **"That wasn't it — last chance"**. Flagged
+  rather than filed as a plain fix because Puzzle Rush is a timed mode where a
+  three-word toast may genuinely beat a five-word one. Reverting is one line
+  each if you prefer the terser version.
+- **`cat_minor` ('Minor pieces') is the only plural among the six endgame
+  categories** — its siblings are `Pawn`, `Rook`, `Queen`, `Bishop`, `Knight`.
+  Singular is the right attributive form ("rook endgames"), and the badge
+  built from these reads **"Converted: Minor pieces"** next to "Converted:
+  Pawn". `Minor piece` would make the set consistent. Left alone: "minor
+  pieces" is the standard chess phrase for the bishop-and-knight pair, nothing
+  overflows either way (62.4px vs 57.8px on the radar, no truncation in the
+  trophy cell), and changing it splits the two languages, since the Spanish
+  `cat_*` are all plural (*Peones*, *Torres*) — it is the **English** set that
+  is internally inconsistent, and the Spanish set is not.
+
+Not touched, deliberately:
+
+- **The four ELO domain labels and their storage keys.** See above. `puzzleElo`,
+  `openingElo`, `endgameElo`, `blindfoldElo` and `'endgame'` are untouched.
+- **`rush_open` and `rush_result_title` are dead strings, and `rush_wrong_end`
+  with them.** Grepped across `js/` and `index.html`: no `t()` call and no
+  `data-i18n` attribute for any of the three. The Puzzle Rush entry point is
+  `mode_rush` (batch 7) and `#rush-duration` is hardcoded markup. They were
+  swept anyway — a §4 violation sitting in the file is free to fix and there is
+  no layout risk in a string nothing renders — but nobody should spend time
+  polishing them further. Same treatment batch 5 gave `no_bases_yet`, except
+  that one was left verbatim because it had no rule violation in it.
+- **`blind_title` ('Blindfold Puzzles').** Title Case on a screen heading, which
+  §2 would normally lowercase — but **Blindfold** and **Puzzles** are both §4
+  feature names, and the sibling screen's heading is `rush_title` ('Puzzle
+  Rush'). Internally consistent; re-casing it is a naming call, not a typo.
+- **`choose_avatar` / `edit_avatar` say "icon", `privacy_hint` says "avatar".**
+  The keys, the code (`AVATAR_OPTIONS`, `avatarHtml()`) and the privacy text all
+  say avatar; the two buttons the user actually presses say **icon**. The two
+  buttons agree with each other, so nothing looks broken on screen, but the app
+  has two words for one thing. Picking one is a naming decision.
+- **`practice_start` ('🎯 Practice vs the engine')** — 26 characters in a `.row`
+  where §9 budgets 16. It is the existing shipped wording, it is correct under
+  §6, and the row is `flex` with two 44px tool buttons beside it, so the button
+  simply takes what is left. Not shortened.
+- **`radar_axis_endgame` ('Endgame') and `radar_endgame` ('Endgame by
+  material').** §4 restricts capitalized `Endgame` to `Endgame ELO`, but both of
+  these are label-initial, where the capital is positional, and their siblings
+  are the feature names `Openings` and `Puzzles`. Neither claims an Endgame tab.
+- **`lb_all_time` ('All time')** — "all-time" is the adjectival form, but this is
+  a standalone filter option, and Chess.com and Lichess both write it open.
+- **`passwords_dont_match` ('Passwords do not match.')** — §7 prefers
+  contractions "only where they read naturally"; both forms do here, and this
+  one is a validation message where the fuller form is fine.
+- **`event`-style and PGN-adjacent strings** — none in this range.
+- **The singular/plural bug batches 6 and 7 logged is here too**, in
+  `import_count` ('{n} imported · {s} skipped') and `games_shown`
+  ('Showing {n} of {total}'). Both survive `n = 1` because neither inflects a
+  noun — flagged only to record that the range was checked.
+
+**Two layout findings that are NOT this batch's copy and were not fixed:**
+
+- **The puzzle radar clips its longest theme labels.** On the 327px
+  `#chart-puzzle` canvas, `Master:`-free axis text is drawn outside the plot
+  area and runs off both edges: **"Removing the defender"** loses its leading
+  R, **"Discovered attack"** renders as "Discovered atta", **"Double check"** as
+  "Double chec". These are batch 7's `theme_*` names, and two of the three are
+  names batch 7 never changed, so this is **pre-existing and not caused by any
+  copy edit** — batch 7 measured the 47-row theme *picker*, where they fit, but
+  not the radar. It is a chart-layout bug (Chart.js label padding), not a
+  wording bug: shortening the names would only move the cliff. Worth a small
+  CSS/Chart.js fix later. The **endgame** radar is unaffected.
+- **The Leaderboard screen reports `document.scrollWidth` 405, not 375.** The
+  overflow is `IMG.watermark`, the decorative logo, whose right edge lands at
+  405px; no text is involved and no interactive element is off-screen. Present
+  in both languages and both themes, and unrelated to this batch.
+
+**Spanish (reported, never fixed):** items 9, 11 and 12 below all grew; two new
+items, **14** and **15**, added.
+
 ---
 
 ## Spanish repair list — do this AFTER the English review
@@ -573,6 +771,14 @@ Ordered worst first.
    - `trainer_explain` — "**La máquina** jugará las jugadas de esa base" → "El
      motor jugará…". Its English half is batch 7's to fix. *(batch 6)*
 
+   **Batch 8 found a sixth, and it is a different word.** `mission_play` —
+   "Jugar una partida contra **el ordenador**". Not *máquina* this time but
+   *ordenador*, which is also Peninsular Spanish where the rest of the app is
+   neutral/Latin American. Its English half is now "Play a game against the
+   engine", so this should read **"Jugar una partida contra el motor"**. Sweep
+   for *ordenador* and *computadora* as well as *máquina* when doing this job.
+   *(batch 8)*
+
    **Do not touch `history_bot_name` ("Bot {lvl}") in this sweep** — it is
    written into saved PGN headers and is frozen by STYLE-EN §10 in both
    languages.
@@ -613,6 +819,28 @@ Ordered worst first.
     Spanish `🧩 Puzzles` / `🙈 A ciegas` are not the same widths as the English
     ones — measure before committing. *(batch 7)*
 
+    **Batch 8 read the rest of the Puzzles/Rush/Blindfold block and the mess is
+    bigger than it looked. A fourth Spanish word for "puzzle" is in use, and the
+    bare "Rush" is in five more strings.** Whatever word gets picked has to be
+    applied to all of these at once:
+    - `rush_explain` — "Resuelve tantos **rompecabezas** como puedas". This is a
+      *fourth* term, alongside *Táctica*, *Puzzles* and *puzzle*. The English
+      says "puzzles" here and everywhere.
+    - `rush_3min` / `rush_5min` — **"Rush 3′" / "Rush 5′"**. English is now
+      "Puzzle Rush 3 min" / "Puzzle Rush 5 min": the bare word is gone and so is
+      the `′` prime, because the duration control on that same screen already
+      says a plain `3 min` / `5 min`. These two are the **leaderboard mode
+      strip**, which is a *wrapping* `.seg` — it has room, unlike the frozen
+      three-option strip. Spanish could take "Puzzle Rush 3 min" as-is.
+    - `rush_result_title` — **"Resultado de Rush"** → "Resultado de Puzzle Rush".
+    - `rush_open` — **"⚡ Rush"** → "⚡ Puzzle Rush". Dead string in both
+      languages (nothing renders it), so this one is cosmetic.
+    - `rush_back_puzzles` — **"← Volver a Táctica"**, and `radar_puzzle`
+      ("Táctica por tema"), `radar_axis_puzzle` ("Táctica") and `puzzles_title`
+      ("Táctica") with it. These are the *Táctica* half of the problem this item
+      already describes; listing them so the sweep is a finite job.
+    *(batch 8)*
+
 12. **`js/i18n.js`, `log_rating` — the Spanish labels the wrong quantity.**
     English is **"Rating {n}"** and the number is the puzzle's own rating;
     Spanish says **"Dificultad {n}"**. *Dificultad* is already the name of the
@@ -629,5 +857,25 @@ Ordered worst first.
     reader announces a bare "Opciones" with no context. Should read **"Ajustes
     del puzzle"** (or whatever word the Spanish Settings screen already uses —
     check `settings_title` first and match it). *(batch 7)*
+
+14. **`js/i18n.js`, `delete_account_done` — "la App" is capitalized for no
+    reason.** "Cuenta eliminada. ¡Gracias por usar **la App**!" The English had
+    the identical error and batch 8 fixed it to "the app". Spanish should read
+    **"¡Gracias por usar la app!"** — or name the product, "¡Gracias por usar
+    Chess Training Center!", since the brand name is the same in both languages.
+    Cosmetic, but it is the last thing a departing user reads. *(batch 8)*
+
+15. **`js/i18n.js`, `blind_peek_btn` — the Spanish carries an explanation the
+    English no longer has, and it is now too long for the button.** Spanish is
+    **"Pista (ver piezas)"**; the English was `'Hint (peek)'` and is now just
+    `'Hint'`, because the code renders `` `👁 ${label} (${left})` `` and the old
+    value produced "👁 Hint (peek) (2)" — two bracketed asides in a row. The
+    Spanish produces the same double-bracket problem, **"👁 Pista (ver piezas)
+    (2)"**, and it is much wider: the English button measures 100.3px in a
+    three-button row on a 355px screen, and the Spanish is roughly double that.
+    Should become plain **"Pista"** (or "Vistazo", which matches
+    `blind_no_peeks_toast`'s "vistazos"). **Measure the row at 375px when
+    applying** — the other two buttons are `show_solution` and `next`.
+    *(batch 8)*
 
 Later batches must keep appending here.
