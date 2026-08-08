@@ -90,7 +90,16 @@ Lower priority, not in the work order:
    `toLocaleDateString(undefined, …)`. In Spanish on an English phone you get
    "Aug 5 13:16". Passing `getLang()` instead of `undefined` fixes it. Cosmetic
    and pre-existing to Task 2; not fixed because it was outside Task 4.
-5. New "Read" tab — PDF reader, brief in `READ-TAB-PROMPT.md`. Later.
+6. New "Read" tab — PDF reader, brief in `READ-TAB-PROMPT.md`. Later.
+7. **Repo is 137 MB, and 138 MB of the working tree is
+   `avatars/CTC new arts/`** — the full-size source PNGs, several over 3 MB
+   (`frame-obsidian.png` 3.6 MB, `flamegold.png` 3.2 MB). Nothing loads them at
+   runtime, but GitHub Pages serves this repo, so every one is publicly
+   downloadable at the site root, and git history is permanent. This is the
+   opposite of the `.gitignore` policy that keeps `icons/Streak Flames/` out.
+   Deciding what to do needs Adrian: leaving it is harmless day to day, and the
+   only real fix (history rewrite, or moving the sources out of the repo) is
+   disruptive. **Ask before touching this — do not rewrite history unprompted.**
 
 ## Token rules — paste these into every new chess session
 
@@ -194,5 +203,6 @@ dark, and an offline reload with the network cut.
 
 ## Housekeeping
 
-`avatars/CTC new arts/` and `tools/` are still untracked in git. Commit them
-before starting task A so the new art is not at risk.
+Nothing outstanding. `avatars/CTC new arts/` and `tools/` **are** committed —
+the old note here claimed otherwise and was wrong for a long time. Verify a
+claim like that with `git ls-files <path>` before repeating it.
