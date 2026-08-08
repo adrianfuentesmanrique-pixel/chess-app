@@ -1195,13 +1195,23 @@ export function segInit(el, onChange) {
 }
 export function segValue(el) { return el.querySelector('button.on')?.dataset.v; }
 
-function buildLevelSeg(el, def = 2) {
+// `rich` renders the Play tab's card grid — robot badge, name and strength
+// range. Without it you get the compact button strip the Trainer tab uses.
+function buildLevelSeg(el, def = 2, rich = false) {
   el.innerHTML = '';
+  el.classList.toggle('lvgrid', rich);
+  el.classList.toggle('seg', !rich);
   const names = t('level_names');
   LEVELS.forEach((lv, i) => {
     const b = document.createElement('button');
     b.dataset.v = i;
-    b.textContent = (i + 1) + '·' + names[i];
+    if (rich) {
+      b.innerHTML = `<img src="icons/badges/beat_engine_${i}.png" alt="" width="64" height="64">`
+        + `<span class="lv-name">${esc(names[i])}</span>`
+        + `<span class="lv-elo">${lv.range}</span>`;
+    } else {
+      b.textContent = (i + 1) + '·' + names[i];
+    }
     if (i === def) b.classList.add('on');
     el.appendChild(b);
   });
@@ -2319,7 +2329,7 @@ const Play = {
   saved: false,
 
   init() {
-    buildLevelSeg($('play-level'));
+    buildLevelSeg($('play-level'), 2, true);
     segInit($('play-color'));
     segInit($('play-level'));
     this.board = new Board($('play-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
@@ -5130,7 +5140,7 @@ function openSettings() {
 
 function relabel() {
   applyStatic();
-  buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2));
+  buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2), true);
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
   if (activeScreen === 'profile') Profile.refresh();

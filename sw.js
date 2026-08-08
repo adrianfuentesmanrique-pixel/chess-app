@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v29';
+const CACHE = 'chess-training-center-v30';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -42,6 +42,13 @@ const ASSETS = [
   'icons/logo-mark.png',
   'icons/logo-full.png',
   'icons/google-g.svg',
+  // The 8 robot badges are the Play tab's level picker, so they must be there
+  // on a first launch that happens offline. The rest of icons/badges/ is not
+  // precached — it is only cached after first fetch.
+  'icons/badges/beat_engine_0.png', 'icons/badges/beat_engine_1.png',
+  'icons/badges/beat_engine_2.png', 'icons/badges/beat_engine_3.png',
+  'icons/badges/beat_engine_4.png', 'icons/badges/beat_engine_5.png',
+  'icons/badges/beat_engine_6.png', 'icons/badges/beat_engine_7.png',
   'pieces/wK.svg', 'pieces/wQ.svg', 'pieces/wR.svg', 'pieces/wB.svg', 'pieces/wN.svg', 'pieces/wP.svg',
   'pieces/bK.svg', 'pieces/bQ.svg', 'pieces/bR.svg', 'pieces/bB.svg', 'pieces/bN.svg', 'pieces/bP.svg',
   'pieces2/wK.svg', 'pieces2/wQ.svg', 'pieces2/wR.svg', 'pieces2/wB.svg', 'pieces2/wN.svg', 'pieces2/wP.svg',
