@@ -42,8 +42,8 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       that calls `t('tour_…')`. The strings are `js/i18n.js:456–538`, all 66 of
       them (`tour_*`). Batch 9 must therefore skip `tour_*`; its remaining
       scope is Kael onboarding, Settings and Game Review.
-- [ ] **3 — `js/learning-data.js`** — Learn lessons, 59 `en:` strings. Screens:
-      Learn → Rules, Basic Checkmates.
+- [x] **3 — `js/learning-data.js`** — Learn lessons, 59 `en:` strings. Screens:
+      Learn → Rules, Basic Checkmates. *Done 2026-08-08.*
 - [ ] **4 — `js/app.js` badges + `js/badges.js`** — 72 `en:` + the three
       `label: lang =>` functions. Screens: Profile → trophies, badge toasts.
       `js/app.js` is 235 KB — grep for the symbol, then read with offset/limit.
@@ -130,3 +130,49 @@ Not touched, deliberately:
 - `tour_base_games_b`: "Cualquier partida que toques se abre en el tablero de
   análisis. **Ahora está vacía**" — "vacía" agrees with *partida*, but the
   empty thing is the *base*. Reads as if the game is empty.
+
+### From batch 3 (learning-data.js)
+
+Fixed beyond copy, flagged for Adrian:
+
+- **The `board` lesson taught a false fact.** It said "the square h1 ... is
+  always **dark**". h1 is a **light** square ("white on the right"). Changed to
+  "light" — shipping a wrong chess fact in the very first rules lesson is worse
+  than staying literally inside a copy edit. **The Spanish says the same wrong
+  thing** — see below.
+
+Waiting on Adrian's yes:
+
+- **Lesson-title casing.** Every lesson title is Title Case (`The Board`,
+  `How Pieces Capture`, `En Passant`, `When You Can't Castle`). STYLE-EN §2 puts
+  headings in sentence case, but §2 also allows capitalized piece names as
+  labels, and §4 already gives `Rules` / `Basic Checkmates` Title Case as
+  section names. Left as-is: it is internally consistent, and switching all 18
+  titles is a visible sweep, not a typo fix.
+- **`kr_vs_k`: "shoulder" → "take the opposition".** The old text said the king
+  advances to '"shoulder" it (oppose it directly)'. Shouldering is a real term
+  but describes king races; the technique shown here is the **opposition**,
+  which STYLE-EN §5 locks. Now "advances to take the opposition (stand directly
+  in front of it) and push it toward the edge". This is the one edit that
+  changes teaching vocabulary rather than grammar.
+
+Not touched, deliberately:
+
+- **The `Bishop + Knight + King vs King` title truncates** in the lesson header
+  at 375px ("Bishop + Knight + King vs …"). Pre-existing; any shorter title is a
+  naming decision, and STYLE-EN §9 says keep the short wording and report it.
+- **`practice`, `demo`, `fen`, `shapes`, `setupMove`** — mechanical data, not
+  copy.
+- **Section titles `Rules` and `Basic Checkmates`** — feature names fixed by
+  STYLE-EN §4.
+
+**Spanish (reported, never fixed):**
+
+- **`board`: "la casilla h1 ... siempre es oscura" is wrong** — h1 is a light
+  square, so it needs "clara". Until it changes, the two languages teach
+  opposite things; worth doing soon.
+- `castling_illegal`: "Lo mismo ocurre si el rey **tendría** que pasar por una
+  casilla atacada" — conditional after "si"; Spanish wants "tuviera que".
+- `promotion`: "se corona: se convierte en dama, torre, alfil o caballo" — no
+  comma before "o" in a simple Spanish list is correct here, but *corona* and
+  *convierte* repeat the same idea back to back. Style, not an error.
