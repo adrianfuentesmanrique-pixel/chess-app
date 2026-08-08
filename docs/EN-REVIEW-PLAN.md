@@ -13,8 +13,8 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
 4. Spot-check at **375px in light and dark mode** on the screens that batch
    touched — nothing overflows, truncates badly, or pushes the layout.
    The Claude browser pane does not composite; use the headless-Chrome CDP
-   recipe (`~/.claude/launch.json`, add a NEW port — last used **9175** for the
-   static server and **9176** for the Chrome debugger; take the next free pair).
+   recipe (`~/.claude/launch.json`, add a NEW port — last used **9177** for the
+   static server and **9178** for the Chrome debugger; take the next free pair).
    Three gotchas: `websocket-client` must be created with `suppress_origin=True`
    or Chrome answers the CDP handshake with 403; the app boots in Spanish, so
    set `localStorage.lang = 'en'` and reload before reading any copy; and
@@ -22,6 +22,11 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
    **IndexedDB**, not `localStorage`. Set those with
    `import('./js/db.js').then(d => d.kvSet('onboardingDone', true))`, or the
    Kael welcome modal covers every screenshot. Only `lang` is in `localStorage`.
+   Batch 9 adds the flip side: to *see* the onboarding modal you must delete the
+   IndexedDB database, and **it is called `mi-ajedrez`** (`DB_NAME` in
+   `js/db.js`), not anything CTC-shaped —
+   `indexedDB.deleteDatabase('mi-ajedrez')` then reload. Deleting the wrong name
+   fails silently and you just get the post-onboarding app again.
    For light/dark, `Emulation.setEmulatedMedia` with `prefers-color-scheme` also
    works, because the default `colorMode` is `system`.
 5. Confirm the DICT key count is unchanged (see the command below).
@@ -49,6 +54,14 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       that calls `t('tour_…')`. The strings are `js/i18n.js:456–538`, all 66 of
       them (`tour_*`). Batch 9 must therefore skip `tour_*`; its remaining
       scope is Kael onboarding, Settings and Game Review.
+      **Amended by batch 9 — this freeze note was becoming misleading.** It held
+      for 62 of the 66 keys. Batches 2, 5 and 8 each logged a `tour_*` string
+      that no batch owned, so Adrian released exactly four of them to batch 9,
+      which fixed them: `tour_board_b`, `tour_base_games_b` and `tour_play_ana_b`
+      (all three called the Analysis screen "the study board") and
+      `tour_puz_more_b` ("puzzle rating" → **Puzzle ELO**). **Those four are
+      done. The other 62 `tour_*` keys are still frozen**, `tour_engine_b`
+      included.
 - [x] **3 — `js/learning-data.js`** — Learn lessons, 59 `en:` strings. Screens:
       Learn → Rules, Basic Checkmates. *Done 2026-08-08.*
 - [x] **4 — `js/app.js` badges + `js/badges.js`** — 72 `en:` + the three
@@ -93,8 +106,9 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       truncation**: unclamping `-webkit-line-clamp` on all 64 `.badge-name`
       boxes changed no height, so nothing is being cut, including
       `Converted: Minor pieces` and `Master: Removing the defender`.
-- [ ] **9 — `js/i18n.js` lines 436–570** — Kael onboarding, Settings, Game
-      Review. **Skip every `tour_*` key — batch 2 already did them.**
+- [x] **9 — `js/i18n.js` lines 436–570** — Kael onboarding, Settings, Game
+      Review. *Done 2026-08-08.* **Skip every `tour_*` key — batch 2 already did
+      them**, except the four Adrian released to this batch (see batch 2 above).
       *Range corrected by batch 8: the DICT closes at line 570, and 571–585 is
       the `t()` / `applyI18n()` helper code, not strings.* The real sub-ranges
       are **436–455 Kael onboarding**, **456–539 `tour_*` (skip)**,
@@ -720,6 +734,196 @@ Not touched, deliberately:
 **Spanish (reported, never fixed):** items 9, 11 and 12 below all grew; two new
 items, **14** and **15**, added.
 
+### From batch 9 (i18n.js 436–570 — Kael onboarding, Settings, Game Review)
+
+**The five items earlier batches deferred here are all resolved.**
+
+- **There is no Endgame tab, and `kael_reco_middle` no longer claims one** —
+  batch 1's finding, assigned here. It read "I'd focus on the Openings, Puzzles,
+  and Endgame tabs"; per STYLE-EN §4 the endgame material is the **Endings**
+  section inside **Learn**. Now **"I'd focus on the Openings and Puzzles tabs,
+  plus Endings in the Learn tab"**. This is the string both the *intermediate*
+  and the *expert* tiers see (`kaelRecoText()`, `js/app.js:443`), so it is the
+  most-read of the three recommendations.
+- **The four released `tour_*` keys are done.** `tour_board_b`,
+  `tour_base_games_b` and `tour_play_ana_b` all called the Analysis screen "the
+  study board", a name the UI never repeats; batch 5 established that the
+  screen's only name anywhere in the app is **Analysis**. They now say
+  **Analysis** — bare, because §4's *Never write* column forbids "Analysis
+  Board", so "your Analysis board" was not available as a house phrase.
+  `tour_puz_more_b` now says **Puzzle ELO**, the label the screen actually shows,
+  settled by batch 8.
+- **`tour_engine_b` was NOT touched, as instructed, and the concern still
+  stands.** It promises "the best move**s** and who stands better", but
+  `MAX_ENGINE_LINES` is **2** and the stored default `engineLines` is 2, so the
+  panel shows two lines at most and `js/app.js:24` explains why it cannot be 3.
+  Verified in the Settings sheet: the **Engine lines** segmented control offers
+  exactly **1** and **2**. "The best moves" is defensible at 2 lines and wrong at
+  1, which is a real setting the user can choose. Still a product-truth call, not
+  grammar, and still frozen. **Reported for the second time — it needs Adrian's
+  yes or an explicit "leave it".**
+
+Fixed (5 plain fixes):
+
+- `game_review_analyzing` was **'Analyzing the game…'** — the typographic
+  ellipsis, the same STYLE-EN §3 fix batches 5–8 made. Now
+  **'Analyzing the game...'**. It is a genuinely unfinished action (one engine
+  evaluation per position), so `...` is right rather than deletion. **This was
+  the only `…` in the whole range** — the range was grepped for the character.
+- `kael_reco_beginner` had its adverbial stranded: "I recommend the Learn tab — I
+  explain the rules of chess step by step **there**". Now **"— that's where I
+  explain the rules step by step, from the board to basic checkmates."** ("of
+  chess" also went: the sentence is already about chess.)
+- `level_beginner_desc` was **"I'm new to chess or just know the basic rules."** —
+  two clauses with different verbs sharing one subject. Now **"I'm new to chess,
+  or I just know the basic rules."**
+- `level_expert_desc` was **'I have good understanding and mid-high level
+  skills.'** — a missing article and "mid-high level skills", which is not
+  English. Now **'I have a good understanding of the game and fairly advanced
+  skills.'**
+- `tour_base_games_b`'s second sentence had an ambiguous pronoun in English, the
+  same fault item 3 of the repair list logs against the Spanish: "Any game you
+  tap opens… **It's** empty right now" reads as if the *game* is empty, when the
+  empty thing is the database. Now **"Your database is empty right now"**.
+
+Judgement calls applied, flagged for Adrian:
+
+- **`kael_welcome_body` lost its corporate register.** It was "**To tailor your
+  experience**, I'd like to understand your level **a bit**" — STYLE-EN §7 bans
+  corporate register in Kael's voice, and "understand your level a bit" is hedged
+  twice. Now **"First, let me get a sense of how strong you are so I can point
+  you in the right direction."** This is the first sentence a new user ever reads,
+  so it is worth a look rather than a silent edit.
+- **`kael_reco_master` no longer says "full access".** It read "You have **full
+  access to everything** here", which is access-tier vocabulary in an app that
+  has no tiers — the same rule Adrian settled in batch 8 (STYLE-EN §6, never
+  advertise a tier that does not exist). Nothing is gated, so nothing needs the
+  word "access". Now **"Everything here is open to you — enjoy it however you
+  like."**
+- **`kael_reco_middle`'s opener was a calque.** "**Good level!**" is a literal
+  rendering of the Spanish *Buen nivel!* and is not something an English speaker
+  says. Now **"That's a good place to be!"** Same job, one exclamation mark (§3).
+- **`tour_puz_more_b` also lost the word "options"**, which is out of the
+  vocabulary per STYLE-EN §6 and which batch 7 already removed from the gear this
+  sentence points at (`puzzle_options` is now **Puzzle settings**). The line now
+  says "hint, solution, and **settings** are right here". Same string, same
+  sweep, so it went in with the Puzzle ELO fix rather than being left to
+  contradict the button beside it.
+- **`game_review_title` stays Title Case as 'Game Review', and §4 gained a row
+  for it.** §2 puts headings in sentence case and batch 8 lowercased
+  `rush_result_title` to "Puzzle Rush result" on exactly that basis — but that
+  string was *feature name + common noun*, whereas "Game Review" **is** the
+  feature name, with its own module object (`GameReview`) and its own screen,
+  exactly like `Game History`. STYLE-EN invites a session to decide what the file
+  does not cover, so §4 now lists **Game Review** with `Review` / `Game review`
+  in the *Never write* column.
+
+Measured at 375px in light and dark, in a fresh profile with the onboarding
+modal restored, and with the language toggled both ways (every Spanish value
+unchanged — the Spanish Settings sheet was read back in full):
+`document.scrollWidth` is exactly **375** on all three screens, **nothing is
+clipped anywhere** (every descendant checked for `scrollWidth > clientWidth`),
+and there were **zero console errors, zero unhandled rejections, and zero
+`console.error` calls** across a full boot → onboarding → level pick → Settings
+run. The known App Check `403` did not even appear, because this profile never
+reached Firebase.
+
+- **The Settings sheet is the roomiest screen in the review.** The sheet is 375px
+  wide with a 343px content column. All **nine** `.fld-label` rows render on one
+  17px line, and **all seven `.seg` strips have zero overflow**
+  (`scrollWidth === clientWidth`) in both themes — including the three-option
+  Appearance strip (`☀️ Light` 81.5px and siblings). No Settings string needed a
+  single character changed, so none of this was at risk; measured anyway because
+  a long sheet of label + control rows is where §9 usually bites.
+- **The Game Review table is not tight.** `.gr-table` is 343px: the label column
+  is **216.5px** and the two count columns **63.2px** each. Every one of the five
+  rows renders on **one** line (31.5–32px), longest label `💎 Brilliant`. The
+  `.gr-cpl` line ("Centipawn loss: 312") is one 17px line, and the two
+  `.gr-actions` buttons are 167.5px each. Nothing in this range comes close to
+  the column. Measured on the real markup in the real `modal()` with the real
+  `t()` values, since `GameReview` is not exported and reaching it for real needs
+  a full game against the engine.
+- **The one string that changed a layout is `level_beginner_desc`, and it
+  changed it for the better.** In the 267px `.kael-level-desc` box (13px/17.55px
+  system-ui) the old text was **17.5px** — one line — and the comma version is
+  **35.1px**, two lines, so the Beginner card grows about 17.6px. That is not an
+  overflow: the cells are auto-height, nothing truncates, and **Expert and Master
+  already wrapped to two lines** (35.1px, unchanged before and after the much
+  longer new Expert text). The grid ends up *more* uniform than it was, with only
+  `Intermediate` on one line. The modal already scrolls at 375×812 regardless.
+
+Not touched, deliberately:
+
+- **The entire Settings block (`js/i18n.js:541–558`) is correct as it stands** —
+  18 keys, zero edits. `settings` is already **'Settings'**, not "Options", so
+  STYLE-EN §6's app-wide-Settings rule was already satisfied and the batch-7
+  per-feature rule had nothing to sweep here. `board_theme` is already the US
+  **'Board color'** (§1), `mode_light` / `mode_dark` / `mode_system` keep their
+  emoji and single space (§8), `sound_on` / `sound_off` ('On' / 'Off') are the
+  right register, and `about` ("Chess Training Center — your analysis and
+  training app.") has the spaced em dash §3 asks for and the brand name §11
+  freezes. `piece_alt` ('Alternative') vs `piece_classic` ('Classic') is a
+  naming preference, not an error.
+- **`game_review_move` ('Move') and `game_review_accuracy` ('Accuracy') are dead
+  strings.** Grepped across `js/` and `index.html` for `t('…')`, `data-i18n`,
+  `data-i18n-ph`, `data-i18n-aria` and dynamic `'game_review_' +` construction:
+  **no call site for either**. The Game Review markup labels its accuracy column
+  with the player's name and its table rows with `cat_*`, so neither key ever
+  reaches a screen. Both happen to be correct English, so unlike batch 8's
+  `rush_open` there was nothing to sweep. Same treatment batch 5 gave
+  `no_bases_yet`: flagged so nobody polishes invisible copy.
+- **`game_review_cpl` ('Centipawn loss') is right, and deliberately not
+  "Average centipawn loss".** Checked the code: `cplW` / `cplB` accumulate the
+  **total** centipawn loss and are printed with `Math.round()`
+  (`js/app.js:2686`) — the average is used only to compute the accuracy figure
+  above it. Chess.com and Lichess show *average* CPL and label it ACPL, so the
+  temptation is to add "Average"; that would make the label a lie. Left exact.
+- **The five `cat_*` move-quality names.** `Brilliant`, `Best`, `Good`,
+  `Mistake`, `Blunder` are the standard set and §5 locks *blunder* and *mistake*.
+  Worth recording that the **bands** are `grClassify()`'s, not the industry's:
+  ≤10cp best, ≤50 good, ≤200 **mistake**, >200 blunder. Lichess calls 50–100cp
+  an **inaccuracy**, which STYLE-EN §5 also locks, so this app files every
+  inaccuracy under "Mistake" and has no sixth category. That is a **threshold**
+  question in `js/app.js`, not a copy question — renaming the label would not fix
+  it and adding a category is a code change. Flagged, not touched.
+- **`kael_welcome_title` ('Welcome!'), `kael_continue` ('Continue'),
+  `kael_level_question`, `kael_start_btn` ("Let's start!"),
+  `level_*_name` (Beginner / Intermediate / Expert / Master) and
+  `level_intermediate_desc` / `level_master_desc`** — all correct.
+  The four tier names double as the `<b>` on the level card and as the heading of
+  the recommendation step, and all four render on one 20px line in a 267px box.
+- **The `ELO 1901-2300` ranges on the level cards are not i18n strings** — they
+  are built in `js/app.js:499` from `LEVEL_TIERS`, so they were out of scope for
+  a copy batch. Note that HANDOVER's open item 5 (**`userLevel` is a dead
+  write**) is still true: this whole onboarding flow saves the answer and nothing
+  reads it. Batch 9 changed only the wording, so a strong new player still starts
+  at `puzzleElo` 1200.
+- **The other 62 `tour_*` keys**, per the amended batch-2 note.
+
+**i18n.js loose ends after this batch — the honest list.** This was the last
+i18n.js batch, so anything here needs its own follow-up:
+
+1. **`tour_engine_b`** — the only *unresolved* one. Frozen, reported twice, needs
+   Adrian's yes. Everything else below is recorded, not pending.
+2. **Dead strings, deliberately left in place:** `no_bases_yet` (batch 5),
+   `rush_open`, `rush_result_title`, `rush_wrong_end` (batch 8),
+   `game_review_move`, `game_review_accuracy` (this batch). Removing a key is a
+   code change, not a copy edit.
+3. **The singular/plural bug** in `games`, `imported`, `history_moves`,
+   `adv_matches`, `import_count` — needs a plural helper in code (batches 6–8).
+4. **Two layout bugs batch 8 logged** that no copy edit can fix: the puzzle radar
+   clipping its longest `theme_*` labels, and the Leaderboard's decorative
+   `IMG.watermark` pushing `document.scrollWidth` to 405.
+5. **Naming questions still open** from earlier batches: the `Opening Explorer`
+   badge name (batch 4), `Daily Mission` vs `Daily Missions` (batch 4),
+   `STREAK_TIERS` counting in months to 240 (batch 4), and "icon" vs "avatar" in
+   `choose_avatar` / `edit_avatar` (batch 8).
+6. **The whole Spanish repair list below** — 17 items, untouched by design.
+
+**Spanish (reported, never fixed):** item 13 answered — the Spanish Settings
+screen calls itself **"Ajustes"**. Items 9 and 13 grew; one new item, **17**,
+added.
+
 ---
 
 ## Spanish repair list — do this AFTER the English review
@@ -868,6 +1072,20 @@ Ordered worst first.
     del puzzle"** (or whatever word the Spanish Settings screen already uses —
     check `settings_title` first and match it). *(batch 7)*
 
+    **Batch 9 answered the open question. There is no `settings_title` key — the
+    app-wide Settings screen is `settings`, and its Spanish value is
+    "Ajustes".** Read back off the live sheet at 375px, which renders
+    `Ajustes / Apariencia / Sonido / Idioma / Líneas del motor / Color del
+    tablero / Estilo de piezas / Privacidad`. So **"Ajustes del puzzle" is the
+    right wording** and it matches the house word rather than inventing one.
+    (`tour_skipped_toast` already points the user at "Ajustes ⚙️" too, so three
+    places will agree.) *(batch 9)*
+
+    Also here, found in batch 9: **`tour_puz_more_b` says "pista, solución y
+    opciones"** — the same *Opciones* this item is about, in the tour line that
+    points at that very gear. The English half now says "settings"; the Spanish
+    should use whatever word this item settles on. *(batch 9)*
+
 14. **`js/i18n.js`, `delete_account_done` — "la App" is capitalized for no
     reason.** "Cuenta eliminada. ¡Gracias por usar **la App**!" The English had
     the identical error and batch 8 fixed it to "the app". Spanish should read
@@ -903,5 +1121,36 @@ Ordered worst first.
     resuélvelo de memoria."** This was the only string in either language that
     mentioned a Member, so once it is done the word is gone from the app.
     *(batch 8)*
+
+17. **`js/i18n.js`, the Kael onboarding block — three problems, one of them a
+    real punctuation error.** All found in batch 9, whose English half is done.
+    - **`kael_reco_middle` is missing its opening `¡`.** It reads **"Buen
+      nivel!"**; Spanish needs **"¡Buen nivel!"** Every other exclamation in the
+      block is correctly paired (`¡Bienvenido!`, `¡Empecemos!`, `¡Genial para
+      empezar!`, `¡Felicidades…!`), so this one is simply a slip. Worst of the
+      three — it is the first thing an intermediate or expert user reads.
+    - **`kael_reco_middle` also claims a tab that does not exist**, exactly like
+      the English did: "las pestañas de **Aperturas, Táctica y Finales**".
+      *Finales* is a **section inside Aprender**, not a pestaña. The English now
+      reads "the Openings and Puzzles tabs, plus Endings in the Learn tab"; the
+      Spanish needs the same split. Note this interacts with item 11 — whatever
+      Spanish word wins for Puzzles has to be used here too, since this line
+      currently says *Táctica*.
+    - **`game_review_analyzing` keeps the typographic ellipsis**, "Analizando la
+      partida**…**". STYLE-EN §3 only governs English, so this is a consistency
+      point rather than an error: the English side is now `...` and the Spanish
+      still has the single character. Cosmetic; batches 5–8 left the same
+      mismatch in every other `…` string they fixed, so if it is worth doing it
+      is worth doing as one sweep of the whole file.
+    *(batch 9)*
+
+    Not a Spanish bug, recorded so nobody "fixes" it: **`tour_board_b` says
+    "tablero de estudio" while `tour_base_games_b` and `tour_play_ana_b` say
+    "tablero de análisis"** — two Spanish names for one screen. The English was
+    unified on **Analysis** in batch 9, so the Spanish wants one of the two
+    picked. It is listed here rather than as its own numbered item because it is
+    the same underlying decision as item 11 (one Spanish name per feature), and
+    the Spanish "tablero de análisis" is already the correct one — only
+    `tour_board_b` needs changing.
 
 Later batches must keep appending here.

@@ -78,10 +78,22 @@ These are the app's own names. Do not invent variants.
 | Learn | Learning, Lessons tab |
 | Rules / Basic Checkmates / Endings | the three sections inside **Learn** |
 | Game History | History, Game history |
+| Game Review | Review, Game review |
 | Profile | Account |
 
 \* **Opening Explorer** is the correct name for the *move-tree panel inside
 Analysis*. It is a component, not the tab. The tab is **Openings**.
+
+**`Game Review` added by batch 9 (2026-08-08).** It was not in this table, and §2
+would otherwise sentence-case it — batch 8 lowercased `rush_result_title` to
+"Puzzle Rush result" on exactly that reasoning. The difference is that "Puzzle
+Rush result" is *feature name + common noun*, while "Game Review" **is** the
+feature name: its own screen, reached from Play, with its own module object
+(`GameReview`), directly parallel to `Game History`. So it keeps Title Case.
+Note that **Analysis has no longer form** — §4's *Never write* column rules out
+"Analysis Board", so a string that needs to name that screen says the bare word
+**Analysis** (batch 9 applied this to three tour lines that said "the study
+board").
 
 **Endgame vs Endings.** `Endings` is the name of the section inside Learn.
 `endgame` (lowercase) is the chess phase and is used in running text. `Endgame`
