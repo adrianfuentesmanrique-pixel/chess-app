@@ -340,29 +340,34 @@ screen, nothing is clipped, and there were zero console errors.
 result strings each fit the status bar on one 42px line. The level cards are
 173.5px wide and every name renders on one 16px line.
 
-Waiting on Adrian's yes:
+Answered by Adrian on 2026-08-08 and applied in a follow-up commit — **all
+three are settled, written into STYLE-EN, and must not be reopened:**
 
-- **`export_base` is 'Share database (PGN)' but `hist_export_pgn` is
-  '📤 Export PGN'** — and both call the same `sharePgnText()`. STYLE-EN §6 makes
-  **Export** the house word, and the button sits directly beside `Import PGN`,
-  so 'Export database (PGN)' would make the pair symmetrical. Left alone because
-  on a phone the button really does open the system share sheet, so "Share" is
-  arguably the more honest word. This is a naming decision, not a typo. (Width
-  is not a constraint: measured 184.6px in a wrapping `.row`, and the shorter
-  wording would only shrink it.)
-- **`start_game` is 'Start game', which STYLE-EN §6 explicitly forbids** in
-  favour of **New game**. But `new_game` already exists as a different button on
-  the Databases screen, where it creates an empty game record — using one label
-  for both would be worse than the rule it breaks. `start_game` is also shared
-  with the Openings trainer (`index.html:341`), which belongs to batch 7, so
-  changing it here would split one string across two commits. Left alone; §6 may
-  need an exception written into it.
-- **`history_end_resign` is 'Resigned'** while its seven siblings are all nouns
-  (`Checkmate`, `Stalemate`, `Threefold repetition`, `Fifty-move rule`,
-  `Insufficient material`, `Draw`, `Unfinished`, `Time forfeit`). They render in
-  the same slot on the history card, so **'Resignation'** would match the set —
-  and the Spanish already uses the noun, `Abandono`. Not wrong as it stands, so
-  left for Adrian.
+- **`export_base` keeps "Share database (PGN)".** It calls the same
+  `sharePgnText()` as `📤 Export PGN`, but on a phone it really does open the
+  system share sheet, so Share is the honest word. Export stays the house word
+  for writing a file. STYLE-EN §6.
+- **`start_game` keeps "Start game".** STYLE-EN §6 otherwise forbids it in
+  favour of **New game**, but `new_game` is already a different button on the
+  Databases screen that creates an empty game record, and one label for two
+  unrelated actions is worse than the exception. Written into §6 as a named
+  exception, so batch 7 does not have to re-decide it when it reaches the
+  Openings copy of the same button.
+- **The end-reason labels now name the outcome.** Adrian's point: "some of them
+  didn't mean that the game has been lost — threefold, fifty move, insufficient
+  material are all draw games, need to be clear about it." So the four drawing
+  endings lead with the word:
+  `history_end_repetition` → **'Draw by threefold repetition'**,
+  `history_end_fiftyMove` → **'Draw by the fifty-move rule'**,
+  `history_end_insufficient` → **'Draw by insufficient material'**,
+  `history_end_stalemate` → **'Draw by stalemate'**.
+  Stalemate was not in Adrian's list but is a draw and gets the same treatment —
+  flagged to him as the one label added beyond what he named.
+  `history_end_resign` also became the noun **'Resignation'**, matching its
+  siblings and the Spanish `Abandono`. Endings that were already unambiguous
+  stay bare: `Checkmate`, `Time forfeit`, `Unfinished`, `Draw`. The rule is now
+  STYLE-EN §5. **The Spanish needs the same treatment** — see item 10 in the
+  repair list.
 
 Not touched, deliberately:
 
@@ -459,5 +464,25 @@ Ordered worst first.
    **Do not touch `history_bot_name` ("Bot {lvl}") in this sweep** — it is
    written into saved PGN headers and is frozen by STYLE-EN §10 in both
    languages.
+
+10. **`js/i18n.js`, the four drawing `history_end_*` keys — the two languages
+    now disagree about clarity.** Adrian settled on 2026-08-08 that an
+    end-reason label must name the outcome, because "Threefold repetition" does
+    not tell a beginner whether they won, lost or drew (STYLE-EN §5). The
+    English was changed in batch 6; the Spanish still reads bare:
+    - `history_end_repetition` — "Triple repetición" → **"Tablas por triple
+      repetición"**
+    - `history_end_fiftyMove` — "Regla de 50 jugadas" → **"Tablas por la regla
+      de 50 jugadas"**
+    - `history_end_insufficient` — "Material insuficiente" → **"Tablas por
+      material insuficiente"**
+    - `history_end_stalemate` — "Ahogado" → **"Tablas por ahogado"**
+
+    Leave `history_end_checkmate`, `history_end_resign` ("Abandono", already the
+    noun the English now matches), `history_end_timeout`, `history_end_abandoned`
+    and `history_end_draw` alone. Check the width at 375px when applying: these
+    render in the `.hist-line2 .ellipsis` slot on the Game History card, which
+    measured 319px, and the longest Spanish string here is close to that.
+    *(batch 6)*
 
 Later batches must keep appending here.

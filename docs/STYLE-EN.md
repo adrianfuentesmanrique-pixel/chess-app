@@ -108,6 +108,14 @@ Also:
 - "**mate in 2**", not "mate in two" or "#2" in prose.
 - "**a draw**" / "**the game is drawn**"; "tables" is a Spanish calque (*tablas*)
   and is always wrong in English.
+- **Name the outcome when a label states how a game ended.** Adrian settled this
+  on 2026-08-08: a beginner reading "Threefold repetition" or "Insufficient
+  material" cannot tell whether they won, lost or drew. Every drawing ending
+  therefore leads with the word: **Draw by threefold repetition**, **Draw by the
+  fifty-move rule**, **Draw by insufficient material**, **Draw by stalemate**.
+  Endings that are already unambiguous stay bare — `Checkmate`, `Resignation`,
+  `Time forfeit`, `Unfinished`. This governs the `history_end_*` keys and any
+  future set of end-reason labels.
 - "**resign**", never "surrender" or "give up".
 - "**move**" for a full move, "**ply**" only if the UI truly means half-moves.
 - "the **board**", not "the table" (another calque from *tablero*).
@@ -132,6 +140,19 @@ Also:
 | Hint | Clue, Tip (Tip = a teaching note, not a puzzle nudge) |
 | Level | Difficulty (Difficulty = the puzzle slider only) |
 | Streak | Run |
+
+**Three exceptions settled by Adrian 2026-08-08, do not reopen:**
+
+- **`Start game` on the Play tab stays.** The "New game" rule above still holds
+  everywhere else, but `new_game` is already a different button on the Databases
+  screen, where it creates an empty game record. One label for two unrelated
+  actions would be worse than the exception. `start_game` is the button that
+  begins a game against the engine, on Play and on Openings.
+- **`Share database (PGN)` stays "Share", not "Export".** On a phone that button
+  really does open the system share sheet, so Share is the honest word. `Import
+  PGN` and `📤 Export PGN` are unaffected — Export remains the house word for
+  writing a file.
+- **A draw must say it is a draw.** See §5.
 
 **Close vs Exit — settled by Adrian 2026-08-08, do not reopen.** `Close` shuts
 something that sits *on top of* the screen: a dialog, a sheet, a panel. `Exit`
