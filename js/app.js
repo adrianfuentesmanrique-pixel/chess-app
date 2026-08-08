@@ -99,7 +99,20 @@ export function modal(contentBuilder) {
     back.appendChild(box);
     const close = (v) => { back.remove(); resolve(v); };
     back.addEventListener('click', e => { if (e.target === back) close(null); });
-    contentBuilder(box, close);
+    // Some builders are async (Game Review analyses the whole game before it
+    // can draw anything). Nothing awaits them, so a rejection inside one used
+    // to escape to window.onunhandledrejection — which the crash guard turns
+    // into a full-screen "something went wrong" over an app that is otherwise
+    // fine. A broken dialog must never cost the user their session; report it
+    // and leave the rest of the app alone.
+    try {
+      const built = contentBuilder(box, close);
+      if (built && typeof built.catch === 'function') {
+        built.catch(err => console.error('[modal] content builder failed', err));
+      }
+    } catch (err) {
+      console.error('[modal] content builder failed', err);
+    }
     root.appendChild(back);
   });
 }
@@ -2614,9 +2627,18 @@ const GameReview = {
         <div class="gr-spinner"></div>
         <div class="gr-progress" id="gr-progress">0 / ${fens.length}</div>`;
 
+      // Reviewing a game means one engine evaluation per position, so a long
+      // game keeps this loop running for many seconds. Dismissing the modal in
+      // the middle of that (a tap on the backdrop) detaches `box`, and every
+      // $('gr-…') lookup below it then returns null. Bail out the moment the
+      // modal is gone: without this the loop ran on and wrote its results into
+      // the detached box, and the resulting TypeError — thrown inside an async
+      // builder nobody awaits — reached the page as an unhandled rejection and
+      // put the full-screen crash overlay over a perfectly healthy app.
       const evals = [];
       for (let i = 0; i < fens.length; i++) {
         evals.push(await engine.evaluate(fens[i], 220));
+        if (!box.isConnected) { engine.stop(); return; }
         const p = $('gr-progress');
         if (p) p.textContent = `${i + 1} / ${fens.length}`;
       }
