@@ -13,8 +13,8 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
 4. Spot-check at **375px in light and dark mode** on the screens that batch
    touched — nothing overflows, truncates badly, or pushes the layout.
    The Claude browser pane does not composite; use the headless-Chrome CDP
-   recipe (`~/.claude/launch.json`, add a NEW port — last used **9171** for the
-   static server and **9172** for the Chrome debugger; take the next free pair).
+   recipe (`~/.claude/launch.json`, add a NEW port — last used **9173** for the
+   static server and **9174** for the Chrome debugger; take the next free pair).
    Two gotchas: `websocket-client` must be created with `suppress_origin=True`
    or Chrome answers the CDP handshake with 403, and the app boots in Spanish,
    so set `localStorage.lang = 'en'` and reload before reading any copy.
@@ -67,8 +67,15 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       spare**: measured at 375px the cards are 173.5px wide and the longest
       name, `Strong club`, renders at 77.8px on one 16px line — under half the
       card. A level name could grow to roughly 14 characters before wrapping.
-- [ ] **7 — `js/i18n.js` lines 162–275** — Openings, Puzzles, puzzle theme
+- [x] **7 — `js/i18n.js` lines 162–275** — Openings, Puzzles, puzzle theme
       display names, named mating patterns. Theme **ids** must never change.
+      *Done 2026-08-08.* No theme id was touched. **The 47-row theme picker has
+      room to spare**: rows are 343px wide at 375px and the longest display name
+      (`Removing the defender`) renders at 155.5px on one line. **The badge cell
+      does not**: `.badge-name` is a 96px box with `-webkit-line-clamp: 2`, so
+      every `Master: <theme>` label longer than about 15 characters already uses
+      both lines — measured, the new label wraps to exactly 2 lines (26.3px),
+      the same as the old one and as the longest existing theme badge.
 - [ ] **8 — `js/i18n.js` lines 276–435** — Endgame ELO, Profile, profile
       privacy. Watch the four ELO domain keys.
 - [ ] **9 — `js/i18n.js` lines 436–585** — Kael onboarding, Settings, Game
@@ -400,6 +407,111 @@ Not touched, deliberately:
 **Spanish (reported, never fixed):** see item 9 in the repair list below — this
 batch added three more `máquina` hits to it.
 
+### From batch 7 (i18n.js 162–275 — Openings, Puzzles, themes, mating patterns)
+
+Fixed (7 plain fixes):
+
+- **The engine sweep, per STYLE-EN §6 — the carry-over from batch 6 is done.**
+  `trainer_explain` said "The computer plays moves from that base"; it is now
+  **"The engine plays the moves it finds there"**. That also removes the last
+  "base" used to mean a database in this range (STYLE-EN §4 — the feature is
+  **Databases**), without repeating the word twice in one sentence. The whole
+  range was then grepped for "computer", "machine", "bot" and "AI": **no other
+  hit**.
+- `adv_either` was **'Ignore colours'** — the British spelling batch 2 spotted
+  and left. Now **'Ignore colors'** per STYLE-EN §1. Measured in the advanced
+  search sheet: a 343px `.theme-pick-row`, text 92.9px, one line, both themes.
+- `correct` was **'Correct! Keep going…'** — typographic ellipsis, and STYLE-EN
+  §3 allows `...` only for a genuinely unfinished action. Now **'Correct! Keep
+  going.'**
+- `no_book_hint` was **'No book move for this position anymore.'** — "anymore"
+  tacked onto a verbless line reads like a fragment. Now **'This position is no
+  longer in the book.'**, which also reuses the vocabulary of `in_book` /
+  `out_of_book` right above it.
+- `not_an_opening_msg` capitalized **"your Opening profile"**. There is no
+  feature by that name in STYLE-EN §4, so §2 puts it in sentence case: **"your
+  opening profile"**.
+- `auto_next_hint` opened **"On solving, the next puzzle loads by itself."** —
+  a dangling gerund and not the second person STYLE-EN §7 asks for. Now **"When
+  you solve a puzzle, the next one loads by itself."**
+- `theme_capturingDefender` was **'Defense destruction'** — a calque of the
+  Spanish *Destrucción de la defensa*, and not a phrase English chess writing
+  uses. STYLE-EN §5 says chess English wins. Now **'Removing the defender'**.
+  The **id is untouched**, so no puzzle filter and no earned badge changes.
+
+Measured at 375px in light and dark, with zero new console errors (the only one
+is the known App Check `403`): `document.scrollWidth` is exactly 375 on the
+Openings setup screen, the Puzzles tab, the Puzzle Rush and Blindfold strips,
+the puzzle options modal, the 47-row theme picker and the advanced search sheet.
+`trainer_explain` still occupies three lines (56.5px) in its 355px hint box.
+
+Waiting on Adrian's yes:
+
+- **`mode_rush` is '⚡ Rush', which STYLE-EN §4 forbids.** §4 reserves **Puzzle
+  Rush** and lists the bare "Rush" as a name never to write — batch 4 fixed
+  exactly this in the badge names. Two rules collide here, so it was left alone:
+  §9 caps a `.seg` option at 12 characters and `⚡ Puzzle Rush` is 13, and §9's
+  own escape clause says keep the shorter wording and report it. **Measured, it
+  would fit**: the three-button strip uses 303px of a 355px `.seg.scroll`
+  container, and `⚡ Puzzle Rush` adds about 26px, so it lands near 329px and
+  still does not scroll. The strip appears on three screens (Puzzles, Puzzle
+  Rush, Blindfold). If Adrian says yes, the Spanish `mode_rush` needs the same
+  change — see item 11 in the repair list.
+- **The difficulty ladder is asymmetric and sounds absolute.** `diff_easiest`
+  … `diff_harder` read **Easiest / Easy / Normal / Hard / Harder**, but they are
+  relative offsets to the player's own ELO (−500, −250, 0, +250, +500) and
+  `difficulty_hint` says so. "Easiest" and "Harder" are not a matching pair. The
+  Spanish already gets this right (*Muy fácil … Muy difícil*), so **Much easier /
+  Easier / Normal / Harder / Much harder** would match it and describe what the
+  buttons do. Left alone because re-labelling all five is a sweep, not a typo.
+  Measured: that seg is `.seg scroll` and **already scrolls today** (343px
+  visible, 362px of content), so the longer labels would scroll further — no
+  layout breakage either way.
+- **`puzzle_options` is 'Options'**, which STYLE-EN §6 lists under **Settings**.
+  It is both the gear button's `aria-label` (`index.html:393`) and the modal's
+  own `<h3>`, so a screen reader announces a bare "Options" with no context.
+  **'Puzzle settings'** would fix both. Not applied because §6's Settings entry
+  was written for the app-wide Settings screen and extending it to a per-feature
+  sheet is a vocabulary decision.
+
+Not touched, deliberately:
+
+- **`puzzle_elo` ('Puzzle ELO'), `js/i18n.js:275`** — the last line of this
+  range, but the plan gives the four ELO domain labels to **batch 8**, and batch
+  2 deferred a "puzzle rating vs Puzzle ELO" wording question there too. Read
+  and left so the wording gets decided once, in batch 8.
+- **`start_game` ('Start game')** — the Openings setup screen uses the same key
+  as the Play tab (`index.html:341`). Settled by Adrian and written into
+  STYLE-EN §6 as a named exception.
+- **`level_names` on the Openings setup screen** — the keys belong to batch 6,
+  which cleared them. Measured here anyway because Openings passes `rich=false`
+  to `buildLevelSeg()` and gets the compact `1·Beginner` strip instead of the
+  Play tab's robot cards: the strip is `.seg wrap`, the widest option
+  (`5·Strong club`) is 111.3px, and it wraps to three tidy rows with **zero**
+  horizontal overflow. The 12-character §9 budget does not bite because the
+  container wraps rather than scrolls.
+- **`theme_intermezzo` ('In-between move')** — Lichess calls this theme
+  *Intermezzo* and *Zwischenzug* is the other standard name, but "In-between
+  move" is correct English, is the plainest of the three for a beginner, and
+  fits. A naming preference, not an error.
+- **`adv_event` ('Tournament')** — the underlying PGN header is `Event`, which
+  batch 5 left alone for that reason. Here it labels a search box, where
+  "Tournament" is what the user is actually typing. Left as the friendlier word;
+  flagged only so nobody "fixes" it into `Event` later.
+- **`in_book` / `out_of_book` ('📖 In book' / '🧠 Out of book (engine)')** —
+  "in book" and "out of book" are the standard chess phrasing and the emoji plus
+  spacing are frozen by §8.
+- **`adv_matches` ('{n} games found')** — the same singular/plural bug batch 6
+  logged for `games` and `imported`: one hit reads "1 games found". Fixing it
+  needs a plural helper in code, not a new string.
+- **The 47 theme display names other than `capturingDefender`** — all read as
+  correct chess English and all match the Lichess motif they come from. Every
+  **id** is untouched, per STYLE-EN §8.
+
+**Spanish (reported, never fixed):** item 9 in the repair list already covers
+`trainer_explain`'s *máquina*; its English half is now done. Two new items —
+**11** and **12** — added below.
+
 ---
 
 ## Spanish repair list — do this AFTER the English review
@@ -484,5 +596,26 @@ Ordered worst first.
     render in the `.hist-line2 .ellipsis` slot on the Game History card, which
     measured 319px, and the longest Spanish string here is close to that.
     *(batch 6)*
+
+11. **`js/i18n.js` — Spanish cannot decide what the Puzzles feature is called.**
+    `puzzles_title` is **"Táctica"**, but `mode_puzzles` right beside it is
+    **"🧩 Puzzles"**, `blind_title` is **"Puzzles a ciegas"** and `puzzle_elo` is
+    **"ELO de táctica"**. So the tab heading, the mode strip on that same screen
+    and the rating badge use three different names for one feature. English
+    settled on **Puzzles** everywhere (STYLE-EN §4); Spanish needs one word
+    picked and applied to all four. *(batch 7)*
+
+    Also here: `mode_rush` is **"⚡ Rush"** in both languages while `rush_title`
+    is **"Puzzle Rush"**. **Only change this if Adrian approves the English
+    change first** — it is still an open judgement call in the batch-7 notes
+    above, and the two languages should move together. *(batch 7)*
+
+12. **`js/i18n.js`, `log_rating` — the Spanish labels the wrong quantity.**
+    English is **"Rating {n}"** and the number is the puzzle's own rating;
+    Spanish says **"Dificultad {n}"**. *Dificultad* is already the name of the
+    difficulty setting (`difficulty`, "Dificultad") two screens away, so the
+    session log looks as though it is reporting the slider rather than the
+    puzzle. Should read **"ELO {n}"** or **"Dificultad del puzzle {n}"** — a
+    wording choice, but the current word is genuinely ambiguous. *(batch 7)*
 
 Later batches must keep appending here.
