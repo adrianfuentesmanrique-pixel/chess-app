@@ -22,12 +22,33 @@
   - Deliberately left out: resuming an unfinished game, board thumbnails,
     clocks, cloud sync. The record shape already supports all four.
 
-- **`sw.js` is at `chess-training-center-v29`.** The `v11` written here
+- **Play tab level picker — robot cards.** The eight engine levels are now a
+  2-column grid of cards on the Play tab: the existing
+  `icons/badges/beat_engine_N.png` robot, the level name, and the strength
+  range it covers (Beginner 1300-1450 … Maximum 2800+).
+  - `LEVELS` in `js/engine.js` gained a **display-only `range`** field. `elo`,
+    `movetime` and the persisted level index are untouched.
+  - `buildLevelSeg(el, def, rich)` — only the two Play call sites pass `rich`,
+    so **the Trainer tab keeps the compact `3·Casual` strip**. If you ever
+    make Trainer rich too, its setup screen gets much taller.
+  - New `.lvgrid` block in `css/style.css`, reusing `--panel2`, `--gold`,
+    `--gold-bg`, `--muted`, `--radius`. No new strings were needed: the names
+    already come from `level_names`, and the ranges are just numbers.
+  - Honest caveat Adrian accepted: **1320 is Stockfish's `UCI_Elo` floor**, so
+    the level labelled "Beginner" cannot actually be made weaker than a decent
+    club player. The ranges are presented as-is anyway.
+  - Commit `ca9e87a`.
+
+- **`sw.js` is at `chess-training-center-v30`.** The `v11` written here
   earlier was stale for a long time — trust the file, not this note, and bump
   it whenever `index.html`, any `js/*.js` or `css/style.css` changes, or
   returning users get served stale files.
+  - `icons/badges/beat_engine_0..7.png` are now precached in `ASSETS`, because
+    they render on a core screen. The rest of `icons/badges/` is not — it is
+    only cached after first fetch by the `CACHE_FIRST` handler.
 
-Latest commit: see branch `refactor/split-app-js`
+**`refactor/split-app-js` is merged into `main` and deployed** (merge
+`0e46dff`). Both the module split and the robot cards are live.
 
 - **Work order #1 — both Sentry errors.** One was a real null-dereference:
   tapping the Openings board before pressing Start crashed the app. The other
@@ -143,7 +164,7 @@ cross-wired — leave those until last.
 1. One module per commit. Verify before starting the next.
 2. Move code **verbatim**. Do not tidy it on the way out.
 3. Every new `js/*.js` goes in the `ASSETS` array in `sw.js` **and** the cache
-   version gets bumped. `sw.js` is now at **`chess-training-center-v29`**.
+   version gets bumped. `sw.js` is now at **`chess-training-center-v30`**.
 4. Never rename a storage key: `'endgame'`, `puzzleElo`, `endgameElo`,
    `openingElo`, `blindfoldElo`, `earnedBadges`, avatar ids, badge ids, and
    the `LEVELS` index (persisted in `engineLevelsBeaten`).
