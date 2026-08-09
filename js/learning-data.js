@@ -15,7 +15,7 @@ export const LEARNING_CATEGORIES = [
         fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
         shapes: { squares: [], arrows: [] },
         text: {
-          es: 'El tablero tiene 8x8 = 64 casillas alternando entre claras y oscuras. Las columnas se nombran de la "a" a la "h" (de izquierda a derecha desde el lado blanco) y las filas del 1 al 8 (desde el lado blanco hacia el negro). Cada casilla se identifica combinando ambas, por ejemplo "e4". Regla mnemotécnica: la casilla h1 (esquina inferior derecha vista desde blancas) siempre es oscura.',
+          es: 'El tablero tiene 8x8 = 64 casillas alternando entre claras y oscuras. Las columnas se nombran de la "a" a la "h" (de izquierda a derecha desde el lado blanco) y las filas del 1 al 8 (desde el lado blanco hacia el negro). Cada casilla se identifica combinando ambas, por ejemplo "e4". Regla mnemotécnica: la casilla h1 (esquina inferior derecha vista desde blancas) siempre es clara.',
           en: 'The board has 8x8 = 64 squares alternating light and dark. Files (columns) are named "a" to "h" (left to right from White\'s side) and ranks (rows) 1 to 8 (from White\'s side toward Black\'s). Each square is named by combining both, e.g. "e4". Memory tip: the square h1 (bottom-right corner from White\'s view) is always light.',
         },
       },

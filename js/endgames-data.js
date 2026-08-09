@@ -74,7 +74,7 @@ export const ENDGAMES = [
     moves: ["h4h5","f5f6","a1b2","f6g7","f4f5","g7h6","f5f6"],
     result: 'win',
     comment: {
-      es: 'Dos peones separados por una columna se defienden entre sí sin ayuda del rey. Tras h5 el rey negro no puede con ninguno: si cubre uno, el otro avanza. Rg7 detiene el peón h, así que f5-f6 pasa.',
+      es: 'Dos peones separados por una columna se defienden solos sin ayuda del rey. Tras h5 el rey negro no puede con ninguno: si cubre uno, el otro avanza. Rg7 detiene el peón h, así que f5-f6 pasa.',
       en: 'Two pawns separated by one file defend themselves without help from the king. After h5 the black king cannot win either: covering one lets the other run. Kg7 stops the h-pawn, so f5-f6 goes through.',
     },
   },
@@ -731,7 +731,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r10', category: 'rook',
-    name: { es: 'Torre contra peón: reyes alejados', en: 'Rook vs. Two Pawns — Kings Distant' },
+    name: { es: 'Torre contra dos peones: reyes alejados', en: 'Rook vs. Two Pawns — Kings Distant' },
     fen: '8/8/P7/1P5k/8/8/7K/5r2 w - - 0 1',
     moves: ["b5b6","f1b1","a6a7"],
     result: 'win',
@@ -742,7 +742,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r11', category: 'rook',
-    name: { es: 'Torre contra peón: ambos reyes activos', en: 'Rook vs. Two Pawns — Both Kings Active' },
+    name: { es: 'Torre contra dos peones: ambos reyes activos', en: 'Rook vs. Two Pawns — Both Kings Active' },
     fen: 'r3k3/8/3PP3/3K4/8/8/8/8 w - - 0 1',
     moves: ["d5e5","a8a1","e5d5","a1e1","d6d7","e8e7"],
     result: 'loss',
@@ -753,7 +753,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r12', category: 'rook',
-    name: { es: 'Torre contra peón: solo el rey defensor', en: 'Rook vs. Two Pawns — Defending King Only' },
+    name: { es: 'Torre contra dos peones: solo el rey defensor', en: 'Rook vs. Two Pawns — Defending King Only' },
     fen: '8/8/5KP1/5P2/8/2k4r/8/8 b - - 0 1',
     moves: ["h3f3","g6g7","f3g3","f6f7","c3d4","f5f6","d4e5"],
     result: 'draw',
