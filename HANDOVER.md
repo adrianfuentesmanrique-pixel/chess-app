@@ -65,13 +65,54 @@
 
 ## Still to do
 
-### English copy review — IN PROGRESS, multi-session
+### English copy review — COMPLETE (2026-08-08). All ten batches done.
 
-Making every English string read like a native speaker who knows chess.
-Spanish is out of scope. **Read `docs/STYLE-EN.md` (the rules) and
-`docs/EN-REVIEW-PLAN.md` (the batch checklist) before touching any English
-text.** One batch per commit. Batch 1 of 10 is done (`js/quotes-data.js`);
-batch 2 is `js/tour.js`. Nothing is pushed until all ten are done.
+Every English string in the app now reads like a native speaker who knows chess.
+`docs/STYLE-EN.md` is the rulebook and `docs/EN-REVIEW-PLAN.md` is the full
+record — every batch, every decision Adrian made, and everything deliberately
+left alone. **Read both before touching any English text again.**
+
+**Nothing has been pushed.** 24 commits sit on local `main`, from the style guide
+through batch 10 and its follow-up, plus one unrelated crash fix (`58e8e09`).
+`sw.js` is at **v47**. Push straight to `main` — the commits are already linear
+there, individually revertable, and every batch was verified in a real browser at
+375px before it landed. Check the live site after the *deploy* finishes, not
+after the push.
+
+#### What the review left behind — four items, all deliberate
+
+These are recorded, not pending. None of them is a copy problem, which is why no
+batch fixed them.
+
+1. **The plural bug — "1 games".** The code glues a number onto a fixed word, so
+   one game reads `My games (1 games)` and importing one says `1 games imported`.
+   Five strings (`games`, `imported`, `history_moves`, `adv_matches`,
+   `lessons_count`) across ten call sites. **No wording can fix this** — the code
+   has to pick the form. Needs a plural helper plus new singular strings in both
+   languages. *Adrian approved fixing it on 2026-08-08; it needs its own session
+   because it writes Spanish.*
+2. **The Spanish repair list — 20 items**, at the end of `docs/EN-REVIEW-PLAN.md`.
+   Every Spanish problem found while reviewing English, gathered in one place and
+   ordered worst first. **Nothing on it has been touched** — the English review
+   never edits an `es:` value. Three items are factual errors where the two
+   languages now teach opposite things (h1's color, "defend each other", "Torre
+   contra peón" with two pawns on the board). *Adrian approved fixing it on
+   2026-08-08; its own session.*
+3. **Three layout bugs no copy edit can fix.** Worst: the endgame study title bar
+   has about **206px** of room and **173 of the 265 names are longer**, so they
+   truncate — even `An Example from New York, 1924` gets cut. Also: the puzzle
+   radar clips its longest theme labels ("Discovered atta"), and the Leaderboard's
+   decorative watermark pushes `document.scrollWidth` to 405. **Shortening the
+   words would not fix any of the three** — it would only move the cut.
+4. **Four naming questions and six dead strings.** The naming calls are Adrian's:
+   the `Opening Explorer` badge sharing a name with the Analysis panel;
+   `Daily Mission` vs `Daily Missions`; `STREAK_TIERS` counting to `240 months`
+   where English says 20 years; and "icon" vs "avatar", where the two buttons say
+   icon and everything else says avatar. The dead strings (`no_bases_yet`,
+   `rush_open`, `rush_result_title`, `rush_wrong_end`, `game_review_move`,
+   `game_review_accuracy`) are defined but never rendered — removing a key is a
+   code change, and they cost nothing. **Leave all of these as they are** unless
+   Adrian raises one.
 
 **`HANDOFFS.md` is stale — tasks A–D in it are all done.** Ignore the table
 below and the prompts in that file until someone rewrites them.
