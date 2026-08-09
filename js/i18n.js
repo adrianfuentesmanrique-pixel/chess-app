@@ -472,7 +472,7 @@ const DICT = {
   tour_board_t: { es: 'El tablero', en: 'The board' },
   tour_board_b: { es: 'Este es tu tablero de estudio. Mueve las piezas con total libertad: aquí no se guarda nada sin que tú lo pidas.', en: 'This is Analysis. Move the pieces freely — nothing here is ever saved unless you ask for it.' },
   tour_engine_t: { es: 'El motor', en: 'The engine' },
-  tour_engine_b: { es: 'Enciende a Stockfish y te dirá cuál es la mejor jugada y quién está mejor en la posición.', en: 'Switch Stockfish on and it will show you the best moves and who stands better.' },
+  tour_engine_b: { es: 'Enciende a Stockfish y te dirá cuál es la mejor jugada y quién está mejor en la posición.', en: 'Switch Stockfish on and it will show you the best move and who stands better.' },
   tour_setup_t: { es: 'Armar una posición', en: 'Set up a position' },
   tour_setup_b: { es: '¿Quieres estudiar una posición concreta? Aquí la construyes pieza por pieza.', en: 'Want to study one particular position? Build it here, piece by piece.' },
   tour_ana_more_t: { es: 'Y aquí hay más', en: "There's more here" },

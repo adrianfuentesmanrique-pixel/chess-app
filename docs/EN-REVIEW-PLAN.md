@@ -55,13 +55,15 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       them (`tour_*`). Batch 9 must therefore skip `tour_*`; its remaining
       scope is Kael onboarding, Settings and Game Review.
       **Amended by batch 9 — this freeze note was becoming misleading.** It held
-      for 62 of the 66 keys. Batches 2, 5 and 8 each logged a `tour_*` string
-      that no batch owned, so Adrian released exactly four of them to batch 9,
-      which fixed them: `tour_board_b`, `tour_base_games_b` and `tour_play_ana_b`
-      (all three called the Analysis screen "the study board") and
-      `tour_puz_more_b` ("puzzle rating" → **Puzzle ELO**). **Those four are
-      done. The other 62 `tour_*` keys are still frozen**, `tour_engine_b`
-      included.
+      for 61 of the 66 keys. Batches 2, 5 and 8 each logged a `tour_*` string
+      that no batch owned, so Adrian released **five** of them to batch 9, which
+      fixed them: `tour_board_b`, `tour_base_games_b` and `tour_play_ana_b` (all
+      three called the Analysis screen "the study board"), `tour_puz_more_b`
+      ("puzzle rating" → **Puzzle ELO**, and "options" → **settings**), and
+      finally `tour_engine_b`, released last when Adrian answered the
+      product-truth question in the batch-9 follow-up — "the best move**s**" →
+      **"the best move"**. **Those five are done. The other 61 `tour_*` keys are
+      still frozen.**
 - [x] **3 — `js/learning-data.js`** — Learn lessons, 59 `en:` strings. Screens:
       Learn → Rules, Basic Checkmates. *Done 2026-08-08.*
 - [x] **4 — `js/app.js` badges + `js/badges.js`** — 72 `en:` + the three
@@ -167,6 +169,9 @@ Waiting on Adrian's yes:
 - **`tour_engine_b` overstates the engine slightly.** "it will show you the best
   moves and who stands better" — Stockfish shows one best line by default here.
   Accurate copy would be "the best move". A product-truth call, not grammar.
+  **RESOLVED — Adrian said yes on 2026-08-08 and the batch-9 follow-up applied
+  exactly that wording.** Batch 2 was right; it just took two more reports to get
+  the decision. See the batch-9 section.
 
 Not touched, deliberately:
 
@@ -753,15 +758,23 @@ items, **14** and **15**, added.
   Board", so "your Analysis board" was not available as a house phrase.
   `tour_puz_more_b` now says **Puzzle ELO**, the label the screen actually shows,
   settled by batch 8.
-- **`tour_engine_b` was NOT touched, as instructed, and the concern still
-  stands.** It promises "the best move**s** and who stands better", but
-  `MAX_ENGINE_LINES` is **2** and the stored default `engineLines` is 2, so the
-  panel shows two lines at most and `js/app.js:24` explains why it cannot be 3.
-  Verified in the Settings sheet: the **Engine lines** segmented control offers
-  exactly **1** and **2**. "The best moves" is defensible at 2 lines and wrong at
-  1, which is a real setting the user can choose. Still a product-truth call, not
-  grammar, and still frozen. **Reported for the second time — it needs Adrian's
-  yes or an explicit "leave it".**
+- **`tour_engine_b` — reported for the second time in batch 9, then ANSWERED by
+  Adrian on 2026-08-08 and fixed in the batch-9 follow-up.** It promised "the
+  best move**s** and who stands better", but `MAX_ENGINE_LINES` is **2** and the
+  stored default `engineLines` is 2, so the panel shows two lines at most;
+  `js/app.js:28-32` explains why it cannot be 3 (the bundled single-threaded
+  Stockfish "lite" WASM build takes a fatal `unreachable` trap at MultiPV 3 — a
+  binary limitation, not a bug in this repo), and the constant is at
+  `js/app.js:33`. Verified in the Settings sheet: the **Engine lines** segmented
+  control offers exactly **1** and **2**. The plural was defensible at 2 lines
+  and simply wrong at 1, which is a setting the user can choose. Now **"the best
+  move"**. This was a product-truth call, not grammar, which is why batch 2
+  raised it, batch 9 re-raised it, and neither touched it without Adrian's yes.
+  **The Spanish needed nothing** — it already read *"cuál es la mejor jugada"*,
+  singular, so the English was the only wrong half and no repair-list item was
+  opened. Verified at 375px in light and dark, both languages: the tour card is
+  355px, the body 325px on two 42px lines, `document.scrollWidth` 375, nothing
+  clipped, zero console errors. `sw.js` v44 → **v45**.
 
 Fixed (5 plain fixes):
 
@@ -899,17 +912,15 @@ Not touched, deliberately:
   write**) is still true: this whole onboarding flow saves the answer and nothing
   reads it. Batch 9 changed only the wording, so a strong new player still starts
   at `puzzleElo` 1200.
-- **The other 62 `tour_*` keys**, per the amended batch-2 note.
+- **The other 61 `tour_*` keys**, per the amended batch-2 note.
 
 **i18n.js loose ends after this batch — the honest list.** This was the last
 i18n.js batch, so anything here needs its own follow-up:
 
-1. **`tour_engine_b`** — the only *unresolved* one. Frozen, reported twice, needs
-   Adrian's yes. Everything else below is recorded, not pending. **Still open
-   after Adrian confirmed batch 9's five judgement calls on 2026-08-08** — he
-   answered those and did not answer this one, so do not read the confirmation as
-   covering it. Whoever picks it up: the fix is one word ("the best move"), the
-   question is whether a 2-line panel justifies the plural.
+1. ~~**`tour_engine_b`**~~ — **CLOSED.** It was the only unresolved item on
+   `js/i18n.js`; Adrian answered it on 2026-08-08 and the batch-9 follow-up fixed
+   it (see the batch-9 section above). **Nothing in `js/i18n.js` is now waiting
+   on a decision.** Everything below is recorded, not pending.
 2. **Dead strings, deliberately left in place:** `no_bases_yet` (batch 5),
    `rush_open`, `rush_result_title`, `rush_wrong_end` (batch 8),
    `game_review_move`, `game_review_accuracy` (this batch). Removing a key is a
