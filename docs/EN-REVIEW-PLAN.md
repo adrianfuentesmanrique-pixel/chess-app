@@ -13,8 +13,13 @@ Read `docs/STYLE-EN.md` before touching anything. **One batch per commit.**
 4. Spot-check at **375px in light and dark mode** on the screens that batch
    touched — nothing overflows, truncates badly, or pushes the layout.
    The Claude browser pane does not composite; use the headless-Chrome CDP
-   recipe (`~/.claude/launch.json`, add a NEW port — last used **9177** for the
-   static server and **9178** for the Chrome debugger; take the next free pair).
+   recipe (`~/.claude/launch.json`, add a NEW port — last used **9181** for the
+   static server and **9182** for the Chrome debugger; take the next free pair).
+   **Check the port is actually free first — batch 10 was told to use 9179/9180
+   and 9180 is permanently occupied by `lghub_updater.exe` (Logitech G Hub),
+   which answers HTTP but 404s `/json/version`, so the CDP connect just times out
+   with no hint why.** `netstat -ano | grep :PORT` before launching. Chrome also
+   wants `--no-sandbox` here.
    Three gotchas: `websocket-client` must be created with `suppress_origin=True`
    or Chrome answers the CDP handshake with 403; the app boots in Spanish, so
    set `localStorage.lang = 'en'` and reload before reading any copy; and
@@ -117,12 +122,20 @@ grep -c "^\s*[a-z_A-Z0-9]*: {" js/i18n.js
       **540–558 Settings**, **559–569 Game review**. This is the **last i18n.js
       batch** — after it only `js/endgames-data.js` (batch 10) remains, so any
       i18n.js loose end not closed here needs its own follow-up commit.
-- [ ] **10 — `js/endgames-data.js`** — 872 `en:` entries, 212 KB, **on its own**.
-      Never read the file whole. Procedure:
+- [x] **10 — `js/endgames-data.js`** — **607** `en:` values, 212 KB, **on its
+      own**. *Done 2026-08-08.* Never read the file whole. Procedure:
       1. Throwaway script in the scratchpad extracts every `en:` value with its
          line number into a plain review file.
       2. Review that file.
       3. Apply with targeted edits; verify a sample in the app.
+      **The "872" written here was wrong and cost nobody a session only because
+      batch 9 measured it first.** A naive `en: '` grep also matches inside
+      `fen: '`, and there are 265 FEN strings. The real English content is
+      **265 `name` + 77 `subtitle` + 265 `comment` = 607**. Any extraction script
+      must exclude `fen:`. `id`, `category`, `fen`, `moves` and `result` are
+      mechanical data — `category` in particular feeds the `cat_*` labels, the
+      Profile radar and the "Converted: …" badges, so its values are storage keys.
+      The six `cat_*` labels are **not** in this file; batch 8 finished them.
 
 ## Excluded — do not edit
 
@@ -914,8 +927,10 @@ Not touched, deliberately:
   at `puzzleElo` 1200.
 - **The other 61 `tour_*` keys**, per the amended batch-2 note.
 
-**i18n.js loose ends after this batch — the honest list.** This was the last
-i18n.js batch, so anything here needs its own follow-up:
+**Loose ends after the English review — the honest list, kept in one place.**
+Written at the end of batch 9 (the last `js/i18n.js` batch) and **extended by
+batch 10, the last batch of all**, rather than restarted. Everything here needs
+its own follow-up; none of it is part of the ten batches:
 
 1. ~~**`tour_engine_b`**~~ — **CLOSED.** It was the only unresolved item on
    `js/i18n.js`; Adrian answered it on 2026-08-08 and the batch-9 follow-up fixed
@@ -927,18 +942,202 @@ i18n.js batch, so anything here needs its own follow-up:
    code change, not a copy edit.
 3. **The singular/plural bug** in `games`, `imported`, `history_moves`,
    `adv_matches`, `import_count` — needs a plural helper in code (batches 6–8).
-4. **Two layout bugs batch 8 logged** that no copy edit can fix: the puzzle radar
-   clipping its longest `theme_*` labels, and the Leaderboard's decorative
-   `IMG.watermark` pushing `document.scrollWidth` to 405.
-5. **Naming questions still open** from earlier batches: the `Opening Explorer`
-   badge name (batch 4), `Daily Mission` vs `Daily Missions` (batch 4),
-   `STREAK_TIERS` counting in months to 240 (batch 4), and "icon" vs "avatar" in
-   `choose_avatar` / `edit_avatar` (batch 8).
-6. **The whole Spanish repair list below** — 17 items, untouched by design.
+4. **Layout bugs that no copy edit can fix.** Batch 8: the puzzle radar clipping
+   its longest `theme_*` labels, and the Leaderboard's decorative `IMG.watermark`
+   pushing `document.scrollWidth` to 405. **Batch 10 adds the biggest one:** the
+   endgame detail header `#endgame-pos-title .ttl` is an `h2.ellipsis` with about
+   **206px** of room and **173 of the 265 endgame names overflow it**, the widest
+   needing 700px. Batch 3 logged the same fault on one lesson title. No wording
+   fits 206px, so this is a CSS job (let the `h2` wrap, or drop the name to a
+   second line under the back-button row) — not copy.
+5. **Naming and casing questions still open** from earlier batches: the
+   `Opening Explorer` badge name (batch 4), `Daily Mission` vs `Daily Missions`
+   (batch 4), `STREAK_TIERS` counting in months to 240 (batch 4), and "icon" vs
+   "avatar" in `choose_avatar` / `edit_avatar` (batch 8). **Batch 10 makes the
+   casing strand the big one and it is now three batches deep:** 18 lesson titles
+   (batch 3, Title Case, internally consistent), 23 badge names (batch 4, Title
+   Case, internally consistent) and **189 endgame names (batch 10, split 76 Title
+   Case / 113 sentence case inside one scrollable list)**. STYLE-EN §2 wants
+   sentence case for all three. Deciding it once settles all 230 strings — and
+   the endgame set also carries `vs.` (29) vs `versus` (18), digit vs word ranks,
+   and mid-name capitalized piece names, all of which move with the same call.
+   **Batch 10's leftovers that are not casing:** the trailing `*` on five endgame
+   names, whose meaning nothing in the app explains; and the four Cochrane
+   entries stored out of sequence (Parts 1, 2, 4, 3), which is array order, not
+   copy.
+6. **The whole Spanish repair list below** — now **19** items, untouched by
+   design, plus the note that the endgame attribution strings are deliberately
+   identical in both languages.
 
 **Spanish (reported, never fixed):** item 13 answered — the Spanish Settings
 screen calls itself **"Ajustes"**. Items 9 and 13 grew; one new item, **17**,
 added.
+
+### From batch 10 (js/endgames-data.js — the 265 endgame studies)
+
+**The last batch. 607 English values: 265 names, 77 subtitles, 265 comments.**
+Screens: Learn → Endings → a category → the position list → one position's
+detail screen. Nothing was read whole; a scratchpad script extracted every
+`en:` value with its line number, that file was reviewed, and the edits were
+applied as counted sweeps.
+
+**Chess claims fixed — each one verified against that entry's own `fen` and
+`moves` before touching it. These are the important lines in this report:**
+
+- **`p6` said two pawns "defend each other", which they cannot.** The comment
+  read "Two pawns separated by one file **defend each other** without help from
+  the king." The fen is `8/8/8/5k2/5P1P/8/8/K7` — pawns on **f4 and h4**. A pawn
+  on f4 covers e5 and g5; a pawn on h4 covers g5. Neither defends the other, and
+  the rest of the comment describes the real idea ("covering one lets the other
+  run"). Now **"defend themselves"**, which is the standard statement of this
+  ending. **The Spanish says the same wrong thing** — repair-list item 18.
+- **`r10`, `r11` and `r12` were named "Rook versus pawn" and all three have
+  two pawns on the board.** The fens are `8/8/P7/1P5k/8/8/7K/5r2` (a6 + b5),
+  `r3k3/8/3PP3/3K4/8/8/8/8` (d6 + e6) and `8/8/5KP1/5P2/8/2k4r/8/8` (f5 + g6),
+  and every one of the three comments is explicitly about **two connected
+  pawns** ("Two connected pawns on the sixth rank are stronger than a rook").
+  The singular is a slip, not a genre label — `r1` really is one pawn. Now
+  **"Rook versus two pawns — kings distant / — both kings active / — defending
+  king only"**. The three Spanish names have the identical error
+  (*Torre contra peón*) — repair-list item 19.
+
+Fixed (plain typo / grammar / house-style, **82 occurrences in 8 named sweeps**):
+
+- **US spelling, STYLE-EN §1 — 51 occurrences.** `defence`/`Defence` 26 →
+  defense, `manoeuvre(s)` 11 → maneuver(s), `colour`/`coloured` 8 → color/colored,
+  `organise`/`reorganises` 3 → organize/reorganizes, `centre` 1 → center,
+  `neutralise` 1 → neutralize, `favour` 1 → favor. **The brief's count of 45 was
+  three words short** — it had spotted defence/manoeuvre/colour/centre but not
+  the `-ise` family or `favour`. Plus the file's own header comment ("verified …
+  as optimal play for both sides, so replaying it is graded against perfect
+  **defence**") → defense. The app already said "maneuver" in `tour_learn_demo_b`,
+  so the two files agreed on nothing before this and agree on everything now.
+- **Curly apostrophes → straight ASCII, §3 — 3 of the 5.** "Réti’s Idea" (twice)
+  and "King’s Activity" are English possessives and were fixed. **`L’vov` and
+  `Al’Adli` were deliberately left**: both are transliterated proper nouns, both
+  are byte-identical in the Spanish value, and the curly character is part of the
+  transliteration, not punctuation.
+- **Two names carried a terminal period, §3** (headings take none):
+  `r22` "…Grigoriev's combined method**.**" and `b15` "…the promotion square of
+  the knight's pawn**.**" They were the only two of the 265.
+- **One prose dash, §3.** `r34` "Knight's pawns **-** punishing careless play" was
+  the only name using a bare hyphen where the file's other 11 prose dashes use the
+  spaced em dash (`Rook versus bishop — wrong corner`). Now ` — `.
+- **"Double jump" → "two-square advance", §5.** `p1` explained the rule of the
+  square with "The **double jump** a2-a4 counts as a single step". *Double jump*
+  is draughts vocabulary; no chess source uses it for the two-square first move.
+  The claim itself is right and was not changed.
+- **Eight strings called White "he", §7.** All eight are in the `pawn` block —
+  `p4`, `p9`, `p14`, `p28`, `p35`, `p37`, `p45`, `p50` — and the other **257**
+  entries use "White"/"Black"/"the king" with no pronoun at all. So this is one
+  early block drifting from the house voice, not a style the file holds. Rewritten
+  without the pronoun ("White does not chase the pawn **but locks** the black king
+  into the corner"; "the tempo count still comes out in **White's** favor").
+- **Attribution formatting — 16 occurrences, and this is the one sweep that
+  touches the Spanish half.** These strings are player and composer credits that
+  are byte-identical in `es` and `en`, so they are not translatable copy and a fix
+  cannot be applied to one language only. Two problems, both minority-vs-majority:
+  - **Initials.** 24 occurrences write `M.Dvoretsky` with no space, 7 write
+    `M. Dvoretsky` with one. The majority is also the chess-database convention
+    (ChessBase, Dvoretsky's own *Endgame Manual*), so the **7** were closed up:
+    `M. Dvoretsky 2000` ×3, `D. Ponziani 1782`, `Suetin – F. Portisch`,
+    `G. Barbier, F. Saavedra 1895`. `Kir. Georgiev` was left — a three-letter
+    abbreviation of a full first name is a different case.
+  - **Game dashes.** 43 attributions use the ` – ` en dash (`Nunn – Friedlander`,
+    `Szabó – Keres`); **two did not** — `Akopian **-** Kir. Georgiev` (hyphen) and
+    `Marshall**-**Capablanca, New York (m/9) 1909` (hyphen, unspaced). Both now
+    match the other 43. **The 44 en dashes themselves were NOT swept** — see
+    below.
+- **The subtitle template, 7 of the 77 rows.** Decided once and applied: every
+  subtitle is now **`Example N — <Side> to move, <outcome>`**, where the outcome
+  is the entry's own `result` field (`win` / `draw` / `loss`).
+  - Five rows read "Example N — Black to move, **the side to move is lost**",
+    which restates the clause before it and is the only place in 77 rows that
+    does not use a one-word outcome. All five have `result: 'loss'`. Now
+    **"Black to move, loss"**.
+  - Two rows (`p15`, `p19`) gave the pawn squares but **no outcome at all** —
+    "Example 1 — pawns on g2 and h2, Black to move". Both are `result: 'loss'`,
+    and their sibling `p48` states it. Now "…, Black to move, **loss**".
+
+Judgement calls **not applied** — these need Adrian's yes and are recorded in
+the batch-10 report:
+
+- **Name casing: 76 Title Case vs 113 sentence case, inside one scrollable
+  list.** Of the 189 genuinely translated names, `The Floating Square`,
+  `Two Pawns to One`, `The Pawn on the Sixth Rank` are Title Case while
+  `The rule of the square`, `Key squares`, `Blocked pawns` are sentence case, and
+  they sit as adjacent rows in the same category. STYLE-EN §2 puts headings in
+  sentence case. This is the same question batch 3 raised about the 18 lesson
+  titles and batch 4 about the 23 badge names, and **both left it alone** — but
+  in those two the set was internally consistent, and here it is not. Not swept:
+  189 strings is a visible change, not a typo fix. **Three smaller inconsistencies
+  ride on the same decision and should be settled with it, not separately:**
+  ranks written as digits or words (`The pawn is on the 6th rank` vs `The Pawn on
+  the Sixth Rank`); **`vs.` 29 times vs `versus` 18 times**; and piece names
+  capitalized mid-name (`A passed Bishop's pawn`, `The attacking Bishop`,
+  `Knight or Center Pawn`) against §2's lowercase rule.
+
+Not touched, deliberately:
+
+- **The 44 en dashes in `Player – Player` attributions.** Nearly all are the game
+  credit convention, they are identical in the Spanish, and §3's spaced-em-dash
+  rule governs prose dashes, not name pairings. The 90 em dashes in prose and
+  subtitles are already the spaced form §3 asks for. Only the two attributions
+  that used a *hyphen* were changed, above.
+- **76 of the 265 names are byte-identical in `es` and `en`** — `M.Dvoretsky 2000`,
+  `B.Horwitz, J.Kling 1851`, `G.Walker 1841`, `Capablanca – Menchik`. They are
+  attributions, not translatable copy, and beyond the formatting sweep above they
+  were left exactly as they stand.
+- **`id`, `category`, `fen`, `moves`, `result`** — mechanical data. `category`
+  values are storage keys (`'endgame'` domain, radar axes, `Converted: …` badges).
+- **The trailing `*` on five names** (`New York 1924*`, `N.Grigoriev 1936*`,
+  `Balashov – Dvoretsky, USSR ch tt, Moscow 1967*`, `E.Lequesne, J.Berger*`,
+  `J.Enevoldsen 1949*`). Nothing in the app explains it and it is identical in
+  both languages, so it is presumably a source convention (analysis / altered
+  position) carried in with the data. Removing it would discard information;
+  explaining it needs a legend the screen does not have. Flagged, not touched.
+- **The four Cochrane entries are numbered 1, 2, 4, 3 in file order** (`r43` Part 1,
+  `r44` Part 2, `r45` Part **4**, `r46` Part **3**), so the list shows them out of
+  sequence. That is the **order of the array**, not a copy problem — fixing it
+  means moving data, which a copy batch does not do.
+- **`towards` 12 times, `toward` 0.** US usage prefers *toward*, but *towards* is
+  standard American English too, it is not in STYLE-EN §1's table, and the file is
+  12-for-12 consistent. Consistency beats a preference.
+- **`r17`'s `(K&H)` abbreviation** — "Central or bishop pawns. Kling and Horwitz
+  (K&H) defensive technique (2)" is the longest name in the file at 72 characters
+  and defines an abbreviation it never uses again. Shortening it is a naming call.
+
+**Measured at 375px in light and dark, in both languages, zero console errors
+beyond the known App Check `403`:**
+
+- **The position list is safe and nothing is clipped.** `document.scrollWidth` is
+  exactly **375** on the sections list, the category list, all six position lists
+  and the detail screen, in both themes. Sweeping every descendant of
+  `#endgame-pos-list` for `scrollWidth > clientWidth`: **zero hits** in all six
+  categories. The row's `<b>` box is **327px**; names longer than that wrap to a
+  second line rather than truncating (12 of the 121 rook rows, 5 of 54 pawn, 5 of
+  31 bishop, 1 of 20 knight, 0 of 29 queen and 0 of 10 minor).
+- **The two subtitles this batch lengthened are the tightest strings in the
+  batch, and they fit.** "Example 1 — pawns on g2 and h2, Black to move, **loss**"
+  renders at **318px in the 327px box on one 15px line** — 9px of slack. The other
+  five changed subtitles got *shorter*. The plain template rows measure 200.1px.
+- **The detail header truncates, and it did so long before this batch.**
+  `#endgame-pos-title .ttl` is an `h2.ellipsis` with about **206px** of room, and
+  **173 of the 265 names already overflow it** — the widest needs 700px. This is
+  batch 3's finding (a long lesson title truncating at 375px) in a much larger
+  set. **None of it is caused by a batch-10 edit**: the three renamed
+  `Rook versus two pawns` titles measure **372px, 412px and 440px**, and the
+  rename added four characters, so the singular versions were already several
+  times over the 206px box. They were deep inside the overflow group either way.
+  STYLE-EN §9 says keep the wording and report the measurement. Reported — this
+  is a **layout** item for the follow-up list, not a copy item: no realistic
+  wording fits 206px.
+- The `#endgame-comment` box is 355px wide; the longest comment in the file (248
+  characters, `p27`) renders in **94px, five lines, no overflow**.
+
+**Spanish (reported, never fixed):** two new items, **18** and **19**, added
+below — both are the factual class item 1 warns about, found in the comments and
+names of this file.
 
 ---
 
@@ -1168,5 +1367,28 @@ Ordered worst first.
     the same underlying decision as item 11 (one Spanish name per feature), and
     the Spanish "tablero de análisis" is already the correct one — only
     `tour_board_b` needs changing.
+
+18. **`js/endgames-data.js`, `p6` comment — factually wrong, same class as item
+    1.** "Dos peones separados por una columna **se defienden entre sí** sin
+    ayuda del rey." They do not defend each other: the fen is
+    `8/8/8/5k2/5P1P/8/8/K7`, so the pawns are on **f4 and h4** and neither covers
+    the other. The correct statement is that they defend *themselves* — **"se
+    defienden solos"**. Batch 10 fixed the English side, so until this is done
+    the two languages teach different things about the same diagram. *(batch 10)*
+19. **`js/endgames-data.js`, `r10` / `r11` / `r12` names — the title contradicts
+    the board.** All three read **"Torre contra peón: …"** (singular) and all
+    three positions have **two** connected pawns — a6+b5, d6+e6, f5+g6 — which is
+    exactly what all three Spanish comments then describe ("Dos peones ligados en
+    la sexta fila son más fuertes que una torre"). Should read **"Torre contra
+    dos peones: reyes alejados / : ambos reyes activos / : solo el rey
+    defensor"**. The English was fixed in batch 10. Note these three names use a
+    colon where the English uses ` — `; keep the Spanish colon, it is consistent
+    with its siblings. *(batch 10)*
+
+    Not a Spanish bug, recorded so nobody "fixes" it: the **attribution strings
+    are identical in both languages by design** (`M.Dvoretsky 2000`,
+    `Capablanca – Menchik`). Batch 10's initials-and-dashes sweep therefore
+    changed 16 occurrences across both halves — that was deliberate and is the
+    only place in the whole English review where an `es:` value was touched.
 
 Later batches must keep appending here.

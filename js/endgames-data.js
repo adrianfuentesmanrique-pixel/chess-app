@@ -1,7 +1,7 @@
 // Endgame studies for the training module — 265 positions across six material
 // categories. Every line is verified against the Lichess 7-piece tablebase as
 // optimal play for both sides, so replaying it move by move is graded against
-// perfect defence.
+// perfect defense.
 //
 // Titles use standard endgame terminology. Explanations are written from the
 // position and its tablebase line, describing the technique the position
@@ -20,7 +20,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'Traza el cuadrado desde el peón hasta su casilla de coronación: si el rey rival no puede entrar en él, el peón corona solo. El salto doble a2-a4 cuenta como un solo paso, y ahí se gana el tiempo. El rey negro llega a c7 justo un movimiento tarde.',
-      en: 'Draw the square from the pawn to its queening square: if the enemy king cannot step inside it, the pawn promotes unaided. The double jump a2-a4 counts as a single step, and that is where the tempo is won. Black reaches c7 exactly one move too late.',
+      en: 'Draw the square from the pawn to its queening square: if the enemy king cannot step inside it, the pawn promotes unaided. The two-square advance a2-a4 counts as a single step, and that is where the tempo is won. Black reaches c7 exactly one move too late.',
     },
   },
   {
@@ -53,7 +53,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'Las blancas no persiguen al peón, encierran al rey negro en la esquina. Con el vaivén c1–c2 el rey negro solo dispone de a1 y a2. Cuando se ve obligado a ir a a1, Rc1 lo deja ahogado.',
-      en: 'White does not chase the pawn, he locks the black king into the corner. Shuffling between c1 and c2 leaves Black only a1 and a2 to stand on. When the king is forced to a1, Kc1 leaves Black stalemated.',
+      en: 'White does not chase the pawn but locks the black king into the corner. Shuffling between c1 and c2 leaves Black only a1 and a2 to stand on. When the king is forced to a1, Kc1 leaves Black stalemated.',
     },
   },
   {
@@ -75,7 +75,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'Dos peones separados por una columna se defienden entre sí sin ayuda del rey. Tras h5 el rey negro no puede con ninguno: si cubre uno, el otro avanza. Rg7 detiene el peón h, así que f5-f6 pasa.',
-      en: 'Two pawns separated by one file defend each other without help from the king. After h5 the black king cannot win either: covering one lets the other run. Kg7 stops the h-pawn, so f5-f6 goes through.',
+      en: 'Two pawns separated by one file defend themselves without help from the king. After h5 the black king cannot win either: covering one lets the other run. Kg7 stops the h-pawn, so f5-f6 goes through.',
     },
   },
   {
@@ -108,18 +108,18 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'Las blancas pierden la carrera, así que cambian el material en vez de correr. e5 obliga a fxe5 y deja un solo peón en el tablero. El rey llega a f2 por delante y mantiene la oposición para las tablas.',
-      en: 'White is losing the race, so he changes the material instead of running. e5 forces fxe5 and leaves a single pawn on the board. The king reaches f2 in front of it and holds the opposition for the draw.',
+      en: 'Losing the race, White changes the material instead of running. e5 forces fxe5 and leaves a single pawn on the board. The king reaches f2 in front of it and holds the opposition for the draw.',
     },
   },
   {
     id: 'p10', category: 'pawn',
-    name: { es: 'Maniobra del rey con doble propósito', en: 'Passed pawns. Dual-purpose king manoeuvres' },
+    name: { es: 'Maniobra del rey con doble propósito', en: 'Passed pawns. Dual-purpose king maneuvers' },
     fen: '8/6p1/7k/8/1K6/8/1P6/8 w - - 0 1',
     moves: ["b4c5","h6g6","b2b4","g6f7","b4b5","f7e7","c5c6","e7d8","c6b7","g7g5","b5b6","g5g4","b7a7","g4g3"],
     result: 'win',
     comment: {
       es: 'Rc5 cumple dos funciones a la vez: despeja el camino del peón b y acorta la ruta del rey hacia b7. Esa maniobra del rey con doble propósito decide la partida. Las blancas coronan cuando al peón g aún le falta un movimiento.',
-      en: 'Kc5 does two jobs at once: it clears the b-pawn\'s path and shortens the king\'s route to b7. That dual-purpose king manoeuvre is the whole game. White queens while the g-pawn is still a move away.',
+      en: 'Kc5 does two jobs at once: it clears the b-pawn\'s path and shortens the king\'s route to b7. That dual-purpose king maneuver is the whole game. White queens while the g-pawn is still a move away.',
     },
   },
   {
@@ -157,7 +157,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p14', category: 'pawn',
-    name: { es: 'El bando defensor ya movió su peón. Triangulación', en: 'The defending side has moved his pawn. Triangulation' },
+    name: { es: 'El bando defensor ya movió su peón. Triangulación', en: 'The defending side has moved its pawn. Triangulation' },
     fen: '2k5/8/p1P5/P2K4/8/8/8/8 w - - 0 1',
     moves: ["d5d4","c8d8","d4c4","d8c8","c4d5","c8c7","d5c5"],
     result: 'win',
@@ -169,7 +169,7 @@ export const ENDGAMES = [
   {
     id: 'p15', category: 'pawn',
     name: { es: 'Perder un tiempo — peones g y h contra peón h', en: 'Reserve tempi — g- and h-pawns vs h-pawn' },
-    subtitle: { es: 'Ejemplo 1 — peones en g2 y h2, juegan negras', en: 'Example 1 — pawns on g2 and h2, Black to move' },
+    subtitle: { es: 'Ejemplo 1 — peones en g2 y h2, juegan negras', en: 'Example 1 — pawns on g2 and h2, Black to move, loss' },
     fen: '8/7p/5k2/8/5K2/8/6PP/8 b - - 0 1',
     moves: ["h7h6","g2g4","f6g6","h2h3","g6f6","h3h4","h6h5","g4g5","f6f7","f4e5","f7g7","e5f5","g7f7","g5g6"],
     result: 'loss',
@@ -214,7 +214,7 @@ export const ENDGAMES = [
   {
     id: 'p19', category: 'pawn',
     name: { es: 'Perder un tiempo — peones g y h contra peón h', en: 'Reserve tempi — g- and h-pawns vs h-pawn' },
-    subtitle: { es: 'Ejemplo 2 — peones en g4 y h4, juegan negras', en: 'Example 2 — pawns on g4 and h4, Black to move' },
+    subtitle: { es: 'Ejemplo 2 — peones en g4 y h4, juegan negras', en: 'Example 2 — pawns on g4 and h4, Black to move, loss' },
     fen: '8/8/5k1p/8/5KPP/8/8/8 b - - 0 1',
     moves: ["f6e6","f4e4","e6f6","e4d5","f6e7","d5e5","e7f7","e5f5","f7g7","f5e6","g7g6","h4h5","g6g5","e6f7"],
     result: 'loss',
@@ -324,12 +324,12 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'd5 es un desvío: tras exd5, el propio peón negro ocupa la casilla que necesita su rey. El peón a corre y, tras a4 Re4 a5, el rey no puede entrar en el cuadrado porque d5 está bloqueada. El peón de torre corona.',
-      en: 'd5 is a deflection: after exd5 Black\'s own pawn occupies the square his king needs. The a-pawn then runs, and after a4 Ke4 a5 the king cannot enter the square because d5 is blocked. The rook\'s pawn queens.',
+      en: 'd5 is a deflection: after exd5 Black\'s own pawn occupies the square its king needs. The a-pawn then runs, and after a4 Ke4 a5 the king cannot enter the square because d5 is blocked. The rook\'s pawn queens.',
     },
   },
   {
     id: 'p29', category: 'pawn',
-    name: { es: 'La idea de Réti', en: 'Réti’s Idea' },
+    name: { es: 'La idea de Réti', en: 'Réti\'s Idea' },
     subtitle: { es: 'Ejemplo 1 — juegan blancas, tablas', en: 'Example 1 — White to move, draw' },
     fen: '7K/8/k1P5/7p/8/8/8/8 w - - 0 1',
     moves: ["h8g7","h5h4","g7f6","a6b6","f6e5","b6c6","e5f4"],
@@ -341,7 +341,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p30', category: 'pawn',
-    name: { es: 'La idea de Réti', en: 'Réti’s Idea' },
+    name: { es: 'La idea de Réti', en: 'Réti\'s Idea' },
     subtitle: { es: 'Ejemplo 2 — juegan blancas, tablas', en: 'Example 2 — White to move, draw' },
     fen: '3K4/7p/3k4/P7/8/8/8/8 w - - 0 1',
     moves: ["d8c8","d6c6","c8b8","c6b5","b8b7","b5a5","b7c6"],
@@ -386,7 +386,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p34', category: 'pawn',
-    name: { es: 'M. Dvoretsky 2000', en: 'M. Dvoretsky 2000' },
+    name: { es: 'M.Dvoretsky 2000', en: 'M.Dvoretsky 2000' },
     subtitle: { es: 'Ejemplo 1 — juegan blancas, ganan', en: 'Example 1 — White to move, win' },
     fen: '8/4k1p1/2p5/4K3/8/3P4/6P1/8 w - - 0 1',
     moves: ["g2g3","e7d7","g3g4","d7e7","g4g5","e7d7","e5f5","d7e7","f5g6","e7f8","g6h7","f8f7","d3d4"],
@@ -398,14 +398,14 @@ export const ENDGAMES = [
   },
   {
     id: 'p35', category: 'pawn',
-    name: { es: 'M. Dvoretsky 2000', en: 'M. Dvoretsky 2000' },
-    subtitle: { es: 'Ejemplo 2 — juegan negras, el bando que juega pierde', en: 'Example 2 — Black to move, the side to move is lost' },
+    name: { es: 'M.Dvoretsky 2000', en: 'M.Dvoretsky 2000' },
+    subtitle: { es: 'Ejemplo 2 — juegan negras, el bando que juega pierde', en: 'Example 2 — Black to move, loss' },
     fen: '8/4k1p1/2p5/4K3/8/3P4/6P1/8 b - - 0 1',
     moves: ["e7d7","g2g4"],
     result: 'loss',
     comment: {
       es: 'El mismo estudio con el negro en juego. Como el negro ya gastó una jugada, las blancas responden a ...Rd7 con g4 en vez de g3 y el cómputo de tiempos les sigue favoreciendo. A partir de ahí el plan ganador es el mismo.',
-      en: 'The same study with Black to move. Because Black has already spent a move, White answers ...Kd7 with g4 instead of g3 and the tempo count still comes out in his favour. From there the winning plan runs unchanged.',
+      en: 'The same study with Black to move. Because Black has already spent a move, White answers ...Kd7 with g4 instead of g3 and the tempo count still comes out in White\'s favor. From there the winning plan runs unchanged.',
     },
   },
   {
@@ -429,7 +429,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'Las blancas hacen zigzag hacia el peón a y el peón e a la vez, pero aquí les falta un tiempo. Rf7 llega justo para coronar el peón e, y el negro corona también. Dos damas en el tablero significan tablas.',
-      en: 'White zigzags towards the a-pawn and the e-pawn at once, but here he is one tempo short. Kf7 arrives just in time to promote the e-pawn, and Black promotes as well. Two queens on the board mean a draw.',
+      en: 'White zigzags towards the a-pawn and the e-pawn at once, but here White is one tempo short. Kf7 arrives just in time to promote the e-pawn, and Black promotes as well. Two queens on the board mean a draw.',
     },
   },
   {
@@ -499,7 +499,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'El peón de más en b5 está pasado y ata al rey negro a detenerlo. Eso deja libre al rey blanco para maniobrar y rodear por el otro lado. En cuanto gana la oposición, el peón pasa.',
-      en: 'The extra pawn on b5 is passed and ties the black king to stopping it. That leaves White\'s king free to manoeuvre and outflank on the other side. Once it wins the opposition the pawn goes through.',
+      en: 'The extra pawn on b5 is passed and ties the black king to stopping it. That leaves White\'s king free to maneuver and outflank on the other side. Once it wins the opposition the pawn goes through.',
     },
   },
   {
@@ -522,7 +522,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El negro debe emplear varias jugadas en detener el peón a, y las blancas las aprovechan para traer al rey. Con los peones b congelados, la defensa consiste en emparejar casillas. Rc1 cubre las entradas y salva las tablas.',
-      en: 'Black has to spend several moves stopping the a-pawn, and White uses them to walk his king back. With the b-pawns frozen, the defence becomes a matter of matching squares. Kc1 covers the entry points and holds the draw.',
+      en: 'Black has to spend several moves stopping the a-pawn, and White uses them to walk the king back. With the b-pawns frozen, the defense becomes a matter of matching squares. Kc1 covers the entry points and holds the draw.',
     },
   },
   {
@@ -550,13 +550,13 @@ export const ENDGAMES = [
   {
     id: 'p48', category: 'pawn',
     name: { es: 'Los peones g y h contra el peón h', en: 'The g- and h-pawns vs. the h-pawn' },
-    subtitle: { es: 'Ejemplo 1 — juegan negras, el bando que juega pierde', en: 'Example 1 — Black to move, the side to move is lost' },
+    subtitle: { es: 'Ejemplo 1 — juegan negras, el bando que juega pierde', en: 'Example 1 — Black to move, loss' },
     fen: '8/6kp/8/6K1/6P1/8/7P/8 b - - 0 1',
     moves: ["h7h6","g5f5","g7f7","h2h3","f7g7","h3h4","g7f7","h4h5"],
     result: 'loss',
     comment: {
       es: 'Con el negro en juego, la defensa se derrumba enseguida. ...h6+ agota su única jugada de peón, y las blancas van soltando tiempos con h3, h4 y h5 cuando hacen falta. El negro se queda sin jugadas y el rey es desalojado.',
-      en: 'With Black to move the defence collapses immediately. ...h6+ uses up the only pawn move, and White then feeds tempi with h3, h4 and h5 whenever they are needed. Black runs out of moves and the king is driven off.',
+      en: 'With Black to move the defense collapses immediately. ...h6+ uses up the only pawn move, and White then feeds tempi with h3, h4 and h5 whenever they are needed. Black runs out of moves and the king is driven off.',
     },
   },
   {
@@ -580,7 +580,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'Las blancas no tienen que defender: basta con entrar y capturar en f3. Lo que queda es un peón h con el rey negro atascado delante. El vaivén f1–f2 es suficiente, porque la esquina no se puede despejar.',
-      en: 'White does not have to defend at all, he simply walks in and takes on f3. What remains is an h-pawn with the black king stuck in front of it. Shuffling between f1 and f2 is enough, because the corner can never be cleared.',
+      en: 'White does not have to defend at all, and simply walks in to take on f3. What remains is an h-pawn with the black king stuck in front of it. Shuffling between f1 and f2 is enough, because the corner can never be cleared.',
     },
   },
   {
@@ -620,7 +620,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p54', category: 'pawn',
-    name: { es: 'La actividad del rey', en: 'King’s Activity' },
+    name: { es: 'La actividad del rey', en: 'King\'s Activity' },
     fen: '8/5K1p/1kP5/2p5/2P5/8/P7/8 w - - 0 1',
     moves: ["f7g7","b6c6","g7h7","c6b6","a2a3","b6a5","h7g6","a5a4","g6f5","a4a3","f5e4","a3b3","e4d3","b3a2"],
     result: 'draw',
@@ -687,7 +687,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r6', category: 'rook',
-    name: { es: 'El peón de caballo: la defensa de g7', en: 'Knight\'s pawn — the g7 defence' },
+    name: { es: 'El peón de caballo: la defensa de g7', en: 'Knight\'s pawn — the g7 defense' },
     fen: '3K4/4R3/8/1p6/8/2k5/8/8 w - - 0 1',
     moves: ["e7c7","c3b3","d8d7","b5b4","d7d6","b3a2","d6c5","b4b3","c5b4","b3b2","c7a7","a2b1","b4b3","b1c1"],
     result: 'win',
@@ -731,7 +731,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r10', category: 'rook',
-    name: { es: 'Torre contra peón: reyes alejados', en: 'Rook versus pawn — kings distant' },
+    name: { es: 'Torre contra peón: reyes alejados', en: 'Rook versus two pawns — kings distant' },
     fen: '8/8/P7/1P5k/8/8/7K/5r2 w - - 0 1',
     moves: ["b5b6","f1b1","a6a7"],
     result: 'win',
@@ -742,7 +742,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r11', category: 'rook',
-    name: { es: 'Torre contra peón: ambos reyes activos', en: 'Rook versus pawn — both kings active' },
+    name: { es: 'Torre contra peón: ambos reyes activos', en: 'Rook versus two pawns — both kings active' },
     fen: 'r3k3/8/3PP3/3K4/8/8/8/8 w - - 0 1',
     moves: ["d5e5","a8a1","e5d5","a1e1","d6d7","e8e7"],
     result: 'loss',
@@ -753,7 +753,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r12', category: 'rook',
-    name: { es: 'Torre contra peón: solo el rey defensor', en: 'Rook versus pawn — defending king only' },
+    name: { es: 'Torre contra peón: solo el rey defensor', en: 'Rook versus two pawns — defending king only' },
     fen: '8/8/5KP1/5P2/8/2k4r/8/8 b - - 0 1',
     moves: ["h3f3","g6g7","f3g3","f6f7","c3d4","f5f6","d4e5"],
     result: 'draw',
@@ -798,7 +798,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r16', category: 'rook',
-    name: { es: 'El peón de caballo. Defensa en la primera fila', en: 'The knight\'s pawn. First-rank defence' },
+    name: { es: 'El peón de caballo. Defensa en la primera fila', en: 'The knight\'s pawn. First-rank defense' },
     fen: '1k6/7R/8/KP6/8/8/8/2r5 w - - 0 1',
     moves: ["a5a6","c1c8","b5b6","c8f8","h7b7","b8a8","b7a7","a8b8","a7h7","f8g8"],
     result: 'draw',
@@ -865,7 +865,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r22', category: 'rook',
-    name: { es: 'Rey defensor cortado por dos columnas. Método combinado de Grigoriev', en: 'Defending king cut off by 2 files. Grigoriev\'s combined method.' },
+    name: { es: 'Rey defensor cortado por dos columnas. Método combinado de Grigoriev', en: 'Defending king cut off by 2 files. Grigoriev\'s combined method' },
     fen: '2r5/8/5k2/8/2P5/2K5/8/4R3 w - - 0 1',
     moves: ["c3b4","c8b8","b4a5","b8c8","a5b5","c8b8","b5a6","b8c8","e1c1","f6e7","a6b7","c8c5","b7b6","c5h5"],
     result: 'win',
@@ -931,13 +931,13 @@ export const ENDGAMES = [
   },
   {
     id: 'r28', category: 'rook',
-    name: { es: 'Peón en la sexta. La defensa Vancura', en: 'Pawn on the 6th rank. The Vancura Defence' },
+    name: { es: 'Peón en la sexta. La defensa Vancura', en: 'Pawn on the 6th rank. The Vancura Defense' },
     fen: 'R7/5k2/P7/8/8/8/6K1/r7 b - - 0 1',
     moves: ["f7g7","g2f3","a1f1","f3e4","f1f6","e4d5","f6b6","d5c5","b6f6","c5b5","f6f5","b5b6","f5f6","b6b7"],
     result: 'draw',
     comment: {
       es: 'La defensa Vancura ataca al peón de lado en vez de bloquearlo por detrás. Tf6 sitúa la torre en la sexta fila, golpeando a6 y conservando jaques por la columna. Las blancas nunca pueden defender el peón y refugiar al rey a la vez.',
-      en: 'The Vancura defence attacks the pawn from the side instead of blocking it from behind. Rf6 puts the rook on the sixth rank, hitting a6 while keeping checks available along the file. White can never defend the pawn and shelter the king at once.',
+      en: 'The Vancura defense attacks the pawn from the side instead of blocking it from behind. Rf6 puts the rook on the sixth rank, hitting a6 while keeping checks available along the file. White can never defend the pawn and shelter the king at once.',
     },
   },
   {
@@ -994,18 +994,18 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El rey defensor ha alcanzado el rincón del color de su alfil, y eso salva la partida. Cada jaque se responde interponiendo el alfil o volviendo al rincón. Las blancas no progresan y la partida es tablas.',
-      en: 'The defending king has reached the corner that matches its bishop\'s colour, and that saves the game. Every check is answered by interposing the bishop or stepping back into the corner. White cannot make progress and the game is drawn.',
+      en: 'The defending king has reached the corner that matches its bishop\'s color, and that saves the game. Every check is answered by interposing the bishop or stepping back into the corner. White cannot make progress and the game is drawn.',
     },
   },
   {
     id: 'r34', category: 'rook',
-    name: { es: 'Peones de caballo: castigar el juego descuidado', en: 'Knight\'s pawns - punishing careless play' },
+    name: { es: 'Peones de caballo: castigar el juego descuidado', en: 'Knight\'s pawns — punishing careless play' },
     fen: '8/6p1/8/8/1R4pk/r7/6K1/8 w - - 0 1',
     moves: ["b4b2","g4g3","b2c2","g7g6","c2b2","g6g5","b2c2","g5g4","c2b2","a3a1","b2c2","a1b1","c2a2","b1c1"],
     result: 'draw',
     comment: {
       es: 'Las blancas se limitan a mover la torre por la segunda fila, manteniéndola fuera de alcance. El negro avanza los peones y maniobra con la torre, pero nunca crea una amenaza real. Los dos peones g por sí solos no rompen, y las tablas se mantienen.',
-      en: 'White does nothing but shuffle the rook along the second rank, keeping it out of reach. Black advances the pawns and manoeuvres the rook but never creates a real threat. The two g-pawns alone cannot break through, so the draw holds.',
+      en: 'White does nothing but shuffle the rook along the second rank, keeping it out of reach. Black advances the pawns and maneuvers the rook but never creates a real threat. The two g-pawns alone cannot break through, so the draw holds.',
     },
   },
   {
@@ -1066,7 +1066,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r40', category: 'rook',
-    name: { es: 'La defensa Vancura contra dos peones', en: 'Vancura Defence against 2 pawns' },
+    name: { es: 'La defensa Vancura contra dos peones', en: 'Vancura Defense against 2 pawns' },
     fen: 'R7/6k1/8/8/P6P/6K1/8/4r3 b - - 0 1',
     moves: ["e1e4","a4a5","e4e5","g3f3","e5h5","f3g3","h5c5","a5a6","c5c6","g3f4","g7h7","f4e5","c6b6","e5d5"],
     result: 'draw',
@@ -1100,18 +1100,18 @@ export const ENDGAMES = [
   },
   {
     id: 'r43', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 1', en: 'The king is far from the edge. Cochrane defence Part 1' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 1', en: 'The king is far from the edge. Cochrane defense Part 1' },
     fen: '8/8/5k2/r7/4BK2/8/7R/8 b - - 0 1',
     moves: ["a5b5","h2h6","f6e7","h6a6","b5c5","e4d3","c5c7","f4e5","c7c5","e5d4","c5g5","d3e4","g5h5","a6g6"],
     result: 'draw',
     comment: {
       es: 'La defensa Cochrane mantiene la torre en la misma línea que el alfil, donde nunca puede ser atacada con ganancia de tiempo. Cada vez que las blancas recolocan, la torre se desliza para seguir enfrente. Con el rey aún lejos del borde, la defensa aguanta.',
-      en: 'The Cochrane defence keeps the rook on the same line as the bishop, where it can never be attacked with gain of time. Whenever White repositions, the rook slides across to stay opposite it. With the king still far from the edge, the defence holds.',
+      en: 'The Cochrane defense keeps the rook on the same line as the bishop, where it can never be attacked with gain of time. Whenever White repositions, the rook slides across to stay opposite it. With the king still far from the edge, the defense holds.',
     },
   },
   {
     id: 'r44', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 2', en: 'The king is far from the edge. Cochrane defence Part 2' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 2', en: 'The king is far from the edge. Cochrane defense Part 2' },
     fen: '8/4k3/6R1/r7/3KB3/8/8/8 w - - 15 9',
     moves: ["e4d5","a5a1","d4e5","a1e1","d5e4","e1e2"],
     result: 'draw',
@@ -1122,18 +1122,18 @@ export const ENDGAMES = [
   },
   {
     id: 'r45', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 4', en: 'The king is far from the edge. Cochrane defence Part 4' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 4', en: 'The king is far from the edge. Cochrane defense Part 4' },
     fen: '8/8/8/r2BK1k1/8/8/8/5R2 w - - 53 28',
     moves: ["f1g1","g5h5","g1h1","h5g5","h1b1","g5h5","b1g1","a5b5","e5d4","h5h6","d5e4","b5g5","g1f1","h6g7"],
     result: 'draw',
     comment: {
       es: 'Las blancas intentan ganar terreno con jaques, pero el rey negro se limita a ir de g5 a h5. La torre vuelve una y otra vez a la quinta fila para seguir enfrente del alfil. No se ha conseguido nada y la defensa sigue en pie.',
-      en: 'White tries to gain ground with checks, but the black king just shuffles between g5 and h5. The rook keeps coming back to the fifth rank to stay opposite the bishop. Nothing has been achieved and the defence still holds.',
+      en: 'White tries to gain ground with checks, but the black king just shuffles between g5 and h5. The rook keeps coming back to the fifth rank to stay opposite the bishop. Nothing has been achieved and the defense still holds.',
     },
   },
   {
     id: 'r46', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 3', en: 'The king is far from the edge. Cochrane defence Part 3' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 3', en: 'The king is far from the edge. Cochrane defense Part 3' },
     fen: '8/4k3/6R1/4K3/4B3/8/4r3/8 w - - 21 12',
     moves: ["g6g7","e7e8","g7a7","e2e1","e5d5","e8f8","e4f5","e1e7","a7a8","f8f7","a8a1","f7f6","f5c8","e7e5"],
     result: 'draw',
@@ -1177,7 +1177,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r50', category: 'rook',
-    name: { es: 'G. Barbier, F. Saavedra 1895', en: 'G. Barbier, F. Saavedra 1895' },
+    name: { es: 'G.Barbier, F.Saavedra 1895', en: 'G.Barbier, F.Saavedra 1895' },
     fen: '8/8/1KP5/3r4/8/8/8/k7 w - - 0 1',
     moves: ["c6c7","d5d6","b6b5","d6d5","b5b4","d5d4","b4b3","d4d3","b3c2","d3d4","c7c8r","d4a4","c2b3"],
     result: 'win',
@@ -1289,7 +1289,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r60', category: 'rook',
-    name: { es: 'Akopian - Kir. Georgiev', en: 'Akopian - Kir. Georgiev' },
+    name: { es: 'Akopian – Kir. Georgiev', en: 'Akopian – Kir. Georgiev' },
     fen: 'K7/6k1/8/6p1/8/8/7R/8 w - - 0 1',
     moves: ["h2f2","g7g6","a8b7","g5g4","b7c6","g6g5","c6d5","g4g3","f2f7","g5g6","f7f3","g6g5","f3g3","g5f4"],
     result: 'win',
@@ -1355,13 +1355,13 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'La misma posición con el negro en juego es tablas. Ta7+ inicia los jaques antes de que las blancas organicen el avance del peón. Todo intento de bloquear se responde con otro jaque, y el rey negro se mantiene lo bastante cerca.',
-      en: 'The same position with Black to move is a draw. Ra7+ starts the checks before White can organise the pawn\'s advance. Every attempt to block is met by another check, and the black king stays close enough to help.',
+      en: 'The same position with Black to move is a draw. Ra7+ starts the checks before White can organize the pawn\'s advance. Every attempt to block is met by another check, and the black king stays close enough to help.',
     },
   },
   {
     id: 'r66', category: 'rook',
     name: { es: 'El peón en la sexta fila', en: 'The Pawn on the Sixth Rank' },
-    subtitle: { es: 'Ejemplo 6 — juegan negras, el bando que juega pierde', en: 'Example 6 — Black to move, the side to move is lost' },
+    subtitle: { es: 'Ejemplo 6 — juegan negras, el bando que juega pierde', en: 'Example 6 — Black to move, loss' },
     fen: '1r6/R3K1k1/4P3/8/8/8/8/8 b - - 0 1',
     moves: ["b8c8","a7a1"],
     result: 'loss',
@@ -1415,7 +1415,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El peón sigue en su propia mitad del tablero, y eso da tiempo al defensor para organizarse. El negro expulsa con jaques al rey blanco cada vez que intenta escoltar al peón. El rey negro también regresa a tiempo, así que ningún plan funciona.',
-      en: 'The pawn is still on its own half of the board, which gives the defender time to organise. Black checks the white king away every time it tries to escort the pawn forward. The black king also returns in time, so neither plan works.',
+      en: 'The pawn is still on its own half of the board, which gives the defender time to organize. Black checks the white king away every time it tries to escort the pawn forward. The black king also returns in time, so neither plan works.',
     },
   },
   {
@@ -1474,7 +1474,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'Las blancas alejan primero al rey negro del peón con la torre. Tg6 lo corta por la sexta fila y el rey sube después por el tablero sin oposición. Cuando el negro se reorganiza, el rey blanco ya ha llegado a e6.',
-      en: 'White first drives the black king away from the pawn with the rook. Rg6 cuts it off along the sixth rank, and the king then walks up the board unopposed. By the time Black reorganises, White\'s king has reached e6.',
+      en: 'White first drives the black king away from the pawn with the rook. Rg6 cuts it off along the sixth rank, and the king then walks up the board unopposed. By the time Black reorganizes, White\'s king has reached e6.',
     },
   },
   {
@@ -1538,7 +1538,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r81', category: 'rook',
-    name: { es: 'Suetin – F. Portisch', en: 'Suetin – F. Portisch' },
+    name: { es: 'Suetin – F.Portisch', en: 'Suetin – F.Portisch' },
     fen: 'R7/7k/8/P6P/r7/8/4K3/8 b - - 0 1',
     moves: ["a4e4","e2d3","e4e5","d3c4","e5f5","a5a6","f5f6","c4b5","f6f5","b5c6","f5f6","c6d5","f6b6"],
     result: 'draw',
@@ -1703,7 +1703,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El peón negro de a2 ata a la torre blanca, así que la defensa se basa por completo en los jaques. La torre sigue jaqueando al rey blanco y de paso recoge el peón h. Ambos bandos coronan y la partida termina igualada.',
-      en: 'Black\'s pawn on a2 ties the white rook down, so the defence rests entirely on checks. The rook keeps checking the white king and collects the h-pawn on the way. Both sides promote and the game finishes level.',
+      en: 'Black\'s pawn on a2 ties the white rook down, so the defense rests entirely on checks. The rook keeps checking the white king and collects the h-pawn on the way. Both sides promote and the game finishes level.',
     },
   },
   {
@@ -1730,7 +1730,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r98', category: 'rook',
-    name: { es: 'Marshall-Capablanca, New York (m/9) 1909', en: 'Marshall-Capablanca, New York (m/9) 1909' },
+    name: { es: 'Marshall – Capablanca, New York (m/9) 1909', en: 'Marshall – Capablanca, New York (m/9) 1909' },
     fen: '8/5K2/8/p1r5/P4R2/1k5P/8/8 b - - 0 1',
     moves: ["c5c6","h3h4","c6b6","h4h5","b6h6","f4f1","h6h5","f1f4","h5h1","f4d4","h1a1","d4g4","a1a4","g4g3"],
     result: 'draw',
@@ -1814,7 +1814,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El caballo y el peón g se defienden mutuamente, así que la torre no tiene un objetivo real. El rey blanco se queda en el centro apoyando a los dos. La torre negra maniobra a su alrededor pero nunca puede ganar ninguno.',
-      en: 'The knight and the g-pawn defend each other, so the rook has no real target. White\'s king stays in the centre where it supports both of them. Black\'s rook manoeuvres around but can never win either one.',
+      en: 'The knight and the g-pawn defend each other, so the rook has no real target. White\'s king stays in the center where it supports both of them. Black\'s rook maneuvers around but can never win either one.',
     },
   },
   {
@@ -1882,7 +1882,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'La torre blanca ataca el peón de f4 desde f5, atando al alfil a su defensa. El rey entra después en f6 y f7, tomando las casillas que necesita el rey negro. Tc8+ empuja al rey a h7 y la posición se derrumba.',
-      en: 'White\'s rook attacks the f4-pawn from f5, tying the bishop to its defence. The king then walks into f6 and f7, taking the squares the black king needs. Rc8+ drives the king to h7 and the position collapses.',
+      en: 'White\'s rook attacks the f4-pawn from f5, tying the bishop to its defense. The king then walks into f6 and f7, taking the squares the black king needs. Rc8+ drives the king to h7 and the position collapses.',
     },
   },
   {
@@ -1904,7 +1904,7 @@ export const ENDGAMES = [
     result: 'loss',
     comment: {
       es: 'El negro en juego se queda sin casillas seguras para el alfil. Td7 y Td1 lo expulsan de la diagonal larga mientras el rey blanco se acerca por f6. Con el rey encerrado en g8 y el alfil desplazado, la defensa se derrumba.',
-      en: 'Black to move runs out of safe squares for the bishop. Rd7 and Rd1 chase it off the long diagonal while the white king closes in via f6. With the king penned on g8 and the bishop displaced, the defence collapses.',
+      en: 'Black to move runs out of safe squares for the bishop. Rd7 and Rd1 chase it off the long diagonal while the white king closes in via f6. With the king penned on g8 and the bishop displaced, the defense collapses.',
     },
   },
   {
@@ -1926,7 +1926,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'La torre blanca ataca el peón de a4 desde d4, lo que ata al alfil a su defensa. Td7+ empuja después al rey negro a la octava fila. Rc6 y Rb6 meten al rey blanco y el peón cae.',
-      en: 'White\'s rook attacks the a4-pawn from d4, which ties the bishop to its defence. Rd7+ then drives the black king back to the eighth rank. Kc6 and Kb6 walk the white king in and the pawn falls.',
+      en: 'White\'s rook attacks the a4-pawn from d4, which ties the bishop to its defense. Rd7+ then drives the black king back to the eighth rank. Kc6 and Kb6 walk the white king in and the pawn falls.',
     },
   },
   {
@@ -1960,7 +1960,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'Torre y alfil sí ganan contra torre cuando el rey defensor está atrapado en el borde. Tc8 toma la columna abierta y la respuesta blanca es forzada. Td8+ corta después al rey blanco, que se queda sin defensa.',
-      en: 'Rook and bishop do win against a rook when the defending king is trapped on the edge. Rc8 takes the open file and White\'s reply is forced. Rd8+ then cuts the white king off with no defence left.',
+      en: 'Rook and bishop do win against a rook when the defending king is trapped on the edge. Rc8 takes the open file and White\'s reply is forced. Rd8+ then cuts the white king off with no defense left.',
     },
   },
   {
@@ -1993,7 +1993,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'Td1 es una jugada de espera que deja a la torre negra mal colocada. Tras ...Tf5, Te1+ aleja al rey de la defensa de la torre. Rxf5 gana entonces sencillamente la pieza.',
-      en: 'Rd1 is a waiting move that leaves the black rook awkwardly placed. After ...Rf5, Re1+ drives the king away from the rook\'s defence. Kxf5 then simply wins the piece.',
+      en: 'Rd1 is a waiting move that leaves the black rook awkwardly placed. After ...Rf5, Re1+ drives the king away from the rook\'s defense. Kxf5 then simply wins the piece.',
     },
   },
   // ── QUEEN ───────────────────────────────────────
@@ -2016,7 +2016,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'Contra un peón de caballo, la dama gana obligando al rey negro a ponerse delante. Los jaques lo empujan a g1, donde bloquea su propio peón y las blancas ganan una jugada libre. Repitiendo la maniobra, el rey blanco se acerca hasta el final.',
-      en: 'Against a knight\'s pawn the queen wins by forcing the black king in front of it. Checks drive the king to g1, where it blocks its own pawn and White gains a free move. Repeating the manoeuvre walks the white king all the way in.',
+      en: 'Against a knight\'s pawn the queen wins by forcing the black king in front of it. Checks drive the king to g1, where it blocks its own pawn and White gains a free move. Repeating the maneuver walks the white king all the way in.',
     },
   },
   {
@@ -2150,7 +2150,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'El peón de g7 está a un paso de coronar, pero la dama negra cubre g8. El rey blanco se esconde en h1 y g1, donde los jaques son inofensivos. La dama maniobra después para romper el bloqueo con ganancia de tiempo.',
-      en: 'The pawn on g7 is one step from queening, but the black queen covers g8. White\'s king hides on h1 and g1, where the checks are harmless. The queen then manoeuvres to break the blockade with gain of time.',
+      en: 'The pawn on g7 is one step from queening, but the black queen covers g8. White\'s king hides on h1 and g1, where the checks are harmless. The queen then maneuvers to break the blockade with gain of time.',
     },
   },
   {
@@ -2161,7 +2161,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El negro no puede detener el peón g, así que la defensa tiene que ser el jaque continuo. La dama persigue al rey blanco por detrás, encontrando siempre una nueva casilla de jaque. El rey nunca halla refugio y la partida es tablas.',
-      en: 'Black cannot stop the g-pawn, so the defence has to be perpetual check. The queen chases the white king from behind, always finding a new checking square. The king never finds shelter, so the game is drawn.',
+      en: 'Black cannot stop the g-pawn, so the defense has to be perpetual check. The queen chases the white king from behind, always finding a new checking square. The king never finds shelter, so the game is drawn.',
     },
   },
   {
@@ -2194,7 +2194,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'La misma idea de fortaleza, salvo que aquí el rey blanco puede acercarse más. Db8+ y Rg7 mejoran ambas piezas mientras la torre sigue atada a la sexta fila. Cuando el rey llega a f7, la defensa se desmorona.',
-      en: 'The same fortress idea, except that here the white king can get closer. Qb8+ and Kg7 improve both pieces while the rook stays tied to the sixth rank. Once the king reaches f7 the defence falls apart.',
+      en: 'The same fortress idea, except that here the white king can get closer. Qb8+ and Kg7 improve both pieces while the rook stays tied to the sixth rank. Once the king reaches f7 the defense falls apart.',
     },
   },
   {
@@ -2263,7 +2263,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'La torre y el peón de f7 negros forman la fortaleza estándar, y el peón blanco de h5 no ayuda. Cada maniobra de dama se responde con la torre yendo a h6 o e6. Ningún defensor puede ser atacado dos veces, así que no hay nada que ganar.',
-      en: 'Black\'s rook and f7-pawn form the standard fortress, and White\'s h5-pawn does not help. Every queen manoeuvre is answered by the rook stepping to h6 or e6. Neither defender can be attacked twice, so there is nothing to win.',
+      en: 'Black\'s rook and f7-pawn form the standard fortress, and White\'s h5-pawn does not help. Every queen maneuver is answered by the rook stepping to h6 or e6. Neither defender can be attacked twice, so there is nothing to win.',
     },
   },
   {
@@ -2327,13 +2327,13 @@ export const ENDGAMES = [
   // ── BISHOP ──────────────────────────────────────
   {
     id: 'b1', category: 'bishop',
-    name: { es: 'Alfiles del mismo color: alfil y peón contra alfil', en: 'Same-coloured bishops — bishop and pawn versus bishop' },
+    name: { es: 'Alfiles del mismo color: alfil y peón contra alfil', en: 'Same-colored bishops — bishop and pawn versus bishop' },
     fen: '5k2/2K5/3P4/1b5B/8/8/8/8 w - - 0 1',
     moves: ["h5f3","b5a4","f3c6","a4c6","c7c6","f8e8","c6c7"],
     result: 'win',
     comment: {
       es: 'Con alfiles del mismo color, el atacante gana ofreciendo un cambio que el defensor no puede rechazar. Ac6 ataca al alfil y no admite respuesta, porque si no el peón sería imparable. Tras el cambio, el rey escolta al peón d hasta el final.',
-      en: 'With bishops of the same colour, the attacker wins by offering a trade the defender cannot refuse. Bc6 attacks the bishop and cannot be answered, because the pawn would otherwise be unstoppable. After the exchange the king escorts the d-pawn home.',
+      en: 'With bishops of the same color, the attacker wins by offering a trade the defender cannot refuse. Bc6 attacks the bishop and cannot be answered, because the pawn would otherwise be unstoppable. After the exchange the king escorts the d-pawn home.',
     },
   },
   {
@@ -2355,12 +2355,12 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'El alfil defensor necesita una diagonal larga para seguir vigilando el camino del peón. Las blancas maniobran con Ab7 y Af3, acortando esa diagonal en cada paso. Cuando solo le quedan diagonales cortas, el peón pasa.',
-      en: 'The defending bishop needs a long diagonal to keep watching the pawn\'s path. White manoeuvres with Bb7 and Bf3, cutting that diagonal shorter at every turn. Once only short diagonals are left, the pawn goes through.',
+      en: 'The defending bishop needs a long diagonal to keep watching the pawn\'s path. White maneuvers with Bb7 and Bf3, cutting that diagonal shorter at every turn. Once only short diagonals are left, the pawn goes through.',
     },
   },
   {
     id: 'b4', category: 'bishop',
-    name: { es: 'La defensa frontal', en: 'Frontal defence' },
+    name: { es: 'La defensa frontal', en: 'Frontal defense' },
     fen: '8/8/2k5/5PK1/8/2b5/7B/8 b - - 0 1',
     moves: ["c3a1","f5f6","a1f6"],
     result: 'draw',
@@ -2421,7 +2421,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El peón y el alfil blancos están en el mismo color, así que el alfil negro puede bloquear desde c7. El rey intenta rodear para apoyar el avance, pero el rey negro llega a d8 a tiempo. El peón nunca puede avanzar con seguridad.',
-      en: 'White\'s pawn and bishop sit on the same colour, so the black bishop can blockade from c7. The king tries to walk round and support the advance, but Black\'s king reaches d8 in time. The pawn can never be pushed safely.',
+      en: 'White\'s pawn and bishop sit on the same color, so the black bishop can blockade from c7. The king tries to walk round and support the advance, but Black\'s king reaches d8 in time. The pawn can never be pushed safely.',
     },
   },
   {
@@ -2481,7 +2481,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b15', category: 'bishop',
-    name: { es: 'El alfil atacante controla la casilla de coronación del peón de caballo', en: 'The attacking Bishop controls the promotion square of the knight\'s pawn.' },
+    name: { es: 'El alfil atacante controla la casilla de coronación del peón de caballo', en: 'The attacking Bishop controls the promotion square of the knight\'s pawn' },
     fen: '2b5/8/1P1B4/8/4kP2/8/5K2/8 b - - 0 1',
     moves: ["c8b7","f2g3","e4f5","g3h4","f5g6","h4g4","b7c8","g4f3","c8b7","f3e3","g6f5","e3d4","f5e6","d6e5"],
     result: 'draw',
@@ -2509,18 +2509,18 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El peón blanco de h6 está bloqueado por el propio peón negro de h7, y h8 es del color equivocado para el alfil. Rf8 mantiene sin más al rey a tiro del rincón. No hay forma de progresar y la partida es tablas.',
-      en: 'White\'s pawn on h6 is blocked by Black\'s own pawn on h7, and h8 is the wrong colour for the bishop. Kf8 simply keeps the king within reach of the corner. There is no way to make progress, so the game is drawn.',
+      en: 'White\'s pawn on h6 is blocked by Black\'s own pawn on h7, and h8 is the wrong color for the bishop. Kf8 simply keeps the king within reach of the corner. There is no way to make progress, so the game is drawn.',
     },
   },
   {
     id: 'b18', category: 'bishop',
-    name: { es: 'D. Ponziani 1782', en: 'D. Ponziani 1782' },
+    name: { es: 'D.Ponziani 1782', en: 'D.Ponziani 1782' },
     fen: '8/6kB/6P1/5K2/8/8/8/8 w - - 0 1',
     moves: ["f5g5","g7h8","h7g8","h8g8","g5h6","g8h8"],
     result: 'draw',
     comment: {
       es: 'El peón de g6 quiere ir a g7 y g8, pero g8 es del color equivocado para este alfil. Ag8 es un último intento y, tras Rxg8, el rey negro se instala sin más en el rincón. Rh6 no consigue nada y el rey va y viene con seguridad.',
-      en: 'The pawn on g6 wants g7 and g8, but g8 is the wrong colour for this bishop. Bg8 is a last try, and after Kxg8 the black king simply settles in the corner. Kh6 achieves nothing and the king shuffles safely.',
+      en: 'The pawn on g6 wants g7 and g8, but g8 is the wrong color for this bishop. Bg8 is a last try, and after Kxg8 the black king simply settles in the corner. Kh6 achieves nothing and the king shuffles safely.',
     },
   },
   {
@@ -2531,7 +2531,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'Un alfil solo no puede detener dos peones pasados separados si están lo bastante lejos. Va y viene entre c1 y g5 intentando cubrir ambas casillas de coronación, pero el peón c sigue avanzando. Llega a c1 y la defensa se agota.',
-      en: 'A single bishop cannot stop two disconnected passed pawns that are far enough apart. It shuttles between c1 and g5 trying to cover both queening squares, but the c-pawn keeps coming. It reaches c1 and the defence runs out.',
+      en: 'A single bishop cannot stop two disconnected passed pawns that are far enough apart. It shuttles between c1 and g5 trying to cover both queening squares, but the c-pawn keeps coming. It reaches c1 and the defense runs out.',
     },
   },
   {
@@ -2560,13 +2560,13 @@ export const ENDGAMES = [
   {
     id: 'b22', category: 'bishop',
     name: { es: 'Alfil y dos peones pasados ligados contra alfil', en: 'Bishop and Two Connected Passed Pawns vs. Bishop' },
-    subtitle: { es: 'Ejemplo 2 — juegan negras, el bando que juega pierde', en: 'Example 2 — Black to move, the side to move is lost' },
+    subtitle: { es: 'Ejemplo 2 — juegan negras, el bando que juega pierde', en: 'Example 2 — Black to move, loss' },
     fen: '4k3/8/4PP2/b3K3/8/3B4/8/8 b - - 0 1',
     moves: ["a5d8","d3g6","e8f8","e5f5"],
     result: 'loss',
     comment: {
       es: 'Con el negro en juego, la defensa se rompe de inmediato. Ag6+ empuja al rey a f8, lejos del camino de los peones. Rf5 acerca después al rey blanco y los dos peones avanzan sin oposición.',
-      en: 'With Black to move the defence breaks down straight away. Bg6+ drives the king to f8, away from the pawns\' path. Kf5 then brings the white king up and the two pawns advance unopposed.',
+      en: 'With Black to move the defense breaks down straight away. Bg6+ drives the king to f8, away from the pawns\' path. Kf5 then brings the white king up and the two pawns advance unopposed.',
     },
   },
   {
@@ -2636,7 +2636,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'El peón de a6 ata al alfil negro, así que las blancas crean un segundo pasado en el otro flanco. Ag4 y Ae2 neutralizan al alfil negro mientras se libera el peón g. g5 y g6 corren entonces, y el negro no puede con los dos flancos.',
-      en: 'The pawn on a6 ties the black bishop down, so White creates a second passer on the other wing. Bg4 and Be2 neutralise the black bishop while the g-pawn is freed. g5 and g6 then run, and Black cannot cope with both wings.',
+      en: 'The pawn on a6 ties the black bishop down, so White creates a second passer on the other wing. Bg4 and Be2 neutralize the black bishop while the g-pawn is freed. g5 and g6 then run, and Black cannot cope with both wings.',
     },
   },
   {
@@ -2647,7 +2647,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'Las blancas ganan el peón b, pero la posición se simplifica a un final con un solo peón. Ese peón corona en g8, casilla que el alfil negro cubre sin problemas. Reducir a un peón del color equivocado tira la victoria por la borda.',
-      en: 'White wins the b-pawn, but the position simplifies into an ending with a single pawn. That pawn queens on g8, and the black bishop covers that square comfortably. Reducing to one pawn on the wrong colour throws the win away.',
+      en: 'White wins the b-pawn, but the position simplifies into an ending with a single pawn. That pawn queens on g8, and the black bishop covers that square comfortably. Reducing to one pawn on the wrong color throws the win away.',
     },
   },
   {
@@ -2736,7 +2736,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'El caballo cambia de color de casilla en cada jugada, así que nunca puede simplemente pasar. Aquí el negro necesita desesperadamente una jugada de espera y el caballo no se la puede dar. a6 y a7 pasan directos mientras el caballo queda fuera de alcance.',
-      en: 'A knight changes square colour with every move, so it can never simply pass. Black badly needs a waiting move here and the knight cannot supply one. a6 and a7 go straight through while the knight is out of range.',
+      en: 'A knight changes square color with every move, so it can never simply pass. Black badly needs a waiting move here and the knight cannot supply one. a6 and a7 go straight through while the knight is out of range.',
     },
   },
   {
@@ -2754,7 +2754,7 @@ export const ENDGAMES = [
   {
     id: 'n8', category: 'knight',
     name: { es: 'A.Salvio 1634', en: 'A.Salvio 1634' },
-    subtitle: { es: 'Ejemplo 2 — juegan negras, el bando que juega pierde', en: 'Example 2 — Black to move, the side to move is lost' },
+    subtitle: { es: 'Ejemplo 2 — juegan negras, el bando que juega pierde', en: 'Example 2 — Black to move, loss' },
     fen: '4N3/8/6p1/8/8/7p/5K1k/8 b - - 0 1',
     moves: ["g6g5","e8f6","g5g4","f6g4","h2h1","f2f1","h3h2","g4f2"],
     result: 'loss',
@@ -2822,7 +2822,7 @@ export const ENDGAMES = [
   },
   {
     id: 'n14', category: 'knight',
-    name: { es: 'M. Dvoretsky 2000', en: 'M. Dvoretsky 2000' },
+    name: { es: 'M.Dvoretsky 2000', en: 'M.Dvoretsky 2000' },
     fen: '8/2N5/8/2p1k3/2P5/8/8/7K w - - 0 1',
     moves: ["c7b5","e5e4","h1g2","e4d3","b5d6"],
     result: 'win',
@@ -2872,7 +2872,7 @@ export const ENDGAMES = [
     result: 'win',
     comment: {
       es: 'Dos caballos no pueden forzar el mate por sí solos, pero un peón negro les da con qué trabajar. Cf2 bloquea el peón f mientras el rey entra por g6. El segundo caballo cierra después la red, porque el peón le quita al negro la defensa del ahogado.',
-      en: 'Two knights cannot force mate on their own, but a black pawn gives them something to work with. Nf2 blockades the f-pawn while the king walks in via g6. The second knight then closes the net, because the pawn removes Black\'s stalemate defence.',
+      en: 'Two knights cannot force mate on their own, but a black pawn gives them something to work with. Nf2 blockades the f-pawn while the king walks in via g6. The second knight then closes the net, because the pawn removes Black\'s stalemate defense.',
     },
   },
   {
@@ -2883,7 +2883,7 @@ export const ENDGAMES = [
     result: 'draw',
     comment: {
       es: 'El negro corona primero, así que las blancas deben generar amenazas en vez de correr. b6+ y las maniobras de caballo mantienen encerrado al rey negro en el flanco de dama. La dama de más no llega a tiempo y las blancas aguantan.',
-      en: 'Black promotes first, so White must generate threats instead of racing. b6+ and the knight manoeuvres keep the black king boxed in on the queenside. The extra queen cannot be brought to bear in time, and White holds.',
+      en: 'Black promotes first, so White must generate threats instead of racing. b6+ and the knight maneuvers keep the black king boxed in on the queenside. The extra queen cannot be brought to bear in time, and White holds.',
     },
   },
   {
@@ -2955,7 +2955,7 @@ export const ENDGAMES = [
   },
   {
     id: 'm6', category: 'minor',
-    name: { es: 'Mate de alfil y caballo: la maniobra clave', en: 'Bishop and knight mate — key manoeuvre' },
+    name: { es: 'Mate de alfil y caballo: la maniobra clave', en: 'Bishop and knight mate — key maneuver' },
     fen: '4k3/B7/3K4/3N4/8/8/8/8 b - - 0 1',
     moves: ["e8d8","d5e7","d8e8","d6e6","e8d8","a7b6","d8e8","b6c7","e8f8","e7f5","f8e8","f5g7","e8f8","e6f6"],
     result: 'loss',
