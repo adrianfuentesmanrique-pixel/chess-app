@@ -1166,6 +1166,35 @@ names of this file.
 
 ## Spanish repair list — do this AFTER the English review
 
+**DONE 2026-08-08, in its own session, `sw.js` v48 → v49.** 18 of the 20 items
+are fixed and ticked below; item 8 and one bullet of item 17 were deliberately
+left alone, and each says why in place. Four commits: the three factual errors
+first, then the *motor* sweep, then the Puzzles naming decision, then the rest.
+No `en:` value was touched, no DICT key was renamed (count is 530 before and
+after), and `history_bot_name` was left frozen.
+
+Adrian made the two calls the list reserved for him: item 11 is **Puzzles**
+(applied to all six sites, including `tab_puzzles`, which the list had missed),
+and item 12 is **`ELO {n}`**.
+
+Everything the list flagged as tight was measured over CDP at 375px in light and
+dark rather than eyeballed, and all three warnings turned out to have room:
+- item 10 — the `.hist-line2 .ellipsis` slot is **319.0px** and the longest new
+  string, *Tablas por la regla de 50 jugadas*, is **194.5px**. 124.5px spare,
+  nothing clipped.
+- item 11 — the frozen mode strip is **355.0px** with the three buttons summing
+  to **335.5px**: 19.5px of slack, not the "under 5px" the list feared. Spanish
+  *🙈 A ciegas* is narrower than English *🙈 Blindfold*, which is where the room
+  came from.
+- item 15 — the Blindfold row is 355px and *👁 Vistazo (2)* (122.6px) +
+  *Ver solución* (113.7px) + *Siguiente* (99.5px) = 335.8px. Nothing clipped.
+
+`document.scrollWidth` stayed **375** on all seven tabs in both colour modes,
+with **zero** console errors. The handful of container-level overflow flags the
+sweep reports are identical on the pre-change commit — verified by stashing and
+re-running — and the baseline actually had **one more**, on the Play screen,
+which the *motor* sweep removed.
+
 Every Spanish problem found while reviewing English, gathered in one place so
 none of them is lost in a per-batch section. **Nothing here has been fixed** —
 the English review never edits an `es:` value. Work through this as its own
@@ -1173,38 +1202,45 @@ task once all ten batches are done.
 
 Ordered worst first.
 
-1. **`js/learning-data.js`, `board` lesson — factually wrong.**
+1. **[x]** **`js/learning-data.js`, `board` lesson — factually wrong.**
    "la casilla h1 ... siempre es **oscura**". h1 is a light square, so it must
    read **"clara"**. Batch 3 fixed the English side, so right now the app
    teaches the opposite fact in each language. *(batch 3)*
-2. **`js/i18n.js`, `tour_learn_tab_b` / `tour_learn_sec_t` — inconsistent with
+2. **[x]** **`js/i18n.js`, `tour_learn_tab_b` / `tour_learn_sec_t` — inconsistent with
    the tab.** They say **"Jaques mates básicos"**; work order #9 renamed the
    Learn section to **"Jaque mates"**. Both are defensible Spanish, but the tour
    and the tab now disagree on screen. *(batch 2)*
-3. **`js/i18n.js`, `tour_base_games_b` — wrong agreement.** "Cualquier partida
+3. **[x]** **`js/i18n.js`, `tour_base_games_b` — wrong agreement.** "Cualquier partida
    que toques se abre en el tablero de análisis. Ahora está **vacía**" —
    *vacía* agrees with *partida*, but the empty thing is the *base*. Reads as
    if the game is empty. *(batch 2)*
-4. **`js/learning-data.js`, `castling_illegal` — verb mood.** "Lo mismo ocurre
+4. **[x]** **`js/learning-data.js`, `castling_illegal` — verb mood.** "Lo mismo ocurre
    si el rey **tendría** que pasar por una casilla atacada" — conditional after
    *si*; Spanish wants **"tuviera que"**. *(batch 3)*
-5. **`js/i18n.js`, `tour_puz_modes_b` — punctuation.** "Táctica normal, a
+5. **[x]** **`js/i18n.js`, `tour_puz_modes_b` — punctuation.** "Táctica normal, a
    ciegas, o Rush contrarreloj" — Spanish does not normally take a comma before
    **o** in a simple list. *(batch 2)*
-6. **`js/learning-data.js`, `promotion` — style only, not an error.** "se
+6. **[x]** **`js/learning-data.js`, `promotion` — style only, not an error.** "se
    corona: se convierte en dama, torre, alfil o caballo" repeats *corona* and
    *convierte* back to back. *(batch 3)*
-7. **`js/badges.js`, `rush_10` / `rush_30` — feature name.** "Rush: 10 en una
+7. **[x]** **`js/badges.js`, `rush_10` / `rush_30` — feature name.** "Rush: 10 en una
    racha" uses the bare **"Rush"**, while `rush_1` right above it says
    **"Primer Puzzle Rush"**. The English side was fixed to "Puzzle Rush: …" in
    batch 4, so the two languages now name the mode differently. *(batch 4)*
-8. **`js/badges.js` — mixed voice across the badge names.** Most are noun
+8. **[ ] left as-is on purpose** **`js/badges.js` — mixed voice across the badge names.** Most are noun
    phrases ("Novato de la táctica", "Explorador de aperturas"), but the engine
    badges are past-tense verbs ("**Venció a** Principiante", "Venció a todos los
    niveles del motor") and so is "Convirtió: …". Not an error, but a trophy case
    reads better all in one voice. *(batch 4)*
 
-9. **`js/i18n.js`, `play_from_here` — inconsistent name for the opponent.**
+   **Not done, on purpose (2026-08-08).** The English has the *identical*
+   mixed voice — `Beat <level>` and `Converted: <cat>` are verbs there too,
+   and batch 4 signed those off. Rewriting only the Spanish into noun phrases
+   would create a fresh EN/ES mismatch, which is the exact class of problem
+   this whole list exists to remove. Doing it properly means changing English
+   too, and English is closed. Leave it unless Adrian reopens the English.
+
+9. **[x]** **`js/i18n.js`, `play_from_here` — inconsistent name for the opponent.**
    "Jugar contra **la máquina** desde aquí", but everywhere else the Spanish
    calls it the **motor** (`engine_on` "Encender motor", `engine_timeout` "El
    motor no respondió"). **English is now settled: the opponent is always the
@@ -1235,7 +1271,7 @@ Ordered worst first.
    written into saved PGN headers and is frozen by STYLE-EN §10 in both
    languages.
 
-10. **`js/i18n.js`, the four drawing `history_end_*` keys — the two languages
+10. **[x]** **`js/i18n.js`, the four drawing `history_end_*` keys — the two languages
     now disagree about clarity.** Adrian settled on 2026-08-08 that an
     end-reason label must name the outcome, because "Threefold repetition" does
     not tell a beginner whether they won, lost or drew (STYLE-EN §5). The
@@ -1255,7 +1291,7 @@ Ordered worst first.
     measured 319px, and the longest Spanish string here is close to that.
     *(batch 6)*
 
-11. **`js/i18n.js` — Spanish cannot decide what the Puzzles feature is called.**
+11. **[x]** **`js/i18n.js` — Spanish cannot decide what the Puzzles feature is called.**
     `puzzles_title` is **"Táctica"**, but `mode_puzzles` right beside it is
     **"🧩 Puzzles"**, `blind_title` is **"Puzzles a ciegas"** and `puzzle_elo` is
     **"ELO de táctica"**. So the tab heading, the mode strip on that same screen
@@ -1293,7 +1329,7 @@ Ordered worst first.
       already describes; listing them so the sweep is a finite job.
     *(batch 8)*
 
-12. **`js/i18n.js`, `log_rating` — the Spanish labels the wrong quantity.**
+12. **[x]** **`js/i18n.js`, `log_rating` — the Spanish labels the wrong quantity.**
     English is **"Rating {n}"** and the number is the puzzle's own rating;
     Spanish says **"Dificultad {n}"**. *Dificultad* is already the name of the
     difficulty setting (`difficulty`, "Dificultad") two screens away, so the
@@ -1301,7 +1337,7 @@ Ordered worst first.
     puzzle. Should read **"ELO {n}"** or **"Dificultad del puzzle {n}"** — a
     wording choice, but the current word is genuinely ambiguous. *(batch 7)*
 
-13. **`js/i18n.js`, `puzzle_options` — "Opciones" needs to name its feature.**
+13. **[x]** **`js/i18n.js`, `puzzle_options` — "Opciones" needs to name its feature.**
     Adrian settled on 2026-08-08 that a per-feature settings sheet is called
     `<Feature> settings`, not "Options" (STYLE-EN §6). The English is now
     **"Puzzle settings"**; the Spanish still reads **"Opciones"**. It is both the
@@ -1324,14 +1360,14 @@ Ordered worst first.
     points at that very gear. The English half now says "settings"; the Spanish
     should use whatever word this item settles on. *(batch 9)*
 
-14. **`js/i18n.js`, `delete_account_done` — "la App" is capitalized for no
+14. **[x]** **`js/i18n.js`, `delete_account_done` — "la App" is capitalized for no
     reason.** "Cuenta eliminada. ¡Gracias por usar **la App**!" The English had
     the identical error and batch 8 fixed it to "the app". Spanish should read
     **"¡Gracias por usar la app!"** — or name the product, "¡Gracias por usar
     Chess Training Center!", since the brand name is the same in both languages.
     Cosmetic, but it is the last thing a departing user reads. *(batch 8)*
 
-15. **`js/i18n.js`, `blind_peek_btn` — the Spanish carries an explanation the
+15. **[x]** **`js/i18n.js`, `blind_peek_btn` — the Spanish carries an explanation the
     English no longer has, and it is now too long for the button.** Spanish is
     **"Pista (ver piezas)"**; the English was `'Hint (peek)'` and is now
     **`'Peek'`**, because the code renders `` `👁 ${label} (${left})` `` and the
@@ -1348,7 +1384,7 @@ Ordered worst first.
     applying — the other two buttons are `show_solution` and `next`.
     *(batch 8)*
 
-16. **`js/i18n.js`, `blind_no_peeks_toast` — the Spanish still advertises a
+16. **[x]** **`js/i18n.js`, `blind_no_peeks_toast` — the Spanish still advertises a
     membership tier that does not exist.** It reads "Ya usaste tus vistazos
     **gratis**. ¡Hazte **Miembro** para vistazos ilimitados!" There is no
     membership tier (`js/app.js:25`), and the peek limit is a flat 2 **per
@@ -1360,7 +1396,7 @@ Ordered worst first.
     mentioned a Member, so once it is done the word is gone from the app.
     *(batch 8)*
 
-17. **`js/i18n.js`, the Kael onboarding block — three problems, one of them a
+17. **[x] (one bullet left)** **`js/i18n.js`, the Kael onboarding block — three problems, one of them a
     real punctuation error.** All found in batch 9, whose English half is done.
     - **`kael_reco_middle` is missing its opening `¡`.** It reads **"Buen
       nivel!"**; Spanish needs **"¡Buen nivel!"** Every other exclamation in the
@@ -1380,6 +1416,11 @@ Ordered worst first.
       still has the single character. Cosmetic; batches 5–8 left the same
       mismatch in every other `…` string they fixed, so if it is worth doing it
       is worth doing as one sweep of the whole file.
+      **Not done, on purpose (2026-08-08).** 13 Spanish strings carry `…`.
+      STYLE-EN §3 governs English only, and `…` is *correct* Spanish
+      typography — flattening it to `...` would make the Spanish worse in
+      order to match a rule that does not apply to it. The other two bullets
+      of this item are done. One line of work if Adrian ever wants it.
     *(batch 9)*
 
     Not a Spanish bug, recorded so nobody "fixes" it: **`tour_board_b` says
@@ -1391,14 +1432,14 @@ Ordered worst first.
     the Spanish "tablero de análisis" is already the correct one — only
     `tour_board_b` needs changing.
 
-18. **`js/endgames-data.js`, `p6` comment — factually wrong, same class as item
+18. **[x]** **`js/endgames-data.js`, `p6` comment — factually wrong, same class as item
     1.** "Dos peones separados por una columna **se defienden entre sí** sin
     ayuda del rey." They do not defend each other: the fen is
     `8/8/8/5k2/5P1P/8/8/K7`, so the pawns are on **f4 and h4** and neither covers
     the other. The correct statement is that they defend *themselves* — **"se
     defienden solos"**. Batch 10 fixed the English side, so until this is done
     the two languages teach different things about the same diagram. *(batch 10)*
-19. **`js/endgames-data.js`, `r10` / `r11` / `r12` names — the title contradicts
+19. **[x]** **`js/endgames-data.js`, `r10` / `r11` / `r12` names — the title contradicts
     the board.** All three read **"Torre contra peón: …"** (singular) and all
     three positions have **two** connected pawns — a6+b5, d6+e6, f5+g6 — which is
     exactly what all three Spanish comments then describe ("Dos peones ligados en
@@ -1408,7 +1449,7 @@ Ordered worst first.
     colon where the English uses ` — `; keep the Spanish colon, it is consistent
     with its siblings. *(batch 10)*
 
-20. **`js/endgames-data.js`, `p47` — the two languages now name the same study
+20. **[x]** **`js/endgames-data.js`, `p47` — the two languages now name the same study
     differently.** It read `New York 1924*` in both. Adrian removed the
     unexplained `*` from all five names that carried one on 2026-08-08, and this
     was the only one with no player name in it, so its English was reworded to

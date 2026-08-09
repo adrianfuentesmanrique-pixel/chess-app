@@ -113,7 +113,7 @@ export const LEARNING_CATEGORIES = [
         fen: 'r3k2r/8/8/4R3/8/8/8/4K3 b kq - 0 1',
         shapes: { squares: [{ sq: 'e8', color: 'red' }], arrows: [{ from: 'e5', to: 'e8', color: 'red' }] },
         text: {
-          es: 'Aquí las negras conservan el derecho a enrocar (ni el rey ni las torres se han movido), pero no pueden hacerlo: el rey está en jaque por la torre blanca en e5. Un rey en jaque debe resolverlo primero — moverse, capturar o bloquear — antes de poder enrocar. Lo mismo ocurre si el rey tendría que pasar por una casilla atacada, o si hay una pieza entre el rey y la torre.',
+          es: 'Aquí las negras conservan el derecho a enrocar (ni el rey ni las torres se han movido), pero no pueden hacerlo: el rey está en jaque por la torre blanca en e5. Un rey en jaque debe resolverlo primero — moverse, capturar o bloquear — antes de poder enrocar. Lo mismo ocurre si el rey tuviera que pasar por una casilla atacada, o si hay una pieza entre el rey y la torre.',
           en: 'Here Black still has the right to castle (neither the king nor the rooks have moved), but can\'t: the king is in check from the white rook on e5. A king in check must deal with it first — move, capture, or block — before castling becomes possible again. The same applies if the king would have to pass through an attacked square, or if a piece sits between the king and the rook.',
         },
       },
@@ -135,7 +135,7 @@ export const LEARNING_CATEGORIES = [
         fen: 'k7/4P3/8/8/8/8/8/K7 w - - 0 1',
         shapes: { squares: [], arrows: [{ from: 'e7', to: 'e8', color: 'green' }] },
         text: {
-          es: 'Cuando un peón alcanza la última fila (la 8ª para blancas, la 1ª para negras), se corona: se convierte en dama, torre, alfil o caballo, a elección del jugador (casi siempre dama, por ser la pieza más fuerte). Puede haber más de una dama en el tablero al mismo tiempo.',
+          es: 'Cuando un peón alcanza la última fila (la 8ª para blancas, la 1ª para negras), se corona: pasa a ser dama, torre, alfil o caballo, a elección del jugador (casi siempre dama, por ser la pieza más fuerte). Puede haber más de una dama en el tablero al mismo tiempo.',
           en: 'When a pawn reaches the last rank (the 8th for White, the 1st for Black), it promotes: it becomes a queen, rook, bishop, or knight — your choice (almost always a queen, since it\'s the strongest piece). You can have more than one queen on the board at the same time.',
         },
         practice: { from: 'e7', to: 'e8' },

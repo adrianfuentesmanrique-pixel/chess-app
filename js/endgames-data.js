@@ -538,7 +538,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p47', category: 'pawn',
-    name: { es: 'New York 1924*', en: 'An Example from New York, 1924' },
+    name: { es: 'Un ejemplo de Nueva York, 1924', en: 'An Example from New York, 1924' },
     fen: '8/1k3p1p/3P2p1/8/3K2P1/8/8/8 w - - 0 1',
     moves: ["d4e5","b7c8","g4g5"],
     result: 'win',
