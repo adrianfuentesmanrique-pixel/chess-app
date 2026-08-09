@@ -786,7 +786,8 @@ Fixed (5 plain fixes):
   tap opens… **It's** empty right now" reads as if the *game* is empty, when the
   empty thing is the database. Now **"Your database is empty right now"**.
 
-Judgement calls applied, flagged for Adrian:
+Judgement calls applied, flagged for Adrian — **all five confirmed by Adrian on
+2026-08-08. Settled, no follow-up edit needed, do not reopen them in batch 10:**
 
 - **`kael_welcome_body` lost its corporate register.** It was "**To tailor your
   experience**, I'd like to understand your level **a bit**" — STYLE-EN §7 bans
@@ -904,7 +905,11 @@ Not touched, deliberately:
 i18n.js batch, so anything here needs its own follow-up:
 
 1. **`tour_engine_b`** — the only *unresolved* one. Frozen, reported twice, needs
-   Adrian's yes. Everything else below is recorded, not pending.
+   Adrian's yes. Everything else below is recorded, not pending. **Still open
+   after Adrian confirmed batch 9's five judgement calls on 2026-08-08** — he
+   answered those and did not answer this one, so do not read the confirmation as
+   covering it. Whoever picks it up: the fix is one word ("the best move"), the
+   question is whether a 2-line panel justifies the plural.
 2. **Dead strings, deliberately left in place:** `no_bases_yet` (batch 5),
    `rush_open`, `rush_result_title`, `rush_wrong_end` (batch 8),
    `game_review_move`, `game_review_accuracy` (this batch). Removing a key is a

@@ -84,7 +84,8 @@ These are the app's own names. Do not invent variants.
 \* **Opening Explorer** is the correct name for the *move-tree panel inside
 Analysis*. It is a component, not the tab. The tab is **Openings**.
 
-**`Game Review` added by batch 9 (2026-08-08).** It was not in this table, and §2
+**`Game Review` added by batch 9 (2026-08-08), confirmed by Adrian the same day.**
+It was not in this table, and §2
 would otherwise sentence-case it — batch 8 lowercased `rush_result_title` to
 "Puzzle Rush result" on exactly that reasoning. The difference is that "Puzzle
 Rush result" is *feature name + common noun*, while "Game Review" **is** the
@@ -197,6 +198,15 @@ limit is a flat 2 per puzzle and `js/app.js:25` records that the gating "does
 not exist again" yet. It now states the real rule instead. If a paid tier ships
 later, the copy can change with it; until then no string implies one, and
 "free"/"Member" are out of the vocabulary.
+
+**Batch 9 (2026-08-08) found the second instance and Adrian confirmed the same
+rule covers it.** `kael_reco_master` congratulated a strong new player with "You
+have **full access to everything** here" — nobody is gated out of anything, so
+the sentence answers a question the app never raises, in tier vocabulary. It now
+reads "Everything here is open to you". **"Access", "full access" and "unlock"
+are out of the vocabulary too** wherever they describe what a user is entitled
+to, not just "free" and "Member". (`badge_earned`'s "Achievement unlocked!" is
+fine — that is a trophy, and it really does unlock.)
 
 **Close vs Exit — settled by Adrian 2026-08-08, do not reopen.** `Close` shuts
 something that sits *on top of* the screen: a dialog, a sheet, a panel. `Exit`
