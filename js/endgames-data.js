@@ -13,7 +13,7 @@ export const ENDGAMES = [
   // ── PAWN ────────────────────────────────────────
   {
     id: 'p1', category: 'pawn',
-    name: { es: 'La regla del cuadrado', en: 'The rule of the square' },
+    name: { es: 'La regla del cuadrado', en: 'The Rule of the Square' },
     subtitle: { es: 'Ejemplo 1 — juegan blancas, ganan', en: 'Example 1 — White to move, win' },
     fen: '6k1/8/8/8/8/8/P7/7K w - - 0 1',
     moves: ["a2a4","g8f7","a4a5","f7e6","a5a6","e6d6","a6a7","d6c7","a7a8q"],
@@ -25,7 +25,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p2', category: 'pawn',
-    name: { es: 'El peón está en la sexta fila', en: 'The pawn is on the 6th rank' },
+    name: { es: 'El peón está en la sexta fila', en: 'The Pawn Is on the Sixth Rank' },
     fen: '5k2/8/5PK1/8/8/8/8/8 w - - 0 1',
     moves: ["f6f7","f8e7","g6g7"],
     result: 'win',
@@ -36,7 +36,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p3', category: 'pawn',
-    name: { es: 'Casillas clave', en: 'Key squares' },
+    name: { es: 'Casillas clave', en: 'Key Squares' },
     fen: '5k2/8/4K3/5P2/8/8/8/8 w - - 0 1',
     moves: ["e6f6","f8e8","f6g7","e8e7","f5f6","e7e6","f6f7"],
     result: 'win',
@@ -47,7 +47,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p4', category: 'pawn',
-    name: { es: 'Encerrar al rey del bando fuerte', en: 'Imprisoning the stronger side\'s king' },
+    name: { es: 'Encerrar al rey del bando fuerte', en: 'Imprisoning the Stronger Side\'s King' },
     fen: '8/8/8/p7/8/1k6/3K4/8 w - - 0 1',
     moves: ["d2c1","b3a2","c1c2","a5a4","c2c1","a4a3","c1c2","a2a1","c2c1"],
     result: 'draw',
@@ -58,7 +58,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p5', category: 'pawn',
-    name: { es: 'Peones doblados', en: 'Doubled pawns' },
+    name: { es: 'Peones doblados', en: 'Doubled Pawns' },
     fen: '8/1k6/8/1P6/1P6/1K6/8/8 w - - 0 1',
     moves: ["b3c3","b7c7","c3d4","c7b6","d4c4","b6c7","c4c5","c7b7","b5b6","b7a6","b6b7","a6b7","c5b5"],
     result: 'win',
@@ -69,7 +69,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p6', category: 'pawn',
-    name: { es: 'Peones aislados', en: 'Isolated pawns' },
+    name: { es: 'Peones aislados', en: 'Isolated Pawns' },
     fen: '8/8/8/5k2/5P1P/8/8/K7 w - - 0 1',
     moves: ["h4h5","f5f6","a1b2","f6g7","f4f5","g7h6","f5f6"],
     result: 'win',
@@ -80,7 +80,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p7', category: 'pawn',
-    name: { es: 'Peones bloqueados. Casillas clave', en: 'Blocked pawns. Key squares' },
+    name: { es: 'Peones bloqueados. Casillas clave', en: 'Blocked Pawns. Key Squares' },
     fen: 'k7/8/1p6/1P6/8/8/7K/8 w - - 0 1',
     moves: ["h2g3","a8b7","g3f4","b7c7","f4e5","c7d7","e5d5","d7c7","d5e6","c7c8","e6d6","c8b7","d6d7","b7b8"],
     result: 'win',
@@ -91,7 +91,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p8', category: 'pawn',
-    name: { es: 'Peones bloqueados', en: 'Blocked pawns' },
+    name: { es: 'Peones bloqueados', en: 'Blocked Pawns' },
     fen: '8/8/8/5p2/3k4/5P2/8/6K1 w - - 0 1',
     moves: ["f3f4","d4e4","g1g2","e4f4","g2f2","f4e4","f2e2","f5f4","e2f2","f4f3","f2f1","e4e3","f1e1","f3f2"],
     result: 'draw',
@@ -102,7 +102,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p9', category: 'pawn',
-    name: { es: 'Peones en columnas contiguas', en: 'Pawns on adjacent files' },
+    name: { es: 'Peones en columnas contiguas', en: 'Pawns on Adjacent Files' },
     fen: '8/8/5p2/8/4P1k1/8/7K/8 w - - 0 1',
     moves: ["e4e5","f6e5","h2g2","g4f4","g2f2"],
     result: 'draw',
@@ -113,7 +113,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p10', category: 'pawn',
-    name: { es: 'Maniobra del rey con doble propósito', en: 'Passed pawns. Dual-purpose king maneuvers' },
+    name: { es: 'Maniobra del rey con doble propósito', en: 'Passed Pawns. Dual-Purpose King Maneuvers' },
     fen: '8/6p1/7k/8/1K6/8/1P6/8 w - - 0 1',
     moves: ["b4c5","h6g6","b2b4","g6f7","b4b5","f7e7","c5c6","e7d8","c6b7","g7g5","b5b6","g5g4","b7a7","g4g3"],
     result: 'win',
@@ -124,7 +124,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p11', category: 'pawn',
-    name: { es: 'Peones de torre y un peón pasado lejano', en: 'Rook\'s pawns and one distant passed pawn' },
+    name: { es: 'Peones de torre y un peón pasado lejano', en: 'Rook\'s Pawns and One Distant Passed Pawn' },
     fen: '8/8/3k3p/3P3P/2K5/8/8/8 w - - 0 1',
     moves: ["c4d4","d6d7","d4e5","d7e7","e5f5","e7d6","f5g6","d6d5","g6h6","d5e6","h6g7"],
     result: 'win',
@@ -135,7 +135,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p12', category: 'pawn',
-    name: { es: 'El peón pasado es central y cercano', en: 'The passed pawn is central and near' },
+    name: { es: 'El peón pasado es central y cercano', en: 'The Passed Pawn Is Central and Near' },
     fen: '8/p7/P7/8/8/3k4/3P4/3K4 w - - 0 1',
     moves: ["d1c1","d3d4","c1c2","d4c4","d2d3","c4d4","c2d2","d4d5","d2c3","d5c5","d3d4","c5d5","c3d3","d5d6"],
     result: 'draw',
@@ -146,7 +146,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p13', category: 'pawn',
-    name: { es: 'Peón de alfil pasado en el mismo flanco', en: 'A passed Bishop\'s pawn on the same wing' },
+    name: { es: 'Peón de alfil pasado en el mismo flanco', en: 'A Passed Bishop\'s Pawn on the Same Wing' },
     fen: '5k2/5P1p/4K3/8/8/8/7P/8 w - - 0 1',
     moves: ["e6f6","h7h5","h2h3","h5h4","f6g6"],
     result: 'win',
@@ -157,7 +157,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p14', category: 'pawn',
-    name: { es: 'El bando defensor ya movió su peón. Triangulación', en: 'The defending side has moved its pawn. Triangulation' },
+    name: { es: 'El bando defensor ya movió su peón. Triangulación', en: 'The Defending Side Has Moved Its Pawn. Triangulation' },
     fen: '2k5/8/p1P5/P2K4/8/8/8/8 w - - 0 1',
     moves: ["d5d4","c8d8","d4c4","d8c8","c4d5","c8c7","d5c5"],
     result: 'win',
@@ -168,7 +168,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p15', category: 'pawn',
-    name: { es: 'Perder un tiempo — peones g y h contra peón h', en: 'Reserve tempi — g- and h-pawns vs h-pawn' },
+    name: { es: 'Perder un tiempo — peones g y h contra peón h', en: 'Reserve Tempi — g- and h-pawns vs. h-pawn' },
     subtitle: { es: 'Ejemplo 1 — peones en g2 y h2, juegan negras', en: 'Example 1 — pawns on g2 and h2, Black to move, loss' },
     fen: '8/7p/5k2/8/5K2/8/6PP/8 b - - 0 1',
     moves: ["h7h6","g2g4","f6g6","h2h3","g6f6","h3h4","h6h5","g4g5","f6f7","f4e5","f7g7","e5f5","g7f7","g5g6"],
@@ -180,7 +180,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p16', category: 'pawn',
-    name: { es: 'El rey contra dos peones pasados', en: 'King against 2 passed pawns' },
+    name: { es: 'El rey contra dos peones pasados', en: 'King against Two Passed Pawns' },
     fen: '8/6k1/6P1/p2p3P/8/8/2K5/8 b - - 0 1',
     moves: ["a5a4","c2c3","g7h6","c3b4","d5d4","b4a4"],
     result: 'loss',
@@ -191,7 +191,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p17', category: 'pawn',
-    name: { es: 'Peones pasados protegidos', en: 'Protected passed pawns' },
+    name: { es: 'Peones pasados protegidos', en: 'Protected Passed Pawns' },
     fen: '8/8/8/1p2kPp1/6P1/4K3/8/8 b - - 0 1',
     moves: ["e5d5","e3d3","d5e5","d3c3","e5d5","c3b4","d5c6","b4a5","c6c5","f5f6","c5d6","a5b5","d6e6","b5c5"],
     result: 'draw',
@@ -202,7 +202,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p18', category: 'pawn',
-    name: { es: 'Peones pasados lejanos', en: 'Distant passed pawns' },
+    name: { es: 'Peones pasados lejanos', en: 'Distant Passed Pawns' },
     fen: '8/8/3k4/1p2p3/1P2K3/8/7P/8 w - - 0 1',
     moves: ["h2h4","d6e6","h4h5","e6f6","h5h6","f6g6","e4e5","g6h6","e5d5","h6g6","d5c5","g6f6","c5b5","f6e7"],
     result: 'win',
@@ -213,7 +213,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p19', category: 'pawn',
-    name: { es: 'Perder un tiempo — peones g y h contra peón h', en: 'Reserve tempi — g- and h-pawns vs h-pawn' },
+    name: { es: 'Perder un tiempo — peones g y h contra peón h', en: 'Reserve Tempi — g- and h-pawns vs. h-pawn' },
     subtitle: { es: 'Ejemplo 2 — peones en g4 y h4, juegan negras', en: 'Example 2 — pawns on g4 and h4, Black to move, loss' },
     fen: '8/8/5k1p/8/5KPP/8/8/8 b - - 0 1',
     moves: ["f6e6","f4e4","e6f6","e4d5","f6e7","d5e5","e7f7","e5f5","f7g7","f5e6","g7g6","h4h5","g6g5","e6f7"],
@@ -225,7 +225,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p20', category: 'pawn',
-    name: { es: 'Ruptura tras el avance equivocado', en: 'Breakthrough after the wrong push' },
+    name: { es: 'Ruptura tras el avance equivocado', en: 'Breakthrough after the Wrong Push' },
     fen: '8/7k/p3p1pP/6P1/8/2K5/8/8 w - - 0 1',
     moves: ["c3c4","h7g8","c4c5","g8f7","c5c4","f7f8","c4c5","f8f7","c5c4","f7f8","c4c5","f8f7"],
     result: 'draw',
@@ -236,7 +236,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p21', category: 'pawn',
-    name: { es: 'El peón de torre. El rey defensor delante del peón', en: 'The rook\'s pawn. Defending king in front of the pawn' },
+    name: { es: 'El peón de torre. El rey defensor delante del peón', en: 'The Rook\'s Pawn. Defending King in Front of the Pawn' },
     fen: '8/8/8/8/8/6kp/8/6K1 w - - 0 1',
     moves: ["g1h1","h3h2"],
     result: 'draw',
@@ -317,7 +317,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p28', category: 'pawn',
-    name: { es: 'La regla del cuadrado', en: 'The rule of the square' },
+    name: { es: 'La regla del cuadrado', en: 'The Rule of the Square' },
     subtitle: { es: 'Ejemplo 2 — juegan blancas, ganan', en: 'Example 2 — White to move, win' },
     fen: '8/5p2/4p3/8/3P4/5k2/P7/5K2 w - - 0 1',
     moves: ["d4d5","e6d5","a2a4","f3e4","a4a5"],
@@ -538,7 +538,7 @@ export const ENDGAMES = [
   },
   {
     id: 'p47', category: 'pawn',
-    name: { es: 'New York 1924*', en: 'New York 1924*' },
+    name: { es: 'New York 1924*', en: 'An Example from New York, 1924' },
     fen: '8/1k3p1p/3P2p1/8/3K2P1/8/8/8 w - - 0 1',
     moves: ["d4e5","b7c8","g4g5"],
     result: 'win',
@@ -632,7 +632,7 @@ export const ENDGAMES = [
   // ── ROOK ────────────────────────────────────────
   {
     id: 'r1', category: 'rook',
-    name: { es: 'Torre contra peón', en: 'Rook versus pawn' },
+    name: { es: 'Torre contra peón', en: 'Rook vs. Pawn' },
     fen: '4R3/8/7K/8/1kp5/8/8/8 w - - 0 1',
     moves: ["h6g5","c4c3","g5f4","c3c2","e8c8","b4b3","f4e3","b3b2","e3d2"],
     result: 'win',
@@ -654,7 +654,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r3', category: 'rook',
-    name: { es: 'El rey fuerte detrás del peón', en: 'Strong king behind the pawn' },
+    name: { es: 'El rey fuerte detrás del peón', en: 'Strong King behind the Pawn' },
     fen: '7R/8/2K5/8/1pk5/8/8/8 w - - 0 1',
     moves: ["h8h4","c4c3","c6c5","b4b3","h4h3","c3c2","c5c4","b3b2","h3h2","c2c1","c4c3","b2b1n","c3d3","b1a3"],
     result: 'draw',
@@ -665,7 +665,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r4', category: 'rook',
-    name: { es: 'El rey del bando fuerte a un lado', en: 'Stronger side\'s king on one side' },
+    name: { es: 'El rey del bando fuerte a un lado', en: 'Stronger Side\'s King on One Side' },
     fen: '8/8/8/7K/3pk3/8/8/3R4 w - - 0 1',
     moves: ["h5g4","e4e3","g4g3","d4d3","d1e1","e3d2","g3f2"],
     result: 'win',
@@ -676,7 +676,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r5', category: 'rook',
-    name: { es: 'La torre delante del peón', en: 'The Rook in front of the pawn' },
+    name: { es: 'La torre delante del peón', en: 'The Rook in Front of the Pawn' },
     fen: '8/5K2/8/4pk2/4R3/8/8/8 w - - 0 1',
     moves: ["e4e2","e5e4","e2e1","f5e5","f7e7","e5f4","e7d6","f4f3","d6d5","e4e3","d5d4"],
     result: 'win',
@@ -687,7 +687,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r6', category: 'rook',
-    name: { es: 'El peón de caballo: la defensa de g7', en: 'Knight\'s pawn — the g7 defense' },
+    name: { es: 'El peón de caballo: la defensa de g7', en: 'Knight\'s Pawn — The g7 Defense' },
     fen: '3K4/4R3/8/1p6/8/2k5/8/8 w - - 0 1',
     moves: ["e7c7","c3b3","d8d7","b5b4","d7d6","b3a2","d6c5","b4b3","c5b4","b3b2","c7a7","a2b1","b4b3","b1c1"],
     result: 'win',
@@ -698,7 +698,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r7', category: 'rook',
-    name: { es: 'El peón de torre. Empuje desde atrás', en: 'The rook\'s pawn. Pushing from the rear' },
+    name: { es: 'El peón de torre. Empuje desde atrás', en: 'The Rook\'s Pawn. Pushing from the Rear' },
     fen: '7R/8/1K6/8/pk6/8/8/8 w - - 0 1',
     moves: ["h8h4","b4b3","b6b5","a4a3","h4h3","b3b2","b5b4","a3a2","h3h2","b2b1","b4b3","a2a1n","b3c3"],
     result: 'win',
@@ -709,7 +709,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r8', category: 'rook',
-    name: { es: 'El peón de torre. Empuje lateral', en: 'The rook\'s pawn. Lateral push' },
+    name: { es: 'El peón de torre. Empuje lateral', en: 'The Rook\'s Pawn. Lateral Push' },
     fen: '7R/8/8/8/8/8/pk1K4/8 w - - 0 1',
     moves: ["h8b8","b2a1","b8a8","a1b2","a8b8","b2a1","b8c8","a1b2"],
     result: 'draw',
@@ -720,7 +720,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r9', category: 'rook',
-    name: { es: 'El peón gana a la torre', en: 'The pawn wins against the rook' },
+    name: { es: 'El peón gana a la torre', en: 'The Pawn Wins against the Rook' },
     fen: '8/2P2k2/3K4/5r2/8/8/8/8 b - - 0 1',
     moves: ["f5f6","d6d5","f6f5","d5d4","f5f4","d4d3","f4f3","d3c2","f3f2","c2b3","f2f3","b3b4","f3f4","b4b5"],
     result: 'loss',
@@ -731,7 +731,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r10', category: 'rook',
-    name: { es: 'Torre contra peón: reyes alejados', en: 'Rook versus two pawns — kings distant' },
+    name: { es: 'Torre contra peón: reyes alejados', en: 'Rook vs. Two Pawns — Kings Distant' },
     fen: '8/8/P7/1P5k/8/8/7K/5r2 w - - 0 1',
     moves: ["b5b6","f1b1","a6a7"],
     result: 'win',
@@ -742,7 +742,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r11', category: 'rook',
-    name: { es: 'Torre contra peón: ambos reyes activos', en: 'Rook versus two pawns — both kings active' },
+    name: { es: 'Torre contra peón: ambos reyes activos', en: 'Rook vs. Two Pawns — Both Kings Active' },
     fen: 'r3k3/8/3PP3/3K4/8/8/8/8 w - - 0 1',
     moves: ["d5e5","a8a1","e5d5","a1e1","d6d7","e8e7"],
     result: 'loss',
@@ -753,7 +753,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r12', category: 'rook',
-    name: { es: 'Torre contra peón: solo el rey defensor', en: 'Rook versus two pawns — defending king only' },
+    name: { es: 'Torre contra peón: solo el rey defensor', en: 'Rook vs. Two Pawns — Defending King Only' },
     fen: '8/8/5KP1/5P2/8/2k4r/8/8 b - - 0 1',
     moves: ["h3f3","g6g7","f3g3","f6f7","c3d4","f5f6","d4e5"],
     result: 'draw',
@@ -775,7 +775,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r14', category: 'rook',
-    name: { es: 'La posición de Lucena. El puente', en: 'The Lucena Position. The bridge' },
+    name: { es: 'La posición de Lucena. El puente', en: 'The Lucena Position. The Bridge' },
     fen: '3K4/3P1k2/8/8/8/8/7r/4R3 b - - 0 1',
     moves: ["h2c2","e1f1","f7g7","f1f4","c2c1","d8e7","c1e1","e7d6","e1d1","d6e6","d1e1","e6d5","e1d1","f4d4"],
     result: 'loss',
@@ -798,7 +798,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r16', category: 'rook',
-    name: { es: 'El peón de caballo. Defensa en la primera fila', en: 'The knight\'s pawn. First-rank defense' },
+    name: { es: 'El peón de caballo. Defensa en la primera fila', en: 'The Knight\'s Pawn. First-Rank Defense' },
     fen: '1k6/7R/8/KP6/8/8/8/2r5 w - - 0 1',
     moves: ["a5a6","c1c8","b5b6","c8f8","h7b7","b8a8","b7a7","a8b8","a7h7","f8g8"],
     result: 'draw',
@@ -809,7 +809,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r17', category: 'rook',
-    name: { es: 'Peones centrales o de alfil. Técnica defensiva de Kling y Horwitz (2)', en: 'Central or bishop pawns. Kling and Horwitz (K&H) defensive technique (2)' },
+    name: { es: 'Peones centrales o de alfil. Técnica defensiva de Kling y Horwitz (2)', en: 'Central or Bishop Pawns. Kling and Horwitz (K&H) Defensive Technique (2)' },
     fen: '4k3/7R/8/3KPr2/8/8/8/8 b - - 0 1',
     moves: ["f5f1","d5d6","f1e1","d6e6","e8d8","h7h8","d8c7","e6f6","c7d7","h8h7","d7e8","f6e6","e8d8","h7h8"],
     result: 'draw',
@@ -820,7 +820,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r18', category: 'rook',
-    name: { es: 'Peón central en la sexta. Torre con eficacia a distancia', en: 'Central 6th-rank pawn. Rook with distant effectiveness' },
+    name: { es: 'Peón central en la sexta. Torre con eficacia a distancia', en: 'Central Sixth-Rank Pawn. Rook with Distant Effectiveness' },
     fen: 'r7/3RK1k1/4P3/8/8/8/8/8 w - - 0 1',
     moves: ["d7d8","a8a7","d8d7","a7a8","d7d6","g7g6","d6d7","g6g7"],
     result: 'draw',
@@ -843,7 +843,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r20', category: 'rook',
-    name: { es: 'El corte por una columna', en: 'Cutting off along one file' },
+    name: { es: 'El corte por una columna', en: 'Cutting Off along One File' },
     fen: '7r/8/4k3/8/2P5/2K5/8/3R4 b - - 0 1',
     moves: ["h8c8","c3b4","c8b8","b4c5","b8c8","c5b5","c8b8","b5a6","b8c8","d1d4","e6e5","d4d5","e5e6","a6b5"],
     result: 'draw',
@@ -854,7 +854,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r21', category: 'rook',
-    name: { es: 'Torre contra alfil: el rincón equivocado', en: 'Rook versus bishop — wrong corner' },
+    name: { es: 'Torre contra alfil: el rincón equivocado', en: 'Rook vs. Bishop — Wrong Corner' },
     fen: '6k1/5R2/6K1/8/8/8/8/6b1 w - - 0 1',
     moves: ["f7f1","g1h2","f1h1","h2g3","h1g1","g3h2","g1g2","h2d6","g2d2","d6e7","d2c2","e7f8","c2c8"],
     result: 'win',
@@ -865,7 +865,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r22', category: 'rook',
-    name: { es: 'Rey defensor cortado por dos columnas. Método combinado de Grigoriev', en: 'Defending king cut off by 2 files. Grigoriev\'s combined method' },
+    name: { es: 'Rey defensor cortado por dos columnas. Método combinado de Grigoriev', en: 'Defending King Cut Off by Two Files. Grigoriev\'s Combined Method' },
     fen: '2r5/8/5k2/8/2P5/2K5/8/4R3 w - - 0 1',
     moves: ["c3b4","c8b8","b4a5","b8c8","a5b5","c8b8","b5a6","b8c8","e1c1","f6e7","a6b7","c8c5","b7b6","c5h5"],
     result: 'win',
@@ -876,7 +876,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r23', category: 'rook',
-    name: { es: 'Rey cortado por dos columnas en el lado largo. Temas de mate', en: 'King cut off along 2 files long side. Mating themes' },
+    name: { es: 'Rey cortado por dos columnas en el lado largo. Temas de mate', en: 'King Cut Off along Two Files Long Side. Mating Themes' },
     fen: '3r4/8/k7/8/3P4/3K4/8/1R6 w - - 0 1',
     moves: ["d3c4","d8c8","c4d5","c8d8","d5c6","d8c8","c6d7","c8c2","d4d5"],
     result: 'win',
@@ -887,7 +887,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r24', category: 'rook',
-    name: { es: 'Corte perfecto por una fila', en: 'Perfect Cut along a rank' },
+    name: { es: 'Corte perfecto por una fila', en: 'Perfect Cut along a Rank' },
     fen: '1r6/8/8/2R5/1P1k4/1K6/8/8 b - - 0 1',
     moves: ["b8a8","c5c6","a8b8","c6a6","d4d5","b3a4","d5c4","a6c6","c4d5","b4b5","b8a8","a4b4","a8b8","c6c7"],
     result: 'loss',
@@ -898,7 +898,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r25', category: 'rook',
-    name: { es: 'Corte imperfecto por una fila', en: 'Imperfect Cut along a rank' },
+    name: { es: 'Corte imperfecto por una fila', en: 'Imperfect Cut along a Rank' },
     fen: '2r5/8/7R/4k3/2P5/2K5/8/8 b - - 0 1',
     moves: ["c8b8","h6g6","b8b7","c4c5","e5d5"],
     result: 'draw',
@@ -909,7 +909,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r26', category: 'rook',
-    name: { es: 'Corte aparente por una fila', en: 'Apparent Cut along a rank' },
+    name: { es: 'Corte aparente por una fila', en: 'Apparent Cut along a Rank' },
     fen: '4r3/8/8/5R2/4P1k1/4K3/8/8 b - - 0 1',
     moves: ["e8a8","f5c5","a8d8","c5d5","d8a8","e3d4","g4f4","d5f5","f4g4"],
     result: 'draw',
@@ -920,7 +920,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r27', category: 'rook',
-    name: { es: 'Peón en la séptima. La torre atacante delante del peón', en: 'Pawn on the 7th rank. Attacking rook in front of the pawn' },
+    name: { es: 'Peón en la séptima. La torre atacante delante del peón', en: 'Pawn on the Seventh Rank. Attacking Rook in Front of the Pawn' },
     fen: 'R7/P4k2/8/8/8/8/6K1/r7 b - - 0 1',
     moves: ["f7g7","g2f3","g7h7","f3e4","h7g7","e4d5","g7h7","d5c6","h7g7","c6b6","a1b1","b6a6","b1a1","a6b5"],
     result: 'draw',
@@ -931,7 +931,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r28', category: 'rook',
-    name: { es: 'Peón en la sexta. La defensa Vancura', en: 'Pawn on the 6th rank. The Vancura Defense' },
+    name: { es: 'Peón en la sexta. La defensa Vancura', en: 'Pawn on the Sixth Rank. The Vancura Defense' },
     fen: 'R7/5k2/P7/8/8/8/6K1/r7 b - - 0 1',
     moves: ["f7g7","g2f3","a1f1","f3e4","f1f6","e4d5","f6b6","d5c5","b6f6","c5b5","f6f5","b5b6","f5f6","b6b7"],
     result: 'draw',
@@ -966,7 +966,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r31', category: 'rook',
-    name: { es: 'La torre y el rey apoyan al peón', en: 'The rook and the king support the pawn' },
+    name: { es: 'La torre y el rey apoyan al peón', en: 'The Rook and the King Support the Pawn' },
     fen: '8/1K1k4/2R5/P7/8/8/8/7r b - - 0 1',
     moves: ["h1b1","c6b6","b1c1","a5a6","c1c7","b7a8","c7c8","a8a7","c8c7","b6b7","d7c8","a7b6","c7c1","b7h7"],
     result: 'draw',
@@ -988,7 +988,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r33', category: 'rook',
-    name: { es: 'Torre contra alfil: el rincón correcto', en: 'Rook versus bishop — right corner' },
+    name: { es: 'Torre contra alfil: el rincón correcto', en: 'Rook vs. Bishop — Right Corner' },
     fen: '7k/R7/7K/8/8/1b6/8/8 w - - 0 1',
     moves: ["a7a8","b3g8","a8a7","g8b3","h6g6","b3c4","a7h7","h8g8","h7c7","c4d3","g6h6","d3e4"],
     result: 'draw',
@@ -999,7 +999,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r34', category: 'rook',
-    name: { es: 'Peones de caballo: castigar el juego descuidado', en: 'Knight\'s pawns — punishing careless play' },
+    name: { es: 'Peones de caballo: castigar el juego descuidado', en: 'Knight\'s Pawns — Punishing Careless Play' },
     fen: '8/6p1/8/8/1R4pk/r7/6K1/8 w - - 0 1',
     moves: ["b4b2","g4g3","b2c2","g7g6","c2b2","g6g5","b2c2","g5g4","c2b2","a3a1","b2c2","a1b1","c2a2","b1c1"],
     result: 'draw',
@@ -1010,7 +1010,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r35', category: 'rook',
-    name: { es: 'Rey defensor cortado en la última fila', en: 'Defending king cut off on the back rank' },
+    name: { es: 'Rey defensor cortado en la última fila', en: 'Defending King Cut Off on the Back Rank' },
     fen: '6k1/1R6/5P1P/6K1/8/8/8/r7 b - - 0 1',
     moves: ["a1g1","g5f5","g1f1","f5e6","f1e1","e6d6","e1d1","d6e7","d1e1","e7d8","e1d1","d8e8","d1e1","b7e7"],
     result: 'loss',
@@ -1021,7 +1021,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r36', category: 'rook',
-    name: { es: 'Peón de alfil en la quinta fila', en: 'Bishop\'s pawn on the 5th rank' },
+    name: { es: 'Peón de alfil en la quinta fila', en: 'Bishop\'s Pawn on the Fifth Rank' },
     fen: '6k1/1R6/7P/5PK1/8/8/8/2r5 b - - 0 1',
     moves: ["c1g1","g5f6","g1h1","b7g7","g8f8","f6g6","h1g1","g6h7","g1f1","g7a7","f1g1","f5f6","g1g2","a7g7"],
     result: 'loss',
@@ -1055,7 +1055,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r39', category: 'rook',
-    name: { es: 'Torre atacante atascada delante del peón de séptima', en: 'Attacking rook stuck in front of the 7th-rank pawn' },
+    name: { es: 'Torre atacante atascada delante del peón de séptima', en: 'Attacking Rook Stuck in Front of the Seventh-Rank Pawn' },
     fen: 'R7/P5k1/8/8/8/6P1/6K1/r7 w - - 0 1',
     moves: ["g2f3","a1a2","f3e4","a2a1","e4d5","a1a2","d5c6","a2a1","c6b6","a1b1","b6c6","b1a1","g3g4","a1a2"],
     result: 'draw',
@@ -1066,7 +1066,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r40', category: 'rook',
-    name: { es: 'La defensa Vancura contra dos peones', en: 'Vancura Defense against 2 pawns' },
+    name: { es: 'La defensa Vancura contra dos peones', en: 'Vancura Defense against Two Pawns' },
     fen: 'R7/6k1/8/8/P6P/6K1/8/4r3 b - - 0 1',
     moves: ["e1e4","a4a5","e4e5","g3f3","e5h5","f3g3","h5c5","a5a6","c5c6","g3f4","g7h7","f4e5","c6b6","e5d5"],
     result: 'draw',
@@ -1077,7 +1077,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r41', category: 'rook',
-    name: { es: 'Torre contra caballo: en el borde', en: 'Rook versus knight — at the edge' },
+    name: { es: 'Torre contra caballo: en el borde', en: 'Rook vs. Knight — At the Edge' },
     fen: '8/8/8/8/8/3k4/r7/3NK3 w - - 0 1',
     moves: ["d1f2","d3e3","f2d1","e3f3","d1c3","a2c2","c3d1","c2e2","e1f1","e2h2","f1e1","h2c2","e1f1"],
     result: 'draw',
@@ -1100,7 +1100,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r43', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 1', en: 'The king is far from the edge. Cochrane defense Part 1' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 1', en: 'The King Is Far from the Edge. Cochrane Defense Part 1' },
     fen: '8/8/5k2/r7/4BK2/8/7R/8 b - - 0 1',
     moves: ["a5b5","h2h6","f6e7","h6a6","b5c5","e4d3","c5c7","f4e5","c7c5","e5d4","c5g5","d3e4","g5h5","a6g6"],
     result: 'draw',
@@ -1111,7 +1111,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r44', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 2', en: 'The king is far from the edge. Cochrane defense Part 2' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 2', en: 'The King Is Far from the Edge. Cochrane Defense Part 2' },
     fen: '8/4k3/6R1/r7/3KB3/8/8/8 w - - 15 9',
     moves: ["e4d5","a5a1","d4e5","a1e1","d5e4","e1e2"],
     result: 'draw',
@@ -1122,7 +1122,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r45', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 4', en: 'The king is far from the edge. Cochrane defense Part 4' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 4', en: 'The King Is Far from the Edge. Cochrane Defense Part 4' },
     fen: '8/8/8/r2BK1k1/8/8/8/5R2 w - - 53 28',
     moves: ["f1g1","g5h5","g1h1","h5g5","h1b1","g5h5","b1g1","a5b5","e5d4","h5h6","d5e4","b5g5","g1f1","h6g7"],
     result: 'draw',
@@ -1133,7 +1133,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r46', category: 'rook',
-    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 3', en: 'The king is far from the edge. Cochrane defense Part 3' },
+    name: { es: 'El rey está lejos del borde. Defensa Cochrane, parte 3', en: 'The King Is Far from the Edge. Cochrane Defense Part 3' },
     fen: '8/4k3/6R1/4K3/4B3/8/4r3/8 w - - 21 12',
     moves: ["g6g7","e7e8","g7a7","e2e1","e5d5","e8f8","e4f5","e1e7","a7a8","f8f7","a8a1","f7f6","f5c8","e7e5"],
     result: 'draw',
@@ -1144,7 +1144,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r47', category: 'rook',
-    name: { es: 'Segunda estructura defensiva', en: 'Second defensive setup' },
+    name: { es: 'Segunda estructura defensiva', en: 'Second Defensive Setup' },
     fen: '8/6R1/7B/3K4/7k/8/4r3/8 b - - 0 1',
     moves: ["h4h3","h6f4","e2g2","g7h7","h3g4","d5e4","g2e2","f4e3","e2g2","h7g7","g4h3","e3g5","h3g4","g7g8"],
     result: 'draw',
@@ -1155,7 +1155,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r48', category: 'rook',
-    name: { es: 'Torre y peón de alfil en la sexta', en: 'Rook + 6th-rank bishop\'s pawn' },
+    name: { es: 'Torre y peón de alfil en la sexta', en: 'Rook + Sixth-Rank Bishop\'s Pawn' },
     fen: '5k2/1R6/8/4KP2/2b5/8/8/8 w - - 0 1',
     moves: ["e5f6","f8g8","f6e7","g8g7","b7b6","c4f7","f5f6","g7g6","b6d6","f7c4","f6f7","g6f5","f7f8q"],
     result: 'win',
@@ -1166,7 +1166,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r49', category: 'rook',
-    name: { es: 'Torre y peón de torre contra alfil', en: 'Rook and rook\'s pawn versus bishop' },
+    name: { es: 'Torre y peón de torre contra alfil', en: 'Rook and Rook\'s Pawn vs. Bishop' },
     fen: '7k/R7/7P/6K1/8/8/2b5/8 w - - 0 1',
     moves: ["a7c7","c2d3","g5f6","d3e4","h6h7","e4h7"],
     result: 'draw',
@@ -1618,7 +1618,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r88', category: 'rook',
-    name: { es: 'Balashov – Dvoretsky, USSR ch tt, Moscow 1967*', en: 'Balashov – Dvoretsky, USSR ch tt, Moscow 1967*' },
+    name: { es: 'Balashov – Dvoretsky, USSR ch tt, Moscow 1967', en: 'Balashov – Dvoretsky, USSR ch tt, Moscow 1967' },
     fen: '8/P1R5/6k1/2K3p1/r7/8/8/8 b - - 0 1',
     moves: ["a4a1","c7c6","g6f5","c6c7","g5g4","c7b7","a1a7","b7a7","f5e4","a7a1","g4g3","a1b1","g3g2","b1a1"],
     result: 'draw',
@@ -1662,7 +1662,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r92', category: 'rook',
-    name: { es: 'N.Grigoriev 1936*', en: 'N.Grigoriev 1936*' },
+    name: { es: 'N.Grigoriev 1936', en: 'N.Grigoriev 1936' },
     fen: '8/8/R7/1P4kp/P7/1r6/5K2/8 w - - 0 1',
     moves: ["a6d6","b3b2","f2e3","h5h4"],
     result: 'draw',
@@ -1830,7 +1830,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r107', category: 'rook',
-    name: { es: 'E.Lequesne, J.Berger*', en: 'E.Lequesne, J.Berger*' },
+    name: { es: 'E.Lequesne, J.Berger', en: 'E.Lequesne, J.Berger' },
     subtitle: { es: 'Ejemplo 1 — juegan negras, tablas', en: 'Example 1 — Black to move, draw' },
     fen: '7k/R7/7K/7P/8/3b4/8/8 b - - 0 1',
     moves: ["h8g8","a7a1","d3c2","a1b1","c2b1","h6g5","b1a2","h5h6","a2b1","h6h7","g8h7"],
@@ -1842,7 +1842,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r108', category: 'rook',
-    name: { es: 'E.Lequesne, J.Berger*', en: 'E.Lequesne, J.Berger*' },
+    name: { es: 'E.Lequesne, J.Berger', en: 'E.Lequesne, J.Berger' },
     subtitle: { es: 'Ejemplo 2 — juegan blancas, ganan', en: 'Example 2 — White to move, win' },
     fen: '7k/R7/8/6K1/4b2P/8/8/8 w - - 0 1',
     moves: ["g5h6","h8g8","a7g7","g8f8","g7g5","f8f7","g5g3","e4c2","h6h5","f7f6","g3g5","c2d1","h5h6","f6f7"],
@@ -1898,7 +1898,7 @@ export const ENDGAMES = [
   },
   {
     id: 'r113', category: 'rook',
-    name: { es: 'J.Enevoldsen 1949*', en: 'J.Enevoldsen 1949*' },
+    name: { es: 'J.Enevoldsen 1949', en: 'J.Enevoldsen 1949' },
     fen: '6k1/1R5p/4K3/7P/8/2b5/8/8 b - - 0 1',
     moves: ["c3d2","e6f6","d2c3","f6f5","c3d2","b7d7","d2c1","d7d1","c1e3","f5f6"],
     result: 'loss',
@@ -1999,7 +1999,7 @@ export const ENDGAMES = [
   // ── QUEEN ───────────────────────────────────────
   {
     id: 'q1', category: 'queen',
-    name: { es: 'Dama contra torre y peón de torre', en: 'Queen versus rook and rook\'s pawn' },
+    name: { es: 'Dama contra torre y peón de torre', en: 'Queen vs. Rook and Rook\'s Pawn' },
     fen: '8/1k6/p5Q1/1r6/1K6/8/8/8 w - - 0 1',
     moves: ["b4a4","b5c5","g6d6","c5c6","d6e5","b7b6","a4b4","c6c7","e5d4","b6c6","b4a5","c7d7","d4a4","c6c7"],
     result: 'win',
@@ -2010,7 +2010,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q2', category: 'queen',
-    name: { es: 'Dama contra peón en la séptima', en: 'Queen versus pawn on the seventh' },
+    name: { es: 'Dama contra peón en la séptima', en: 'Queen vs. Pawn on the Seventh' },
     fen: '6K1/8/3Q4/8/8/8/5kp1/8 w - - 0 1',
     moves: ["d6f4","f2e2","f4g3","e2f1","g3f3","f1g1","g8g7","g1h2","f3f2","h2h1","f2h4","h1g1","g7g6","g1f1"],
     result: 'win',
@@ -2021,7 +2021,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q3', category: 'queen',
-    name: { es: 'Dama contra peón de torre en la séptima', en: 'Queen versus rook\'s pawn on the seventh' },
+    name: { es: 'Dama contra peón de torre en la séptima', en: 'Queen vs. Rook\'s Pawn on the Seventh' },
     fen: '8/5K1P/8/8/3q4/8/8/2k5 w - - 0 1',
     moves: ["f7g8","d4d8","g8g7","d8g5","g7f7","g5h6","f7g8","h6g6","g8h8","c1d2"],
     result: 'draw',
@@ -2032,7 +2032,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q4', category: 'queen',
-    name: { es: 'Dama contra peón de torre en la séptima (2)', en: 'Queen versus rook\'s pawn on the seventh (2)' },
+    name: { es: 'Dama contra peón de torre en la séptima (2)', en: 'Queen vs. Rook\'s Pawn on the Seventh (2)' },
     fen: '8/6KP/8/4k3/3q4/8/8/8 b - - 0 1',
     moves: ["d4d7","g7g6","d7e6","g6g7","e6e7","g7g8","e5f6","h7h8q","f6g6"],
     result: 'win',
@@ -2043,7 +2043,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q5', category: 'queen',
-    name: { es: 'Dama contra peón de alfil en la séptima', en: 'Queen versus bishop\'s pawn on the seventh' },
+    name: { es: 'Dama contra peón de alfil en la séptima', en: 'Queen vs. Bishop\'s Pawn on the Seventh' },
     fen: '8/5P2/3K4/8/8/1k6/8/q7 w - - 0 1',
     moves: ["d6e7","a1e5","e7d7","e5f6","d7e8","f6e6","e8f8","b3c4","f8g7","e6e7","g7g8","e7g5","g8h8","g5f6"],
     result: 'draw',
@@ -2054,7 +2054,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q6', category: 'queen',
-    name: { es: 'Trampa de ahogado: dama contra peón', en: 'Stalemate trap — queen versus pawn' },
+    name: { es: 'Trampa de ahogado: dama contra peón', en: 'Stalemate Trap — Queen vs. Pawn' },
     fen: '8/8/8/3K4/8/4Q3/2p5/1k6 w - - 0 1',
     moves: ["e3b3","b1a1","b3e3","a1b1","e3e4","b1b2","e4e2","b2a1","d5c4","c2c1q","c4b3","c1b1"],
     result: 'draw',
@@ -2065,7 +2065,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q7', category: 'queen',
-    name: { es: 'Dama contra dama', en: 'Queen versus queen' },
+    name: { es: 'Dama contra dama', en: 'Queen vs. Queen' },
     fen: '8/8/8/8/8/k2K4/2Q5/q7 w - - 0 1',
     moves: ["c2c5","a3a2","c5c4","a2a3","c4a6","a3b2","a6b5","b2a3","b5a5","a3b2","a5b4","b2a2","d3c2"],
     result: 'win',
@@ -2076,7 +2076,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q8', category: 'queen',
-    name: { es: 'Dama contra torre y peón', en: 'Queen versus rook and pawn' },
+    name: { es: 'Dama contra torre y peón', en: 'Queen vs. Rook and Pawn' },
     fen: '8/4k3/4p3/3r4/4K3/7Q/8/8 w - - 0 1',
     moves: ["e4f4","d5f5","f4g4","f5d5","h3h7","e7f6","h7g8","f6e7","g8g7","e7e8","g7f6","e8d7","f6f7","d7d6"],
     result: 'win',
@@ -2268,7 +2268,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q25', category: 'queen',
-    name: { es: 'Peones en columnas contiguas', en: 'Pawns on adjacent files' },
+    name: { es: 'Peones en columnas contiguas', en: 'Pawns on Adjacent Files' },
     subtitle: { es: 'Ejemplo 1 — juegan negras, tablas', en: 'Example 1 — Black to move, draw' },
     fen: '8/4kp2/4r3/6PK/8/8/7Q/8 b - - 0 1',
     moves: ["e7f8","h5g4","f8g7","g4f5","e6g6","h2b2","g7h7","b2f6"],
@@ -2280,7 +2280,7 @@ export const ENDGAMES = [
   },
   {
     id: 'q26', category: 'queen',
-    name: { es: 'Peones en columnas contiguas', en: 'Pawns on adjacent files' },
+    name: { es: 'Peones en columnas contiguas', en: 'Pawns on Adjacent Files' },
     subtitle: { es: 'Ejemplo 2 — juegan blancas, ganan', en: 'Example 2 — White to move, win' },
     fen: '8/4kp2/4r3/6PK/8/8/7Q/8 w - - 0 1',
     moves: ["h2b8","e6g6","b8b4","e7e8","b4e4","g6e6","e4e6","f7e6","h5h6"],
@@ -2327,7 +2327,7 @@ export const ENDGAMES = [
   // ── BISHOP ──────────────────────────────────────
   {
     id: 'b1', category: 'bishop',
-    name: { es: 'Alfiles del mismo color: alfil y peón contra alfil', en: 'Same-colored bishops — bishop and pawn versus bishop' },
+    name: { es: 'Alfiles del mismo color: alfil y peón contra alfil', en: 'Same-Colored Bishops — Bishop and Pawn vs. Bishop' },
     fen: '5k2/2K5/3P4/1b5B/8/8/8/8 w - - 0 1',
     moves: ["h5f3","b5a4","f3c6","a4c6","c7c6","f8e8","c6c7"],
     result: 'win',
@@ -2338,7 +2338,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b2', category: 'bishop',
-    name: { es: 'Detrás del peón', en: 'In the rear of the pawn' },
+    name: { es: 'Detrás del peón', en: 'In the Rear of the Pawn' },
     fen: '4B3/2K5/3P4/2k5/8/7b/8/8 w - - 0 1',
     moves: ["e8d7","h3f1","d7g4","f1b5","g4d7","b5e2","d7c6","e2g4"],
     result: 'draw',
@@ -2349,7 +2349,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b3', category: 'bishop',
-    name: { es: 'Las diagonales cortas', en: 'The short diagonals' },
+    name: { es: 'Las diagonales cortas', en: 'The Short Diagonals' },
     fen: '8/K7/1P6/k4B2/8/5b2/8/8 w - - 0 1',
     moves: ["f5c8","f3e4","c8b7","e4d3","b7f3","d3a6","f3g4"],
     result: 'win',
@@ -2360,7 +2360,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b4', category: 'bishop',
-    name: { es: 'La defensa frontal', en: 'Frontal defense' },
+    name: { es: 'La defensa frontal', en: 'Frontal Defense' },
     fen: '8/8/2k5/5PK1/8/2b5/7B/8 b - - 0 1',
     moves: ["c3a1","f5f6","a1f6"],
     result: 'draw',
@@ -2371,7 +2371,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b5', category: 'bishop',
-    name: { es: 'Peones en la sexta fila', en: 'Pawns on the 6th rank' },
+    name: { es: 'Peones en la sexta fila', en: 'Pawns on the Sixth Rank' },
     fen: '4k3/8/4PP2/4K3/1b6/3B4/8/8 w - - 0 1',
     moves: ["d3b5","e8d8","e5f5","b4c5","f5g6","c5b4","g6f7","b4c5","e6e7"],
     result: 'win',
@@ -2382,7 +2382,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b6', category: 'bishop',
-    name: { es: 'Peones en la quinta fila o más atrás', en: 'Pawns on the 5th rank or behind' },
+    name: { es: 'Peones en la quinta fila o más atrás', en: 'Pawns on the Fifth Rank or Behind' },
     fen: '8/4k3/8/4PP2/4K3/1b6/3B4/8 w - - 0 1',
     moves: ["d2g5","e7d7","e4f4","b3a2","g5h4","a2f7","f4g5","d7e7","g5h6","e7d7","h6g7","f7d5","g7f6","d5b3"],
     result: 'win',
@@ -2393,7 +2393,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b7', category: 'bishop',
-    name: { es: 'Peones ligados en su posición inicial', en: 'Connected pawns in the starting position' },
+    name: { es: 'Peones ligados en su posición inicial', en: 'Connected Pawns in the Starting Position' },
     fen: '8/5kb1/8/8/6K1/3B4/4PP2/8 w - - 0 1',
     moves: ["f2f4","g7f8","e2e4","f7e7","d3c4","f8g7","e4e5","g7h6","c4b3","h6g7","g4g5","g7h8","g5g6","e7f8"],
     result: 'win',
@@ -2404,7 +2404,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b8', category: 'bishop',
-    name: { es: 'Peones separados por una sola columna', en: 'Pawns separated by just one file' },
+    name: { es: 'Peones separados por una sola columna', en: 'Pawns Separated by Just One File' },
     fen: '3k4/1K6/2PbP3/3B4/8/8/8/8 w - - 0 1',
     moves: ["d5b3","d6f4","b7b6","f4d6","b6b5","d6c7","b5c4","c7d6","c4d5","d6c7","d5e4","c7d6","e4f5","d6c7"],
     result: 'draw',
@@ -2426,7 +2426,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b10', category: 'bishop',
-    name: { es: 'El procedimiento ganador', en: 'The winning procedure' },
+    name: { es: 'El procedimiento ganador', en: 'The Winning Procedure' },
     fen: '8/2kB4/2P5/6b1/4K3/5P2/8/8 w - - 0 1',
     moves: ["f3f4","g5h4","e4d5","h4e1","d5e6","e1h4","f4f5","c7d8","f5f6","h4g5","e6f5","g5h6","f5g6","h6f8"],
     result: 'win',
@@ -2448,7 +2448,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b12', category: 'bishop',
-    name: { es: 'Peones central y de torre', en: 'Central and rook\'s pawns' },
+    name: { es: 'Peones central y de torre', en: 'Central and Rook\'s Pawns' },
     fen: '8/bB6/P2k4/3P4/4K3/8/8/8 w - - 0 1',
     moves: ["e4f5","d6e7","f5e5","a7b8","e5d4","b8a7","d4c4","e7d6"],
     result: 'draw',
@@ -2459,7 +2459,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b13', category: 'bishop',
-    name: { es: 'Peones central y de torre (2)', en: 'Central and rook\'s pawns (2)' },
+    name: { es: 'Peones central y de torre (2)', en: 'Central and Rook\'s Pawns (2)' },
     fen: '8/b7/P7/3Bk3/2K1P3/8/8/8 w - - 0 1',
     moves: ["c4d3","e5f4","d3e2","a7b6","e2f1","b6a7","f1g2","a7b6","g2h3","b6f2","d5b7","f4g5","b7c6","g5f4"],
     result: 'win',
@@ -2470,7 +2470,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b14', category: 'bishop',
-    name: { es: 'Peones de alfil y de caballo', en: 'Bishop\'s and knight\'s pawns' },
+    name: { es: 'Peones de alfil y de caballo', en: 'Bishop\'s and Knight\'s Pawns' },
     fen: '1b6/1P6/4Bk2/5P2/4K3/8/8/8 w - - 0 1',
     moves: ["e4f3","f6g5","f3e4","g5f6","e4d5","b8g3","d5c6","f6e7","c6b6","g3b8"],
     result: 'draw',
@@ -2481,7 +2481,7 @@ export const ENDGAMES = [
   },
   {
     id: 'b15', category: 'bishop',
-    name: { es: 'El alfil atacante controla la casilla de coronación del peón de caballo', en: 'The attacking Bishop controls the promotion square of the knight\'s pawn' },
+    name: { es: 'El alfil atacante controla la casilla de coronación del peón de caballo', en: 'The Attacking Bishop Controls the Promotion Square of the Knight\'s Pawn' },
     fen: '2b5/8/1P1B4/8/4kP2/8/5K2/8 b - - 0 1',
     moves: ["c8b7","f2g3","e4f5","g3h4","f5g6","h4g4","b7c8","g4f3","c8b7","f3e3","g6f5","e3d4","f5e6","d6e5"],
     result: 'draw',
@@ -2675,7 +2675,7 @@ export const ENDGAMES = [
   // ── KNIGHT ──────────────────────────────────────
   {
     id: 'n1', category: 'knight',
-    name: { es: 'Caballo contra peón en la séptima', en: 'Knight versus pawn on the seventh' },
+    name: { es: 'Caballo contra peón en la séptima', en: 'Knight vs. Pawn on the Seventh' },
     fen: '8/K7/8/8/8/1k6/1N1p4/8 w - - 0 1',
     moves: ["b2d1","b3c2","d1f2"],
     result: 'draw',
@@ -2686,7 +2686,7 @@ export const ENDGAMES = [
   },
   {
     id: 'n2', category: 'knight',
-    name: { es: 'El peón de caballo', en: 'The knight\'s pawn' },
+    name: { es: 'El peón de caballo', en: 'The Knight\'s Pawn' },
     fen: '8/8/8/8/4N3/1p6/7K/1k6 b - - 0 1',
     moves: ["b3b2","e4d2","b1c1","d2b3","c1d1"],
     result: 'win',
@@ -2697,7 +2697,7 @@ export const ENDGAMES = [
   },
   {
     id: 'n3', category: 'knight',
-    name: { es: 'El peón de torre en la sexta', en: 'The 6th-rank rook\'s pawn' },
+    name: { es: 'El peón de torre en la sexta', en: 'The Sixth-Rank Rook\'s Pawn' },
     fen: '8/8/K7/4N3/8/7p/7k/8 w - - 0 1',
     moves: ["e5g4","h2g3","g4e3","g3f3","e3f1","f3f2","f1h2"],
     result: 'draw',
@@ -2708,7 +2708,7 @@ export const ENDGAMES = [
   },
   {
     id: 'n4', category: 'knight',
-    name: { es: 'El peón de torre en la séptima', en: 'The 7th-rank rook\'s pawn' },
+    name: { es: 'El peón de torre en la séptima', en: 'The Seventh-Rank Rook\'s Pawn' },
     fen: 'K7/8/8/5N2/8/3k3p/8/8 w - - 0 1',
     moves: ["f5g3","h3h2","a8b7","d3d4","b7c6","d4e5","c6c5","e5f4","g3h1","f4f3","c5d4","f3g2","d4e3","g2h1"],
     result: 'draw',
@@ -2719,7 +2719,7 @@ export const ENDGAMES = [
   },
   {
     id: 'n5', category: 'knight',
-    name: { es: 'Rey y caballo no dan mate', en: 'King and knight cannot mate' },
+    name: { es: 'Rey y caballo no dan mate', en: 'King and Knight Cannot Mate' },
     fen: '8/8/8/8/8/p7/2K1N3/k7 w - - 0 1',
     moves: ["e2c1","a3a2","c1b3"],
     result: 'win',
@@ -2730,7 +2730,7 @@ export const ENDGAMES = [
   },
   {
     id: 'n6', category: 'knight',
-    name: { es: 'El caballo no puede perder un tiempo', en: 'The knight cannot lose a tempo' },
+    name: { es: 'El caballo no puede perder un tiempo', en: 'The Knight Cannot Lose a Tempo' },
     fen: '3k4/1n6/8/P7/8/8/7K/8 w - - 0 1',
     moves: ["a5a6","d8c8","a6a7"],
     result: 'win',
@@ -2900,7 +2900,7 @@ export const ENDGAMES = [
   // ── MINOR PIECES ────────────────────────────────
   {
     id: 'm1', category: 'minor',
-    name: { es: 'Peón central', en: 'Central pawn' },
+    name: { es: 'Peón central', en: 'Central Pawn' },
     fen: '1K6/4B3/8/8/8/2n2p2/5k2/8 w - - 0 1',
     moves: ["e7c5","f2e2","c5g1","c3d1","b8c7","d1f2","g1h2","e2f1","h2e5","f2g4","e5d4","f1e2","d4g1"],
     result: 'draw',
@@ -2911,7 +2911,7 @@ export const ENDGAMES = [
   },
   {
     id: 'm2', category: 'minor',
-    name: { es: 'Castigar la jugada de rey equivocada', en: 'Punishing the wrong king move' },
+    name: { es: 'Castigar la jugada de rey equivocada', en: 'Punishing the Wrong King Move' },
     fen: '1K6/8/8/2B5/8/2n2p2/4k3/8 w - - 0 1',
     moves: ["c5g1","f3f2","g1f2","e2f2"],
     result: 'draw',
@@ -2922,7 +2922,7 @@ export const ENDGAMES = [
   },
   {
     id: 'm3', category: 'minor',
-    name: { es: 'El peón de torre', en: 'The rook\'s pawn' },
+    name: { es: 'El peón de torre', en: 'The Rook\'s Pawn' },
     fen: '8/8/8/8/B6n/7p/6k1/4K3 w - - 0 1',
     moves: ["a4d7","h3h2","d7c6","g2g1","c6h1","g1h1","e1f2","h4f3","f2f1","f3d2","f1f2","d2e4","f2f1"],
     result: 'draw',
@@ -2933,7 +2933,7 @@ export const ENDGAMES = [
   },
   {
     id: 'm4', category: 'minor',
-    name: { es: 'El peón está en la séptima fila', en: 'The pawn is on the 7th rank' },
+    name: { es: 'El peón está en la séptima fila', en: 'The Pawn Is on the Seventh Rank' },
     fen: '2K5/3Pkn2/8/8/8/5B2/8/8 w - - 0 1',
     moves: ["c8c7","f7d8","f3d5"],
     result: 'win',
@@ -2955,7 +2955,7 @@ export const ENDGAMES = [
   },
   {
     id: 'm6', category: 'minor',
-    name: { es: 'Mate de alfil y caballo: la maniobra clave', en: 'Bishop and knight mate — key maneuver' },
+    name: { es: 'Mate de alfil y caballo: la maniobra clave', en: 'Bishop and Knight Mate — Key Maneuver' },
     fen: '4k3/B7/3K4/3N4/8/8/8/8 b - - 0 1',
     moves: ["e8d8","d5e7","d8e8","d6e6","e8d8","a7b6","d8e8","b6c7","e8f8","e7f5","f8e8","f5g7","e8f8","e6f6"],
     result: 'loss',

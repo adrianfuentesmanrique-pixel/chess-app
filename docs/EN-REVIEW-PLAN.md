@@ -950,22 +950,17 @@ its own follow-up; none of it is part of the ten batches:
    needing 700px. Batch 3 logged the same fault on one lesson title. No wording
    fits 206px, so this is a CSS job (let the `h2` wrap, or drop the name to a
    second line under the back-button row) — not copy.
-5. **Naming and casing questions still open** from earlier batches: the
-   `Opening Explorer` badge name (batch 4), `Daily Mission` vs `Daily Missions`
-   (batch 4), `STREAK_TIERS` counting in months to 240 (batch 4), and "icon" vs
-   "avatar" in `choose_avatar` / `edit_avatar` (batch 8). **Batch 10 makes the
-   casing strand the big one and it is now three batches deep:** 18 lesson titles
-   (batch 3, Title Case, internally consistent), 23 badge names (batch 4, Title
-   Case, internally consistent) and **189 endgame names (batch 10, split 76 Title
-   Case / 113 sentence case inside one scrollable list)**. STYLE-EN §2 wants
-   sentence case for all three. Deciding it once settles all 230 strings — and
-   the endgame set also carries `vs.` (29) vs `versus` (18), digit vs word ranks,
-   and mid-name capitalized piece names, all of which move with the same call.
-   **Batch 10's leftovers that are not casing:** the trailing `*` on five endgame
-   names, whose meaning nothing in the app explains; and the four Cochrane
-   entries stored out of sequence (Parts 1, 2, 4, 3), which is array order, not
-   copy.
-6. **The whole Spanish repair list below** — now **19** items, untouched by
+5. **Naming questions still open** from earlier batches: the `Opening Explorer`
+   badge name (batch 4), `Daily Mission` vs `Daily Missions` (batch 4),
+   `STREAK_TIERS` counting in months to 240 (batch 4), and "icon" vs "avatar" in
+   `choose_avatar` / `edit_avatar` (batch 8). **The casing strand that ran
+   through batches 3, 4 and 10 is CLOSED** — Adrian chose Title Case for content
+   titles on 2026-08-08, batch 10 converted the 113 endgame names that did not
+   comply, the lesson titles and badge names already did, and STYLE-EN §2 now
+   carries the rule. All 230 agree. **Batch 10's one remaining non-copy
+   leftover:** the four Cochrane entries are stored out of sequence (Parts 1, 2,
+   4, 3), which is array order, not copy.
+6. **The whole Spanish repair list below** — now **20** items, untouched by
    design, plus the note that the endgame attribution strings are deliberately
    identical in both languages.
 
@@ -1059,11 +1054,43 @@ Fixed (plain typo / grammar / house-style, **82 occurrences in 8 named sweeps**)
     "Example 1 — pawns on g2 and h2, Black to move". Both are `result: 'loss'`,
     and their sibling `p48` states it. Now "…, Black to move, **loss**".
 
+**ANSWERED by Adrian on 2026-08-08 and applied in the batch-10 follow-up —
+settled, written into STYLE-EN §2, do not reopen:**
+
+- **Content titles are Title Case.** Adrian chose Title Case, "like the others
+  are" — the 18 lesson titles and the 23 badge names were already Title Case, so
+  the endgame names were the odd set out and the fix was to raise the 113, not
+  lower the 76. **95 of the 189 translated names were rewritten** (94 already
+  complied). STYLE-EN §2 now carries the rule, the Chicago word list, and the two
+  chess carve-outs it needs: **board squares stay lowercase** (`Knight's Pawn —
+  The g7 Defense`) and **file-pawn compounds stay lowercase** (`The g- and
+  h-pawns vs. the h-pawn`) — capitalizing those would have been the obvious way
+  to get this wrong. **All 230 content titles across the app now agree.**
+- **The two consistency sweeps that rode on it were applied at the same time**,
+  as flagged when the question was put:
+  - **`versus` → `vs.`** — the names were split `vs.` 27 / `versus` 18 / bare
+    `vs` 2. Majority form, and the one chess literature uses in titles.
+  - **Digit ranks and counts → words** — `The 6th-rank rook's pawn` → **`The
+    Sixth-Rank Rook's Pawn`**, `King against 2 passed pawns` → **`King against
+    Two Passed Pawns`**. Split 24 / 12 in favor of words, and every name already
+    in Title Case spelled them out.
+  - The third sub-issue, **piece names capitalized mid-title**, resolved itself:
+    under Title Case `A Passed Bishop's Pawn` is simply correct.
+- **The trailing `*` is gone from all five names.** Nothing in the app ever
+  explained it. Four were attributions that read fine without it —
+  `N.Grigoriev 1936`, `Balashov – Dvoretsky, USSR ch tt, Moscow 1967`,
+  `E.Lequesne, J.Berger`, `J.Enevoldsen 1949` — and the `*` was dropped in both
+  languages, since it is a formatting mark on a string that is identical in both.
+  The fifth had no player name at all and Adrian reworded it: `New York 1924*` →
+  **`An Example from New York, 1924`**. That one turns an attribution into
+  translatable prose, so **only the English was changed** and the Spanish still
+  reads `New York 1924*` — repair-list item **20**.
+
 Judgement calls **not applied** — these need Adrian's yes and are recorded in
 the batch-10 report:
 
-- **Name casing: 76 Title Case vs 113 sentence case, inside one scrollable
-  list.** Of the 189 genuinely translated names, `The Floating Square`,
+- ~~**Name casing: 76 Title Case vs 113 sentence case, inside one scrollable
+  list.**~~ **ANSWERED — see above.** Kept here for the reasoning: Of the 189 genuinely translated names, `The Floating Square`,
   `Two Pawns to One`, `The Pawn on the Sixth Rank` are Title Case while
   `The rule of the square`, `Key squares`, `Blocked pawns` are sentence case, and
   they sit as adjacent rows in the same category. STYLE-EN §2 puts headings in
@@ -1090,12 +1117,8 @@ Not touched, deliberately:
   were left exactly as they stand.
 - **`id`, `category`, `fen`, `moves`, `result`** — mechanical data. `category`
   values are storage keys (`'endgame'` domain, radar axes, `Converted: …` badges).
-- **The trailing `*` on five names** (`New York 1924*`, `N.Grigoriev 1936*`,
-  `Balashov – Dvoretsky, USSR ch tt, Moscow 1967*`, `E.Lequesne, J.Berger*`,
-  `J.Enevoldsen 1949*`). Nothing in the app explains it and it is identical in
-  both languages, so it is presumably a source convention (analysis / altered
-  position) carried in with the data. Removing it would discard information;
-  explaining it needs a legend the screen does not have. Flagged, not touched.
+- ~~**The trailing `*` on five names.**~~ **Reported, then removed** — Adrian
+  answered the same day. See the settled list above.
 - **The four Cochrane entries are numbered 1, 2, 4, 3 in file order** (`r43` Part 1,
   `r44` Part 2, `r45` Part **4**, `r46` Part **3**), so the list shows them out of
   sequence. That is the **order of the array**, not a copy problem — fixing it
@@ -1384,6 +1407,17 @@ Ordered worst first.
     defensor"**. The English was fixed in batch 10. Note these three names use a
     colon where the English uses ` — `; keep the Spanish colon, it is consistent
     with its siblings. *(batch 10)*
+
+20. **`js/endgames-data.js`, `p47` — the two languages now name the same study
+    differently.** It read `New York 1924*` in both. Adrian removed the
+    unexplained `*` from all five names that carried one on 2026-08-08, and this
+    was the only one with no player name in it, so its English was reworded to
+    **`An Example from New York, 1924`**. That turns an attribution into
+    translatable prose, which the English review does not write in Spanish — so
+    the Spanish still reads **`New York 1924*`**, asterisk and all. It needs the
+    same treatment, e.g. **"Un ejemplo de Nueva York, 1924"**. The other four
+    asterisks were dropped in both languages, correctly: those strings are
+    attributions, and the `*` was a formatting mark, not copy. *(batch 10)*
 
     Not a Spanish bug, recorded so nobody "fixes" it: the **attribution strings
     are identical in both languages by design** (`M.Dvoretsky 2000`,

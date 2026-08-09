@@ -46,6 +46,47 @@ Chess.com and Lichess use. So:
 - `ELO` stays uppercase everywhere (the app already does this consistently).
 - `PGN`, `FEN`, `ECO`, `PWA` uppercase. `Stockfish` is a proper noun.
 
+**Content titles are Title Case — settled by Adrian 2026-08-08 (batch 10), do not
+reopen.** The sentence-case rule above governs *interface* text: buttons,
+headings, menu items, toasts, labels, placeholders. It does **not** govern the
+name of a piece of content the user opens — a lesson, a trophy, an endgame
+study. Those are titles and they take Title Case:
+
+| Content titles — Title Case | Interface text — sentence case |
+|---|---|
+| `The Rule of the Square` (endgame study) | `Delete game` (button) |
+| `How Pieces Capture` (lesson) | `Puzzle Rush result` (heading) |
+| `First Puzzle Rush` (badge) | `Database name` (label) |
+
+This was open for three batches and covered 230 strings: 18 lesson titles
+(batch 3), 23 badge names (batch 4) and 189 endgame names (batch 10). The first
+two sets were already Title Case and consistent with themselves; the endgame set
+was split 76 / 113 **inside one scrollable list**, which is what forced the
+decision. Batch 10 converted the 113. **All 230 now agree.**
+
+Title Case here means the Chicago form the file already used: capitalize every
+word except articles (`a`, `an`, `the`), coordinating conjunctions (`and`, `or`,
+`but`) and prepositions (`of`, `on`, `in`, `with`, `from`, `along`, `against`,
+`behind`, `after`, `vs.`), unless one of those is the first or last word, or the
+first word after a period, a colon or a spaced em dash. Verbs are capitalized,
+including short ones — `The Pawn **Is** on the Sixth Rank`, `King and Knight
+**Cannot** Mate`. Two chess-specific carve-outs:
+
+- **Board squares stay lowercase**: `Knight's Pawn — The g7 Defense`, not `G7`.
+- **File-pawn compounds stay lowercase**: `The g- and h-pawns vs. the h-pawn`,
+  not `G- and H-Pawns`. This is how chess writing sets them even in headings.
+
+Two consistency rules were settled in the same pass and apply to any future
+content title:
+
+- **`vs.` with the period, never `versus` and never a bare `vs`.** The endgame
+  names were split 27 / 18 / 2; `vs.` is both the majority and the form chess
+  literature uses in titles.
+- **Ranks and small counts are spelled out**: `The Sixth-Rank Rook's Pawn`, not
+  `The 6th-rank rook's pawn`; `King against Two Passed Pawns`, not `against 2`.
+  The names were split 24 / 12 in favor of words, and every name that was already
+  Title Case spelled them out.
+
 ## 3. Punctuation
 
 - **Oxford comma: yes.** "openings, puzzles, and endgames".
