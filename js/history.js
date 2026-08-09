@@ -7,7 +7,7 @@
 // those need a migration.
 import * as db from './db.js';
 import { classifyOpening } from './openings-eco.js';
-import { t } from './i18n.js';
+import { t, tn } from './i18n.js';
 // parsePgn lives in tree.js, not app.js — taken straight from the source so it
 // does not have to travel through the cycle below.
 import { parsePgn } from './tree.js';
@@ -244,7 +244,7 @@ function card(rec) {
   const { white, black } = namesFor(rec);
   const line2 = rec.opening || t(`history_end_${rec.endReason}`);
   const meta = [
-    `${rec.moveCount} ${t('history_moves')}`,
+    `${rec.moveCount} ${tn('history_moves', rec.moveCount)}`,
     formatDuration(rec.endedAt - rec.playedAt),
     formatWhen(rec.playedAt),
   ].filter(Boolean).join(' · ');

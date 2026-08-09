@@ -74,7 +74,7 @@ left alone. **Read both before touching any English text again.**
 
 **Nothing has been pushed.** 24 commits sit on local `main`, from the style guide
 through batch 10 and its follow-up, plus one unrelated crash fix (`58e8e09`).
-`sw.js` is at **v47**. Push straight to `main` — the commits are already linear
+`sw.js` is at **v48**. Push straight to `main` — the commits are already linear
 there, individually revertable, and every batch was verified in a real browser at
 375px before it landed. Check the live site after the *deploy* finishes, not
 after the push.
@@ -84,13 +84,21 @@ after the push.
 These are recorded, not pending. None of them is a copy problem, which is why no
 batch fixed them.
 
-1. **The plural bug — "1 games".** The code glues a number onto a fixed word, so
-   one game reads `My games (1 games)` and importing one says `1 games imported`.
-   Five strings (`games`, `imported`, `history_moves`, `adv_matches`,
-   `lessons_count`) across ten call sites. **No wording can fix this** — the code
-   has to pick the form. Needs a plural helper plus new singular strings in both
-   languages. *Adrian approved fixing it on 2026-08-08; it needs its own session
-   because it writes Spanish.*
+1. ~~**The plural bug — "1 games".**~~ **FIXED 2026-08-08, `sw.js` v47 → v48.**
+   `tn(key, n)` in `js/i18n.js` picks between `key` (plural) and a new `key_one`
+   (singular) and does the `{n}` substitution, so `adv_matches` no longer needs
+   `.replace('{n}', …)` at its call site. Two forms only — English and Spanish
+   split at exactly one for these nouns, so `Intl.PluralRules` was not needed.
+   Five new keys (`games_one` *partida*, `imported_one` *partida importada ✓*,
+   `history_moves_one` *jugada*, `adv_matches_one` *{n} partida encontrada*,
+   `lessons_count_one` *lección*); no key was renamed. Ten call sites converted:
+   `js/app.js` 254, 1519, 2097, 2130, 2298, 2886, 4332, 4338, 4359 and
+   `js/history.js:247`. **`history_moves_one` and `lessons_count_one` are
+   defensive and cannot be reached at 1** — `HISTORY_MIN_PLIES` rejects games
+   that short, and both lesson categories have many lessons. Verified over CDP
+   at 375px in light and dark, in both languages: the import toast, the
+   advanced-search chip, the Databases list, the save-to-database sheet, the
+   Openings book select and the Learn counts, each at n=1 and n=2+.
 2. **The Spanish repair list — 20 items**, at the end of `docs/EN-REVIEW-PLAN.md`.
    Every Spanish problem found while reviewing English, gathered in one place and
    ordered worst first. **Nothing on it has been touched** — the English review

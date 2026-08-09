@@ -1,6 +1,6 @@
 // Chess Training Center — main application.
 import { Chess, validateFen } from '../vendor/chess.js';
-import { t, getLang, setLang, applyStatic } from './i18n.js';
+import { t, tn, getLang, setLang, applyStatic } from './i18n.js';
 import { GameTree, parsePgn, splitPgn, START_FEN, nagText } from './tree.js';
 import { Board, parsePlacement, setPieceSet, getPieceSet } from './board.js';
 import { Engine, uciToMove, pvWithNumbers, LEVELS } from './engine.js';
@@ -251,7 +251,7 @@ async function chooseBase(allowCreate = true) {
     for (const b of bases) {
       const btn = document.createElement('button');
       btn.className = 'sheet-btn';
-      btn.textContent = `${b.name} (${b.count ?? 0} ${t('games')})`;
+      btn.textContent = `${b.name} (${b.count ?? 0} ${tn('games', b.count ?? 0)})`;
       btn.onclick = () => close(b.id);
       box.appendChild(btn);
     }
@@ -1516,7 +1516,7 @@ export const Analysis = {
         for (const b of bases) {
           const btn = document.createElement('button');
           btn.className = 'sheet-btn';
-          btn.textContent = `${b.name} (${b.count ?? 0} ${t('games')})`;
+          btn.textContent = `${b.name} (${b.count ?? 0} ${tn('games', b.count ?? 0)})`;
           btn.onclick = () => close(b.id);
           box.appendChild(btn);
         }
@@ -2094,7 +2094,7 @@ const Base = {
     if (f.event) bits.push(f.event);
     if (f.yearFrom || f.yearTo) bits.push(`${f.yearFrom || '…'}–${f.yearTo || '…'}`);
     if (f.result) bits.push(f.result);
-    const count = t('adv_matches').replace('{n}', this.filterResults?.length ?? 0);
+    const count = tn('adv_matches', this.filterResults?.length ?? 0);
     const label = document.createElement('span');
     label.className = 'ellipsis';
     label.textContent = `${bits.join(' · ')} — ${count}`;
@@ -2127,7 +2127,7 @@ const Base = {
     for (const b of bases) {
       const item = document.createElement('button');
       item.className = 'list-item';
-      item.innerHTML = `<b>📚 ${esc(b.name)}</b><span class="sub">${b.count} ${t('games')}</span>`;
+      item.innerHTML = `<b>📚 ${esc(b.name)}</b><span class="sub">${b.count} ${tn('games', b.count)}</span>`;
       item.onclick = () => this.openBase(b.id);
       el.appendChild(item);
     }
@@ -2295,7 +2295,7 @@ const Base = {
 
       ui.close();
       if (!imported) { toast(t('import_failed')); return; }
-      toast(`${imported} ${t('imported')}`);
+      toast(`${imported} ${tn('imported', imported)}`);
       if (!(await db.kvGet('firstImportDone', false))) { await db.kvSet('firstImportDone', true); Badges.checkNew(); }
       this.openBase(baseId);
     } catch (e) {
@@ -2883,7 +2883,7 @@ const Trainer = {
     }
     for (const b of bases) {
       const o = document.createElement('option');
-      o.value = b.id; o.textContent = `${b.name} (${b.count} ${t('games')})`;
+      o.value = b.id; o.textContent = `${b.name} (${b.count} ${tn('games', b.count)})`;
       sel.appendChild(o);
     }
     if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
@@ -4329,13 +4329,13 @@ const Endgame = {
     for (const cat of LEARNING_CATEGORIES) {
       const item = document.createElement('button');
       item.className = 'list-item';
-      item.innerHTML = `<b>${esc(cat.title[getLang()])}</b><span class="sub">${cat.lessons.length} ${t('lessons_count')}</span>`;
+      item.innerHTML = `<b>${esc(cat.title[getLang()])}</b><span class="sub">${cat.lessons.length} ${tn('lessons_count', cat.lessons.length)}</span>`;
       item.onclick = () => this.Lessons.openCategory(cat);
       el.appendChild(item);
     }
     const endings = document.createElement('button');
     endings.className = 'list-item';
-    endings.innerHTML = `<b>${t('sec_endings')}</b><span class="sub">${ENDGAMES.length} ${t('games')}</span>`;
+    endings.innerHTML = `<b>${t('sec_endings')}</b><span class="sub">${ENDGAMES.length} ${tn('games', ENDGAMES.length)}</span>`;
     endings.onclick = () => this.showCategories();
     el.appendChild(endings);
   },
@@ -4356,7 +4356,7 @@ const Endgame = {
       const rating = this.elo[cat] ? Math.round(this.elo[cat]) : '—';
       const item = document.createElement('button');
       item.className = 'list-item';
-      item.innerHTML = `<b>${t('cat_' + cat)}</b><span class="sub">${count} ${t('games')} · ${t('endgame_elo')}: ${rating}</span>`;
+      item.innerHTML = `<b>${t('cat_' + cat)}</b><span class="sub">${count} ${tn('games', count)} · ${t('endgame_elo')}: ${rating}</span>`;
       item.onclick = () => this.openCategory(cat);
       el.appendChild(item);
     }

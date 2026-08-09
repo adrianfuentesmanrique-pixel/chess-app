@@ -17,6 +17,7 @@ const DICT = {
   },
   endings_quote_author: { es: 'José Raúl Capablanca', en: 'José Raúl Capablanca' },
   lessons_count: { es: 'lecciones', en: 'lessons' },
+  lessons_count_one: { es: 'lección', en: 'lesson' },
   learn_practice_btn: { es: '🎯 Practicar', en: '🎯 Practice' },
   learn_practice_prompt: { es: 'Ahora te toca: haz la jugada en el tablero.', en: "Now it's your turn: make the move on the board." },
   learn_correct: { es: '¡Correcto! 🎉', en: 'Correct! 🎉' },
@@ -99,8 +100,10 @@ const DICT = {
   delete_base_confirm: { es: '¿Borrar esta base y TODAS sus partidas? No se puede deshacer.', en: 'Delete this database and ALL its games? This cannot be undone.' },
   delete_game_confirm: { es: '¿Borrar esta partida?', en: 'Delete this game?' },
   games: { es: 'partidas', en: 'games' },
+  games_one: { es: 'partida', en: 'game' },
   no_games: { es: 'No hay partidas todavía. Usa "Importar PGN" o guarda desde Análisis.', en: 'No games yet. Use "Import PGN" or save from Analysis.' },
   imported: { es: 'partidas importadas ✓', en: 'games imported ✓' },
+  imported_one: { es: 'partida importada ✓', en: 'game imported ✓' },
   import_failed: { es: 'No se pudo leer el archivo. ¿Es un PGN?', en: 'Could not read the file. Is it a PGN?' },
   cbh_note: { es: 'Los archivos .cbh de ChessBase no se pueden leer directamente. En ChessBase: Archivo → Exportar → Partidas a PGN, y luego importa ese PGN aquí.', en: 'ChessBase .cbh files cannot be read directly. In ChessBase: File → Export → Games to PGN, then import that PGN here.' },
   search: { es: 'Buscar…', en: 'Search...' },
@@ -125,6 +128,7 @@ const DICT = {
   history_title: { es: '📜 Historial de partidas', en: '📜 Game History' },
   history_empty: { es: 'Aún no hay partidas. Gáname y lo recordaré.', en: "No games yet. Beat me and I'll remember it." },
   history_moves: { es: 'jugadas', en: 'moves' },
+  history_moves_one: { es: 'jugada', en: 'move' },
   history_today: { es: 'Hoy', en: 'Today' },
   history_yesterday: { es: 'Ayer', en: 'Yesterday' },
   history_end_checkmate: { es: 'Jaque mate', en: 'Checkmate' },
@@ -222,6 +226,7 @@ const DICT = {
   adv_apply: { es: 'Buscar', en: 'Search' },
   adv_clear: { es: 'Limpiar', en: 'Clear' },
   adv_matches: { es: '{n} partidas encontradas', en: '{n} games found' },
+  adv_matches_one: { es: '{n} partida encontrada', en: '{n} game found' },
   adv_capped: { es: 'Mostrando las primeras {n}. Afina el filtro para ver menos.', en: 'Showing the first {n}. Narrow the filter to see fewer.' },
   filter_clear: { es: '✕ Quitar filtro', en: '✕ Clear filter' },
   theme_random: { es: '🎲 Aleatorio', en: '🎲 Random' },
@@ -575,6 +580,14 @@ export function t(key) {
   const e = DICT[key];
   if (!e) return key;
   return e[lang] ?? e.es;
+}
+// Two-form plural. `key` holds the plural, `key_one` the singular; `{n}` in
+// either is replaced with the count. English and Spanish both split at exactly
+// one for these nouns, so two forms are enough.
+export function tn(key, n) {
+  const one = `${key}_one`;
+  const s = (n === 1 && DICT[one]) ? t(one) : t(key);
+  return s.replace('{n}', n);
 }
 export function getLang() { return lang; }
 export function setLang(l) { lang = l; localStorage.setItem('lang', l); }
