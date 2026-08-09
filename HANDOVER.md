@@ -74,7 +74,7 @@ left alone. **Read both before touching any English text again.**
 
 **Nothing has been pushed.** 24 commits sit on local `main`, from the style guide
 through batch 10 and its follow-up, plus one unrelated crash fix (`58e8e09`).
-`sw.js` is at **v48**. Push straight to `main` — the commits are already linear
+`sw.js` is at **v49**. Push straight to `main` — the commits are already linear
 there, individually revertable, and every batch was verified in a real browser at
 375px before it landed. Check the live site after the *deploy* finishes, not
 after the push.
@@ -99,13 +99,21 @@ batch fixed them.
    at 375px in light and dark, in both languages: the import toast, the
    advanced-search chip, the Databases list, the save-to-database sheet, the
    Openings book select and the Learn counts, each at n=1 and n=2+.
-2. **The Spanish repair list — 20 items**, at the end of `docs/EN-REVIEW-PLAN.md`.
-   Every Spanish problem found while reviewing English, gathered in one place and
-   ordered worst first. **Nothing on it has been touched** — the English review
-   never edits an `es:` value. Three items are factual errors where the two
-   languages now teach opposite things (h1's color, "defend each other", "Torre
-   contra peón" with two pawns on the board). *Adrian approved fixing it on
-   2026-08-08; its own session.*
+2. ~~**The Spanish repair list — 20 items.**~~ **DONE 2026-08-08 in its own
+   session, `sw.js` v48 → v49.** 18 of 20 fixed across four commits (`14b33c0`
+   factual, `6fc00a8` the *motor* sweep, `850d7cd` the Puzzles naming decision,
+   `3a6b28d` the rest). The three factual errors are gone — h1 is now *clara*,
+   p6 says *se defienden solos*, and r10/r11/r12 say *Torre contra dos peones* —
+   each verified against the entry's own FEN first. Adrian's two calls: the
+   Puzzles feature is **Puzzles** in Spanish everywhere (six sites, including
+   `tab_puzzles`, which the list had missed), and `log_rating` is **`ELO {n}`**.
+   No `en:` value was touched, the DICT key count is 530 before and after, and
+   `history_bot_name` stayed frozen. **Two items were deliberately left alone**,
+   with the reason recorded in place in `docs/EN-REVIEW-PLAN.md`: item 8 (badge
+   voice — the English has the identical mixed voice, so fixing only Spanish
+   would create a new mismatch) and one bullet of item 17 (the `…` → `...`
+   sweep — `…` is correct Spanish typography and STYLE-EN §3 governs English
+   only). Both are one-liners if Adrian ever wants them.
 3. **Three layout bugs no copy edit can fix.** Worst: the endgame study title bar
    has about **206px** of room and **173 of the 265 names are longer**, so they
    truncate — even `An Example from New York, 1924` gets cut. Also: the puzzle
