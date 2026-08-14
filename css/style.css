@@ -936,7 +936,16 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   opacity: 0; transform: translateY(6px) scale(.97); pointer-events: none;
   transition: opacity .25s ease, transform .25s ease;
 }
-.kael-quote-bubble.show { opacity: 1; transform: translateY(0) scale(1); }
+/* pointer-events ONLY while it is really on screen. Hidden, the bubble must go
+   on swallowing nothing -- that is the bug 242dc7f fixed. */
+.kael-quote-bubble.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; cursor: pointer; }
+/* The rare bubble that goes somewhere instead of just dismissing. */
+.kael-quote-bubble.actionable { border-color: var(--gold); box-shadow: 0 4px 14px var(--shadow), 0 0 0 1px var(--gold); }
+.kael-quote-bubble.actionable.show:active { transform: translateY(0) scale(.97); }
+.kael-quote-bubble .kael-quote-cta {
+  display: block; margin-top: 6px; text-align: right;
+  color: var(--gold); font-size: 11px; font-weight: 700;
+}
 @media (prefers-reduced-motion: reduce) {
   #kael-corner, .kael-quote-bubble { transition: none; }
 }

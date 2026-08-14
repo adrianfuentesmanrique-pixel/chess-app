@@ -436,7 +436,10 @@ const DICT = {
   mission_done_puzzle: { es: '¡Puzzle del día resuelto! Una misión menos.', en: 'Puzzle of the day solved! One mission down.' },
   mission_done_play: { es: '¡Partida jugada! Ya tienes esa misión lista.', en: 'Game played! That mission is done.' },
   mission_done_opening: { es: '¡Apertura practicada! Otra misión completada.', en: 'Opening practiced! Another mission complete.' },
-  daily_missions_reminder: { es: 'Todavía tienes misiones diarias pendientes hoy — échales un vistazo en tu perfil cuando quieras.', en: 'You\'ve still got daily missions open today — check them out on your profile whenever you like.' },
+  daily_missions_reminder: { es: 'Llevas {n} de 3 misiones de hoy. Te queda: {task}.', en: 'You\'ve done {n} of 3 missions today. Still to go: {task}.' },
+  daily_missions_reminder_none: { es: 'Aún no has hecho ninguna misión hoy. Empieza por: {task}.', en: 'No missions done yet today. Start with: {task}.' },
+  daily_missions_tap: { es: 'Toca para ir ›', en: 'Tap to go ›' },
+  mission_go_confirm: { es: '¿Ir a tu siguiente misión?', en: 'Go to your next mission?' },
   avatar_locked_toast: { es: 'Próximamente disponible 🔒', en: 'Coming soon 🔒' },
   // Kael onboarding
   kael_welcome_title: { es: '¡Bienvenido!', en: 'Welcome!' },

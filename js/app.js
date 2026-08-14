@@ -539,8 +539,26 @@ export const KaelQuotes = {
   MIN_GAP_MS: 90000,
   CHATTER_CHANCE: 0.25,
 
+  // The action the current bubble runs when tapped. Null means "just dismiss",
+  // which is what every caller except the daily-mission reminder wants.
+  onTap: null,
+
   init() {
-    $('kael-fab').onclick = () => this.showRandom();
+    // Tapping Kael is a toggle: shut him up if he is talking, summon him if he
+    // is not. Re-rolling the quote out from under a half-read bubble is what
+    // people complained about.
+    $('kael-fab').onclick = () => {
+      if ($('kael-bubble').classList.contains('show')) this.hide();
+      else this.showRandom();
+    };
+    // The bubble only takes input while it is actually visible (CSS gives it
+    // pointer-events only under .show) — see the note on #kael-corner.
+    $('kael-bubble').onclick = () => {
+      if (!$('kael-bubble').classList.contains('show')) return;
+      const act = this.onTap;
+      this.hide();
+      if (act) act();
+    };
   },
 
   pick() {
@@ -562,13 +580,18 @@ export const KaelQuotes = {
   show(item, duration = 6000) {
     const bubble = $('kael-bubble');
     const title = item.title ? `<b class="kael-quote-title">${esc(item.title)}</b>` : '';
-    const text = `${title}<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}`;
+    const cta = item.cta ? `<span class="kael-quote-cta">${esc(item.cta)}</span>` : '';
+    const text = `${title}<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}${cta}`;
     // imageClass lets callers opt out of the square badge treatment — streak
     // art has variable widths and must be sized by height only.
     const imgClass = item.imageClass || 'kael-quote-badge';
     bubble.innerHTML = item.image
       ? `<div class="kael-quote-row"><img src="${item.image}" class="${imgClass}" alt=""><div>${text}</div></div>`
       : text;
+    this.onTap = item.onTap || null;
+    // A gold edge marks the rare bubble that goes somewhere, so it reads
+    // differently from the ordinary ones that only dismiss.
+    bubble.classList.toggle('actionable', !!this.onTap);
     bubble.classList.add('show');
     $('kael-corner').classList.add('speaking');    // slide in from the edge
     Sound.play('kael-pop');
@@ -581,6 +604,8 @@ export const KaelQuotes = {
   hide() {
     const bubble = $('kael-bubble');
     bubble.classList.remove('show');
+    bubble.classList.remove('actionable');
+    this.onTap = null;
     $('kael-corner').classList.remove('speaking');
     // Emptying it matters as much as fading it. The bubble kept its text after
     // hiding, so it went on holding its full ~184x136px of layout at opacity 0
@@ -974,11 +999,36 @@ const DailyMissions = {
   // A one-time-per-session nudge if the player hasn't touched their daily
   // missions yet — not shown if they're already all done, and never more
   // than once per app load.
+  // The three missions and where each one goes. The order is the order the
+  // Profile card lists them in, and it is also cheapest-first — which is why
+  // the reminder below names the first pending one.
+  rows() {
+    return [
+      { key: 'puzzle', label: t('mission_puzzle'), go: () => this.goPuzzle() },
+      { key: 'play', label: t('mission_play'), go: () => showScreen('play') },
+      { key: 'opening', label: t('mission_opening'), go: () => showScreen('trainer') },
+    ];
+  },
+
   remindIfIncomplete() {
     if (this.reminded) return;
     this.reminded = true;
-    if (this.done.puzzle && this.done.play && this.done.opening) return;
-    KaelQuotes.show({ text: t('daily_missions_reminder'), author: null }, 5500);
+    const rows = this.rows();
+    const next = rows.find(r => !this.done[r.key]);
+    if (!next) return;
+    const n = rows.filter(r => this.done[r.key]).length;
+    const text = (n === 0 ? t('daily_missions_reminder_none') : t('daily_missions_reminder').replace('{n}', n))
+      .replace('{task}', next.label);
+    // Longer than a normal quote because this one is meant to be tapped, and
+    // it always asks first — nobody should lose their screen by accident.
+    KaelQuotes.show({
+      text,
+      author: null,
+      cta: t('daily_missions_tap'),
+      onTap: async () => {
+        if (await askConfirm(`${esc(t('mission_go_confirm'))}<br><b>${esc(next.label)}</b>`)) next.go();
+      },
+    }, 12000);
   },
 
   render() {
@@ -986,11 +1036,7 @@ const DailyMissions = {
     if (!el) return;
     const streakEl = $('daily-missions-streak');
     if (streakEl) streakEl.textContent = this.streak > 0 ? `🔥 ${this.streak}` : '';
-    const rows = [
-      { key: 'puzzle', label: t('mission_puzzle'), go: () => this.goPuzzle() },
-      { key: 'play', label: t('mission_play'), go: () => showScreen('play') },
-      { key: 'opening', label: t('mission_opening'), go: () => showScreen('trainer') },
-    ];
+    const rows = this.rows();
     el.innerHTML = '';
     for (const row of rows) {
       const done = !!this.done[row.key];
