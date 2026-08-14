@@ -124,8 +124,9 @@ BADGES: dict[str, tuple[str, str]] = {
     "theme_mateIn4":           ("mate4", "obsidian"),
     "theme_mateIn5":           ("mate5", "gold"),
 
-    # streaks
-    **family("flame", ["streak_3", "streak_7", "streak_30", "streak_100"]),
+    # streaks -- 1 week through 10 years
+    **family("flame", [f"streak_{d}" for d in
+                       (7, 30, 90, 180, 270, 365, 730, 1825, 3650)]),
 
     # endgame conversions -- rendered from the app's own piece shapes, so the
     # badge matches the piece the player just converted with.
@@ -142,14 +143,19 @@ BADGES: dict[str, tuple[str, str]] = {
     "first_import":  ("import", "bronze"),
     "first_engine":  ("engine", "bronze"),
 
-    # puzzle rush
-    **family("lightning", ["rush_1", "rush_10", "rush_30"]),
+    # Puzzle rush, two durations. They interleave into one ladder ordered by
+    # how hard the run is, rather than each mode getting its own bronze-to-gold
+    # run: two parallel ladders would hand out visually identical icons for
+    # rush3_20 and rush5_30, which reads as a duplicate in the trophy case.
+    **family("lightning", ["rush3_20", "rush5_30", "rush3_30",
+                           "rush5_40", "rush3_40", "rush5_50"]),
 
     # engine levels, then one for sweeping the lot
     **family("robot", [f"beat_engine_{i}" for i in range(8)] + ["beat_engine_all"]),
 
-    # daily missions
-    **family("target", ["daily_1", "daily_7", "daily_30", "daily_180", "daily_365"]),
+    # daily missions -- same ladder as the streak
+    **family("target", [f"daily_{d}" for d in
+                        (7, 30, 90, 180, 270, 365, 730, 1825, 3650)]),
 }
 
 
@@ -454,7 +460,15 @@ def main() -> None:
             badge = badge.quantize(colors=255, method=Image.FASTOCTREE,
                                    dither=Image.FLOYDSTEINBERG)
             badge.save(OUT / f"{badge_id}.png", optimize=True)
+
+    # Retiring a badge should not leave its picture behind. Without this, a
+    # renamed tier (streak_100 -> streak_365, say) quietly ships both.
+    stale = [p for p in OUT.glob("*.png") if p.stem not in BADGES]
+    for p in stale:
+        p.unlink()
     print(f"wrote {len(BADGES)} badges to {OUT}")
+    if stale:
+        print("removed retired:", ", ".join(sorted(p.stem for p in stale)))
 
 
 if __name__ == "__main__":

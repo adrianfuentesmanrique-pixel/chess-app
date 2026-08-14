@@ -15,6 +15,30 @@ import { $, esc, KaelQuotes, activeScreen } from './app.js';
 
 // ═════════════════════ ACHIEVEMENTS / BADGES ═════════════════════
 
+// The daily-activity streak and the daily-mission streak run the same ladder,
+// so it is written once. Both are consecutive-day counters that reset to zero
+// on a missed day, which is what makes the upper rungs so steep: 3650 means a
+// decade without a single gap.
+const STREAK_TIERS = [
+  { days: 7,    es: '1 semana',  en: '1 Week' },
+  { days: 30,   es: '1 mes',     en: '1 Month' },
+  { days: 90,   es: '3 meses',   en: '3 Months' },
+  { days: 180,  es: '6 meses',   en: '6 Months' },
+  { days: 270,  es: '9 meses',   en: '9 Months' },
+  { days: 365,  es: '1 año',     en: '1 Year' },
+  { days: 730,  es: '2 años',    en: '2 Years' },
+  { days: 1825, es: '5 años',    en: '5 Years' },
+  { days: 3650, es: '10 años',   en: '10 Years' },
+];
+
+// Puzzle Rush is scored per duration -- a 3-minute run and a 5-minute run are
+// different tests, so they get their own badges off their own stored bests
+// rather than sharing one overall high score.
+const RUSH_TIERS = [
+  { mins: 3, key: 'rushBest180', scores: [20, 30, 40] },
+  { mins: 5, key: 'rushBest300', scores: [30, 40, 50] },
+];
+
 export const BADGE_DEFS = [
   // puzzle count milestones
   { id: 'puz_10', icon: '🧩', name: { es: 'Novato de la táctica', en: 'Puzzle Novice' }, check: s => s.puzzlesSolved >= 10 },
@@ -26,13 +50,14 @@ export const BADGE_DEFS = [
   ...PUZZLE_THEMES.map(th => ({
     id: 'theme_' + th, icon: '🎯',
     label: lang => `${lang === 'en' ? 'Master' : 'Maestro'}: ${t('theme_' + th)}`,
-    check: s => (s.themeCounts[th] ?? 0) >= 15,
+    check: s => (s.themeCounts[th] ?? 0) >= 50,
   })),
   // streak
-  { id: 'streak_3', icon: '🔥', name: { es: 'Racha de 3 días', en: '3-Day Streak' }, check: s => s.bestStreak >= 3 },
-  { id: 'streak_7', icon: '🔥', name: { es: 'Racha de 7 días', en: '7-Day Streak' }, check: s => s.bestStreak >= 7 },
-  { id: 'streak_30', icon: '⚡', name: { es: 'Racha de 30 días', en: '30-Day Streak' }, check: s => s.bestStreak >= 30 },
-  { id: 'streak_100', icon: '👑', name: { es: 'Racha de 100 días', en: '100-Day Streak' }, check: s => s.bestStreak >= 100 },
+  ...STREAK_TIERS.map(tier => ({
+    id: 'streak_' + tier.days, icon: '🔥',
+    name: { es: 'Racha: ' + tier.es, en: tier.en + ' Streak' },
+    check: s => s.bestStreak >= tier.days,
+  })),
   // endgame conversions
   ...ENDGAME_CATEGORIES.map(cat => ({
     id: 'endgame_' + cat, icon: '🏁',
@@ -45,10 +70,12 @@ export const BADGE_DEFS = [
   // study / onboarding
   { id: 'first_import', icon: '📥', name: { es: 'Primera partida importada', en: 'First Game Imported' }, check: s => !!s.firstImportDone },
   { id: 'first_engine', icon: '💡', name: { es: 'Primer análisis con motor', en: 'First Engine Analysis' }, check: s => !!s.firstEngineUsed },
-  // puzzle rush
-  { id: 'rush_1', icon: '⚡', name: { es: 'Primer Puzzle Rush', en: 'First Puzzle Rush' }, check: s => s.rushBestScore >= 1 },
-  { id: 'rush_10', icon: '⚡', name: { es: 'Puzzle Rush: 10 en una racha', en: 'Puzzle Rush: 10 in a Row' }, check: s => s.rushBestScore >= 10 },
-  { id: 'rush_30', icon: '👑', name: { es: 'Puzzle Rush: 30 en una racha', en: 'Puzzle Rush: 30 in a Row' }, check: s => s.rushBestScore >= 30 },
+  // puzzle rush, per duration
+  ...RUSH_TIERS.flatMap(({ mins, key, scores }) => scores.map(n => ({
+    id: `rush${mins}_${n}`, icon: '⚡',
+    name: { es: `Puzzle Rush ${mins} min: ${n}`, en: `Puzzle Rush ${mins} min: ${n}` },
+    check: s => (s[key] ?? 0) >= n,
+  }))),
   // beating the engine, per difficulty level + one for sweeping all of them
   ...LEVELS.map((lv, i) => ({
     id: 'beat_engine_' + i, icon: '🤖',
@@ -56,12 +83,13 @@ export const BADGE_DEFS = [
     check: s => !!s.engineLevelsBeaten[i],
   })),
   { id: 'beat_engine_all', icon: '👑', name: { es: 'Venció a todos los niveles del motor', en: 'Beat Every Engine Level' }, check: s => LEVELS.every((lv, i) => !!s.engineLevelsBeaten[i]) },
-  // daily missions streak
-  { id: 'daily_1', icon: '🎯', name: { es: 'Primera misión diaria', en: 'First Daily Mission' }, check: s => s.bestDailyMissionStreak >= 1 },
-  { id: 'daily_7', icon: '🎯', name: { es: 'Misión diaria: 1 semana', en: 'Daily Mission: 1 Week' }, check: s => s.bestDailyMissionStreak >= 7 },
-  { id: 'daily_30', icon: '🎯', name: { es: 'Misión diaria: 1 mes', en: 'Daily Mission: 1 Month' }, check: s => s.bestDailyMissionStreak >= 30 },
-  { id: 'daily_180', icon: '⚡', name: { es: 'Misión diaria: 6 meses', en: 'Daily Mission: 6 Months' }, check: s => s.bestDailyMissionStreak >= 180 },
-  { id: 'daily_365', icon: '👑', name: { es: 'Misión diaria: 1 año', en: 'Daily Mission: 1 Year' }, check: s => s.bestDailyMissionStreak >= 365 },
+  // daily missions streak -- same ladder as the activity streak, but every day
+  // has to be a full sweep of all three missions
+  ...STREAK_TIERS.map(tier => ({
+    id: 'daily_' + tier.days, icon: '🎯',
+    name: { es: 'Misiones diarias: ' + tier.es, en: 'Daily Missions: ' + tier.en },
+    check: s => s.bestDailyMissionStreak >= tier.days,
+  })),
 ];
 
 export function badgeLabel(def) {
@@ -90,7 +118,8 @@ export const Badges = {
       openingCount: Object.keys(openingElo).length,
       firstImportDone: await db.kvGet('firstImportDone', false),
       firstEngineUsed: await db.kvGet('firstEngineUsed', false),
-      rushBestScore: await db.kvGet('rushBestScore', 0),
+      rushBest180: await db.kvGet('rushBest180', 0),
+      rushBest300: await db.kvGet('rushBest300', 0),
       engineLevelsBeaten: await db.kvGet('engineLevelsBeaten', {}),
       bestDailyMissionStreak: await db.kvGet('bestDailyMissionStreak', 0),
     };
