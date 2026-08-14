@@ -859,10 +859,18 @@ const Streak = {
   async init() {
     this.count = +(await db.kvGet('streakCount', 0));
     this.lastDate = await db.kvGet('streakLastDate', null);
-    // if the player missed a day entirely, the streak is broken (shown as 0 until next activity)
     const today = todayStr();
-    if (this.lastDate && this.lastDate !== today && !isYesterday(this.lastDate, today)) {
+    // A stored date that is today or later is never a break. "Later" happens
+    // exactly once per user: the old UTC day rule could file an evening
+    // session under tomorrow, so the first launch after the local-time fix
+    // must not read that as a missed day and wipe a live streak.
+    if (this.lastDate && this.lastDate < today && !isYesterday(this.lastDate, today)) {
+      // Write the 0. It used to live only in memory, so storage kept the old
+      // number — and streakCount is one of the fields that syncs to the public
+      // profile, which meant other players saw a streak that had already died.
+      // bestStreak is deliberately untouched: the record still stands.
       this.count = 0;
+      await db.kvSet('streakCount', 0);
     }
     this.render();
   },
@@ -915,6 +923,25 @@ const Streak = {
     el.classList.toggle('tier-up', tierUp);
   },
 };
+
+// ── What counts as "using the app today" ──────────────────
+// The flame used to survive on a single tap: one puzzle answered wrong kept
+// it alive. A day now needs real work, and the Profile streak card spells the
+// whole list out (`streak_how_*` in js/i18n.js) — keep the two in step.
+//
+// On a board you have to play 10 moves of your own; everywhere else you have
+// to actually succeed. `noteStreakMove` is shared by Play, Openings and
+// Analysis: it counts one player move and hands off once the tenth lands.
+// Deliberately `>=` rather than `===` so a session left open past midnight
+// still records the new day — Streak.recordActivity() ignores repeat calls
+// on a day it has already banked.
+const STREAK_MIN_MOVES = 10;
+const STREAK_MIN_RUSH_SOLVED = 3;
+
+function noteStreakMove(obj) {
+  obj.streakMoves = (obj.streakMoves || 0) + 1;
+  if (obj.streakMoves >= STREAK_MIN_MOVES) Streak.recordActivity();
+}
 
 // ═════════════════════ DAILY MISSIONS ═════════════════════
 
@@ -1059,7 +1086,15 @@ const DailyMissions = {
   },
 };
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+// The player's own calendar day, not UTC. toISOString() rolls over at 19:00 in
+// Panama, so an evening session used to be filed under tomorrow — you could
+// keep a streak alive on a day you never opened the app, and lose one on a day
+// you did. Every dated key in the app goes through this function.
+function todayStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 // 'YYYY-MM' — the season key for the monthly leaderboards.
 export function monthStr() { return new Date().toISOString().slice(0, 7); }
 function isYesterday(dateStr, todayStrVal) {
@@ -1318,7 +1353,10 @@ export const Analysis = {
 
   init() {
     this.board = new Board($('ana-board'), {
-      onMove: (mv) => { if (this.tree.play(mv)) this.refresh(); },
+      // Moves accumulate across the whole session here, not per position — the
+      // point of this tab is that you set a position up, push a few moves,
+      // then set up another one. Ten moves in total is a day's use.
+      onMove: (mv) => { if (this.tree.play(mv)) { noteStreakMove(this); this.refresh(); } },
       onShapesChange: (shapes) => { this.pushUndo(); this.tree.current.shapes = shapes; },
       onSound: type => Sound.play(type),
     });
@@ -1752,6 +1790,15 @@ export const Analysis = {
   showLines(lines) {
     if (!this.engineOn || activeScreen !== 'analysis') return;
     clearTimeout(this._engineWatchdog);
+    // Real analysis counts on its own, with no move requirement — but only
+    // once the engine has actually returned a line, so flipping the toggle on
+    // and off is not a free streak. Dated rather than a plain flag, or a
+    // session left open overnight would never bank the new day. The engine
+    // emits several lines a second, so the guard also keeps this cheap.
+    if (this._streakEngineDate !== todayStr()) {
+      this._streakEngineDate = todayStr();
+      Streak.recordActivity();
+    }
     const el = $('ana-engine-lines');
     el.innerHTML = '';
     for (const ln of lines) {
@@ -2443,6 +2490,7 @@ const Play = {
     this.thinking = false;
     this.playedAt = Date.now();
     this.saved = false;
+    this.streakMoves = 0;
     $('play-setup').classList.add('hidden');
     $('play-game').classList.remove('hidden');
     this.board.setOrientation(color);
@@ -2464,6 +2512,9 @@ const Play = {
     try { m = this.chess.move(mv); } catch { return; }
     this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
     this.renderMoves();
+    // Banked on the tenth move, not at the end of the game: a 40-move game you
+    // walk away from without resigning is still a day's work.
+    noteStreakMove(this);
     if (this.checkEnd()) return;
     this.engineMove();
   },
@@ -2514,7 +2565,6 @@ const Play = {
   finish(msg) {
     this.over = true;
     this.setStatus(msg);
-    Streak.recordActivity();
     const hist = this.chess.history();
     if (hist.length >= 2) DailyMissions.complete('play');
     if (hist.length >= 4) {
@@ -2985,6 +3035,7 @@ const Trainer = {
     this.over = false;
     this.inBook = true;
     this.announcedOpening = null;
+    this.streakMoves = 0;
     this.posHistory = [];
     this.viewIdx = -1;
     $('trainer-setup').classList.add('hidden');
@@ -3039,6 +3090,7 @@ const Trainer = {
     this.place(this.chess.fen(), { from: m.from, to: m.to }, this.inBook);
     this.renderMoves();
     this.announceOpeningIfNew();
+    noteStreakMove(this);
     if (this.checkEnd()) return;
     this.computerMove();
   },
@@ -3108,7 +3160,6 @@ const Trainer = {
   finishMsg(msg, result) {
     this.over = true;
     this.setStatus(msg);
-    Streak.recordActivity();
     if (result) this.recordOpeningResult(result);
   },
 
@@ -3498,7 +3549,9 @@ const Puzzles = {
     db.kvSet('puzzleThemeElo', this.themeElo);
     this.updateEloBadge();
     recordEloHistory('puzzleEloHistory', this.elo);
-    Streak.recordActivity();
+    // Solved only. A wrong answer used to keep the flame alive, which was the
+    // cheapest way to "use the app" in the whole product.
+    if (win) Streak.recordActivity();
     if (win && this.isDailyPuzzle) DailyMissions.complete('puzzle');
     Badges.checkNew();
   },
@@ -3998,7 +4051,9 @@ const Rush = {
     if (this.score > overall) await db.kvSet('rushBestScore', this.score);
     await this.recordSeasonScore();
     Badges.checkNew();
-    Streak.recordActivity();
+    // A run that scores 0 or 1 is a run you bailed out of; three solved is a
+    // real one. Starting a run and letting the clock die no longer counts.
+    if (this.score >= STREAK_MIN_RUSH_SOLVED) Streak.recordActivity();
     $('rush-game').classList.add('hidden');
     $('rush-result').classList.remove('hidden');
     $('rush-result-title').textContent = reason;
@@ -4670,7 +4725,9 @@ const Endgame = {
     const cats = Object.keys(this.elo);
     const avg = cats.reduce((s, c) => s + this.elo[c], 0) / cats.length;
     recordEloHistory('endgameEloHistory', avg);
-    Streak.recordActivity();
+    // Converted only — the ELO still moves either way, but a failed practice
+    // no longer banks the day.
+    if (success) Streak.recordActivity();
     if (success) this.recordConversion(cat);
     Badges.checkNew();
   },
@@ -4866,6 +4923,9 @@ Endgame.Lessons = {
       Sound.play('puzzle-correct');
       statusEl.textContent = t('learn_correct');
       statusEl.classList.add('good');
+      // Lessons never counted for the streak before. Only the ones that carry
+      // a practice section can — a demo-only lesson has nothing to finish.
+      Streak.recordActivity();
     } else {
       Sound.play('puzzle-wrong');
       this.board.setPosition(this.practiceFen);
@@ -4891,6 +4951,7 @@ Endgame.Lessons = {
       Sound.play('puzzle-correct');
       statusEl.textContent = t('learn_correct');
       statusEl.classList.add('good');
+      Streak.recordActivity();
       return;
     }
     if (this.chess.isDraw() || this.chess.isStalemate()) {
@@ -5445,10 +5506,41 @@ export const Profile = {
         </div>
       </div>
       <div class="streak-tier-list">${rows}</div>
-      ${showToggle ? `<button class="btn small streak-ladder-more">${esc(toggleLabel)}</button>` : ''}`;
+      ${showToggle ? `<button class="btn small streak-ladder-more">${esc(toggleLabel)}</button>` : ''}
+      ${this.streakHowHtml()}`;
 
     const btn = el.querySelector('.streak-ladder-more');
     if (btn) btn.onclick = () => { this.streakLadderOpen = !this.streakLadderOpen; this.renderStreakLadder(); };
+    const how = el.querySelector('.streak-how-btn');
+    if (how) how.onclick = () => { this.streakHowOpen = !this.streakHowOpen; this.renderStreakLadder(); };
+  },
+
+  // The rules the flame actually follows, in the one place the flame lives.
+  // Every line here mirrors a real check in the code — if a streak trigger
+  // changes, this list changes with it (see `noteStreakMove` and the
+  // Streak.recordActivity call sites).
+  streakHowHtml() {
+    const open = this.streakHowOpen;
+    const label = (open ? '▾ ' : '▸ ') + t('streak_how_title');
+    if (!open) return `<button class="btn small streak-how-btn">${esc(label)}</button>`;
+    const items = [
+      ['🤖', 'streak_how_play'],
+      ['🔍', 'streak_how_analysis'],
+      ['📖', 'streak_how_openings'],
+      ['🧩', 'streak_how_puzzles'],
+      ['⚡', 'streak_how_rush'],
+      ['🙈', 'streak_how_blindfold'],
+      ['🎓', 'streak_how_endgame'],
+      ['🎓', 'streak_how_lesson'],
+    ].map(([ico, key]) =>
+      `<li><span class="streak-how-ico">${ico}</span><span>${esc(t(key))}</span></li>`).join('');
+    return `<button class="btn small streak-how-btn">${esc(label)}</button>
+      <div class="streak-how-body">
+        <p class="streak-how-lead">${esc(t('streak_how_lead'))}</p>
+        <ul class="streak-how-list">${items}</ul>
+        <p class="streak-how-foot">${esc(t('streak_how_day'))}</p>
+        <p class="streak-how-foot">${esc(t('streak_how_missions'))}</p>
+      </div>`;
   },
 
   async refresh() {

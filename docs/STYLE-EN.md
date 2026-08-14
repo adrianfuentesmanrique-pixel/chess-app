@@ -261,6 +261,15 @@ respond`, `Play against the engine from here`, `Game vs engine`. Never "the
 computer", "the machine", "the bot" or "the AI" in running text. (`{lvl} bot` in
 `history_bot_name` is the one exception and is frozen by §10 anyway.)
 
+**The flame is the streak's picture, not a second name for it — added 2026-08-14.**
+`Streak` (§6) is still the word for the counter itself: `Streak progress`,
+`Day {n}`, `best streak`. **`flame`** (lowercase) is allowed only when the copy
+is talking about the thing on screen that lights up or goes out — "keeps your
+flame alive", "the flame goes back to zero". It is the streak *icon*, so it
+takes the concrete verbs the abstract noun cannot. Never `Flame` capitalized,
+never as the name of the feature, and never in the same sentence as `streak`
+meaning the same thing twice.
+
 ## 7. Voice
 
 - Second person, present tense. "You solved it", not "Puzzle was solved".

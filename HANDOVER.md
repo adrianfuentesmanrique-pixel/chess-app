@@ -2,6 +2,32 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Streak rules rewritten — what counts as "using the app today" (2026-08-14).**
+  Adrian picked "any one activity, but the bar goes up" over tying the flame to
+  the daily missions. **The two counters stay separate on purpose**: 🔥 = you
+  turned up, 🎯 = you did the full workout. Do not merge them without asking.
+  - **Boards need 10 moves of your own** (`STREAK_MIN_MOVES`, shared helper
+    `noteStreakMove`): Play, Openings, Analysis. It fires **on the tenth move,
+    not at `finish()`** — a long game you walk away from used to bank nothing.
+  - **Everywhere else you have to succeed**: solve the puzzle (a wrong answer
+    used to count), Puzzle Rush needs 3+ solved, an endgame must be converted.
+    Blindfold already required a solve.
+  - **Two new triggers**: Analysis (any engine line, or 10 moves) and Learn
+    lessons that have a practice section. Databases and Profile never count.
+  - **Both streak bugs fixed.** `todayStr()` is now the local calendar day, not
+    `toISOString()` — the day used to roll over at 7pm in Panama. And a broken
+    streak now writes its 0 to `streakCount`; it used to live in memory only,
+    so the stale number kept syncing to the public profile. `bestStreak` is
+    deliberately untouched by both. `monthStr()` is **still UTC** — it is the
+    leaderboard season key and changing it would move season boundaries.
+  - The rules are explained in the app, under the streak ladder on Profile
+    (`Profile.streakHowHtml`, `streak_how_*` in `js/i18n.js`, `.streak-how-*`
+    in `css/style.css`). **If a trigger changes, that list changes with it.**
+  - Verified over CDP at 375px in light and dark, both languages: 9 moves bank
+    nothing and the 10th banks the day; a dead streak writes 0 while
+    `bestStreak` survives; and at 21:30 Panama on the 14th (UTC already the
+    15th) a streak from the 13th still reads 7 instead of being wiped.
+
 - **Game History (Stockfish games) — COMPLETE, all 4 tasks.** Every game you
   play against the engine is saved automatically and can be browsed, filtered
   and replayed. Reach it from **Play → 📜 Game History**.
