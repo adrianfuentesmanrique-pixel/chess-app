@@ -1167,7 +1167,7 @@ function slideScreenIn(name, dir) {
 // and not the next is worse than one that never fires there. The walk below
 // then catches any other real horizontal scroller.
 const SWIPE_SAFE = '.board, .modal-back, .drag-ghost, input, textarea, select, ' +
-  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .streak-timeline, .movelist';
+  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .movelist';
 
 function swipeBlocked(el) {
   if (!el || !el.closest) return true;
@@ -5383,25 +5383,72 @@ export const Profile = {
     setTimeout(() => location.reload(), 1200);
   },
 
-  renderStreakTimeline() {
-    const el = $('profile-streak-timeline');
+  // The 37-tier ladder, as a readable list rather than a strip of artwork.
+  // Collapsed it shows the tier you are on plus the next five, which is the
+  // only part a player can act on; expanded it shows all 37 so the whole path
+  // is inspectable. The expanded/collapsed choice lives on Profile so it
+  // survives a refresh() within the session but never has to be stored.
+  streakLadderOpen: false,
+
+  renderStreakLadder() {
+    const el = $('profile-streak-ladder');
     if (!el) return;
-    const days = Streak.count;
-    const idx = streakTierIndex(days);
     const lang = getLang();
-    el.innerHTML = STREAK_TIERS.map((tier, i) => {
-      const locked = i > idx;
-      const label = tier.label[lang];
-      return `<div class="streak-timeline-tier${locked ? ' locked' : ''}${i === idx ? ' current' : ''}" title="${esc(label)}">
-        <img src="streaks/${tier.icon}.png" alt="${esc(label)}">
+    const days = Streak.count;
+    const idx = streakTierIndex(days);         // -1 when there is no streak
+    const cur = idx >= 0 ? STREAK_TIERS[idx] : null;
+    const next = STREAK_TIERS[idx + 1] || null;
+
+    const dayLine = days > 0 ? t('streak_day_n').replace('{n}', days) : t('streak_none');
+    let nextLine, pct;
+    if (days === 0) {
+      // "1 day to 1 day" is what the generic branch would print here, so the
+      // no-streak state gets its own line: an invitation, not a countdown.
+      pct = 0;
+      nextLine = t('streak_none_hint');
+    } else if (next) {
+      // Progress runs from the tier you are standing on to the next one, not
+      // from zero — otherwise every bar past the early tiers looks nearly full.
+      const from = cur ? cur.days : 0;
+      pct = Math.max(0, Math.min(100, Math.round(((days - from) / (next.days - from)) * 100)));
+      nextLine = tn('streak_next_goal', next.days - days).replace('{tier}', next.label[lang]);
+    } else {
+      pct = 100;
+      nextLine = t('streak_top_tier');
+    }
+
+    const open = this.streakLadderOpen;
+    const start = open ? 0 : Math.max(0, idx);
+    const end = open ? STREAK_TIERS.length : Math.min(STREAK_TIERS.length, Math.max(0, idx) + 6);
+    const rows = STREAK_TIERS.slice(start, end).map((tier, i) => {
+      const real = start + i;
+      const unlocked = real <= idx;
+      const state = unlocked
+        ? `<span class="streak-tier-check" title="${esc(t('streak_unlocked'))}">✓</span>`
+        : `<span class="streak-tier-away">${esc(tn('streak_locked_in', tier.days - days))}</span>`;
+      return `<div class="streak-tier-row${unlocked ? ' unlocked' : ' locked'}${real === idx ? ' current' : ''}">
+        <img src="streaks/${tier.icon}.png" alt="" loading="lazy">
+        <span class="streak-tier-days">${esc(tier.label[lang])}</span>
+        ${state}
       </div>`;
     }).join('');
-    if (idx >= 0) {
-      requestAnimationFrame(() => {
-        const currentEl = el.children[idx];
-        if (currentEl) currentEl.scrollIntoView({ inline: 'center', block: 'nearest' });
-      });
-    }
+
+    const toggleLabel = open ? t('streak_show_less') : t('streak_show_all').replace('{n}', STREAK_TIERS.length);
+    const showToggle = open || end - start < STREAK_TIERS.length;
+
+    el.innerHTML = `<div class="streak-now">
+        <img class="streak-now-icon${days > 0 ? '' : ' locked'}" src="streaks/${streakIcon(days)}.png" alt="">
+        <div class="streak-now-text">
+          <div class="streak-now-day">${esc(dayLine)}</div>
+          <div class="streak-now-next">${esc(nextLine)}</div>
+          <div class="streak-now-bar"><span style="width:${pct}%"></span></div>
+        </div>
+      </div>
+      <div class="streak-tier-list">${rows}</div>
+      ${showToggle ? `<button class="btn small streak-ladder-more">${esc(toggleLabel)}</button>` : ''}`;
+
+    const btn = el.querySelector('.streak-ladder-more');
+    if (btn) btn.onclick = () => { this.streakLadderOpen = !this.streakLadderOpen; this.renderStreakLadder(); };
   },
 
   async refresh() {
@@ -5414,7 +5461,7 @@ export const Profile = {
     await DailyMissions.init();
     await Badges.checkNew();
     Badges.renderTrophyCase();
-    this.renderStreakTimeline();
+    this.renderStreakLadder();
 
     const puzzleElo = await db.kvGet('puzzleElo', 1200);
     const themeElo = await db.kvGet('puzzleThemeElo', {});

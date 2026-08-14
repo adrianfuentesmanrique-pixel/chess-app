@@ -104,7 +104,7 @@ body.mode-light .brand-logo { filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .streak-badge.tier-up { animation: none; }
-  .streak-icon-img, .streak-timeline-tier, .streak-timeline-tier img { transition: none; }
+  .streak-icon-img { transition: none; }
 }
 .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px 8px; }
 
@@ -469,31 +469,36 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   padding: 0; cursor: pointer; line-height: 1;
 }
 
-/* ── streak timeline ──────────────────── */
-.streak-timeline {
-  display: flex; align-items: center; gap: 6px;
-  overflow-x: auto; overflow-y: hidden; padding: 6px 2px 10px;
-  scrollbar-width: thin;
+/* ── streak ladder ────────────────────── */
+/* Fixed height, auto width everywhere below: the source art ranges from
+   tall/narrow (early tiers) to short/wide (later tiers), so forcing a square
+   box made later tiers look shrunken. Sharing one height keeps every icon
+   reading as the same size regardless of its natural aspect ratio. */
+.streak-now { display: flex; align-items: center; gap: 12px; margin: 2px 0 12px; }
+.streak-now-icon { height: 64px; width: auto; flex: 0 0 auto; display: block; }
+.streak-now-icon.locked { filter: grayscale(1); opacity: .4; }
+.streak-now-text { flex: 1; min-width: 0; }
+.streak-now-day { font-size: 18px; font-weight: 700; color: var(--gold); }
+.streak-now-next { font-size: 13px; color: var(--muted); margin: 2px 0 8px; }
+.streak-now-bar { height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; }
+.streak-now-bar span { display: block; height: 100%; background: var(--gold); border-radius: 3px; }
+
+.streak-tier-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-bottom: 1px solid var(--input-border);
 }
-.streak-timeline-tier { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; padding: 4px 6px; transition: padding .25s ease; }
-/* Fixed height, auto width: the source art ranges from tall/narrow (early
-   tiers) to short/wide (later tiers), so forcing a square box made later
-   tiers look shrunken. Sharing one height instead keeps every icon reading
-   as the same size regardless of its natural aspect ratio. */
-.streak-timeline-tier img { height: 46px; width: auto; display: block; transition: height .25s ease; }
+.streak-tier-row:last-child { border-bottom: none; }
+.streak-tier-row img { height: 34px; width: auto; flex: 0 0 auto; display: block; }
 /* Grayscale only (no brightness/invert): future tiers stay visible as dim
-   silhouettes that still hint at what's coming — a wall of identical white
-   blobs told the player nothing about the path ahead. */
-.streak-timeline-tier.locked img { filter: grayscale(1); opacity: .4; }
-.streak-timeline-tier.current { position: relative; padding: 4px 12px; }
-/* The current tier is the one the player actually earned today — it should
-   read as a step forward out of the row, not just a bordered cell the same
-   size as everything else. */
-.streak-timeline-tier.current img { height: 68px; }
-.streak-timeline-tier.current::after {
-  content: ''; position: absolute; inset: 0; border: 2px solid var(--gold); border-radius: 10px;
-  box-shadow: 0 0 12px var(--gold-glow);
-}
+   silhouettes that still hint at what's coming — a column of identical white
+   blobs would tell the player nothing about the path ahead. */
+.streak-tier-row.locked img { filter: grayscale(1); opacity: .4; }
+.streak-tier-days { flex: 1; min-width: 0; font-size: 14px; }
+.streak-tier-row.locked .streak-tier-days { color: var(--muted); }
+.streak-tier-row.current { background: var(--gold-bg); border-radius: 10px; border-bottom-color: transparent; }
+.streak-tier-check { color: var(--gold); font-weight: 700; flex: 0 0 auto; }
+.streak-tier-away { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
+.streak-ladder-more { width: 100%; margin-top: 10px; }
 
 /* ── Kael (mascot) ─────────────────────── */
 .kael-modal-head { display: flex; justify-content: center; margin: -6px 0 10px; }
