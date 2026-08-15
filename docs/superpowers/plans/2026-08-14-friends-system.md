@@ -372,6 +372,31 @@ console.**
 
 ## Commit 2 — Friends screens, UI only, no data
 
+**DONE 2026-08-15 (`1831639`). Built as written, with four notes:**
+
+1. **`js/friends.js` ships with fake data on.** `Friends.sample = true` and a
+   `SAMPLE` block of six invented players fill every list, so the screens could
+   be judged with content in them. **Commit 3 deletes both.** The render
+   functions already take a list, so nothing else in the file should move.
+2. **Rows with actions stack.** `.fr-row.stack` puts the buttons on a second
+   line under the name. Side by side, `✓ Aceptar` + `✕ Rechazar` beside a
+   36px avatar leaves a Spanish username no room at 375px. The plain friends
+   list row (avatar, name, `⋯`) is still one line.
+3. **Search rows show `username · ELO 1620`.** Usernames are not unique, so
+   the rating is what tells two `magnus` accounts apart. No new string — it
+   reuses the `ELO {n}` shape already agreed for `log_rating`.
+4. **The new leaderboard contains its own watermark**
+   (`position: relative; overflow: hidden` on the section) so it cannot widen
+   the page. **`#screen-leaderboard` still has that bug** — HANDOVER's known
+   layout issue 3, `scrollWidth` 405. Same one-line fix, deliberately left
+   out of scope.
+
+`sw.js` v53 → **v54**, `js/friends.js` is in `ASSETS`. Verified over CDP in
+headless Chrome at 375px, light and dark, in both languages, populated and
+empty: zero console errors, `documentElement.scrollWidth` 375 on every screen.
+
+
+
 Pure markup, CSS and strings. Every list is empty or shows fake local rows. No
 Firestore calls at all. This is the commit where the screens get judged.
 

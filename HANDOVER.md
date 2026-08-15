@@ -15,7 +15,22 @@
     rules and `firestore.rules` match, so commits 3–7 need no further rules
     work. Edit the file and deploy, never the console.
   - `sw.js` deliberately not bumped — nothing the browser loads changed.
-  - **Next task: commit 2, the Friends screens (UI only, no data).**
+
+- **Friends system — commit 2 of 9 is done (2026-08-15, `1831639`). Screens
+  only, no Firestore.** New `js/friends.js`, `#screen-friends` (Friends /
+  Requests / Find), `#screen-friends-leaderboard`, the two-up button row on
+  Profile, an inert `➕ Add friend` on the public profile, and 32 new bilingual
+  strings. `sw.js` v53 → **v54**.
+  - **`js/friends.js` ships with `sample: true` and six invented players.**
+    That is how the screens were judged. **Commit 3 deletes `SAMPLE` and the
+    flag** and puts the real search behind them.
+  - Read the "Commit 2 — DONE" note in the plan before commit 3: rows with
+    action buttons stack them on a second line on purpose, and the new
+    leaderboard clips its own watermark while `#screen-leaderboard` still
+    does not.
+  - Committed on local `main`, **not pushed**.
+  - **Next task: commit 3, search and send a request — first real data,
+    needs two accounts.**
 
 - **Learn tab — 👣 Walk through, a guided move-by-move mode (2026-08-14).**
   Shows the next move of the lesson's line as an arrow, clears it, then asks the
