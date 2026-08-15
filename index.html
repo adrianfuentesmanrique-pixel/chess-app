@@ -702,6 +702,9 @@ if (window.Sentry && window.Sentry.onLoad) {
     <div class="row screen-head">
       <button id="friends-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="friends_title"></h2>
+      <!-- Screen-level menu. Holds the Blocked list; .screen-head is
+           space-between, so it sits at the right edge. -->
+      <button id="friends-more" class="fr-more" aria-label="⋯">⋯</button>
     </div>
     <div class="seg" id="friends-mode">
       <button data-v="list" class="on" data-i18n="friends_tab_list"></button>
@@ -739,6 +742,19 @@ if (window.Sentry && window.Sentry.onLoad) {
     </div>
   </section>
 
+  <!-- ══════════ BLOCKED ══════════ -->
+  <!-- Reached from ⋯ in the Friends head. Rows are personRow()s with an
+       Unblock button and are deliberately not tappable — the only thing to do
+       with someone here is let them back in. -->
+  <section id="screen-friends-blocked" class="screen hidden">
+    <div class="row screen-head">
+      <button id="fbl-back" class="btn" data-i18n="back"></button>
+      <h2 data-i18n="friends_blocked_title"></h2>
+    </div>
+    <div id="fbl-list" class="list"></div>
+    <p id="fbl-empty" class="hint empty-note hidden" data-i18n="friends_blocked_empty"></p>
+  </section>
+
   <!-- ══════════ FRIENDS LEADERBOARD ══════════ -->
   <!-- A near-copy of #screen-leaderboard: same segmented controls, same row
        markup, same watermark. No name filter — at most 100 rows. -->
@@ -771,10 +787,13 @@ if (window.Sentry && window.Sentry.onLoad) {
     <div class="row" style="justify-content:center; margin:6px 0 10px;">
       <span id="pubprofile-avatar-wrap"></span>
     </div>
-    <!-- Inert in commit 2. Commit 7 resolves its four states (add / sent /
-         friends / hidden when this is you) before the screen renders. -->
-    <div class="row" style="justify-content:center; margin:0 0 14px;">
-      <button id="pubprofile-add-friend" class="btn primary" data-i18n="friends_add"></button>
+    <!-- Four states, resolved by Friends.paintAddFriend() before the screen is
+         shown: add / sent / already friends / hidden when this is me or I am
+         signed out. It starts hidden and carries no data-i18n on purpose —
+         the label is one of three strings and re-applying data-i18n on a
+         language change would put "Add friend" back on a disabled button. -->
+    <div class="row hidden" style="justify-content:center; margin:0 0 14px;">
+      <button id="pubprofile-add-friend" class="btn primary"></button>
     </div>
     <div class="row wrap profile-elo-row">
       <div class="elo-card"><span data-i18n="puzzle_elo"></span><b id="pubprofile-elo-puzzle"></b></div>

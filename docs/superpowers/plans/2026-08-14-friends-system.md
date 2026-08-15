@@ -839,6 +839,98 @@ seeded data if necessary).
 
 ## Commit 7 — Add friend from a public profile, unfriend, block
 
+**DONE 2026-08-15 (code), with the same honest limit as commits 3 to 6 — the
+two-account run is still owed. Built as written, plus:**
+
+1. **Four new exports in `js/firebase.js`** — `unfriend()`, `blockUser()`,
+   `unblockUser()`, `fetchBlockedUids()`. `fetchLeaderboardByUids()` was
+   **reused** for the names and avatars on the Blocked list.
+2. **There is no "are we already friends" query.** The ➕ button's four states
+   are answers about *my* lists, not about the person being looked at, so they
+   are read from `Friends.friends`, `Friends.outgoing` and `Friends.sent`,
+   which this module already holds. Opening a public profile therefore costs
+   **no new document read** once Friends has been used once. The one deliberate
+   avoidance: a `get()` on a `friendships` document that does **not** exist is
+   itself a permission error (the rules read `resource.data.members`, and
+   `resource` is null), so a "check the pair document" implementation would
+   have had to treat permission-denied as "not friends" on every stranger.
+3. **What block does to a pending request between us.** Adrian's instinct was
+   to delete both; the rules were checked and one half was changed:
+   - a request **they** sent me is set to `status: 'rejected'`, not deleted.
+     The rules allow the recipient to do this (`friendRequests` update). It
+     leaves their outgoing row reading "Request sent" forever, which is the
+     existing silent-no. **Deleting it would make their row vanish** — a
+     visible change they could correlate with being blocked.
+   - a request **I** sent them is deleted. That is just cancelling my own.
+   Both are attempted blind, without reading first, because a `get()` on a
+   request that does not exist is a permission error too. Their failures are
+   swallowed: a half-finished teardown must never undo the block, which is why
+   the block document is written **first** and is the only step whose error
+   propagates.
+4. **`PublicProfile.onOpen`, a hook, not an import.** `js/friends.js` already
+   imports `js/leaderboard.js`; importing it back would have made a second
+   cycle. `Friends.init()` sets `PublicProfile.onOpen`, and `open()` **awaits
+   it before `showScreen`** — that is what "resolved before the screen renders"
+   means, and it was asserted: the screen is still hidden at the moment
+   `open()` returns its first promise.
+5. **`data-i18n` was removed from `#pubprofile-add-friend`.** Its label is one
+   of three strings now, and `applyStatic()` on a language change would have
+   put "Add friend" back on a disabled button. The row also starts `hidden`, so
+   a boot where the hook never ran shows no dead button.
+6. **One new string, `friends_blocked_empty`.** Every other string this commit
+   needed already existed. There was no empty-state line for the Blocked list.
+7. **`accept()` now invalidates the friends list** (`friendsLoaded = false`).
+   Without it, accepting a request left the ➕ button on that person's profile
+   still reading "Add friend".
+8. **Someone who has asked ME still shows the plain ➕.** Accepting belongs on
+   the Requests tab, and a fifth state would have meant a fifth string.
+
+`sw.js` v59 → **v60**. `firestore.rules` **untouched** and nothing deployed —
+the rules shipped in commit 1 already allow every write here. Still **87 tests
+passing**; none was re-run because nothing rules-shaped changed.
+
+**What IS verified** (headless local server at 375px, lists **seeded by hand in
+the page** — there is still no Firestore from here):
+
+- Boots with **no console error but the known App Check 403**.
+- **All four ➕ states**: stranger → live `➕ Añadir amigo`; already friends →
+  `✓ Amigos` disabled; outgoing request *or* a uid sent this session →
+  `⏳ Solicitud enviada` disabled; my own profile **and signed out** → the row
+  is hidden. Reopening the profile keeps the state.
+- **Sending from the profile shows `Solicitud enviada ✓`**, the same neutral
+  toast as the Find tab, and the button flips to the pending state in place.
+- `⋯` on a friends row opens the sheet with **Remove friend / Block / Cancel**
+  and does **not** open the public profile behind it. Both items reach
+  `askConfirm()` with the right sentence in both languages, and **Cancel is a
+  true no-op** — the row is still there.
+- **`esc()` holds in the confirm dialog too.** `askConfirm` writes its message
+  with `innerHTML`, so a name of `<img src=x onerror=…>` is escaped before it
+  is substituted for `{n}`: it renders as text, creates no `img`, does not
+  fire. Same for the Blocked rows.
+- **The Blocked screen**: reached the real way (⋯ in the Friends head), rows
+  render with an Unblock button, a blocked person with no public document gets
+  `?`, rows are **not** tappable, and the empty note **waits for the list to
+  have arrived** so a mid-fetch screen does not claim you have blocked nobody.
+  ◀ returns to Friends.
+- **All three older back paths still go where they went**: leaderboard row →
+  leaderboard, Friends row → Friends, friends-leaderboard row →
+  friends-leaderboard. The friends leaderboard still builds, with my ringed row.
+- `documentElement.scrollWidth` is **375** on every screen and in every state,
+  including the new Blocked screen. Blocked row 355×92, head `⋯` 31×30 at the
+  right edge.
+- Light **and** dark, and **both languages** on the new screen's title, empty
+  note and Unblock button, on the sheet, on both confirm sentences and on all
+  three ➕ labels.
+
+**What is NOT verified.** No write in this commit has run against Firestore —
+`unfriend`, `blockUser`, `unblockUser` and `fetchBlockedUids` have never
+executed. So the plan's own verification ("block, then have the blocked account
+try to send a request") is **not done**, and neither is unfriend actually
+removing a row. Commits 3 to 6 still owe their two-account walk-through and the
+two composite indexes for the Requests tab are still uncreated.
+
+---
+
 The `➕ Add friend` button on `#screen-public-profile` becomes live, with its four
 states resolved from the friendship and request documents before render.
 

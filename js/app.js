@@ -1117,7 +1117,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'rush', 'blind'];
+const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'rush', 'blind'];
 export let activeScreen = 'analysis';
 
 export function showScreen(name) {

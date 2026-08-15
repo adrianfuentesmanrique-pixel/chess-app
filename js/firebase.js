@@ -433,6 +433,81 @@ export async function cancelFriendRequest(toUid) {
   return true;
 }
 
+// The friendship id both sides compute the same way: the two uids sorted and
+// joined. The rules require members[0] < members[1] and the id to match, so
+// this is the only shape that can exist.
+function pairIdOf(a, b) {
+  return [a, b].sort().join('_');
+}
+
+// Unfriending. Either member may delete the document and the other person is
+// told nothing — there is no notification and no "removed you" state. The rules
+// have `allow update: if false`, so a friendship is only ever created or
+// deleted.
+export async function unfriend(otherUid) {
+  const user = auth.currentUser;
+  if (!user || !otherUid) return false;
+  await deleteDoc(doc(firestore, 'friendships', pairIdOf(user.uid, otherUid)));
+  return true;
+}
+
+// Blocking, which is four things in one action:
+//
+//   1. write blocks/{me}/blocked/{them} — this is the part that matters, so it
+//      goes first and its error is the only one that propagates. From this
+//      moment the rules deny any request they try to send me.
+//   2. delete the friendship, if there is one.
+//   3. reject any request THEY have pending to me, rather than deleting it.
+//      Deleting would make their outgoing row vanish, which is a change they
+//      could see and correlate with being blocked; 'rejected' is the existing
+//      silent no — their row still reads "Request sent" forever.
+//   4. delete any request I have pending to them — that is just cancelling my
+//      own, and I clearly no longer want it.
+//
+// Steps 2-4 are attempted blind rather than read first. A get() on a document
+// that does not exist is itself a permission error here (the rules read
+// resource.data, and resource is null), so checking first would cost the same
+// throw plus an extra round trip. Their failures are swallowed on purpose: a
+// half-finished teardown must not undo the block.
+export async function blockUser(otherUid) {
+  const user = auth.currentUser;
+  if (!user || !otherUid || otherUid === user.uid) return false;
+  await setDoc(doc(firestore, 'blocks', user.uid, 'blocked', otherUid), {
+    createdAt: Date.now(),
+  });
+  const quiet = p => p.catch(() => {});
+  await Promise.all([
+    quiet(deleteDoc(doc(firestore, 'friendships', pairIdOf(user.uid, otherUid)))),
+    quiet(updateDoc(doc(firestore, 'friendRequests', `${otherUid}_${user.uid}`),
+      { status: 'rejected' })),
+    quiet(deleteDoc(doc(firestore, 'friendRequests', `${user.uid}_${otherUid}`))),
+  ]);
+  return true;
+}
+
+// Unblocking removes the block and nothing else — it does not restore a
+// friendship or a request. The two of you go back to being strangers who may
+// ask again.
+export async function unblockUser(otherUid) {
+  const user = auth.currentUser;
+  if (!user || !otherUid) return false;
+  await deleteDoc(doc(firestore, 'blocks', user.uid, 'blocked', otherUid));
+  return true;
+}
+
+// My own block list. Only I can read it, which is what stops a blocked person
+// discovering the block by looking. The document id is the blocked uid; names
+// and avatars come from fetchLeaderboardByUids, exactly as everywhere else.
+export async function fetchBlockedUids() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const snap = await getDocs(query(
+    collection(firestore, 'blocks', user.uid, 'blocked'), limit(200)));
+  const out = [];
+  snap.forEach(d => out.push(d.id));
+  return out;
+}
+
 async function pullOrBootstrap(uid) {
   const ref = doc(firestore, 'users', uid);
   const snap = await getDoc(ref);

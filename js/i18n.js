@@ -406,6 +406,7 @@ const DICT = {
   friends_block_confirm: { es: '¿Bloquear a {n}? No podrá enviarte solicitudes y dejarán de ser amigos.', en: "Block {n}? They won't be able to send you requests, and you'll no longer be friends." },
   friends_blocked_title: { es: 'Bloqueados', en: 'Blocked' },
   friends_unblock: { es: 'Desbloquear', en: 'Unblock' },
+  friends_blocked_empty: { es: 'No has bloqueado a nadie.', en: "You haven't blocked anyone." },
   friends_sent_toast: { es: 'Solicitud enviada ✓', en: 'Request sent ✓' },
   friends_accepted_toast: { es: '¡Ahora son amigos! 🎉', en: "You're now friends! 🎉" },
   friends_signin_needed: { es: 'Inicia sesión para usar Amigos.', en: 'Sign in to use Friends.' },

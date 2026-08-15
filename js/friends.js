@@ -1,6 +1,7 @@
 // Friends — the screens, username search and sending a request, the live
-// Requests tab, the live Friends list and the friends leaderboard. Commits 2
-// to 6 of docs/superpowers/plans/2026-08-14-friends-system.md.
+// Requests tab, the live Friends list, the friends leaderboard, and adding,
+// removing and blocking a person. Commits 2 to 7 of
+// docs/superpowers/plans/2026-08-14-friends-system.md.
 //
 // Everything that arrives from Firestore is another user's text, so every one
 // of those values goes through esc() before it reaches innerHTML.
@@ -14,9 +15,9 @@ import {
   Auth, searchByUsername, sendFriendRequest,
   fetchIncomingRequests, fetchOutgoingRequests, fetchLeaderboardByUids,
   acceptFriendRequest, rejectFriendRequest, cancelFriendRequest,
-  fetchFriendUids,
+  fetchFriendUids, unfriend, blockUser, unblockUser, fetchBlockedUids,
 } from './firebase.js';
-import { $, esc, toast, segInit, showScreen, activeScreen, monthStr } from './app.js';
+import { $, esc, toast, sheet, askConfirm, segInit, showScreen, activeScreen, monthStr } from './app.js';
 
 // The client-side cap from the plan. fetchFriendUids() reads at most this many
 // documents, so a list already at the cap cannot hide a 101st friend from it.
@@ -43,9 +44,24 @@ export const Friends = {
   // My own public leaderboard row, fetched in the same batch as the friends'.
   // Only the friends leaderboard uses it — I am not a row in my own list.
   me: null,
+  // The people I have blocked, joined to their public rows the same way, and
+  // whether that list has ever been fetched. Loaded only when the Blocked
+  // screen is opened — nothing else in the app needs it.
+  blocked: [],
+  blockedLoaded: false,
 
   init() {
     $('friends-back').onclick = () => showScreen('profile');
+    // ⋯ in the screen head. One item today; it is the drawer for anything else
+    // that belongs to the whole Friends screen rather than to one row.
+    $('friends-more').onclick = () => sheet([
+      { label: t('friends_blocked_title'), action: () => this.openBlocked() },
+    ]);
+    $('fbl-back').onclick = () => this.open();
+    // The ➕ Add friend button on a public profile is painted from here, because
+    // its four states are answers about MY lists, not about the person being
+    // looked at. See PublicProfile.onOpen in js/leaderboard.js.
+    PublicProfile.onOpen = (entry, isSelf) => this.paintAddFriend(entry, isSelf);
     segInit($('friends-mode'), v => { this.tab = v; this.render(); });
     $('friends-lb-btn').onclick = () => this.openLeaderboard();
     $('friends-search-btn').onclick = () => this.search();
@@ -66,6 +82,9 @@ export const Friends = {
       this.friends = [];
       this.me = null;
       this.friendsLoaded = false;
+      this.blocked = [];
+      this.blockedLoaded = false;
+      if (activeScreen === 'friends-blocked') this.loadBlocked();
       if (activeScreen === 'friends' && this.tab === 'list') this.loadFriends();
       if (activeScreen === 'friends-leaderboard') this.loadFriends();
     });
@@ -167,15 +186,154 @@ export const Friends = {
         `<span class="fr-sub">${esc(e.username || '')}` +
         (e.puzzleElo != null ? ` · ELO ${Math.round(e.puzzleElo)}` : '') +
         `</span></span>` +
-        // ⋯ opens Remove friend / Block in commit 7.
         `<button class="fr-more" aria-label="⋯">⋯</button>`;
       // Tapping the row opens the public profile, exactly as a leaderboard row
       // does — but ◀ comes back here instead of to the leaderboard.
       row.onclick = () => PublicProfile.open(e, 'friends');
-      // ⋯ is inert until commit 7; it must not open the profile in the meantime.
-      row.querySelector('.fr-more').onclick = ev => ev.stopPropagation();
+      // stopPropagation so the menu does not also open the profile behind it.
+      row.querySelector('.fr-more').onclick = ev => {
+        ev.stopPropagation();
+        this.rowMenu(e);
+      };
       el.appendChild(row);
     }
+  },
+
+  // Both items are destructive and both go through askConfirm() — there is no
+  // undo for either, and unfriending by mis-tap on a 36px target would be easy.
+  rowMenu(e) {
+    const name = e.profileName || '?';
+    sheet([
+      { label: t('friends_remove'), danger: true, action: () => this.confirmRemove(e.uid, name) },
+      { label: t('friends_block'), danger: true, action: () => this.confirmBlock(e.uid, name) },
+    ]);
+  },
+
+  // askConfirm() puts its message into innerHTML, so a name that came out of
+  // Firestore is escaped before it is substituted for {n}.
+  confirmText(key, name) {
+    return t(key).replace('{n}', esc(name));
+  },
+
+  async confirmRemove(uid, name) {
+    if (!await askConfirm(this.confirmText('friends_remove_confirm', name))) return;
+    try {
+      await unfriend(uid);
+    } catch (e) {
+      console.error('Removing a friend failed', e);
+    }
+    // They can be asked again, so a spent search row from earlier in this
+    // session is released.
+    this.sent.delete(uid);
+    await this.loadFriends();
+  },
+
+  // Block is one action with several parts — see blockUser() in js/firebase.js
+  // for what it does to a pending request in either direction. Everything the
+  // screen shows is rebuilt afterwards: the friends list loses the row, the
+  // Requests tab loses anything they had asked, and the blocked list is
+  // invalidated so the Blocked screen refetches it.
+  async confirmBlock(uid, name) {
+    if (!await askConfirm(this.confirmText('friends_block_confirm', name))) return;
+    try {
+      await blockUser(uid);
+    } catch (e) {
+      console.error('Blocking failed', e);
+    }
+    this.sent.delete(uid);
+    this.blockedLoaded = false;
+    await this.loadFriends();
+    await this.loadRequests();
+  },
+
+  // ── Blocked list ───────────────────────
+  async openBlocked() {
+    showScreen('friends-blocked');
+    this.renderBlocked();
+    await this.loadBlocked();
+  },
+
+  async loadBlocked() {
+    if (!Auth.user) {
+      this.blocked = [];
+      this.blockedLoaded = true;
+    } else {
+      try {
+        const uids = await fetchBlockedUids();
+        const people = await fetchLeaderboardByUids(uids);
+        // Same rule as everywhere else: someone with no public document still
+        // gets a row, so a block can always be undone.
+        this.blocked = uids.map(u => ({ ...(people[u] || {}), uid: u }));
+        this.blockedLoaded = true;
+      } catch (e) {
+        console.error('Loading the blocked list failed', e);
+      }
+    }
+    if (activeScreen === 'friends-blocked') this.renderBlocked();
+  },
+
+  // Blocked rows deliberately do NOT open the public profile — the only thing
+  // to do with someone here is let them back in.
+  renderBlocked() {
+    const el = $('fbl-list');
+    el.innerHTML = '';
+    // The empty note waits for the list to have actually arrived, so an empty
+    // screen mid-fetch does not claim you have blocked nobody.
+    $('fbl-empty').classList.toggle('hidden', !this.blockedLoaded || this.blocked.length > 0);
+    for (const e of this.blocked) {
+      el.appendChild(this.personRow(e, [
+        { cls: 'btn small', key: 'friends_unblock', on: b => this.unblock(e.uid, b) },
+      ]));
+    }
+  },
+
+  // Unblocking restores nothing — no friendship, no request. They simply
+  // become able to ask again.
+  async unblock(uid, btn) {
+    this.freezeRow(btn);
+    try {
+      await unblockUser(uid);
+    } catch (e) {
+      console.error('Unblocking failed', e);
+    }
+    this.blockedLoaded = false;
+    await this.loadBlocked();
+  },
+
+  // ── ➕ Add friend, on a public profile ──
+  // Four states, all answered from lists this module already holds, so opening
+  // a profile costs no new query once Friends has been used. The friends list
+  // is awaited when it has never loaded — that is the one wait, and it is the
+  // same query the Friends tab runs.
+  //
+  // Someone who has asked ME is deliberately left in the plain "Add friend"
+  // state: accepting belongs on the Requests tab, and inventing a fifth state
+  // here would mean a fifth string.
+  async paintAddFriend(entry, isSelf) {
+    const btn = $('pubprofile-add-friend');
+    const row = btn.parentElement;
+    const uid = entry && entry.uid;
+    // Hidden on my own profile, and signed out — a live button that could only
+    // fail is worse than no button.
+    if (isSelf || !uid || !Auth.user) {
+      row.classList.add('hidden');
+      return;
+    }
+    if (!this.friendsLoaded) await this.loadFriends();
+    const friend = this.friends.some(f => f.uid === uid);
+    // `outgoing` carries rejected requests too, and that is the point: a
+    // rejection must look exactly like a pending request to whoever sent it.
+    const pending = !friend && (this.sent.has(uid) || this.outgoing.some(o => o.uid === uid));
+    row.classList.remove('hidden');
+    btn.disabled = friend || pending;
+    btn.textContent = friend ? t('friends_already')
+      : pending ? t('friends_pending') : t('friends_add');
+    // Sending from here shows the same neutral toast as the Find tab — a
+    // blocked send and a real send must stay indistinguishable.
+    btn.onclick = btn.disabled ? null : async () => {
+      await this.sendRequest(uid, btn);
+      this.paintAddFriend(entry, isSelf);
+    };
   },
 
   // ── Requests tab ───────────────────────
@@ -290,6 +448,10 @@ export const Friends = {
     } catch (e) {
       console.error('Accepting a friend request failed', e);
     }
+    // The friends list just changed, and the ➕ button on a public profile is
+    // answered from it — so it is invalidated rather than left stale. Lazy:
+    // it refetches when the Friends tab or a public profile next needs it.
+    this.friendsLoaded = false;
     await this.loadRequests();
   },
 

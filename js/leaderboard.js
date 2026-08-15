@@ -148,14 +148,25 @@ export const PublicProfile = {
   // still send you back where you came from.
   backTo: 'leaderboard',
 
+  // Set once by Friends.init(). It paints the ➕ Add friend button into one of
+  // its four states and is awaited BEFORE the screen appears, so the button is
+  // never shown live and then flipped to "✓ Friends" a moment later. The hook
+  // lives here rather than as an import so leaderboard.js does not have to
+  // import friends.js back — friends.js already imports this file.
+  onOpen: null,
+
   init() {
     $('pubprofile-back').onclick = () => showScreen(this.backTo);
   },
 
   async open(entry, backTo = 'leaderboard') {
     this.backTo = backTo;
-    showScreen('public-profile');
     const isSelf = !!Auth.user && entry.uid === Auth.user.uid;
+    // Resolved first, and never allowed to stop the profile from opening.
+    if (this.onOpen) {
+      try { await this.onOpen(entry, isSelf); } catch (e) { console.error('Add-friend button failed', e); }
+    }
+    showScreen('public-profile');
     const data = isSelf ? await withLocalDetail(entry) : entry;
     const charts = canSee('charts', entry, isSelf);
 

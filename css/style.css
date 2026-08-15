@@ -856,7 +856,9 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
    says why. Also covers a spent ➕ Add friend button. */
 .friends-search-row .input:disabled,
 .friends-search-row .btn:disabled,
-.fr-actions .btn:disabled { opacity: .45; cursor: default; }
+.fr-actions .btn:disabled,
+/* ➕ Add friend once it reads "⏳ Request sent" or "✓ Friends". */
+#pubprofile-add-friend:disabled { opacity: .45; cursor: default; }
 
 /* One row per person, same panel and radius as .lb-row. Rows that carry
    actions put them on a second line (.stack) instead of beside the name —

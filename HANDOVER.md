@@ -118,7 +118,36 @@
     in needs Adrian's own credentials and the local client cannot reach
     Firestore at all. Everything here was verified with rows **seeded by hand
     in the page**.
-  - **Next task: commit 7 — add friend from a public profile, unfriend, block.**
+
+- **Friends system — commit 7 of 9 is done (2026-08-15). Add, unfriend,
+  block.** `js/firebase.js` gained four exports — `unfriend()`, `blockUser()`,
+  `unblockUser()`, `fetchBlockedUids()`. `➕ Add friend` on a public profile is
+  live in all four states, `⋯` on a friends row opens Remove friend / Block, and
+  a new `#screen-friends-blocked` lists the people you have blocked with
+  Unblock. `sw.js` v59 → **v60**. `firestore.rules` untouched, nothing
+  deployed, still **87 tests passing**.
+  - **No "are we friends" query was added.** The ➕ button's four states are
+    facts about *my* lists, so they are read from `Friends.friends`,
+    `Friends.outgoing` and `Friends.sent` — opening a public profile costs no
+    new document read. A `get()` on a `friendships` document that does not
+    exist is itself a permission error, so the obvious implementation would
+    have thrown on every stranger.
+  - **Blocking rejects their pending request instead of deleting it.** Deleting
+    would make their outgoing row vanish, which they could correlate with being
+    blocked; `'rejected'` leaves it reading "Request sent" forever. A request I
+    sent *them* is deleted — that is just cancelling my own. The block document
+    is written **first** and is the only step whose failure is reported.
+  - **`PublicProfile.onOpen` is a hook, not an import** — `js/friends.js`
+    already imports `js/leaderboard.js`, and it is awaited before
+    `showScreen()`, which is what "resolved before the screen renders" means.
+  - **One new string**, `friends_blocked_empty`. Everything else existed.
+  - **Owed, still: the two-account run** (commits 3, 4, 5, 6 and now 7) and
+    **the two composite indexes for the Requests tab**. Fifth session running.
+    Nothing in this commit has ever written to Firestore — `unfriend`,
+    `blockUser` and `unblockUser` have never executed. Everything was verified
+    with lists **seeded by hand in the page**.
+  - **Next task: commit 8 — correct the stale privacy comment at
+    `js/leaderboard.js`.**
 
 
 - **👣 Walk through is now on the Endings studies too (2026-08-15).** Adrian
