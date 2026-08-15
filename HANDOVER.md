@@ -146,8 +146,21 @@
     Nothing in this commit has ever written to Firestore — `unfriend`,
     `blockUser` and `unblockUser` have never executed. Everything was verified
     with lists **seeded by hand in the page**.
-  - **Next task: commit 8 — correct the stale privacy comment at
-    `js/leaderboard.js`.**
+- **Friends system — commit 8 of 9 is done (2026-08-15, `c3b1e4f`). Comment
+  only.** The note above `VISIBILITY_SECTIONS` in `js/leaderboard.js` used to
+  claim a `friends` level could be added by adding a line to that table. It
+  cannot — `/leaderboard/{uid}` is world-readable, so the table only decides
+  what the screen draws and the real boundary is `updatePublicLeaderboardDoc()`
+  in `js/firebase.js`, which always publishes `PUBLIC_ALWAYS_KEYS` and
+  **deletes** `PUBLIC_DETAIL_KEYS` while the profile is private. The new
+  comment points at "Future options" item 1 in the plan.
+  - **No code line changed and `sw.js` stays at v60** — nothing a user can see
+    is different, and a bump would make every returning user redownload the
+    app for nothing. Same reasoning commit 1 used.
+  - **Owed, still: the two-account run** (commits 3–7) and **the two composite
+    indexes for the Requests tab**. Unchanged by this commit.
+  - **Next task: commit 9 — unique usernames. It is marked OPTIONAL in the
+    plan and it changes signup.**
 
 
 - **👣 Walk through is now on the Endings studies too (2026-08-15).** Adrian
