@@ -303,9 +303,9 @@ dark, in **both** languages, before starting the next.
 
 ## Commit 1 — Export and test the security rules (no feature code)
 
-**DONE. Steps 1–3 landed 2026-08-14 (`1899572`), step 4 on 2026-08-15.**
-Step 5 (deploying) is the only part left and it is Adrian's call — see
-"What actually happened" below.
+**DONE — all five steps. Steps 1–3 landed 2026-08-14 (`1899572`), step 4 and
+the deploy on 2026-08-15.** See "What actually happened" below before writing
+any Friends code.
 
 **Nothing about Friends is in this commit.** This is the prerequisite.
 
@@ -362,10 +362,11 @@ came out differently from the sketch above:
 loads — rules and tests are not in `ASSETS`. The "bump every commit" rule below
 applies from commit 2 onward.
 
-**Step 5 is not done: the rules are NOT deployed.** `npm run rules:deploy`
-replaces what is live for real users, so it is Adrian's call, and there is no
-hurry — no app code touches these collections yet. When it happens: deploy, then
-immediately check the app still signs in and the leaderboard still loads.
+**Deployed 2026-08-15**, by Adrian, and the app was checked straight afterwards
+— the leaderboard still loads. So the live rules and `firestore.rules` match,
+and commits 3–7 can write to these collections against real Firestore without
+any further rules work. **From here on, edit the file and deploy — never the
+console.**
 
 ---
 

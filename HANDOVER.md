@@ -11,9 +11,9 @@
     `leaderboard` write allowlist so commit 3 needs no second rules change.
   - `tests/rules/friends.test.js` — 56 new tests. **`npm run test:rules` is at
     86 passing**, every allow and every deny.
-  - **The rules are written and tested but NOT deployed.** `npm run
-    rules:deploy` replaces the live rules; that is Adrian's call. Nothing in
-    the app uses these collections yet, so there is no rush.
+  - **Deployed 2026-08-15** and checked — the leaderboard still loads. Live
+    rules and `firestore.rules` match, so commits 3–7 need no further rules
+    work. Edit the file and deploy, never the console.
   - `sw.js` deliberately not bumped — nothing the browser loads changed.
   - **Next task: commit 2, the Friends screens (UI only, no data).**
 
