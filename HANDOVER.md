@@ -218,15 +218,16 @@ Lower priority, not in the work order:
    text. Tests live in `tests/rules/`. `package.json` is dev tooling only —
    **the app still has no build step and loads nothing from `node_modules`.**
    Needs Java 11+; `npm run test:rules` finds the JDK itself.
-   - **STILL OPEN, and it is the important one: nobody has confirmed that
-     `firestore.rules` matches what is actually deployed in the Firebase
-     console.** There is real evidence they differ — the comment at
-     `js/firebase.js:180` says client-side deletes on `/leaderboard/{uid}` are
-     known to be permission-denied, but `firestore.rules:25` explicitly allows
-     them, and the tests confirm the file allows them. So the console is
-     probably running an older ruleset. Diff the console against the file
-     before running `npm run rules:deploy`, because deploying replaces what is
-     live.
+   - **The deployed console rules were diffed against `firestore.rules` on
+     2026-08-14: identical, character for character.** No drift. The file is
+     the truth, the tests test what is actually running, and
+     `npm run rules:deploy` is currently a no-op. Re-diff after any console
+     edit — and from now on edit the file and deploy, never the console.
+   - The suspected discrepancy turned out to be a **stale comment, not a rules
+     problem**: `js/firebase.js` claimed leaderboard deletes were
+     permission-denied, which stopped being true when the delete rule landed in
+     `fa39468`. Comment corrected; the tolerant error handling around it was
+     left alone on purpose.
 3. Restrict the Firebase web API key by HTTP referrer in Google Cloud Console.
 4. ~~Puzzle difficulty does not scale with ELO~~ — **NOT A BUG ANY MORE. Fixed
    on 31 Jul in `7bfc92e`; verified empirically 7 Aug, no code changed.** The

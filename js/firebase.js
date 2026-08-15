@@ -175,10 +175,15 @@ export const Auth = {
   // private user document, and the Firebase Auth account itself.
   // Firestore doc deletes are best-effort and swallow permission-denied
   // specifically (rather than aborting) — losing the Auth account is far
-  // worse for the user than an orphaned leaderboard doc, and this project's
-  // current security rules are known not to allow client-side deletes on
-  // /leaderboard/{uid} (see chess-app-playstore-setup memory). Any other
-  // error (network, etc.) still propagates normally.
+  // worse for the user than an orphaned leaderboard doc. Any other error
+  // (network, etc.) still propagates normally.
+  //
+  // This used to say the rules were known NOT to allow client-side deletes on
+  // /leaderboard/{uid}. That stopped being true when the delete rule was added
+  // in fa39468; verified 2026-08-14 by diffing the deployed console rules
+  // against firestore.rules (identical) — see firestore.rules:25 and the
+  // covering test in tests/rules/existing.test.js. The tolerant handling stays
+  // anyway: account deletion must never strand a user with a live login.
   async deleteAccount() {
     const user = auth.currentUser;
     if (!user) return;
