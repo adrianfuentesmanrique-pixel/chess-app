@@ -17,6 +17,30 @@ Do the task, verify it, commit, then tell me to start a new conversation.
 Do not drift into a second task. If I ask for something unrelated, say so and
 suggest a fresh session.
 
+## ALWAYS end by writing the next session's prompt — do not wait to be asked
+I am not a programmer, so I cannot write these myself. Every session ends with a
+copy-paste prompt for the next one, in a fenced block, **without me asking for
+it.** This rule is part of the prompt you hand over, so it keeps propagating.
+
+The prompt must contain, in this order:
+1. The standing token rules (`js/app.js` sizes, never read the data files, the
+   `cd C:\Users\Adrian\chess-app;` + `npm.cmd` command shape, one task per chat).
+2. **TASK:** one sentence naming the task, and the plan or spec file to read.
+3. **What is already built that must NOT be redone** — the real function names
+   and file paths, and which existing helpers to reuse instead of rewriting.
+4. **Anything stale in the plan or the docs, called out by name**, so the next
+   session does not follow an out-of-date instruction.
+5. **Scope** — what to build, plus any decision I need to make and your
+   recommendation.
+6. **Verify** — the concrete checks, always including 375px, light AND dark,
+   both languages.
+7. **Known limits and things not to chase** (App Check 403, screenshots time
+   out, another session's unstaged files, what is still owed).
+8. This same rule, so the next session ends the same way.
+
+Facts in the prompt must be checked against the code first, not copied out of a
+handover note — those go stale.
+
 ## Data that must never be renamed
 `'endgame'` is one of four ELO domains (puzzle/opening/endgame/blindfold). It is
 a storage key and a radar-chart key, not a label. Renaming it wipes every
