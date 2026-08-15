@@ -823,6 +823,66 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .tier-podium .lb-rank { font-size: 19px; }
 .tier-1 { box-shadow: inset 0 0 0 1px var(--gold), 0 0 14px -4px var(--gold-glow); }
 
+/* ── friends ───────────────────────────── */
+/* The Profile tab's two entry points. A grid, not a flex row, so both halves
+   are exactly the same width whatever the two labels say in either language. */
+.btn-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 10px; }
+.btn-duo .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 8px; min-width: 0;
+}
+.btn-duo .btn > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Pending-request count. Gold marks "something is waiting for you" everywhere
+   else in the app, so it does here too. */
+.count-pill {
+  flex: 0 0 auto; min-width: 20px; padding: 0 6px; border-radius: 10px;
+  background: var(--gold); color: #1a202c;
+  font-size: 12px; font-weight: 700; line-height: 20px; text-align: center;
+}
+.btn-wide { display: block; width: 100%; margin: 10px 0 0; }
+.group-head {
+  margin: 14px 0 6px; font-size: 12px; color: var(--muted);
+  font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+}
+.empty-note { text-align: center; padding: 26px 18px; }
+.friends-search-row .input { flex: 1 1 auto; min-width: 0; }
+.friends-search-row .btn { flex: 0 0 auto; }
+
+/* One row per person, same panel and radius as .lb-row. Rows that carry
+   actions put them on a second line (.stack) instead of beside the name —
+   at 375px "✕ Rechazar" plus "✓ Aceptar" leaves a username no room at all. */
+.fr-row {
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 10px;
+  background: var(--panel); border-radius: var(--radius);
+  padding: 10px 12px; color: var(--text); width: 100%; text-align: left;
+}
+.fr-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr-sub { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.fr-more {
+  background: none; border: none; color: var(--muted);
+  font-size: 18px; line-height: 1; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+}
+.fr-more:active { background: var(--panel2); }
+.fr-row.stack { grid-template-columns: auto 1fr; }
+.fr-actions {
+  grid-column: 2; display: flex; align-items: center; gap: 8px;
+  justify-content: flex-end; flex-wrap: wrap;
+}
+.fr-actions .btn { margin-top: 0; }
+.fr-pending { color: var(--muted); font-size: 13px; margin-right: auto; }
+
+/* Keeps the decorative watermark inside the screen instead of letting it
+   widen the page — it is positioned against this section, not the document. */
+#screen-friends-leaderboard { position: relative; isolation: isolate; overflow: hidden; }
+/* "Clasificación de amigos" is the longest title in the app and at 20px it
+   runs the full width beside the Back button. Two points smaller and it
+   breathes, without touching every other screen head. */
+#screen-friends-leaderboard h2 { font-size: 18px; }
+/* Status line doubles as the empty state, so it is centred rather than
+   left-hugging the segmented control above it. */
+#flb-status:not(:empty) { text-align: center; padding: 22px 18px; }
+
 /* ── puzzle rush ───────────────────────── */
 .rush-board-stack { position: relative; }
 .rush-strike { color: var(--muted); opacity: .35; margin: 0 1px; }

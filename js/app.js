@@ -20,6 +20,7 @@ import { Themes, ColorMode } from './appearance.js';
 import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
+import { Friends } from './friends.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -1116,7 +1117,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'rush', 'blind'];
+const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'rush', 'blind'];
 export let activeScreen = 'analysis';
 
 export function showScreen(name) {
@@ -5549,6 +5550,7 @@ export const Profile = {
     $('profile-elo-endgame-card').onclick = () => openEloHistoryModal('endgameEloHistory', 'endgame_elo');
     $('profile-elo-blindfold-card').onclick = () => openEloHistoryModal('blindfoldEloHistory', 'blindfold_elo');
     $('profile-leaderboard-btn').onclick = () => Leaderboard.open();
+    $('profile-friends-btn').onclick = () => Friends.open();
     $('profile-share-streak').onclick = () => shareStatCard({
       emoji: '🔥',
       title: t('card_streak_title').replace('{n}', Streak.count),
@@ -5916,6 +5918,7 @@ async function main() {
   Profile.init();
   Leaderboard.init();
   PublicProfile.init();
+  Friends.init();
   Setup.init();
   await Themes.init();
   await Streak.init();
