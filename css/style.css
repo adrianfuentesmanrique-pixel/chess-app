@@ -847,6 +847,11 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .empty-note { text-align: center; padding: 26px 18px; }
 .friends-search-row .input { flex: 1 1 auto; min-width: 0; }
 .friends-search-row .btn { flex: 0 0 auto; }
+/* Signed out, both halves of the search row are dead — the hint underneath
+   says why. Also covers a spent ➕ Add friend button. */
+.friends-search-row .input:disabled,
+.friends-search-row .btn:disabled,
+.fr-actions .btn:disabled { opacity: .45; cursor: default; }
 
 /* One row per person, same panel and radius as .lb-row. Rows that carry
    actions put them on a second line (.stack) instead of beside the name —

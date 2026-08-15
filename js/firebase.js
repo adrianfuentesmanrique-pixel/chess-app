@@ -8,7 +8,7 @@ import {
   deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, deleteDoc, deleteField, collection, query, orderBy, limit, getDocs,
+  getFirestore, doc, getDoc, setDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -245,6 +245,15 @@ async function updatePublicLeaderboardDoc(uid) {
     if (v !== null) pub[key] = v;
   }
 
+  // username.toLowerCase(), published so friend search can match without
+  // caring about capitals. Derived here on the way out — it is never a stored
+  // local key, so there is nothing to keep in sync. Accounts that predate this
+  // become findable the next time their public doc is rewritten, which happens
+  // on sign-in via pullOrBootstrap.
+  pub.usernameLower = typeof pub.username === 'string' && pub.username
+    ? pub.username.toLowerCase()
+    : deleteField();
+
   // Averages of the two breakdown maps. Always published: they are what a
   // private profile shows in place of the maps themselves.
   const openingAvg = avgOf(await db.kvGet('openingElo', null));
@@ -280,6 +289,42 @@ export async function fetchLeaderboard(limitN = 200, orderByField = 'puzzleElo')
   const out = [];
   snap.forEach(d => out.push({ uid: d.id, ...d.data() }));
   return out;
+}
+
+// Exact username match against /leaderboard, which is already world-readable,
+// so this adds no new exposure. Deliberately NOT a prefix search: one letter
+// would return a page of strangers and the alphabet would enumerate the whole
+// app. Usernames are not unique, so this returns a short list, not one row.
+export async function searchByUsername(typed) {
+  const needle = (typed || '').trim().toLowerCase();
+  if (!needle) return [];
+  const q = query(collection(firestore, 'leaderboard'),
+    where('usernameLower', '==', needle), limit(5));
+  const snap = await getDocs(q);
+  const out = [];
+  snap.forEach(d => out.push({ uid: d.id, ...d.data() }));
+  return out;
+}
+
+// friendRequests/{fromUid_toUid} with exactly the four fields the rules allow.
+// The id is deterministic, so asking twice writes the same document — and the
+// second attempt is denied outright, because the create rule no longer applies
+// to a document that exists. That is how repeat-spam is prevented.
+//
+// Returns true only when a request was actually created. A permission error
+// means either that or a block, and the caller must show the same neutral
+// toast for every outcome — a blocked person must not be able to detect the
+// block. Do not surface this return value as an error message.
+export async function sendFriendRequest(toUid) {
+  const user = auth.currentUser;
+  if (!user || !toUid || toUid === user.uid) return false;
+  await setDoc(doc(firestore, 'friendRequests', `${user.uid}_${toUid}`), {
+    from: user.uid,
+    to: toUid,
+    status: 'pending',
+    createdAt: Date.now(),
+  });
+  return true;
 }
 
 async function pullOrBootstrap(uid) {

@@ -238,6 +238,15 @@ describe('/friendRequests — sending', () => {
     await assertSucceeds(setDoc(doc(asAlice(), `friendRequests/${AB}`), pending(ALICE, BOB)));
   });
 
+  // The app's own guarantee: pressing ➕ Add friend twice writes no second
+  // document and does not move createdAt. The id is deterministic, so the
+  // second press is an update, and only the recipient may ever update.
+  it('sending the same request twice is denied the second time', async () => {
+    await seed(`friendRequests/${AB}`, pending(ALICE, BOB));
+    await assertFails(setDoc(doc(asAlice(), `friendRequests/${AB}`),
+      { ...pending(ALICE, BOB), createdAt: NOW + 1000 }));
+  });
+
   it('CANNOT send a request as somebody else', async () => {
     await assertFails(setDoc(doc(asAlice(), `friendRequests/${BC}`), pending(BOB, CAROL)));
   });

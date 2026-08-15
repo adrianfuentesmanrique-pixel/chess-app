@@ -29,8 +29,27 @@
     leaderboard clips its own watermark while `#screen-leaderboard` still
     does not.
   - Committed on local `main`, **not pushed**.
-  - **Next task: commit 3, search and send a request — first real data,
-    needs two accounts.**
+
+- **Friends system — commit 3 of 9 is done (2026-08-15). Search and send.**
+  `SAMPLE` and the `sample` flag are **deleted** — no invented players can
+  reach the site. `usernameLower` is now published inside
+  `updatePublicLeaderboardDoc`, and `js/firebase.js` gained
+  `searchByUsername()` and `sendFriendRequest()`. The Find tab does an exact,
+  case-insensitive username match against `/leaderboard` and writes
+  `friendRequests/{from_to}` with exactly four fields. `sw.js` v54 → **v55**.
+  `firestore.rules` untouched; one new test, **87 passing**.
+  - **Every send outcome shows the same `Solicitud enviada ✓` toast** —
+    created, already asked, blocked or offline. That is the block-privacy
+    guarantee, not an oversight. Do not "fix" it into a real error message.
+  - **Nobody is findable until their public doc is rewritten with
+    `usernameLower`,** which happens on their next sign-in. Confirmed over the
+    REST API: today no `/leaderboard` document has the field, and the query
+    itself runs server-side with no index error.
+  - **Owed: the two-account run.** It needs a real sign-in, which this session
+    could not do (and the headless localhost client cannot reach Firestore at
+    all — App Check has no debug token for it). The three steps are written
+    out at the end of the "Commit 3" section of the plan.
+  - **Next task: commit 4, see requests, accept and reject.**
 
 - **Learn tab — 👣 Walk through, a guided move-by-move mode (2026-08-14).**
   Shows the next move of the lesson's line as an arrow, clears it, then asks the

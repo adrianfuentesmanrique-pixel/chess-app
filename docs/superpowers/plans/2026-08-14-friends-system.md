@@ -484,6 +484,68 @@ looks identical to the Leaderboard one; nothing overflows `document.scrollWidth`
 
 ## Commit 3 — Search and send a request
 
+**DONE 2026-08-15 (code), with the two-account run still owed — see "What is
+NOT verified" below. Built as written, plus:**
+
+1. **`SAMPLE` and `Friends.sample` are gone.** The Friends, Requests and
+   friends-leaderboard lists now render from empty arrays with a comment naming
+   the commit that fills each one (4, 5, 6). Nothing else in the file moved,
+   exactly as commit 2 predicted.
+2. **`usernameLower` is derived, never stored.** `updatePublicLeaderboardDoc`
+   writes `username.toLowerCase()`, or `deleteField()` when there is no
+   username, so an account that clears its username does not keep an old
+   searchable copy. There is no new local key and no new `SYNCED_KEYS` entry.
+3. **Three new exports in `js/firebase.js`** — `searchByUsername(typed)`
+   (`where('usernameLower','==',…)`, `limit(5)`) and
+   `sendFriendRequest(toUid)`. `where` was added to the firestore import list.
+4. **The neutral toast lives in `Friends.sendRequest`, not in firebase.js.**
+   Every outcome — created, already asked, blocked, offline — shows
+   `friends_sent_toast` and marks the row `⏳ Solicitud enviada`. The only
+   place a failure is recorded is `console.error`. **This is the block-privacy
+   guarantee; do not turn it into a useful error.**
+5. **A spent button is dropped, not just disabled.** `Friends.sent` is a
+   session `Set` of uids, so re-running the same search still shows the row as
+   already asked.
+6. **New `#friends-signin` paragraph** in the Find pane, plus a
+   `.friends-search-row .input:disabled` / `.btn:disabled` opacity rule —
+   there was no global disabled style in the CSS to inherit.
+7. **One new rules test, 86 → 87 passing**: sending the identical request a
+   second time is denied, with a moved `createdAt`, proving no second document
+   and no rewrite. No rules change; `firestore.rules` was not touched.
+
+`sw.js` v54 → **v55**.
+
+**What IS verified** (headless Chrome over CDP at 375px, and the Firestore REST
+API against production):
+
+- Signed out: input and Search button disabled, `friends_signin_needed` shown,
+  pressing Search does nothing, and "no player found" stays hidden.
+- Your own row shows `Ese eres tú.` with zero buttons.
+- Pressing ➕ Add friend with no reachable backend still shows
+  `Solicitud enviada ✓` and spends the row — the failure path is neutral.
+- "No player found" only after an actual search, never on an empty box.
+- A `<img onerror>` payload in `profileName` renders as text: `esc()` holds.
+- 375px, light and dark, both languages, `scrollWidth` 375 on every screen,
+  no console errors beyond the known App Check 403.
+- `usernameLower == 'adrian'` runs server-side over REST with **no index
+  error** and returns nothing, which is the documented pre-backfill state:
+  no `/leaderboard` document has `usernameLower` yet.
+
+**What is NOT verified, and why.** The two-account run in the plan below has
+not happened. Signing in needs Adrian's own credentials, and the headless
+localhost client cannot reach Firestore at all (App Check has no debug token
+registered for it, so the SDK drops to offline mode — `fetchLeaderboard` also
+returns nothing there). So these three are still owed, on the real site with
+two accounts:
+
+1. Sign in on both accounts once, so each public doc picks up `usernameLower`.
+2. Search account B's username from account A → one row → ➕ Add friend →
+   `friendRequests/{A}_{B}` exists in the console with exactly `from`, `to`,
+   `status: 'pending'`, `createdAt` and nothing else.
+3. Press it again → still one document, `createdAt` unchanged.
+
+---
+
 First real data. `js/friends.js` gets `usernameLower` published (a small change
 in `js/firebase.js`'s `updatePublicLeaderboardDoc`), the exact-match search, and
 `sendRequest(toUid)`.

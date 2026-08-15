@@ -1,57 +1,39 @@
-// Friends — the screens only. Commit 2 of
-// docs/superpowers/plans/2026-08-14-friends-system.md.
+// Friends — the screens, plus username search and sending a request.
+// Commits 2 and 3 of docs/superpowers/plans/2026-08-14-friends-system.md.
 //
-// There is deliberately NO Firestore in this file yet. Every list below is
-// filled from SAMPLE, a handful of local fake rows, so the screens can be
-// looked at with content in them. Flip `Friends.sample = false` in the console
-// to see every empty state instead.
+// The Friends and Requests tabs still render empty lists: reading friendships
+// and requests is commit 4/5. Only the Find tab talks to Firestore so far.
 //
-// Commit 3 replaces SAMPLE with real search + request writes. When it does,
-// delete SAMPLE and the `sample` flag — nothing else in here should need to
-// move, because the render functions already take a list.
+// Everything that arrives from Firestore is another user's text, so every one
+// of those values goes through esc() before it reaches innerHTML.
 //
 // Imports from js/app.js (cycle) — every app.js binding used here is touched
 // inside a function only, never at module top level.
 import { t } from './i18n.js';
 import { avatarHtml } from './avatars.js';
 import { LEADERBOARD_FIELDS } from './leaderboard.js';
-import { $, esc, segInit, showScreen } from './app.js';
-
-// ── fake data, commit 2 only ─────────────
-// Shaped like a /leaderboard document so the render code written here is the
-// render code commit 5 keeps.
-const SAMPLE = {
-  friends: [
-    { uid: 'u1', profileName: 'Kael', username: 'kael', avatarId: 'knight_w', puzzleElo: 1840, rushBest180: 24, rushBest300: 38, blindfoldElo: 1510 },
-    { uid: 'u2', profileName: 'Ana Sofía', username: 'anasofia', avatarId: 'owl', puzzleElo: 1620, rushBest180: 19, rushBest300: 31, blindfoldElo: 1290 },
-    { uid: 'u3', profileName: 'MagnusFan2011', username: 'magnusfan2011', avatarId: 'lion', puzzleElo: 1355, rushBest180: 11, rushBest300: 17, blindfoldElo: 1200 },
-  ],
-  incoming: [
-    { uid: 'u4', profileName: 'Diego', username: 'diego_pty', avatarId: 'bear', puzzleElo: 1490 },
-    { uid: 'u5', profileName: 'rook_lover', username: 'rook_lover', avatarId: 'rook_b', puzzleElo: 1710 },
-  ],
-  outgoing: [
-    { uid: 'u6', profileName: 'Valentina', username: 'valen', avatarId: 'raven', puzzleElo: 1580 },
-  ],
-  results: [
-    { uid: 'u7', profileName: 'Magnus', username: 'magnus', avatarId: 'eagle', puzzleElo: 2250 },
-  ],
-};
+import { Auth, searchByUsername, sendFriendRequest } from './firebase.js';
+import { $, esc, toast, segInit, showScreen } from './app.js';
 
 export const Friends = {
-  sample: true,
   tab: 'list',
   field: 'puzzleElo',
   season: false,
+  // Rows from the last search, and whether a search has actually been run —
+  // an empty box must not show "no player found".
+  results: [],
+  searched: false,
+  // uids already asked in this session, so the row's button stays spent even
+  // if the same search is run again.
+  sent: new Set(),
 
   init() {
     $('friends-back').onclick = () => showScreen('profile');
     segInit($('friends-mode'), v => { this.tab = v; this.render(); });
     $('friends-lb-btn').onclick = () => this.openLeaderboard();
-    // Inert until commit 3: the Find tab has nothing to query yet.
-    $('friends-search-btn').onclick = () => this.render();
+    $('friends-search-btn').onclick = () => this.search();
     $('friends-search').addEventListener('keydown', e => {
-      if (e.key === 'Enter') this.render();
+      if (e.key === 'Enter') this.search();
     });
 
     $('flb-back').onclick = () => this.open();
@@ -69,7 +51,7 @@ export const Friends = {
   // The gold pill on the Profile tab's Friends button. Commit 4 feeds it the
   // real incoming-request count.
   refreshCount() {
-    const n = this.sample ? SAMPLE.incoming.length : 0;
+    const n = 0;
     const pill = $('profile-friends-count');
     pill.textContent = n;
     pill.classList.toggle('hidden', n === 0);
@@ -87,7 +69,7 @@ export const Friends = {
 
   // ── Friends tab ────────────────────────
   renderList() {
-    const list = this.sample ? SAMPLE.friends : [];
+    const list = [];   // commit 5 reads friendships here
     const el = $('friends-list');
     el.innerHTML = '';
     $('friends-empty').classList.toggle('hidden', list.length > 0);
@@ -106,8 +88,8 @@ export const Friends = {
 
   // ── Requests tab ───────────────────────
   renderRequests() {
-    const incoming = this.sample ? SAMPLE.incoming : [];
-    const outgoing = this.sample ? SAMPLE.outgoing : [];
+    const incoming = [];   // commit 4 reads friendRequests here
+    const outgoing = [];
 
     const inEl = $('friends-incoming');
     inEl.innerHTML = '';
@@ -134,19 +116,60 @@ export const Friends = {
 
   // ── Find tab ───────────────────────────
   renderFind() {
-    const typed = $('friends-search').value.trim();
-    // Nothing is queried in this commit — a non-empty box shows the sample
-    // result so the row and its button can be judged, an empty one shows the
-    // "no player found" state.
-    const results = this.sample && typed ? SAMPLE.results : [];
+    const signedIn = !!Auth.user;
+    $('friends-search').disabled = !signedIn;
+    $('friends-search-btn').disabled = !signedIn;
+    $('friends-signin').classList.toggle('hidden', signedIn);
+
     const el = $('friends-results');
     el.innerHTML = '';
-    for (const e of results) {
-      el.appendChild(this.personRow(e, [
-        { cls: 'btn small primary', key: 'friends_add' },
-      ]));
+    for (const e of this.results) {
+      // Your own account can be found by its username like anyone else's. It
+      // gets a note instead of a button rather than being filtered out — a
+      // missing row would just look like search is broken.
+      const self = signedIn && e.uid === Auth.user.uid;
+      const done = this.sent.has(e.uid);
+      const actions = (self || done) ? [] : [
+        { cls: 'btn small primary', key: 'friends_add', on: btn => this.sendRequest(e.uid, btn) },
+      ];
+      const note = self ? t('friends_self') : (done ? t('friends_pending') : '');
+      el.appendChild(this.personRow(e, actions, note));
     }
-    $('friends-no-match').classList.toggle('hidden', results.length > 0 || !typed);
+    $('friends-no-match').classList.toggle('hidden',
+      !signedIn || this.results.length > 0 || !this.searched);
+  },
+
+  async search() {
+    if (!Auth.user) return;
+    const typed = $('friends-search').value.trim();
+    this.results = [];
+    this.searched = !!typed;
+    if (typed) {
+      const btn = $('friends-search-btn');
+      btn.disabled = true;
+      try {
+        this.results = await searchByUsername(typed);
+      } catch (e) {
+        console.error('Friend search failed', e);
+      }
+    }
+    this.renderFind();
+  },
+
+  // Every outcome looks identical from here: sent, already sent, or blocked by
+  // the person being asked. A permission error means one of the last two, and
+  // telling them apart is exactly what a block must never allow. Do not turn
+  // this into a helpful error message.
+  async sendRequest(toUid, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      await sendFriendRequest(toUid);
+    } catch (e) {
+      console.error('Friend request failed', e);
+    }
+    this.sent.add(toUid);
+    toast(t('friends_sent_toast'));
+    this.renderFind();
   },
 
   // Avatar + name over a row of actions. Stacked rather than side by side:
@@ -168,6 +191,10 @@ export const Friends = {
       `<span class="fr-actions">` +
       (note ? `<span class="fr-pending">${esc(note)}</span>` : '') +
       buttons + `</span>`;
+    // Handlers are attached after the markup exists, so nothing user-supplied
+    // is ever interpolated into an inline attribute.
+    const els = row.querySelectorAll('.fr-actions .btn');
+    actions.forEach((a, i) => { if (a.on) els[i].onclick = () => a.on(els[i]); });
     return row;
   },
 
@@ -185,7 +212,7 @@ export const Friends = {
     if (!board.season) this.season = false;
     const field = this.season && board.season ? board.season : this.field;
 
-    const list = (this.sample ? SAMPLE.friends.slice() : [])
+    const list = []   // commit 6 fetches the friends' leaderboard rows here
       .sort((a, b) => (b[field] ?? board.fallback) - (a[field] ?? board.fallback));
 
     $('flb-status').textContent = list.length ? '' : t('friends_lb_empty');

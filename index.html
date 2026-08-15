@@ -687,9 +687,9 @@ if (window.Sentry && window.Sentry.onLoad) {
   </section>
 
   <!-- ══════════ FRIENDS ══════════ -->
-  <!-- Commit 2 of the friends plan: markup, CSS and strings only. Every list
-       here is filled by js/friends.js from local sample rows; nothing reads or
-       writes Firestore until commit 3. -->
+  <!-- The Find tab searches /leaderboard and writes friendRequests (commit 3).
+       The Friends and Requests lists are still empty — reading them is
+       commits 4 and 5. -->
   <section id="screen-friends" class="screen hidden">
     <div class="row screen-head">
       <button id="friends-back" class="btn" data-i18n="back"></button>
@@ -725,6 +725,7 @@ if (window.Sentry && window.Sentry.onLoad) {
         <button id="friends-search-btn" class="btn primary" data-i18n="friends_search_btn"></button>
       </div>
       <p class="hint" data-i18n="friends_search_hint"></p>
+      <p id="friends-signin" class="hint empty-note hidden" data-i18n="friends_signin_needed"></p>
       <div id="friends-results" class="list"></div>
       <p id="friends-no-match" class="hint empty-note hidden" data-i18n="friends_no_match"></p>
     </div>
