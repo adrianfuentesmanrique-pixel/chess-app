@@ -2,6 +2,42 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Learn tab — 👣 Walk through, a guided move-by-move mode (2026-08-14).**
+  Shows the next move of the lesson's line as an arrow, clears it, then asks the
+  player to play that same move. Correct → the opponent's scripted reply plays
+  itself and the next move is shown. On to the end of the line.
+  - **Live on all five Basic Checkmates.** The Rules lessons have no `demo`, so
+    the button never appears there, and their code path is unchanged.
+  - **No new lesson data.** It runs off `demo.moves`, which already existed. A
+    legal move list always alternates and all five mates start with White, so
+    "is this my move?" is just `walkIdx % 2 === 0`. `js/learning-data.js` was
+    not touched.
+  - **Legend, not per-move text — Adrian's call.** `lesson.text` stays under the
+    board the whole way as the standing plan. The honest limitation: a fixed
+    legend cannot explain move 12. Per-move notes were costed at 270 bilingual
+    strings of generated chess commentary and deliberately not written. **The
+    upgrade path needs no rework** — add an optional
+    `lesson.walk = { notes: [...] }` indexed against `demo.moves`.
+  - Wrong move: unlimited retries, no lockout; the arrow comes back by itself on
+    the second miss. `👁 Show me` plays the move for you, `◀` steps back one of
+    your moves and re-shows it. Reuses `learn-practice-status`, the existing
+    correct/wrong sounds and `.shake` — nothing new was invented.
+  - **`walkBusy` is load-bearing.** Both nav buttons are dead from a move being
+    played until the next is shown. Without it, pressing 👁 Show me inside the
+    600 ms reply gap plays the opponent's move as yours and flips the mode onto
+    the wrong side for the rest of the line. The invariant: **when the mode is
+    waiting on you, `walkIdx` is even.**
+  - **Writes no rating** — not `puzzleElo`, `endgameElo`, `openingElo`,
+    `blindfoldElo`, nor the radar; asserted byte-identical in the browser. It
+    **does** credit the streak on finishing a line (`Streak.recordActivity()`),
+    approved by Adrian. That is a new streak trigger — if the rules list on
+    Profile is revised, revise it with this.
+  - One pre-existing bug fixed on the way: `engineReply()` handed the board back
+    unconditionally in its `finally`, so a late engine move could re-enable it
+    after the player had left the lesson. Now guarded on `this.practicing`.
+  - Design: `docs/superpowers/specs/2026-08-14-learn-walkthrough-design.md`.
+    `sw.js` v52 → **v53**. **Committed on local `main`, not pushed.**
+
 - **Streak rules rewritten — what counts as "using the app today" (2026-08-14).**
   Adrian picked "any one activity, but the bar goes up" over tying the flame to
   the daily missions. **The two counters stay separate on purpose**: 🔥 = you

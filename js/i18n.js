@@ -22,6 +22,10 @@ const DICT = {
   learn_practice_prompt: { es: 'Ahora te toca: haz la jugada en el tablero.', en: "Now it's your turn: make the move on the board." },
   learn_correct: { es: '¡Correcto! 🎉', en: 'Correct! 🎉' },
   learn_try_again: { es: 'No es esa — inténtalo de nuevo.', en: "Not quite — try again." },
+  learn_walk_btn: { es: '👣 Paso a paso', en: '👣 Walk through' },
+  learn_walk_watch: { es: 'Mira esta jugada', en: 'Watch this move' },
+  learn_walk_show: { es: '👁 Muéstrame', en: '👁 Show me' },
+  learn_walk_done: { es: '¡Línea completa! 🎉', en: 'Line complete! 🎉' },
   tab_profile: { es: 'Perfil', en: 'Profile' },
   // Generic
   ok: { es: 'Aceptar', en: 'OK' },

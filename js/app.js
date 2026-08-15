@@ -4758,6 +4758,20 @@ Endgame.Lessons = {
   demoTimer: null,
   progressEvals: [],
   hintCooldown: 0,
+  // Walkthrough mode — shows the next move of demo.moves, then asks for it
+  // back. Runs off demo.moves with no extra lesson data: a legal move list
+  // always alternates, so an even walkIdx is always the player's move.
+  walking: false,
+  walkIdx: 0,
+  walkChess: null,
+  walkTries: 0,
+  walkTimer: null,
+  // True from the moment a move is played until the next one is shown — the
+  // stretch that covers the opponent's scripted reply. The board is already
+  // dead then, but the nav buttons are not, and letting 👁 Show me fire in
+  // that gap would play the opponent's move as if it were yours and flip the
+  // mode onto the wrong side for the rest of the line.
+  walkBusy: false,
 
   init() {
     this.board = new Board($('learn-board'), {
@@ -4773,6 +4787,9 @@ Endgame.Lessons = {
     $('learn-demo-prev').onclick = () => this.demoStep(-1);
     $('learn-demo-next').onclick = () => this.demoStep(1);
     $('learn-demo-play').onclick = () => this.demoTogglePlay();
+    $('learn-walk-btn').onclick = () => this.startWalk();
+    $('learn-walk-back').onclick = () => this.walkBack();
+    $('learn-walk-show').onclick = () => this.walkShowMe();
   },
 
   openCategory(cat) {
@@ -4800,8 +4817,13 @@ Endgame.Lessons = {
     $('learn-lesson-text').textContent = lesson.text[getLang()];
     this.practicing = false;
     this.vsEngine = false;
+    this.walking = false;
     clearInterval(this.demoTimer);
     this.demoTimer = null;
+    clearTimeout(this.walkTimer);
+    this.walkTimer = null;
+    $('learn-walk-nav').classList.add('hidden');
+    $('learn-walk-btn').classList.toggle('hidden', !lesson.demo);
     this.board.interactive = false;
     this.board.setOrientation('w');
     this.board.setPosition(lesson.fen);
@@ -4872,11 +4894,170 @@ Endgame.Lessons = {
     this.demoTimer = setInterval(() => this.demoStep(1), 900);
   },
 
+  // ── Walkthrough ────────────────────────────────────────────────
+  // Show the next move, then hand the board back and ask for that same move.
+  // The line comes from demo.moves, so no lesson needs new data; the twelve
+  // Rules lessons have no demo and never see the button. Nothing here writes
+  // to any rating — see the note at the top of this object.
+
+  startWalk() {
+    const lesson = this.lessons[this.lessonIdx];
+    if (!lesson.demo) return;
+    clearInterval(this.demoTimer);
+    this.demoTimer = null;
+    clearTimeout(this.walkTimer);
+    this.walkTimer = null;
+    this.practicing = false;
+    this.vsEngine = false;
+    this.walking = true;
+    this.walkIdx = 0;
+    this.walkTries = 0;
+    this.walkChess = new Chess(lesson.fen);
+    this.board.setOrientation(lesson.fen.split(' ')[1]);
+    this.board.setPosition(this.walkChess.fen());
+    $('learn-demo-nav').classList.add('hidden');
+    $('learn-walk-nav').classList.remove('hidden');
+    $('learn-walk-btn').classList.add('hidden');
+    $('learn-practice-btn').classList.add('hidden');
+    $('learn-practice-status').classList.remove('hidden', 'good', 'bad');
+    this.walkShow();
+  },
+
+  renderWalkNav() {
+    const moves = this.lessons[this.lessonIdx].demo.moves;
+    $('learn-walk-counter').textContent = `${this.walkIdx} / ${moves.length}`;
+    $('learn-walk-back').disabled = this.walkBusy || this.walkIdx < 2;
+    $('learn-walk-show').disabled = this.walkBusy;
+  },
+
+  // Draw the move as an arrow, hold it, then clear it and hand over. It is
+  // cleared on purpose: recalling the move is the point of the mode, and
+  // 👁 Show me is there for when you cannot.
+  walkShow() {
+    const lesson = this.lessons[this.lessonIdx];
+    const moves = lesson.demo.moves;
+    this.walkBusy = false;
+    this.renderWalkNav();
+    if (this.walkIdx >= moves.length) { this.walkFinish(); return; }
+    const mv = uciToMove(moves[this.walkIdx]);
+    this.board.interactive = false;
+    this.board.setShapes({ squares: [], arrows: [{ from: mv.from, to: mv.to, color: 'green' }] });
+    const status = $('learn-practice-status');
+    status.classList.remove('good', 'bad');
+    status.textContent = t('learn_walk_watch');
+    clearTimeout(this.walkTimer);
+    this.walkTimer = setTimeout(() => {
+      if (!this.walking || this.lessons[this.lessonIdx] !== lesson) return;
+      this.board.setShapes({ squares: [], arrows: [] });
+      status.textContent = t('learn_practice_prompt');
+      this.board.interactive = true;
+    }, 1400);
+  },
+
+  checkWalkMove(mv) {
+    const lesson = this.lessons[this.lessonIdx];
+    const expected = lesson.demo.moves[this.walkIdx];
+    const played = mv.from + mv.to + (expected.length > 4 ? (mv.promotion || '') : '');
+    if (played === expected) { this.walkPlay(true); return; }
+    this.walkTries++;
+    Sound.play('puzzle-wrong');
+    this.board.setPosition(this.walkChess.fen());
+    const status = $('learn-practice-status');
+    status.classList.remove('good');
+    status.classList.add('bad');
+    status.textContent = t('learn_try_again');
+    $('learn-board').classList.add('shake');
+    setTimeout(() => $('learn-board').classList.remove('shake'), 500);
+    // Second miss on the same move: show it again rather than let them grind.
+    if (this.walkTries >= 2) { this.walkTries = 0; this.walkShow(); }
+  },
+
+  // Play the move at walkIdx, then the opponent's scripted reply. byPlayer is
+  // false when 👁 Show me played it, so the mode never congratulates you for a
+  // move you did not find.
+  walkPlay(byPlayer) {
+    const lesson = this.lessons[this.lessonIdx];
+    const moves = lesson.demo.moves;
+    this.walkTries = 0;
+    this.walkBusy = true;
+    clearTimeout(this.walkTimer);
+    this.board.interactive = false;
+    this.board.setShapes({ squares: [], arrows: [] });
+    const m = this.walkChess.move(uciToMove(moves[this.walkIdx]));
+    this.walkIdx++;
+    this.board.setPosition(this.walkChess.fen(), { from: m.from, to: m.to });
+    const status = $('learn-practice-status');
+    status.classList.remove('good', 'bad');
+    if (byPlayer) {
+      Sound.play('puzzle-correct');
+      status.textContent = t('learn_correct');
+      status.classList.add('good');
+    }
+    this.renderWalkNav();
+    if (this.walkIdx >= moves.length) { this.walkFinish(); return; }
+    this.walkTimer = setTimeout(() => {
+      if (!this.walking || this.lessons[this.lessonIdx] !== lesson) return;
+      const r = this.walkChess.move(uciToMove(moves[this.walkIdx]));
+      this.walkIdx++;
+      this.board.setPosition(this.walkChess.fen(), { from: r.from, to: r.to });
+      if (this.walkIdx >= moves.length) { this.renderWalkNav(); this.walkFinish(); return; }
+      this.walkShow();
+    }, 600);
+  },
+
+  walkShowMe() {
+    if (!this.walking || this.walkBusy) return;
+    clearTimeout(this.walkTimer);
+    this.walkPlay(false);
+  },
+
+  walkBack() {
+    if (!this.walking || this.walkBusy || this.walkIdx < 2) return;
+    clearTimeout(this.walkTimer);
+    const lesson = this.lessons[this.lessonIdx];
+    this.walkIdx -= 2;
+    this.walkTries = 0;
+    this.walkChess = new Chess(lesson.fen);
+    let last = null;
+    for (let i = 0; i < this.walkIdx; i++) last = this.walkChess.move(uciToMove(lesson.demo.moves[i]));
+    this.board.setPosition(this.walkChess.fen(), last ? { from: last.from, to: last.to } : null);
+    this.walkShow();
+  },
+
+  walkFinish() {
+    const lesson = this.lessons[this.lessonIdx];
+    clearTimeout(this.walkTimer);
+    this.walkTimer = null;
+    this.walking = false;
+    this.walkBusy = false;
+    this.board.interactive = false;
+    this.board.setShapes({ squares: [], arrows: [] });
+    const status = $('learn-practice-status');
+    status.classList.remove('bad');
+    status.classList.add('good');
+    status.textContent = t('learn_walk_done');
+    $('learn-walk-nav').classList.add('hidden');
+    $('learn-walk-btn').classList.remove('hidden');
+    $('learn-practice-btn').classList.toggle('hidden', !lesson.practice);
+    // Hand the demo scrubber back pointing at the end of the line, so its
+    // counter matches the position that is actually on the board.
+    this.demoIdx = lesson.demo.moves.length;
+    $('learn-demo-counter').textContent = `${this.demoIdx} / ${this.demoIdx}`;
+    $('learn-demo-prev').disabled = false;
+    $('learn-demo-next').disabled = true;
+    $('learn-demo-nav').classList.remove('hidden');
+    Streak.recordActivity();
+  },
+
   startPractice() {
     const lesson = this.lessons[this.lessonIdx];
     if (!lesson.practice) return;
     clearInterval(this.demoTimer);
     this.demoTimer = null;
+    clearTimeout(this.walkTimer);
+    this.walkTimer = null;
+    this.walking = false;
+    $('learn-walk-nav').classList.add('hidden');
     this.practicing = true;
     this.practiceFen = lesson.practice.fen || lesson.fen;
     this.board.setShapes({ squares: [], arrows: [] });
@@ -4901,6 +5082,7 @@ Endgame.Lessons = {
   },
 
   checkPracticeMove(mv) {
+    if (this.walking) { this.checkWalkMove(mv); return; }
     if (!this.practicing) return;
     if (this.vsEngine) { this.checkVsEngineMove(mv); return; }
     const lesson = this.lessons[this.lessonIdx];
@@ -5019,7 +5201,10 @@ Endgame.Lessons = {
       statusEl.textContent = t('learn_practice_prompt');
     } finally {
       this.thinking = false;
-      this.board.interactive = true;
+      // Only hand the board back if we are still in vs-engine practice. The
+      // engine can return after the player has left the lesson or switched to
+      // the walkthrough, and re-enabling the board there is not ours to do.
+      if (this.practicing) this.board.interactive = true;
     }
   },
 };

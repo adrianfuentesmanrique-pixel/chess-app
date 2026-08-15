@@ -109,6 +109,14 @@ No new CSS, no new visual style.
 | `4 / 15` | Ply counter, same shape as `learn-demo-counter`. |
 | `👁 Show me` | The skip. Plays the current move for you and advances. Always available — you can never be stuck. |
 
+**Both nav buttons are dead while `walkBusy` is set** — the stretch from a move
+being played until the next one is shown, which covers the opponent's 600 ms
+reply. Found by driving the 61-ply knight-and-bishop line: the board is already
+non-interactive in that gap, but the buttons were not, and pressing 👁 Show me
+there played the *opponent's* move as if it were yours. That flips the parity,
+and every prompt after it asks you to play Black. The invariant the fix
+protects: **whenever the mode is waiting on you, `walkIdx` is even.**
+
 At the end of the line: status turns green with "Line complete! 🎉", the board
 goes non-interactive, the walk row hides and both buttons come back — `👣 Walk
 through` to run it again, `🎯 Practice` to try it against the engine for real.
@@ -165,6 +173,10 @@ No test framework, so verification means driving the real app. The browser pane
 does not composite on this machine; headless Chrome over CDP is used instead
 (HANDOVER.md, "How this was verified").
 
+**Done 2026-08-14. All of the below passed** in all four combinations
+(en/es × light/dark), driven over CDP against headless Chrome on
+`127.0.0.1:9166`. Scripts were in the session scratchpad.
+
 Checked at 375px in **light and dark**, in **both languages**:
 
 1. A Rules lesson shows **no** walk button and behaves exactly as before.
@@ -179,6 +191,9 @@ Checked at 375px in **light and dark**, in **both languages**:
    `content-firebaseappcheck.googleapis.com` is pre-existing on 127.0.0.1.)
 8. `puzzleElo`, `endgameElo`, `openingElo` and `blindfoldElo` in localStorage are
    byte-identical before and after a completed walkthrough.
+9. The 61-ply knight-and-bishop line driven to the end on 👁 Show me alone:
+   **exactly 31 presses for 61 plies, zero odd-parity prompts**, clean finish.
+   This is the test that caught the `walkBusy` bug above.
 
 ## Deliberately not in scope
 
