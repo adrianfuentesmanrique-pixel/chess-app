@@ -823,6 +823,11 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .tier-podium .lb-rank { font-size: 19px; }
 .tier-1 { box-shadow: inset 0 0 0 1px var(--gold), 0 0 14px -4px var(--gold-glow); }
 
+/* My own row on the friends leaderboard. A ring, not another fill: the rank
+   band underneath still has to read, so this only says "this one is you".
+   It deliberately outranks .tier-podium's own ring for the same reason. */
+.lb-row.lb-me { box-shadow: inset 0 0 0 2px var(--accent); }
+
 /* ── friends ───────────────────────────── */
 /* The Profile tab's two entry points. A grid, not a flex row, so both halves
    are exactly the same width whatever the two labels say in either language. */

@@ -93,7 +93,32 @@
     running — signing in needs Adrian's own credentials, and the local client
     cannot reach Firestore at all. The friends list here was verified with rows
     **seeded by hand in the page**; the query itself has never run.
-  - **Next task: commit 6, the friends leaderboard.**
+
+- **Friends system — commit 6 of 9 is done (2026-08-15). The friends
+  leaderboard.** `#screen-friends-leaderboard` now builds real rows from
+  `Friends.friends` — **no new query and no new export in `js/firebase.js`**.
+  `rankTier` was exported from `js/leaderboard.js` and reused, along with the
+  `.lb-row` markup, so the two boards stay one thing. `sw.js` v58 → **v59**.
+  `firestore.rules` untouched, nothing deployed.
+  - **My own row is on the board, ringed** (`.lb-me`, a 2px `--accent` inset
+    ring that beats `.tier-podium`'s gold one). `loadFriends()` fetches my own
+    public document in the same batch as the friends' and parks it on
+    `Friends.me`. **`me` is not in `Friends.friends`** — the Friends list is
+    unchanged.
+  - **A stale month reads as no score, it does not remove the row.** The global
+    board drops rows whose `rushMonthKey` is not this month; this one shows the
+    fallback instead, because a friend vanishing from a five-person board looks
+    broken. Deliberate difference — do not "align" it without asking.
+  - **`#leaderboard-period` has a bug this commit only fixed on its own
+    screen**: leaving a Rush board for an ELO board resets `season` but leaves
+    the switch lit on "This month". `#flb-period` now moves back with it;
+    `#leaderboard-period` still does not.
+  - **Owed, still: the two-account run** (commits 3, 4, 5 and 6) and **the two
+    composite indexes for the Requests tab**. Fourth session running — signing
+    in needs Adrian's own credentials and the local client cannot reach
+    Firestore at all. Everything here was verified with rows **seeded by hand
+    in the page**.
+  - **Next task: commit 7 — add friend from a public profile, unfriend, block.**
 
 
 - **👣 Walk through is now on the Endings studies too (2026-08-15).** Adrian

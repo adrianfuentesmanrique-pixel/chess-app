@@ -756,6 +756,71 @@ still returns to the leaderboard.
 
 ## Commit 6 — Friends leaderboard
 
+**DONE 2026-08-15 (code), with the same honest limit as commits 3, 4 and 5 —
+the two-account run is still owed. Built as written, plus:**
+
+1. **No new query and no new export.** The board is built from
+   `Friends.friends`, the list the Friends tab already loads. Those objects are
+   whole `/leaderboard` documents, so every field of every board is already on
+   them. `openLeaderboard()` only triggers a load when the list has never
+   arrived.
+2. **My own row is in, and ringed.** `loadFriends()` now passes my own uid to
+   `fetchLeaderboardByUids` alongside the friends' — one extra document read in
+   the same batch — and parks the result on `Friends.me`. The row gets
+   `.lb-me`, a 2px `--accent` inset ring that deliberately outranks
+   `.tier-podium`'s gold one so "this is you" still reads at rank 1. `me` is
+   **not** in `Friends.friends`; the Friends list itself is unchanged.
+3. **The stale-season rule differs from the global board, on purpose.** A friend
+   whose `rushMonthKey` is not this month scores the `fallback` (0) instead of
+   last month's number. The global leaderboard *drops* those rows; here the row
+   stays, because a fixed roster of friends with someone silently missing looks
+   broken rather than filtered.
+4. **Tapping a row opens the public profile**, `PublicProfile.open(e,
+   'friends-leaderboard')`. Both older paths were re-checked and still go where
+   they went: leaderboard row → leaderboard, Friends row → Friends.
+5. **`rankTier` is now exported** from `js/leaderboard.js` and reused unchanged,
+   so both boards use one set of rank bands. Note the cosmetic consequence: on a
+   board of five people rank 4 gets the `tier-top10` accent tint, which on the
+   global board means "top 10 in the world". Deliberate — the plan says reuse
+   `rankTier` — but it is a one-line change if it ever reads wrong.
+6. **One bug fixed on the way.** Leaving a Rush board for an ELO board reset
+   `this.season` but left the period switch lit on "This month", so the control
+   contradicted the board. `#flb-period` is now moved back to "all" with it.
+   **`#leaderboard-period` has the identical bug and was left alone** — that
+   screen is not this commit.
+
+`sw.js` v58 → **v59**. `firestore.rules` untouched, nothing deployed, and no
+rules test was re-run because nothing rules-shaped changed.
+
+**What IS verified** (headless local server at 375px, friends **seeded by hand
+in the page** — there is still no Firestore from here):
+
+- Boots with **no console error but the known App Check 403**, and the real
+  click path Profile → Friends → 🏆 opens the board.
+- **All four category tabs** sort correctly and show the right numbers. The
+  period switch appears on **only** the two Rush boards.
+- **A friend with no public document at all** gets a row: `?` for a name and the
+  board's `fallback` — 1200 on the ELO boards, 0 on the Rush ones.
+- **0, 1 and 100 friends.** 0 → the empty hint; me alone → one ringed 🥇 row;
+  100 friends + me → **101 rows**, correctly ordered, me at rank 31 with 1488,
+  rank 101 carrying no tier.
+- **The season rule**: a friend holding a July `rushMonth180` of 99 reads **0**
+  on This month and **41** on All time.
+- **`esc()` holds** — an `<img onerror=…>` name renders as text, creates no
+  `img` and does not fire.
+- **All three back paths**: friends leaderboard → ◀ → friends leaderboard,
+  Friends list → ◀ → Friends, global leaderboard → ◀ → leaderboard.
+- `documentElement.scrollWidth` is **375** in every state including 101 rows —
+  the screen still clips its own watermark. Row is 355×56.
+- Light **and** dark, and both languages on the empty hint and the loading line.
+
+**What is NOT verified.** Nothing here has run against Firestore. The
+`array-contains` query behind the list still has never executed, commits 3, 4
+and 5 still owe their two-account walk-through, and the two composite indexes
+for the Requests tab are still uncreated.
+
+---
+
 Wire `#screen-friends-leaderboard` to `fetchLeaderboardByUids(friendUids, field)`
 using `LEADERBOARD_FIELDS` unchanged. Sort client-side, rank locally, reuse
 `rankTier` and the `.lb-row` markup.

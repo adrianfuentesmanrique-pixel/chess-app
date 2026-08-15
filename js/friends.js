@@ -1,8 +1,6 @@
 // Friends — the screens, username search and sending a request, the live
-// Requests tab and the live Friends list. Commits 2 to 5 of
-// docs/superpowers/plans/2026-08-14-friends-system.md.
-//
-// The friends leaderboard is still empty: that is commit 6.
+// Requests tab, the live Friends list and the friends leaderboard. Commits 2
+// to 6 of docs/superpowers/plans/2026-08-14-friends-system.md.
 //
 // Everything that arrives from Firestore is another user's text, so every one
 // of those values goes through esc() before it reaches innerHTML.
@@ -11,14 +9,14 @@
 // inside a function only, never at module top level.
 import { t } from './i18n.js';
 import { avatarHtml } from './avatars.js';
-import { LEADERBOARD_FIELDS, PublicProfile } from './leaderboard.js';
+import { LEADERBOARD_FIELDS, rankTier, PublicProfile } from './leaderboard.js';
 import {
   Auth, searchByUsername, sendFriendRequest,
   fetchIncomingRequests, fetchOutgoingRequests, fetchLeaderboardByUids,
   acceptFriendRequest, rejectFriendRequest, cancelFriendRequest,
   fetchFriendUids,
 } from './firebase.js';
-import { $, esc, toast, segInit, showScreen, activeScreen } from './app.js';
+import { $, esc, toast, segInit, showScreen, activeScreen, monthStr } from './app.js';
 
 // The client-side cap from the plan. fetchFriendUids() reads at most this many
 // documents, so a list already at the cap cannot hide a 101st friend from it.
@@ -42,6 +40,9 @@ export const Friends = {
   // — the cap check must not read an empty array that simply has not arrived.
   friends: [],
   friendsLoaded: false,
+  // My own public leaderboard row, fetched in the same batch as the friends'.
+  // Only the friends leaderboard uses it — I am not a row in my own list.
+  me: null,
 
   init() {
     $('friends-back').onclick = () => showScreen('profile');
@@ -63,8 +64,10 @@ export const Friends = {
     Auth.onChange(() => {
       this.loadRequests();
       this.friends = [];
+      this.me = null;
       this.friendsLoaded = false;
       if (activeScreen === 'friends' && this.tab === 'list') this.loadFriends();
+      if (activeScreen === 'friends-leaderboard') this.loadFriends();
     });
     this.loadRequests();
   },
@@ -128,11 +131,17 @@ export const Friends = {
   async loadFriends() {
     if (!Auth.user) {
       this.friends = [];
+      this.me = null;
       this.friendsLoaded = true;
     } else {
       try {
         const uids = await fetchFriendUids();
-        const people = await fetchLeaderboardByUids(uids);
+        // My own uid rides along in the same batch — the friends leaderboard
+        // needs my scores and this is one extra document read, not a second
+        // round trip. fetchFriendUids never returns me, so nothing is doubled.
+        const myUid = Auth.user.uid;
+        const people = await fetchLeaderboardByUids(uids.concat(myUid));
+        this.me = people[myUid] || null;
         this.friends = uids.map(u => ({ ...(people[u] || {}), uid: u }))
           .sort((a, b) => (a.profileName || '').localeCompare(b.profileName || ''));
         this.friendsLoaded = true;
@@ -141,6 +150,7 @@ export const Friends = {
       }
     }
     if (activeScreen === 'friends' && this.tab === 'list') this.renderList();
+    if (activeScreen === 'friends-leaderboard') this.renderLeaderboard();
   },
 
   renderList() {
@@ -333,9 +343,13 @@ export const Friends = {
   },
 
   // ── Friends leaderboard ────────────────
-  openLeaderboard() {
+  // The board is built from the friends list the Friends tab already loaded —
+  // the same uids, so there is no second query. It paints immediately (with
+  // the loading line if the list has never arrived) and repaints when it does.
+  async openLeaderboard() {
     showScreen('friends-leaderboard');
     this.renderLeaderboard();
+    if (!this.friendsLoaded) await this.loadFriends();
   },
 
   renderLeaderboard() {
@@ -343,25 +357,54 @@ export const Friends = {
     // The period switch only appears on boards that actually have seasons —
     // same rule as the global leaderboard.
     $('flb-period').classList.toggle('hidden', !board.season);
-    if (!board.season) this.season = false;
+    // Leaving a seasonal board drops back to all-time, so the switch has to be
+    // moved with it. Without this it stays lit on "This month" while the board
+    // underneath is the all-time one. (#leaderboard-period has the same bug —
+    // it is left alone here because that screen is not this commit.)
+    if (!board.season) {
+      this.season = false;
+      const per = $('flb-period');
+      per.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === 'all'));
+    }
     const field = this.season && board.season ? board.season : this.field;
 
-    const list = []   // commit 6 fetches the friends' leaderboard rows here
-      .sort((a, b) => (b[field] ?? board.fallback) - (a[field] ?? board.fallback));
+    // What this row scores on the board being shown. A player who set a Rush
+    // score and then stopped still carries last month's number, so on a "this
+    // month" board that value is not theirs any more and reads as no score.
+    // The global leaderboard drops those rows; here the row stays and shows
+    // the fallback, because a fixed roster of friends with someone silently
+    // missing from it just looks broken.
+    const score = e => {
+      if (this.season && board.season && e.rushMonthKey !== monthStr()) return board.fallback;
+      return e[field] ?? board.fallback;
+    };
 
-    $('flb-status').textContent = list.length ? '' : t('friends_lb_empty');
+    // My own row belongs here: a board of four people that leaves me out is
+    // not a comparison. It costs the one extra document loadFriends already
+    // fetched. Signed out — or before my public document exists — I have no
+    // row and the board is just my friends.
+    const myUid = Auth.user && Auth.user.uid;
+    const list = (this.me ? this.friends.concat(this.me) : this.friends.slice())
+      .sort((a, b) => score(b) - score(a));
+
+    $('flb-status').textContent = list.length ? ''
+      : (Auth.user && !this.friendsLoaded ? t('loading') : t('friends_lb_empty'));
     const el = $('flb-list');
     el.innerHTML = '';
     list.forEach((e, i) => {
       const rank = i + 1;
-      const value = Math.round(e[field] ?? board.fallback);
       const item = document.createElement('button');
-      item.className = 'lb-row ' + (rank <= 3 ? 'tier-podium tier-' + rank : '');
+      // Same rank bands and same markup as the global leaderboard — the two
+      // boards are the same thing over a different set of people.
+      item.className = 'lb-row ' + rankTier(rank) + (e.uid === myUid ? ' lb-me' : '');
       item.innerHTML =
         `<span class="lb-rank">${rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank}</span>` +
         avatarHtml(e.avatarId, 36) +
         `<span class="lb-name">${esc(e.profileName || '?')}</span>` +
-        `<span class="lb-value">${value}</span>`;
+        `<span class="lb-value">${Math.round(score(e))}</span>`;
+      // Tapping through works exactly as it does on the global leaderboard,
+      // except ◀ comes back to this board instead of to that one.
+      item.onclick = () => PublicProfile.open(e, 'friends-leaderboard');
       el.appendChild(item);
     });
   },

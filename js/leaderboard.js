@@ -28,7 +28,7 @@ export const LEADERBOARD_FIELDS = {
 
 // Rank bands worth showing off. Beyond the top 100 a row is just a row —
 // giving every position its own colour would flatten the distinction.
-function rankTier(rank) {
+export function rankTier(rank) {
   if (rank <= 3) return 'tier-podium tier-' + rank;
   if (rank <= 10) return 'tier-top10';
   if (rank <= 100) return 'tier-top100';
