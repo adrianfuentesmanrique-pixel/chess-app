@@ -671,6 +671,74 @@ new document; send, cancel, confirm the recipient's incoming row is gone.
 
 ## Commit 5 — The Friends list
 
+**DONE 2026-08-15 (code), with the two-account run still owed — same honest
+limit as commits 3 and 4. Built as written, plus:**
+
+1. **One new export, `fetchFriendUids()` in `js/firebase.js`.** It returns the
+   *other* member of each friendship, capped at 100. **No index was needed** —
+   `array-contains` on its own is served by the automatic single-field index.
+   There is deliberately **no `orderBy`**: adding one would have required a
+   composite index for no gain, so the list is sorted by name in JavaScript.
+2. **`fetchLeaderboardByUids()` was reused, not rewritten.** The "added here"
+   line below is stale — it landed in commit 4.
+3. **`PublicProfile.open(entry, backTo = 'leaderboard')`.** `PublicProfile`
+   gained a `backTo` property and `init()` now reads it at click time instead of
+   hardcoding `'leaderboard'`. The leaderboard's own call site
+   (`js/leaderboard.js:109`) was **not touched** — it passes no second argument
+   and gets the default.
+4. **The friends list is lazy.** `Auth.onChange` only *invalidates* it
+   (`friendsLoaded = false`); it refetches when the tab is opened. Loading it at
+   boot would cost up to 100 document reads for every user who never opens
+   Friends. Requests stay eager because the Profile pill needs them.
+5. **The cap is checked against a list that has actually arrived.**
+   `sendRequest` awaits `loadFriends()` first if `friendsLoaded` is false — an
+   empty array that simply had not loaded yet would silently disable the cap.
+   At the cap the button is **re-enabled** and the uid is *not* added to
+   `sent`, so it works again once you remove someone.
+6. **The cap toast is not a privacy leak.** `friends_max` describes *my* list,
+   not the other person's state, so the neutral-toast rule is untouched: a
+   blocked send and a real send still both show `Solicitud enviada ✓`.
+7. **A friend with no public document still gets a row**, with `?` for a name —
+   same decision as commit 4's requests.
+8. **`⋯` calls `stopPropagation()`** so it cannot open the public profile behind
+   it when commit 7 gives it a menu.
+
+`sw.js` v57 → **v58**. (v56 → v57 was another session's endgame walkthrough,
+`fa7f661`, which landed underneath this work.) `firestore.rules` untouched,
+nothing deployed, still **87 tests passing**.
+
+**What IS verified** (headless local server at 375px — no Firestore, so the
+friends list was **seeded by hand in the page**, which is what "verified" means
+here):
+
+- The app boots with **no console error but the known App Check 403**, so
+  `fetchFriendUids` and the `PublicProfile` import both resolve.
+- Three seeded friends render with avatar, name, username and `· ELO 1488`
+  (rounded); the empty hint hides; a friend with no public row shows `?`.
+- **`esc()` holds** — a `<img onerror=…>` payload in `profileName` renders as
+  text, creates no `img` element and does not fire.
+- Tapping a row opens the public profile with `backTo === 'friends'`, and ◀
+  returns to **Friends**. Tapping a real leaderboard row still gives
+  `backTo === 'leaderboard'` and ◀ returns to the **leaderboard**.
+- `⋯` does not open the profile.
+- The cap: at 99 friends a send shows `Solicitud enviada ✓` and marks the uid
+  spent; at 100 it shows the cap string in **both languages** and does not mark
+  it spent.
+- `documentElement.scrollWidth` is **375** in every state, including a
+  38-character name, which ellipsises instead of widening the page. Row is
+  355×57.
+- Light and dark both read correctly (row `#fff` / `#18202b` on the right text
+  colours) and both languages were checked on the list, the empty hint and the
+  cap toast.
+
+**What is NOT verified.** The `array-contains` query has never run — the
+headless client cannot reach Firestore at all (App Check has no debug token for
+localhost). Nothing in this commit has been seen working against production
+data, and commits 3 and 4 still owe their two-account walk-through, plus the two
+composite indexes for the Requests tab are still uncreated.
+
+---
+
 `where('members','array-contains', myUid)` for the uids, then
 `fetchLeaderboardByUids` (added here) to fill in name, avatar and puzzle ELO.
 Tapping a row opens `PublicProfile` exactly as a leaderboard row does — note

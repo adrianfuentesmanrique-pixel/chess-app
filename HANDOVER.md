@@ -69,7 +69,31 @@
   - **Owed: the two-account run**, both commit 3's three steps and commit 4's
     walk-through. Same reason as before — signing in needs Adrian's own
     credentials and the local client cannot reach Firestore at all.
-  - **Next task: commit 5, the Friends list.**
+
+- **Friends system — commit 5 of 9 is done (2026-08-15). The Friends list.**
+  One new export, `fetchFriendUids()`, does
+  `where('members','array-contains',me)` on `friendships` and returns the other
+  member of each pair. `fetchLeaderboardByUids()` was **reused** from commit 4
+  for names, avatars and puzzle ELO. `sw.js` v57 → **v58**. `firestore.rules`
+  untouched, nothing deployed, still **87 tests passing**.
+  - **No index is needed for this query.** `array-contains` on its own is served
+    by the automatic single-field index, and there is deliberately no `orderBy`
+    — the list is sorted by name in JavaScript instead.
+  - **`PublicProfile.open(entry, backTo = 'leaderboard')`.** A friend row passes
+    `'friends'`; the leaderboard's call site was not touched and gets the
+    default. `PublicProfile.init` now reads `this.backTo` at click time.
+  - **The friends list is lazy** — `Auth.onChange` only invalidates it, it
+    refetches when the tab opens. Loading at boot would be up to 100 document
+    reads for someone who never opens Friends.
+  - **The 100-friend cap awaits the list before deciding.** At the cap the
+    button comes back and the uid is not marked spent. The cap toast is about
+    *my* list, so it does not break the neutral-toast rule for blocks.
+  - **Owed, still: the two-account run** (commits 3, 4 and now 5) and **the two
+    composite indexes for the Requests tab**. Same reason for the third session
+    running — signing in needs Adrian's own credentials, and the local client
+    cannot reach Firestore at all. The friends list here was verified with rows
+    **seeded by hand in the page**; the query itself has never run.
+  - **Next task: commit 6, the friends leaderboard.**
 
 
 - **👣 Walk through is now on the Endings studies too (2026-08-15).** Adrian

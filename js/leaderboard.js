@@ -143,11 +143,17 @@ async function withLocalDetail(entry) {
 }
 
 export const PublicProfile = {
+  // Which screen ◀ goes back to. Set by whoever opened the profile, so the same
+  // screen can be reached from the leaderboard and from the Friends list and
+  // still send you back where you came from.
+  backTo: 'leaderboard',
+
   init() {
-    $('pubprofile-back').onclick = () => showScreen('leaderboard');
+    $('pubprofile-back').onclick = () => showScreen(this.backTo);
   },
 
-  async open(entry) {
+  async open(entry, backTo = 'leaderboard') {
+    this.backTo = backTo;
     showScreen('public-profile');
     const isSelf = !!Auth.user && entry.uid === Auth.user.uid;
     const data = isSelf ? await withLocalDetail(entry) : entry;

@@ -1,8 +1,8 @@
-// Friends — the screens, username search and sending a request, and the live
-// Requests tab. Commits 2, 3 and 4 of
+// Friends — the screens, username search and sending a request, the live
+// Requests tab and the live Friends list. Commits 2 to 5 of
 // docs/superpowers/plans/2026-08-14-friends-system.md.
 //
-// The Friends tab still renders an empty list: reading friendships is commit 5.
+// The friends leaderboard is still empty: that is commit 6.
 //
 // Everything that arrives from Firestore is another user's text, so every one
 // of those values goes through esc() before it reaches innerHTML.
@@ -11,13 +11,18 @@
 // inside a function only, never at module top level.
 import { t } from './i18n.js';
 import { avatarHtml } from './avatars.js';
-import { LEADERBOARD_FIELDS } from './leaderboard.js';
+import { LEADERBOARD_FIELDS, PublicProfile } from './leaderboard.js';
 import {
   Auth, searchByUsername, sendFriendRequest,
   fetchIncomingRequests, fetchOutgoingRequests, fetchLeaderboardByUids,
   acceptFriendRequest, rejectFriendRequest, cancelFriendRequest,
+  fetchFriendUids,
 } from './firebase.js';
 import { $, esc, toast, segInit, showScreen, activeScreen } from './app.js';
+
+// The client-side cap from the plan. fetchFriendUids() reads at most this many
+// documents, so a list already at the cap cannot hide a 101st friend from it.
+const FRIEND_LIMIT = 100;
 
 export const Friends = {
   tab: 'list',
@@ -33,6 +38,10 @@ export const Friends = {
   // The two request lists, already joined to their public leaderboard rows.
   incoming: [],
   outgoing: [],
+  // The friends list, joined the same way, and whether it has ever been loaded
+  // — the cap check must not read an empty array that simply has not arrived.
+  friends: [],
+  friendsLoaded: false,
 
   init() {
     $('friends-back').onclick = () => showScreen('profile');
@@ -48,8 +57,15 @@ export const Friends = {
     segInit($('flb-period'), v => { this.season = v === 'month'; this.renderLeaderboard(); });
 
     // Signing in or out changes whose requests these are, so the lists and the
-    // Profile pill are rebuilt from scratch each time.
-    Auth.onChange(() => this.loadRequests());
+    // Profile pill are rebuilt from scratch each time. The friends list is
+    // only invalidated here, not refetched — up to 100 document reads on every
+    // boot for someone who never opens the tab. It reloads when the tab does.
+    Auth.onChange(() => {
+      this.loadRequests();
+      this.friends = [];
+      this.friendsLoaded = false;
+      if (activeScreen === 'friends' && this.tab === 'list') this.loadFriends();
+    });
     this.loadRequests();
   },
 
@@ -96,26 +112,58 @@ export const Friends = {
       $('friends-pane-' + pane).classList.toggle('hidden', pane !== this.tab);
     }
     this.paintCount();
-    if (this.tab === 'list') this.renderList();
+    if (this.tab === 'list') { this.renderList(); this.loadFriends(); }
     if (this.tab === 'requests') { this.renderRequests(); this.loadRequests(); }
     if (this.tab === 'find') this.renderFind();
   },
 
   // ── Friends tab ────────────────────────
+
+  // One array-contains query for the uids, then the same batch of public
+  // profiles the Requests tab uses. Names, avatars and ratings live only on
+  // /leaderboard, so nothing here can go stale.
+  //
+  // A friend with no public document still gets a row, with `?` for a name:
+  // dropping it would hide a friendship that really exists.
+  async loadFriends() {
+    if (!Auth.user) {
+      this.friends = [];
+      this.friendsLoaded = true;
+    } else {
+      try {
+        const uids = await fetchFriendUids();
+        const people = await fetchLeaderboardByUids(uids);
+        this.friends = uids.map(u => ({ ...(people[u] || {}), uid: u }))
+          .sort((a, b) => (a.profileName || '').localeCompare(b.profileName || ''));
+        this.friendsLoaded = true;
+      } catch (e) {
+        console.error('Loading friends failed', e);
+      }
+    }
+    if (activeScreen === 'friends' && this.tab === 'list') this.renderList();
+  },
+
   renderList() {
-    const list = [];   // commit 5 reads friendships here
+    const list = this.friends;
     const el = $('friends-list');
     el.innerHTML = '';
     $('friends-empty').classList.toggle('hidden', list.length > 0);
     for (const e of list) {
       const row = document.createElement('div');
-      row.className = 'fr-row';
+      row.className = 'fr-row tappable';
       row.innerHTML =
         avatarHtml(e.avatarId, 36) +
         `<span class="fr-name">${esc(e.profileName || '?')}` +
-        `<span class="fr-sub">${esc(e.username || '')}</span></span>` +
+        `<span class="fr-sub">${esc(e.username || '')}` +
+        (e.puzzleElo != null ? ` · ELO ${Math.round(e.puzzleElo)}` : '') +
+        `</span></span>` +
         // ⋯ opens Remove friend / Block in commit 7.
         `<button class="fr-more" aria-label="⋯">⋯</button>`;
+      // Tapping the row opens the public profile, exactly as a leaderboard row
+      // does — but ◀ comes back here instead of to the leaderboard.
+      row.onclick = () => PublicProfile.open(e, 'friends');
+      // ⋯ is inert until commit 7; it must not open the profile in the meantime.
+      row.querySelector('.fr-more').onclick = ev => ev.stopPropagation();
       el.appendChild(row);
     }
   },
@@ -196,6 +244,15 @@ export const Friends = {
   // this into a helpful error message.
   async sendRequest(toUid, btn) {
     if (btn) btn.disabled = true;
+    // The cap is about my own list, not about them, so saying so out loud
+    // leaks nothing — and it is checked against a list that has actually been
+    // fetched, never against an empty one that simply has not arrived yet.
+    if (!this.friendsLoaded) await this.loadFriends();
+    if (this.friends.length >= FRIEND_LIMIT) {
+      toast(t('friends_max'));
+      if (btn) btn.disabled = false;
+      return;
+    }
     try {
       await sendFriendRequest(toUid);
     } catch (e) {

@@ -870,6 +870,9 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 }
 .fr-more:active { background: var(--panel2); }
 .fr-row.stack { grid-template-columns: auto 1fr; }
+/* A friend row opens their public profile, so it presses like a .lb-row. */
+.fr-row.tappable { cursor: pointer; }
+.fr-row.tappable:active { background: var(--panel2); }
 .fr-actions {
   grid-column: 2; display: flex; align-items: center; gap: 8px;
   justify-content: flex-end; flex-wrap: wrap;

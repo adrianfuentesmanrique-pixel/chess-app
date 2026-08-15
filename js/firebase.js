@@ -359,6 +359,28 @@ export async function fetchOutgoingRequests() {
   return out;
 }
 
+// Every friendship I am a member of. `members` is the sorted pair, so one
+// array-contains query finds both halves — there is no "mine" and "theirs".
+// array-contains alone needs no composite index; adding an orderBy here would
+// require one, so the list is sorted client-side instead.
+//
+// Returns the OTHER person's uid for each friendship, capped at the same 100
+// the cap check uses.
+export async function fetchFriendUids() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const q = query(collection(firestore, 'friendships'),
+    where('members', 'array-contains', user.uid), limit(100));
+  const snap = await getDocs(q);
+  const out = [];
+  snap.forEach(d => {
+    const members = d.data().members || [];
+    const other = members.find(u => u !== user.uid);
+    if (other) out.push(other);
+  });
+  return out;
+}
+
 // Public leaderboard rows for a short list of uids, keyed by uid. Names,
 // avatars and ratings are never copied into a request or a friendship — they
 // are read live from here, so they cannot go stale and a stranger cannot store
