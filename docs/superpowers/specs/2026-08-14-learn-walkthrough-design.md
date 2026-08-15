@@ -3,6 +3,15 @@
 Date: 2026-08-14. Agreed with Adrian in the brainstorming session that preceded
 this document. **Legend-only was his call** — see "The cost decision" below.
 
+> **Extended 2026-08-15 to Endings.** Adrian asked for the same mode on the
+> endgame studies, and said he did not like the existing rated practice either.
+> The walkthrough is now **one shared implementation, `createWalker`**, used by
+> both Basic Checkmates and Endings. Everything below still describes the
+> behavior; the sections marked **Endings** record what the second screen added.
+> The original doc's reason for leaving Endings out — 2,774 plies of authoring —
+> **stopped applying the moment legend-only was chosen**, since every study
+> already carries its own `comment`. That was a stale reason, not a real one.
+
 ## What it is
 
 A third way to work through a Learn lesson, next to the two that exist today.
@@ -195,10 +204,48 @@ Checked at 375px in **light and dark**, in **both languages**:
    **exactly 31 presses for 61 plies, zero odd-parity prompts**, clean finish.
    This is the test that caught the `walkBusy` bug above.
 
+**Endings, 2026-08-15**, all four combinations, after the shared-walker rewrite:
+
+10. Every Basic Checkmates check above re-run unchanged — **identical output**,
+    so the rewrite is behavior-preserving.
+11. `p1` (White to move, wins — player first, 9 plies): a wrong move shakes and
+    retries, the right move advances, the line finishes in **4 further 👁
+    presses with zero wrong-parity prompts**, and the study controls come back.
+12. `p15` (Black to move, `result: 'loss'` — **book moves first**, 14 plies):
+    the opponent's move plays itself and the counter is already at `1 / 14` when
+    the player is first asked. Finishes in **7 presses, zero wrong-parity
+    prompts** — the prompts are the odd indices here, the mirror of the above.
+13. `endgameElo` seeded to `{"pawn":1450,"rook":1380}` in IndexedDB is
+    **byte-identical after both full walkthroughs**, and `endgameEloHistory`
+    is still absent. The rated `Practice vs the engine` still starts normally.
+14. The legend (`endgame-comment`) stays visible throughout; no sideways scroll.
+
+## Endings — what the second screen added (2026-08-15)
+
+The mode is now on all 265 endgame studies, over their existing `moves` line,
+with `comment` as the legend. **No endgame data changed.**
+
+**One implementation, not two.** `createWalker(cfg)` holds the whole state
+machine; each screen passes element ids and a few callbacks. The two screens are
+meant to feel identical, and two copies would drift. The Basic Checkmates code
+was rewritten onto it and re-verified against the same tests it passed before —
+identical output, line for line.
+
+**The player does not always move first.** In a `result: 'loss'` study the
+player takes the winning side, so `practiceColor` gives the opposite of the
+FEN's side to move and **the book plays the losing move first** (19 of the 265).
+So parity is configurable: `playerFirst()` decides whether the player's plies
+are the even or the odd indices, and `step()` auto-plays any ply that is not
+theirs. `back()` also steps by two from the right starting offset.
+
+**The rating is the thing to be careful about.** Endings is a rated domain and
+`Endgame.finishPractice` is the only writer of `endgameElo`. The walker never
+reaches it: it runs while `Endgame.mode` is still `'study'`, and its branch in
+`userMove` sits **above** the `mode !== 'practice'` guard. Verified by seeding
+`endgameElo` and asserting it byte-identical after full walkthroughs.
+
 ## Deliberately not in scope
 
-- **Endings (265 studies).** Each already has a `moves` line of the same shape,
-  so the mode drops in later with no code change. 2,774 plies is why it waits.
 - **Rules (12 lessons).** One-move ideas with no line to walk.
 - **Openings.** Checked: there is no built-in opening line data in the app. The
   Openings trainer builds its book at runtime from a PGN database the user

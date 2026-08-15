@@ -562,11 +562,19 @@ if (window.Sentry && window.Sentry.onLoad) {
         <h2 id="endgame-pos-title" class="ellipsis"></h2>
       </div>
       <div id="endgame-board" class="board-wrap"></div>
+      <div id="endgame-walk-nav" class="row hidden" style="justify-content:center; align-items:center; gap:10px; margin:8px 0;">
+        <button id="endgame-walk-back" class="tool-btn">◀</button>
+        <span id="endgame-walk-counter" class="hint" style="min-width:64px; text-align:center;"></span>
+        <button id="endgame-walk-show" class="btn" data-i18n="learn_walk_show"></button>
+      </div>
       <div id="endgame-status" class="status-bar hidden"></div>
       <div class="row" id="endgame-study-actions">
         <button id="endgame-flip" class="tool-btn">🔄</button>
         <button id="endgame-engine-toggle" class="tool-btn">🖥️</button>
         <button id="endgame-practice-start" class="btn primary" data-i18n="practice_start"></button>
+      </div>
+      <div class="row hidden" id="endgame-walk-row">
+        <button id="endgame-walk-btn" class="btn big" data-i18n="learn_walk_btn"></button>
       </div>
       <div id="endgame-engine" class="engine-panel hidden">
         <div class="engine-lines" id="endgame-engine-lines"></div>

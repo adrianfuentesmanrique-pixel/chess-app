@@ -72,6 +72,30 @@
   - **Next task: commit 5, the Friends list.**
 
 
+- **👣 Walk through is now on the Endings studies too (2026-08-15).** Adrian
+  asked for it after saying he did not like the existing rated practice either.
+  Same mode, all 265 studies, over each study's own `moves` line with its
+  `comment` as the legend. **No endgame data changed.**
+  - **It is now ONE implementation — `createWalker(cfg)` in `js/app.js`.** Basic
+    Checkmates was rewritten onto it and re-verified against the same tests it
+    passed the day before, with identical output. **Do not fork it again**: the
+    two screens are supposed to feel the same, and two copies would drift. A
+    screen supplies element ids plus `onStart` / `onFinish`.
+  - **The player does not always move first.** In a `result: 'loss'` study the
+    player takes the winning side, so the book plays the losing move first (19
+    of 265). `playerFirst()` decides whether the player's plies are the even or
+    the odd indices; `step()` auto-plays anything that is not theirs.
+  - **It cannot move `endgameElo`.** It runs while `Endgame.mode` is still
+    `'study'`, and its branch in `userMove` sits **above** the
+    `mode !== 'practice'` guard, so `finishPractice` — the only writer of the
+    rating — is unreachable. Asserted byte-identical with a seeded rating.
+  - **It does credit the streak**, like the Checkmates one. That is looser than
+    the documented endgame trigger ("an endgame must be converted"), because
+    👁 Show me can walk the whole line for you. Deliberate, for consistency
+    with the mode Adrian already approved — **say so if you want it removed**;
+    it is one line in `createWalker.finish()`.
+  - `sw.js` → **v57** (v56 was taken by Friends commit 4 mid-session).
+
 - **Learn tab — 👣 Walk through, a guided move-by-move mode (2026-08-14).**
   Shows the next move of the lesson's line as an arrow, clears it, then asks the
   player to play that same move. Correct → the opponent's scripted reply plays
