@@ -1,0 +1,16 @@
+{
+  "name": "chess-training-center",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dev tooling only. The app itself has no build step and loads nothing from here — index.html and js/*.js are served exactly as they are committed.",
+  "type": "module",
+  "scripts": {
+    "test:rules": "node tests/run-rules-tests.mjs",
+    "rules:deploy": "firebase deploy --only firestore:rules --project chess-training-center"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0",
+    "firebase-tools": "^13.0.0"
+  }
+}

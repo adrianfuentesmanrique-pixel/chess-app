@@ -169,10 +169,28 @@ One conversation each:
 | **D** | Button work | #3, #6, #7 |
 
 Lower priority, not in the work order:
-1. Export Firestore security rules to `firestore.rules` — they only exist in the
-   Firebase console.
-2. Test the Firestore WRITE rules. Read rules were verified live; write rules
-   never were. Writes to production — ask first.
+1. ~~Export Firestore security rules to `firestore.rules`~~ — **was already
+   done and this note was stale.** `firestore.rules` has been committed and
+   maintained since `aaa51b0`. Verify a claim like this with `git ls-files`
+   before acting on it.
+2. ~~Test the Firestore WRITE rules.~~ **DONE 2026-08-14.** 30 rules tests now
+   run against the local Firestore emulator — `npm run test:rules`, no network,
+   no production data touched. They cover both existing collections: who may
+   read/write `/users`, and for the world-readable `/leaderboard`, the field
+   allowlist (real name, email and date of birth are all rejected), the
+   private-profile guarantee, forged and out-of-range scores, and oversized
+   text. Tests live in `tests/rules/`. `package.json` is dev tooling only —
+   **the app still has no build step and loads nothing from `node_modules`.**
+   Needs Java 11+; `npm run test:rules` finds the JDK itself.
+   - **STILL OPEN, and it is the important one: nobody has confirmed that
+     `firestore.rules` matches what is actually deployed in the Firebase
+     console.** There is real evidence they differ — the comment at
+     `js/firebase.js:180` says client-side deletes on `/leaderboard/{uid}` are
+     known to be permission-denied, but `firestore.rules:25` explicitly allows
+     them, and the tests confirm the file allows them. So the console is
+     probably running an older ruleset. Diff the console against the file
+     before running `npm run rules:deploy`, because deploying replaces what is
+     live.
 3. Restrict the Firebase web API key by HTTP referrer in Google Cloud Console.
 4. ~~Puzzle difficulty does not scale with ELO~~ — **NOT A BUG ANY MORE. Fixed
    on 31 Jul in `7bfc92e`; verified empirically 7 Aug, no code changed.** The
