@@ -30,3 +30,21 @@ existing user's endgame rating. Visible labels can change freely; keys cannot.
 - Mobile-first — judge everything at 375px width first, in light AND dark mode.
 - Verify in the browser pane before claiming something works.
 - I am not a programmer. Explain in plain language, keep instructions simple.
+
+## Commands you give me to run — always in this exact shape
+
+I run them in a plain PowerShell window that opens in `C:\Users\Adrian`, and
+that window is NOT set up the way your tool session is. A bare `npm run x`
+fails for me twice over: wrong folder, and PowerShell refuses to load
+`npm.ps1` ("running scripts is disabled on this system").
+
+So every command you hand me must **start with the `cd` and use `npm.cmd`**:
+
+```
+cd C:\Users\Adrian\chess-app; npm.cmd run test:rules
+cd C:\Users\Adrian\chess-app; npm.cmd run rules:deploy
+```
+
+Same rule for `npx` → `npx.cmd`. Do not tell me to change my execution policy
+to fix this; `.cmd` works and touches no system setting. Note the separator is
+`;` — `&&` is a syntax error in my PowerShell.
