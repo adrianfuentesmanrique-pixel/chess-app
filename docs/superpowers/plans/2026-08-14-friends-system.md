@@ -303,6 +303,10 @@ dark, in **both** languages, before starting the next.
 
 ## Commit 1 — Export and test the security rules (no feature code)
 
+**DONE. Steps 1–3 landed 2026-08-14 (`1899572`), step 4 on 2026-08-15.**
+Step 5 (deploying) is the only part left and it is Adrian's call — see
+"What actually happened" below.
+
 **Nothing about Friends is in this commit.** This is the prerequisite.
 
 1. Transcribe the current rules out of the Firebase console into `firestore.rules`
@@ -327,6 +331,41 @@ rules in the console match the file.
 **Risk:** transcribing the console rules by hand can miss something and deploying
 the file replaces what is live. Take a screenshot of the console rules before
 starting, and check the app still signs in and syncs immediately after deploying.
+
+### What actually happened (2026-08-15)
+
+The three collections are in `firestore.rules` and **86 tests pass** against the
+emulator (`npm run test:rules`) — the 30 baseline ones plus 56 new. Three things
+came out differently from the sketch above:
+
+1. **The read rule on `friendRequests` had to change shape.** The sketch's
+   `request.auth.uid in [resource.data.from, resource.data.to]` works for
+   fetching one document and **fails for both of the queries commit 4 needs**.
+   On a *list*, Firestore evaluates the rule against a resource assembled from
+   the query's own constraints, not from a stored document, so in the incoming
+   query (`to == me`) the field `from` does not exist and reading it errors the
+   whole rule into a deny. The rule now reads both fields as
+   `resource.data.get('from', '')`, which lets each query pass on the field it
+   actually constrained. Four tests pin this down: both real queries succeed,
+   and an unconstrained list — of `friendRequests` or of `friendships` — still
+   gets nothing. **Do not "tidy" that `.get()` back into a direct field read.**
+2. **`usernameLower` is already allowed** in the `leaderboard` write allowlist,
+   with the same 60-character bound as `username`. Commit 3 only has to publish
+   it; **no second rules deploy is needed.** It is not checked to actually be
+   the lowercase form of `username`, because nothing is granted by it — it only
+   decides whether search finds you.
+3. **Slightly tighter than the sketch** in three places: `createdAt` must be a
+   number on both new documents, a rejection may not rewrite `createdAt`, and
+   `to` is length-bounded. None of this changes the design.
+
+**`sw.js` was deliberately NOT bumped.** This commit ships no file the browser
+loads — rules and tests are not in `ASSETS`. The "bump every commit" rule below
+applies from commit 2 onward.
+
+**Step 5 is not done: the rules are NOT deployed.** `npm run rules:deploy`
+replaces what is live for real users, so it is Adrian's call, and there is no
+hurry — no app code touches these collections yet. When it happens: deploy, then
+immediately check the app still signs in and the leaderboard still loads.
 
 ---
 

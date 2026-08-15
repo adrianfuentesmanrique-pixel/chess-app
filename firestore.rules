@@ -32,7 +32,8 @@ service cloud.firestore {
       // client-side code can be trusted.
       allow write: if request.auth != null && request.auth.uid == uid
         && after().keys().hasOnly([
-          'profileName', 'username', 'avatarId', 'puzzleElo', 'puzzleThemeElo',
+          'profileName', 'username', 'usernameLower',
+          'avatarId', 'puzzleElo', 'puzzleThemeElo',
           'openingElo', 'endgameElo', 'streakCount', 'rushBestScore',
           'rushBest180', 'rushBest300',
           'rushMonth180', 'rushMonth300', 'rushMonthKey',
@@ -59,6 +60,12 @@ service cloud.firestore {
             (after().profileName is string && after().profileName.size() <= 60))
         && (!('username' in after()) ||
             (after().username is string && after().username.size() <= 60))
+        // usernameLower is username.toLowerCase(), published so that friend
+        // search can match without case. Same bound as the field it derives
+        // from; it is not checked to actually BE the lowercase form, because
+        // nothing is granted by it — it only decides whether search finds you.
+        && (!('usernameLower' in after()) ||
+            (after().usernameLower is string && after().usernameLower.size() <= 60))
         && (!('avatarId' in after()) ||
             (after().avatarId is string && after().avatarId.size() <= 64))
 
@@ -84,6 +91,103 @@ service cloud.firestore {
         && (!('puzzleThemeElo' in after()) || after().puzzleThemeElo is map)
         && (!('openingElo' in after())     || after().openingElo is map)
         && (!('endgameElo' in after())     || after().endgameElo is map);
+    }
+
+    // ══════════════════════════ Friends ══════════════════════════
+    // Everything above rests on one simple property: you only ever write your
+    // own document. These three collections BREAK that property — a friend
+    // request is a document one person creates that then renders on another
+    // person's screen, and a friendship document is trusted to mean "this
+    // person is my friend". So every clause here is spelled out, and every one
+    // of them is covered by a test in tests/rules/friends.test.js.
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+
+    // A friendship id is the two uids sorted and joined with "_", so a pair can
+    // only ever have one document and either side can work out its id without
+    // looking anything up.
+    function pairIdOk(pairId, m) {
+      return m.size() == 2
+        && m[0] is string && m[1] is string
+        && m[0] < m[1]
+        && pairId == m[0] + '_' + m[1];
+    }
+
+    match /friendships/{pairId} {
+      // Only the two people in it can read it. This is also what makes the
+      // "list my friends" query — where('members','array-contains',myUid) —
+      // safe: any broader query is rejected.
+      allow read: if signedIn() && me() in resource.data.members;
+
+      // You may only create a friendship the OTHER person asked for: their
+      // pending request has to still exist at this moment. That is the clause
+      // that stops anyone writing themselves into a stranger's friends list.
+      allow create: if signedIn()
+        && after().keys().hasOnly(['members', 'createdAt'])
+        && after().createdAt is number
+        && pairIdOk(pairId, after().members)
+        && me() in after().members
+        && exists(/databases/$(database)/documents/friendRequests/$(
+             (after().members[0] == me() ? after().members[1] : after().members[0])
+             + '_' + me()));
+
+      // A friendship is created or deleted, never edited.
+      allow update: if false;
+
+      // Either side can unfriend, on their own, with no notification.
+      allow delete: if signedIn() && me() in resource.data.members;
+    }
+
+    match /friendRequests/{reqId} {
+      // get() and .get(field, default) are not the same thing, and the second
+      // one is load-bearing here. On a LIST query Firestore evaluates this
+      // against a resource assembled from the query's own constraints, not
+      // from a stored document — so in the incoming query (to == me) the
+      // "from" field does not exist at all, and reading it directly makes the
+      // whole rule error out and deny. Defaulting to '' lets each of the app's
+      // two queries pass on the field it actually constrained, while a query
+      // that constrains neither still gets nothing.
+      allow read: if signedIn()
+        && (resource.data.get('from', '') == me()
+            || resource.data.get('to', '') == me());
+
+      allow create: if signedIn()
+        && after().keys().hasOnly(['from', 'to', 'status', 'createdAt'])
+        && after().from == me()
+        && after().to is string && after().to.size() <= 128
+        && after().to != me()
+        // Deterministic id: a second request to the same person is the same
+        // document, so nobody can be spammed with repeats.
+        && reqId == after().from + '_' + after().to
+        && after().status == 'pending'
+        && after().createdAt is number
+        // Blocking is silent by design. A blocked sender gets a plain
+        // permission error and is never told a block exists — the app shows
+        // them the ordinary "Request sent" toast. Do not "improve" this.
+        && !exists(/databases/$(database)/documents/blocks/$(after().to)/blocked/$(me()));
+
+      // Only the recipient may reject, only to 'rejected', and nothing else on
+      // the document may move. So a turned-down request cannot be flipped back
+      // to pending by the sender asking again — one rejection is permanent and
+      // silent.
+      allow update: if signedIn()
+        && me() == resource.data.to
+        && after().keys().hasOnly(['from', 'to', 'status', 'createdAt'])
+        && after().status == 'rejected'
+        && after().from == resource.data.from
+        && after().to == resource.data.to
+        && after().createdAt == resource.data.createdAt;
+
+      // The sender cancelling, the recipient clearing a rejection, or either
+      // side tidying up after an accept.
+      allow delete: if signedIn() && me() in [resource.data.from, resource.data.to];
+    }
+
+    // My own block list. Nobody else can read it, so a blocked person cannot
+    // find out they were blocked by looking.
+    match /blocks/{uid}/blocked/{other} {
+      allow read, write: if signedIn() && me() == uid;
     }
   }
 }

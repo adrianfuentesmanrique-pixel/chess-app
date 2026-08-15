@@ -2,6 +2,21 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Friends system — commit 1 of 9 is done (2026-08-15). Rules only, no
+  feature code.** The plan is
+  `docs/superpowers/plans/2026-08-14-friends-system.md`; read its "What
+  actually happened" note before writing any Friends code.
+  - `firestore.rules` now covers `friendships`, `friendRequests` and
+    `blocks/{uid}/blocked/{other}`, and `usernameLower` was added to the
+    `leaderboard` write allowlist so commit 3 needs no second rules change.
+  - `tests/rules/friends.test.js` — 56 new tests. **`npm run test:rules` is at
+    86 passing**, every allow and every deny.
+  - **The rules are written and tested but NOT deployed.** `npm run
+    rules:deploy` replaces the live rules; that is Adrian's call. Nothing in
+    the app uses these collections yet, so there is no rush.
+  - `sw.js` deliberately not bumped — nothing the browser loads changed.
+  - **Next task: commit 2, the Friends screens (UI only, no data).**
+
 - **Learn tab — 👣 Walk through, a guided move-by-move mode (2026-08-14).**
   Shows the next move of the lesson's line as an arrow, clears it, then asks the
   player to play that same move. Correct → the opponent's scripted reply plays
