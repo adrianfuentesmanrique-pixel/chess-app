@@ -1,8 +1,8 @@
-// Friends — the screens, plus username search and sending a request.
-// Commits 2 and 3 of docs/superpowers/plans/2026-08-14-friends-system.md.
+// Friends — the screens, username search and sending a request, and the live
+// Requests tab. Commits 2, 3 and 4 of
+// docs/superpowers/plans/2026-08-14-friends-system.md.
 //
-// The Friends and Requests tabs still render empty lists: reading friendships
-// and requests is commit 4/5. Only the Find tab talks to Firestore so far.
+// The Friends tab still renders an empty list: reading friendships is commit 5.
 //
 // Everything that arrives from Firestore is another user's text, so every one
 // of those values goes through esc() before it reaches innerHTML.
@@ -12,8 +12,12 @@
 import { t } from './i18n.js';
 import { avatarHtml } from './avatars.js';
 import { LEADERBOARD_FIELDS } from './leaderboard.js';
-import { Auth, searchByUsername, sendFriendRequest } from './firebase.js';
-import { $, esc, toast, segInit, showScreen } from './app.js';
+import {
+  Auth, searchByUsername, sendFriendRequest,
+  fetchIncomingRequests, fetchOutgoingRequests, fetchLeaderboardByUids,
+  acceptFriendRequest, rejectFriendRequest, cancelFriendRequest,
+} from './firebase.js';
+import { $, esc, toast, segInit, showScreen, activeScreen } from './app.js';
 
 export const Friends = {
   tab: 'list',
@@ -26,6 +30,9 @@ export const Friends = {
   // uids already asked in this session, so the row's button stays spent even
   // if the same search is run again.
   sent: new Set(),
+  // The two request lists, already joined to their public leaderboard rows.
+  incoming: [],
+  outgoing: [],
 
   init() {
     $('friends-back').onclick = () => showScreen('profile');
@@ -40,7 +47,10 @@ export const Friends = {
     segInit($('flb-mode'), v => { this.field = v; this.renderLeaderboard(); });
     segInit($('flb-period'), v => { this.season = v === 'month'; this.renderLeaderboard(); });
 
-    this.refreshCount();
+    // Signing in or out changes whose requests these are, so the lists and the
+    // Profile pill are rebuilt from scratch each time.
+    Auth.onChange(() => this.loadRequests());
+    this.loadRequests();
   },
 
   open() {
@@ -48,22 +58,46 @@ export const Friends = {
     this.render();
   },
 
-  // The gold pill on the Profile tab's Friends button. Commit 4 feeds it the
-  // real incoming-request count.
-  refreshCount() {
-    const n = 0;
+  // The gold pill on the Profile tab's Friends button — the number of requests
+  // waiting on me. It is painted from the list that was last loaded, never
+  // counted with a second query.
+  paintCount() {
+    const n = this.incoming.length;
     const pill = $('profile-friends-count');
     pill.textContent = n;
     pill.classList.toggle('hidden', n === 0);
+  },
+
+  // Both queries, then one batch of public profiles for every uid in either
+  // list. Signed out, everything empties — including the pill.
+  async loadRequests() {
+    if (!Auth.user) {
+      this.incoming = [];
+      this.outgoing = [];
+    } else {
+      try {
+        const [inc, out] = await Promise.all([fetchIncomingRequests(), fetchOutgoingRequests()]);
+        const people = await fetchLeaderboardByUids(
+          inc.map(r => r.from).concat(out.map(r => r.to)));
+        // A request whose sender has no public document still gets a row, so it
+        // can be accepted or rejected instead of silently disappearing.
+        this.incoming = inc.map(r => ({ ...(people[r.from] || {}), uid: r.from }));
+        this.outgoing = out.map(r => ({ ...(people[r.to] || {}), uid: r.to }));
+      } catch (e) {
+        console.error('Loading friend requests failed', e);
+      }
+    }
+    this.paintCount();
+    if (activeScreen === 'friends' && this.tab === 'requests') this.renderRequests();
   },
 
   render() {
     for (const pane of ['list', 'requests', 'find']) {
       $('friends-pane-' + pane).classList.toggle('hidden', pane !== this.tab);
     }
-    this.refreshCount();
+    this.paintCount();
     if (this.tab === 'list') this.renderList();
-    if (this.tab === 'requests') this.renderRequests();
+    if (this.tab === 'requests') { this.renderRequests(); this.loadRequests(); }
     if (this.tab === 'find') this.renderFind();
   },
 
@@ -88,15 +122,15 @@ export const Friends = {
 
   // ── Requests tab ───────────────────────
   renderRequests() {
-    const incoming = [];   // commit 4 reads friendRequests here
-    const outgoing = [];
+    const incoming = this.incoming;
+    const outgoing = this.outgoing;
 
     const inEl = $('friends-incoming');
     inEl.innerHTML = '';
     for (const e of incoming) {
       inEl.appendChild(this.personRow(e, [
-        { cls: 'btn small primary', key: 'friends_accept' },
-        { cls: 'btn small', key: 'friends_reject' },
+        { cls: 'btn small primary', key: 'friends_accept', on: b => this.accept(e.uid, b) },
+        { cls: 'btn small', key: 'friends_reject', on: b => this.reject(e.uid, b) },
       ]));
     }
 
@@ -104,7 +138,7 @@ export const Friends = {
     outEl.innerHTML = '';
     for (const e of outgoing) {
       outEl.appendChild(this.personRow(e, [
-        { cls: 'btn small', key: 'friends_cancel_req' },
+        { cls: 'btn small', key: 'friends_cancel_req', on: b => this.cancel(e.uid, b) },
       ], t('friends_pending')));
     }
 
@@ -170,6 +204,49 @@ export const Friends = {
     this.sent.add(toUid);
     toast(t('friends_sent_toast'));
     this.renderFind();
+  },
+
+  // Both buttons of a row go dead the moment either is pressed, so a double tap
+  // cannot fire accept and reject at the same request.
+  freezeRow(btn) {
+    const row = btn && btn.closest('.fr-row');
+    if (row) row.querySelectorAll('.btn').forEach(b => { b.disabled = true; });
+  },
+
+  // Create the friendship, then delete the request — that order is required by
+  // the rules, see acceptFriendRequest in js/firebase.js.
+  async accept(uid, btn) {
+    this.freezeRow(btn);
+    try {
+      await acceptFriendRequest(uid);
+      toast(t('friends_accepted_toast'));
+    } catch (e) {
+      console.error('Accepting a friend request failed', e);
+    }
+    await this.loadRequests();
+  },
+
+  // The row leaves my list and nothing happens on the sender's side at all.
+  async reject(uid, btn) {
+    this.freezeRow(btn);
+    try {
+      await rejectFriendRequest(uid);
+    } catch (e) {
+      console.error('Rejecting a friend request failed', e);
+    }
+    await this.loadRequests();
+  },
+
+  async cancel(uid, btn) {
+    this.freezeRow(btn);
+    try {
+      await cancelFriendRequest(uid);
+    } catch (e) {
+      console.error('Cancelling a friend request failed', e);
+    }
+    // A cancelled uid can be asked again, so the spent search row is released.
+    this.sent.delete(uid);
+    await this.loadRequests();
   },
 
   // Avatar + name over a row of actions. Stacked rather than side by side:

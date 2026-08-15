@@ -8,7 +8,7 @@ import {
   deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
+  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -324,6 +324,90 @@ export async function sendFriendRequest(toUid) {
     status: 'pending',
     createdAt: Date.now(),
   });
+  return true;
+}
+
+// The two Requests-tab queries. Each one needs a composite index on
+// friendRequests — both are written out in the commit 4 section of
+// docs/superpowers/plans/2026-08-14-friends-system.md.
+//
+// The read rule uses resource.data.get('from','') rather than a direct field
+// read precisely so these two can each pass on the field it constrained. Do not
+// tidy that rule; it would break both queries.
+export async function fetchIncomingRequests() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const q = query(collection(firestore, 'friendRequests'),
+    where('to', '==', user.uid), where('status', '==', 'pending'),
+    orderBy('createdAt', 'desc'), limit(100));
+  const snap = await getDocs(q);
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out;
+}
+
+// No status filter here on purpose: a rejected request must look exactly like a
+// pending one to the person who sent it. They keep seeing "Request sent".
+export async function fetchOutgoingRequests() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const q = query(collection(firestore, 'friendRequests'),
+    where('from', '==', user.uid), orderBy('createdAt', 'desc'), limit(100));
+  const snap = await getDocs(q);
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out;
+}
+
+// Public leaderboard rows for a short list of uids, keyed by uid. Names,
+// avatars and ratings are never copied into a request or a friendship — they
+// are read live from here, so they cannot go stale and a stranger cannot store
+// text on someone else's document. World-readable, and these lists are capped
+// at 100, so one plain read per uid is fine.
+export async function fetchLeaderboardByUids(uids) {
+  const list = [...new Set(uids)].filter(Boolean);
+  const snaps = await Promise.all(list.map(u => getDoc(doc(firestore, 'leaderboard', u))));
+  const out = {};
+  snaps.forEach((s, i) => { if (s.exists()) out[list[i]] = { uid: list[i], ...s.data() }; });
+  return out;
+}
+
+// Accepting: the friendship is created FIRST and the request deleted after.
+// That order is load-bearing — the create rule requires the sender's pending
+// request to still exist at that moment. There is no transaction; if the delete
+// fails the worst case is a stale request row, which the UI drops on the next
+// load because the friendship is already there.
+export async function acceptFriendRequest(fromUid) {
+  const user = auth.currentUser;
+  if (!user || !fromUid) return false;
+  const members = [user.uid, fromUid].sort();
+  await setDoc(doc(firestore, 'friendships', members.join('_')), {
+    members,
+    createdAt: Date.now(),
+  });
+  await deleteDoc(doc(firestore, 'friendRequests', `${fromUid}_${user.uid}`));
+  return true;
+}
+
+// Rejecting keeps the document and flips it to 'rejected'. The sender is told
+// nothing: their outgoing row still reads "Request sent", and the rules stop
+// them putting it back to pending by asking again. One rejection is a
+// permanent, silent no.
+export async function rejectFriendRequest(fromUid) {
+  const user = auth.currentUser;
+  if (!user || !fromUid) return false;
+  await updateDoc(doc(firestore, 'friendRequests', `${fromUid}_${user.uid}`), {
+    status: 'rejected',
+  });
+  return true;
+}
+
+// The sender changing their mind — the document goes away entirely, so the
+// recipient's incoming row disappears and the pair can start over.
+export async function cancelFriendRequest(toUid) {
+  const user = auth.currentUser;
+  if (!user || !toUid) return false;
+  await deleteDoc(doc(firestore, 'friendRequests', `${user.uid}_${toUid}`));
   return true;
 }
 

@@ -571,6 +571,81 @@ Do not chase it.
 
 ## Commit 4 — See requests, accept and reject
 
+**DONE 2026-08-15 (code), with the two-account run still owed — same honest
+limit as commit 3, see "What is NOT verified" below. Built as written, plus:**
+
+1. **Six new exports in `js/firebase.js`** — `fetchIncomingRequests()`,
+   `fetchOutgoingRequests()`, `fetchLeaderboardByUids()`,
+   `acceptFriendRequest()`, `rejectFriendRequest()`, `cancelFriendRequest()`.
+   `updateDoc` was added to the firestore import list. `firestore.rules` was
+   **not** touched and nothing was deployed — commit 4 needs no rules change.
+2. **`fetchLeaderboardByUids()` landed here, not in commit 5.** The request
+   rows need names and avatars too, and commit 5's friends list wants the same
+   helper — writing it twice would have been the only alternative. Commit 5
+   should reuse it, not add its own.
+3. **The outgoing query has no `status` filter, on purpose.** A rejected
+   request must look identical to a pending one from the sender's side, so
+   every outgoing row shows `⏳ Solicitud enviada` whatever its status.
+4. **The gold pill is painted, never counted separately.**
+   `Friends.paintCount()` reads `this.incoming.length` from the list that was
+   last loaded — there is no second count query. `Auth.onChange` reloads both
+   lists, so signing out empties the pill.
+5. **A row's buttons all die on the first tap** (`Friends.freezeRow`), so a
+   double tap cannot fire accept and reject against the same request.
+6. **A cancelled uid is released from `Friends.sent`**, so the Find tab lets
+   you ask that person again after you changed your mind.
+7. **A sender with no public leaderboard document still gets a row**, with `?`
+   for a name. Dropping the row would leave a request that can never be
+   accepted or rejected.
+
+`sw.js` v55 → **v56**.
+
+### The two composite indexes
+
+Both live on the `friendRequests` collection, query scope **Collection**:
+
+| # | Query | Fields, in order |
+|---|---|---|
+| 1 | Incoming — `to == me`, `status == 'pending'`, newest first | `to` Ascending, `status` Ascending, `createdAt` Descending |
+| 2 | Outgoing — `from == me`, newest first | `from` Ascending, `createdAt` Descending |
+
+**These have not been created yet, and neither query can run until they are.**
+The honest reason the auto-generated console links are not pasted here: those
+links only exist inside the error Firestore returns to a *signed-in* client, and
+this session could not sign in (App Check has no debug token for localhost, so
+the local client never reaches Firestore at all). Both indexes can be created by
+hand from the table above at
+`https://console.firebase.google.com/project/chess-training-center/firestore/indexes`
+→ **Create index** — or by opening the Requests tab on the real site once and
+clicking the link Firestore prints in the browser console, which is the same
+index either way. **Record the click here once it is done.**
+
+**What IS verified** (headless local server at 375px, light and dark, both
+languages — no Firestore, so the lists were seeded by hand in the page):
+
+- The app boots with **no console error but the known App Check 403**, so the
+  new imports (`activeScreen`, `updateDoc`, the six new firebase exports) all
+  resolve.
+- Signed out, Requests shows only `No pending requests.` / `No tienes
+  solicitudes pendientes.`, both groups hidden, and the pill reads 0 and stays
+  hidden.
+- One seeded incoming + one outgoing: pill shows **1** and un-hides, incoming
+  row carries `✓ Aceptar` + `✕ Rechazar`, outgoing carries `Cancelar` with the
+  `⏳ Solicitud enviada` note, and the empty hint hides.
+- **`esc()` holds** — a `<img onerror=…>` payload in `profileName` renders as
+  text and does not fire.
+- Pressing `✓ Aceptar` disables **both** buttons of that row in the same tick.
+- `documentElement.scrollWidth` is **375** on every state; the stacked row is
+  355px wide, 94px tall.
+- The rules suite is unchanged and still **87 passing**.
+
+**What is NOT verified.** The whole two-account walk-through, plus commit 3's
+three owed steps, which have to happen first — commit 4 cannot be tested
+without a real pending request. Nothing in this commit has been seen working
+against production data.
+
+---
+
 The Requests tab goes live. Incoming = `where('to','==',me)` and
 `where('status','==','pending')`; outgoing = `where('from','==',me)`. Both need a
 composite index; Firestore prints the exact creation link in the console error the

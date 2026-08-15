@@ -49,7 +49,28 @@
     could not do (and the headless localhost client cannot reach Firestore at
     all — App Check has no debug token for it). The three steps are written
     out at the end of the "Commit 3" section of the plan.
-  - **Next task: commit 4, see requests, accept and reject.**
+- **Friends system — commit 4 of 9 is done (2026-08-15). Requests go live.**
+  `js/firebase.js` gained six exports — `fetchIncomingRequests()`,
+  `fetchOutgoingRequests()`, `fetchLeaderboardByUids()`,
+  `acceptFriendRequest()`, `rejectFriendRequest()`, `cancelFriendRequest()` —
+  and the Requests tab now renders real rows with working buttons. The gold
+  pill on the Profile Friends button shows the real incoming count.
+  `sw.js` v55 → **v56**. `firestore.rules` untouched, nothing deployed, still
+  **87 tests passing**.
+  - **Two composite indexes must be created before either query can run.** They
+    are written out in the "Commit 4" section of the plan. This session could
+    not sign in, so the auto-generated console links do not exist yet — create
+    them by hand from the table, or open Requests once on the real site and
+    click the link Firestore prints.
+  - **`fetchLeaderboardByUids()` landed early**, in commit 4 rather than 5,
+    because request rows need names and avatars too. Commit 5 must reuse it.
+  - **The outgoing list has no status filter on purpose** — a rejected request
+    must look exactly like a pending one to whoever sent it.
+  - **Owed: the two-account run**, both commit 3's three steps and commit 4's
+    walk-through. Same reason as before — signing in needs Adrian's own
+    credentials and the local client cannot reach Firestore at all.
+  - **Next task: commit 5, the Friends list.**
+
 
 - **Learn tab — 👣 Walk through, a guided move-by-move mode (2026-08-14).**
   Shows the next move of the lesson's line as an arrow, clears it, then asks the
