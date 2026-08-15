@@ -114,9 +114,19 @@ export const Leaderboard = {
 
 // ═════════════════════ PUBLIC PROFILE ═════════════════════
 
-// Which sections of a public profile each privacy level exposes. Adding a
-// level later ('friends', 'hide activity', …) means adding a line here, not
-// rewriting the screen — every check below goes through canSee().
+// Which sections of a public profile each privacy level exposes. This table
+// only decides what the SCREEN draws; it is not the privacy boundary.
+// /leaderboard/{uid} is world-readable, so privacy is really enforced in
+// js/firebase.js by NOT PUBLISHING a field: PUBLIC_ALWAYS_KEYS always go out,
+// and updatePublicLeaderboardDoc() actively deletes PUBLIC_DETAIL_KEYS from
+// the document while the profile is private.
+//
+// So a 'friends' level CANNOT be added by adding a line here — that would hide
+// the charts in the UI while the data stayed readable to anyone. It needs the
+// detail keys moved to a separate profileDetail/{uid} document with a read rule
+// gated on a friendship, a third VISIBILITY value, and a migration for every
+// existing account. See "Future options", item 1, in
+// docs/superpowers/plans/2026-08-14-friends-system.md.
 const VISIBILITY_SECTIONS = {
   public:  ['identity', 'elo', 'charts'],
   private: ['identity', 'elo'],
