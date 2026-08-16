@@ -88,11 +88,15 @@ body { display: flex; flex-direction: column; height: 100dvh; }
 body.mode-light .brand-logo { filter: none; }
 .streak-badge { font-size: 15px; font-weight: 700; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .streak-badge.zero { opacity: .5; }
-.streak-icon-img { height: 20px; width: auto; transition: height .3s ease, filter .3s ease; }
+/* The streak art is square, so width and height are both set. It used to be
+   height-only with width:auto because the source images ran 134-354px wide at
+   a fixed 160 tall, which no square box could hold. */
+.streak-icon-img { width: 20px; height: 20px; transition: width .3s ease, height .3s ease, filter .3s ease; }
 /* "Just crossed a tier" state. The topbar is a status strip, so the resting
    size stays compact — this only grows and glows on the day the tier actually
    changed, then drops back to 20px on the next app open. */
 .streak-badge.tier-up .streak-icon-img {
+  width: 28px;
   height: 28px;
   filter: drop-shadow(0 0 6px var(--gold-glow));
 }
@@ -475,7 +479,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
    box made later tiers look shrunken. Sharing one height keeps every icon
    reading as the same size regardless of its natural aspect ratio. */
 .streak-now { display: flex; align-items: center; gap: 12px; margin: 2px 0 12px; }
-.streak-now-icon { height: 64px; width: auto; flex: 0 0 auto; display: block; }
+.streak-now-icon { width: 64px; height: 64px; flex: 0 0 auto; display: block; }
 .streak-now-icon.locked { filter: grayscale(1); opacity: .4; }
 .streak-now-text { flex: 1; min-width: 0; }
 .streak-now-day { font-size: 18px; font-weight: 700; color: var(--gold); }
@@ -488,7 +492,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   padding: 6px 8px; border-bottom: 1px solid var(--input-border);
 }
 .streak-tier-row:last-child { border-bottom: none; }
-.streak-tier-row img { height: 34px; width: auto; flex: 0 0 auto; display: block; }
+.streak-tier-row img { width: 34px; height: 34px; flex: 0 0 auto; display: block; }
 /* Grayscale only (no brightness/invert): future tiers stay visible as dim
    silhouettes that still hint at what's coming — a column of identical white
    blobs would tell the player nothing about the path ahead. */
@@ -1055,7 +1059,7 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 /* Streak art is exported at a shared height with natural widths, so it must
    never get a fixed box or object-fit — that's what made these look shrunken.
    Height-only keeps every tier reading at the same visual weight. */
-.kael-quote-streak { height: 64px; width: auto; flex: 0 0 auto; filter: drop-shadow(0 0 8px var(--gold-glow)); }
+.kael-quote-streak { width: 64px; height: 64px; flex: 0 0 auto; filter: drop-shadow(0 0 8px var(--gold-glow)); }
 .kael-quote-title { display: block; font-size: 13px; margin-bottom: 2px; }
 .modal-box {
   background: var(--panel); border-radius: 18px 18px 0 0;

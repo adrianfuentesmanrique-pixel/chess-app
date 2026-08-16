@@ -802,45 +802,39 @@ function headersFromPgn(pgnText) {
 // Streak tier ladder — icon art from streaks/{icon}.png, thresholds in days.
 // Months converted at 30 days/month; the tail (rook/queen) extends the
 // original artwork's 72-120 month cadence further so nothing repeats.
+// 26 rungs ending at 5 years. The art drives the ladder: the set is six plain
+// flames turning red -> blue, then the pieces in order, and each phase runs as
+// long as it has icons. A month is 30 days and a year 360, as everywhere else
+// here. Nothing in this table is persisted -- storage holds streakCount and
+// bestStreak only -- so rungs can be added or renamed freely. Note js/badges.js
+// has its OWN unrelated STREAK_TIERS whose ids ARE storage; do not merge them.
 const STREAK_TIERS = [
   { days: 1, icon: 'flame1', label: { es: '1 día', en: '1 day' } },
   { days: 7, icon: 'flame2', label: { es: '7 días', en: '7 days' } },
   { days: 15, icon: 'flame3', label: { es: '15 días', en: '15 days' } },
-  { days: 21, icon: 'flame4', label: { es: '21 días', en: '21 days' } },
-  { days: 30, icon: 'flame5', label: { es: '1 mes', en: '1 month' } },
-  { days: 60, icon: 'flame6', label: { es: '2 meses', en: '2 months' } },
-  { days: 90, icon: 'pawn1', label: { es: '3 meses', en: '3 months' } },
-  { days: 120, icon: 'pawn2', label: { es: '4 meses', en: '4 months' } },
-  { days: 150, icon: 'pawn3', label: { es: '5 meses', en: '5 months' } },
-  { days: 180, icon: 'pawn4', label: { es: '6 meses', en: '6 months' } },
-  { days: 210, icon: 'pawn5', label: { es: '7 meses', en: '7 months' } },
-  { days: 240, icon: 'pawn6', label: { es: '8 meses', en: '8 months' } },
-  { days: 270, icon: 'pawn7', label: { es: '9 meses', en: '9 months' } },
-  { days: 330, icon: 'pawn8', label: { es: '11 meses', en: '11 months' } },
-  { days: 360, icon: 'pawn9', label: { es: '12 meses', en: '12 months' } },
+  { days: 30, icon: 'flame4', label: { es: '1 mes', en: '1 month' } },
+  { days: 60, icon: 'flame5', label: { es: '2 meses', en: '2 months' } },
+  { days: 120, icon: 'flame6', label: { es: '4 meses', en: '4 months' } },
+  { days: 150, icon: 'pawn1', label: { es: '5 meses', en: '5 months' } },
+  { days: 210, icon: 'pawn2', label: { es: '7 meses', en: '7 months' } },
+  { days: 240, icon: 'pawn3', label: { es: '8 meses', en: '8 months' } },
+  { days: 270, icon: 'pawn4', label: { es: '9 meses', en: '9 months' } },
+  { days: 300, icon: 'pawn5', label: { es: '10 meses', en: '10 months' } },
+  { days: 360, icon: 'pawn6', label: { es: '1 año', en: '1 year' } },
   { days: 420, icon: 'knight1', label: { es: '14 meses', en: '14 months' } },
-  { days: 480, icon: 'knight2', label: { es: '16 meses', en: '16 months' } },
-  { days: 540, icon: 'knight3', label: { es: '18 meses', en: '18 months' } },
-  { days: 720, icon: 'knight4', label: { es: '24 meses', en: '24 months' } },
-  { days: 900, icon: 'knight5', label: { es: '30 meses', en: '30 months' } },
-  { days: 1080, icon: 'knight6', label: { es: '36 meses', en: '36 months' } },
-  { days: 1440, icon: 'knight7', label: { es: '48 meses', en: '48 months' } },
-  { days: 1800, icon: 'knight8', label: { es: '60 meses', en: '60 months' } },
-  { days: 2160, icon: 'bishop1', label: { es: '72 meses', en: '72 months' } },
-  { days: 2520, icon: 'bishop2', label: { es: '84 meses', en: '84 months' } },
-  { days: 2880, icon: 'bishop3', label: { es: '96 meses', en: '96 months' } },
-  { days: 3240, icon: 'bishop4', label: { es: '108 meses', en: '108 months' } },
-  { days: 3600, icon: 'bishop5', label: { es: '120 meses', en: '120 months' } },
-  { days: 3960, icon: 'rook1', label: { es: '132 meses', en: '132 months' } },
-  { days: 4320, icon: 'rook2', label: { es: '144 meses', en: '144 months' } },
-  { days: 4680, icon: 'rook3', label: { es: '156 meses', en: '156 months' } },
-  { days: 5040, icon: 'rook4', label: { es: '168 meses', en: '168 months' } },
-  { days: 5400, icon: 'rook5', label: { es: '180 meses', en: '180 months' } },
-  { days: 5760, icon: 'queen1', label: { es: '192 meses', en: '192 months' } },
-  { days: 6120, icon: 'queen2', label: { es: '204 meses', en: '204 months' } },
-  { days: 6480, icon: 'queen3', label: { es: '216 meses', en: '216 months' } },
-  { days: 6840, icon: 'queen4', label: { es: '228 meses', en: '228 months' } },
-  { days: 7200, icon: 'queen5', label: { es: '240 meses', en: '240 months' } },
+  { days: 510, icon: 'knight2', label: { es: '17 meses', en: '17 months' } },
+  { days: 600, icon: 'knight3', label: { es: '20 meses', en: '20 months' } },
+  { days: 720, icon: 'knight4', label: { es: '2 años', en: '2 years' } },
+  { days: 840, icon: 'bishop1', label: { es: '28 meses', en: '28 months' } },
+  { days: 960, icon: 'bishop2', label: { es: '32 meses', en: '32 months' } },
+  { days: 1020, icon: 'bishop3', label: { es: '34 meses', en: '34 months' } },
+  { days: 1080, icon: 'bishop4', label: { es: '3 años', en: '3 years' } },
+  { days: 1200, icon: 'rook1', label: { es: '40 meses', en: '40 months' } },
+  { days: 1320, icon: 'rook2', label: { es: '44 meses', en: '44 months' } },
+  { days: 1440, icon: 'rook3', label: { es: '4 años', en: '4 years' } },
+  { days: 1560, icon: 'queen1', label: { es: '52 meses', en: '52 months' } },
+  { days: 1680, icon: 'queen2', label: { es: '56 meses', en: '56 months' } },
+  { days: 1800, icon: 'queen3', label: { es: '5 años', en: '5 years' } },
 ];
 
 function streakTierIndex(days) {
