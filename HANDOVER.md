@@ -2,6 +2,32 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Friend search is now a PREFIX search (2026-08-16).** Typing `Zug` finds
+  `Zugzwang`. `searchByUsername()` in `js/firebase.js` uses
+  `where('usernameLower','>=',needle)` + `where('usernameLower','<',needle +
+  '\uf8ff')`, `limit(5)` unchanged, and a new exported `SEARCH_MIN_CHARS = 2`
+  refuses one-letter searches. `sw.js` v60 → **v61**.
+  - **No composite index was needed and none was added.** Both bounds are on the
+    same field, so the automatic single-field index serves it. This was
+    **confirmed against production over the Firestore REST API**, not assumed:
+    `zug` → HTTP 200, one row (Zugzwang), no index error.
+    `firestore.indexes.json` is untouched.
+  - **The "exact match is deliberate" note in the plan's Commit 3 section is
+    superseded** and now says so at the top. Its anti-enumeration reasoning was
+    wrong: `/leaderboard` is world-readable and `fetchLeaderboard()` already
+    returns 200 whole rows to anyone, so prefix search leaks nothing new.
+  - **Under 2 characters is not a search, so "No player found" does not
+    appear** — `Friends.searched` stays false. The standing hint under the box
+    (`friends_search_hint`) was rewritten from "You need their exact username."
+    to "Type at least 2 letters of their username." **The "2" is hard-coded in
+    that string; if `SEARCH_MIN_CHARS` changes, change both languages with it.**
+  - **The five results are the alphabetically first five.** Someone with a very
+    common prefix has to be typed out further. `limit(5)` was kept deliberately.
+  - **The real query still has never run from this machine** — App Check blocks
+    the localhost client from Firestore entirely. It was proved over REST
+    instead. The gate, the row rendering and the no-match logic were verified in
+    the browser at 375px.
+
 - **Friends system — commit 1 of 9 is done (2026-08-15). Rules only, no
   feature code.** The plan is
   `docs/superpowers/plans/2026-08-14-friends-system.md`; read its "What
@@ -34,8 +60,9 @@
   `SAMPLE` and the `sample` flag are **deleted** — no invented players can
   reach the site. `usernameLower` is now published inside
   `updatePublicLeaderboardDoc`, and `js/firebase.js` gained
-  `searchByUsername()` and `sendFriendRequest()`. The Find tab does an exact,
-  case-insensitive username match against `/leaderboard` and writes
+  `searchByUsername()` and `sendFriendRequest()`. The Find tab does a
+  case-insensitive username match against `/leaderboard` (**exact when this was
+  written; a prefix match since 2026-08-16 — see the top entry**) and writes
   `friendRequests/{from_to}` with exactly four fields. `sw.js` v54 → **v55**.
   `firestore.rules` untouched; one new test, **87 passing**.
   - **Every send outcome shows the same `Solicitud enviada ✓` toast** —

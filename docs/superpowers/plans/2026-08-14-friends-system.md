@@ -484,6 +484,25 @@ looks identical to the Leaderboard one; nothing overflows `document.scrollWidth`
 
 ## Commit 3 — Search and send a request
 
+> **SUPERSEDED 2026-08-16 — the search is a PREFIX match now, not an exact
+> one.** Everything below that says "exact" is history. `searchByUsername()` in
+> `js/firebase.js` does `where('usernameLower','>=',needle)` +
+> `where('usernameLower','<',needle+'\uf8ff')` with `limit(5)` unchanged, and
+> refuses anything under `SEARCH_MIN_CHARS` (2). Typing `Zug` now finds
+> `Zugzwang`.
+>
+> **Why the original reasoning was wrong.** This section justified exact match
+> by saying a prefix search "would let the alphabet enumerate the whole app".
+> It would not add that risk: `/leaderboard` is world-readable and
+> `fetchLeaderboard()` already hands anyone 200 whole rows in a single call, so
+> prefix search leaks nothing that was not already free. The cost was real —
+> you had to type someone's username perfectly to find them at all.
+>
+> **No composite index is needed.** Both bounds are on the same field, so the
+> automatic single-field index serves it. Confirmed against production over the
+> Firestore REST API, not assumed: `zug` returns Zugzwang, HTTP 200, no index
+> error. `firestore.indexes.json` was not touched.
+
 **DONE 2026-08-15 (code), with the two-account run still owed — see "What is
 NOT verified" below. Built as written, plus:**
 

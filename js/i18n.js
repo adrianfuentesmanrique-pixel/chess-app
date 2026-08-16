@@ -385,7 +385,9 @@ const DICT = {
   friends_tab_find: { es: 'Buscar', en: 'Find' },
   friends_empty: { es: 'Todavía no tienes amigos. Busca a alguien por su nombre de usuario para enviarle una solicitud.', en: 'No friends yet. Search for someone by their username to send a request.' },
   friends_search_ph: { es: 'Escribe un nombre de usuario', en: 'Enter a username' },
-  friends_search_hint: { es: 'Necesitas su nombre de usuario exacto.', en: 'You need their exact username.' },
+  // The "2" here is SEARCH_MIN_CHARS in js/firebase.js. If that changes, change
+  // both of these with it — the hint is the only place the rule is explained.
+  friends_search_hint: { es: 'Escribe al menos 2 letras de su nombre de usuario.', en: 'Type at least 2 letters of their username.' },
   friends_search_btn: { es: 'Buscar', en: 'Search' },
   friends_no_match: { es: 'No se encontró ningún jugador con ese nombre de usuario.', en: 'No player found with that username.' },
   friends_add: { es: '➕ Añadir amigo', en: '➕ Add friend' },

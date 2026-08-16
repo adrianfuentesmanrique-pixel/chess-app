@@ -12,7 +12,7 @@ import { t } from './i18n.js';
 import { avatarHtml } from './avatars.js';
 import { LEADERBOARD_FIELDS, rankTier, PublicProfile } from './leaderboard.js';
 import {
-  Auth, searchByUsername, sendFriendRequest,
+  Auth, searchByUsername, SEARCH_MIN_CHARS, sendFriendRequest,
   fetchIncomingRequests, fetchOutgoingRequests, fetchLeaderboardByUids,
   acceptFriendRequest, rejectFriendRequest, cancelFriendRequest,
   fetchFriendUids, unfriend, blockUser, unblockUser, fetchBlockedUids,
@@ -393,8 +393,11 @@ export const Friends = {
     if (!Auth.user) return;
     const typed = $('friends-search').value.trim();
     this.results = [];
-    this.searched = !!typed;
-    if (typed) {
+    // Below the minimum this is not a search that found nobody, it is not a
+    // search at all — so leave `searched` false and let the standing hint under
+    // the box say how many letters are needed. "No player found" would be a lie.
+    this.searched = typed.length >= SEARCH_MIN_CHARS;
+    if (this.searched) {
       const btn = $('friends-search-btn');
       btn.disabled = true;
       try {

@@ -291,15 +291,34 @@ export async function fetchLeaderboard(limitN = 200, orderByField = 'puzzleElo')
   return out;
 }
 
-// Exact username match against /leaderboard, which is already world-readable,
-// so this adds no new exposure. Deliberately NOT a prefix search: one letter
-// would return a page of strangers and the alphabet would enumerate the whole
-// app. Usernames are not unique, so this returns a short list, not one row.
+// Prefix username match against /leaderboard, which is already world-readable,
+// so this adds no new exposure. `\uf8ff` is the last character Firestore will
+// sort, so the range [needle, needle + \uf8ff) is exactly "starts with needle".
+//
+// This was an exact match until 2026-08-15, on the reasoning that a prefix
+// search lets the alphabet enumerate the whole app. That reasoning was wrong:
+// /leaderboard is world-readable and fetchLeaderboard() already hands anyone
+// 200 whole rows in one call, so a prefix search leaks nothing new. It cost
+// real usability — you had to type the username perfectly to find anybody.
+//
+// Both bounds are on the SAME field, so the automatic single-field index serves
+// this. No composite index is needed; confirmed against production over the
+// REST API on 2026-08-15, not just assumed.
+//
+// SEARCH_MIN_CHARS is a useful-results floor, not a privacy measure: a single
+// letter would return five arbitrary strangers, which is a worse answer than
+// none. Usernames are not unique, so this returns a short list, not one row,
+// and the five it returns are the alphabetically first five — someone with a
+// very common prefix has to be typed out further.
+export const SEARCH_MIN_CHARS = 2;
+
 export async function searchByUsername(typed) {
   const needle = (typed || '').trim().toLowerCase();
-  if (!needle) return [];
+  if (needle.length < SEARCH_MIN_CHARS) return [];
   const q = query(collection(firestore, 'leaderboard'),
-    where('usernameLower', '==', needle), limit(5));
+    where('usernameLower', '>=', needle),
+    where('usernameLower', '<', needle + '\uf8ff'),
+    limit(5));
   const snap = await getDocs(q);
   const out = [];
   snap.forEach(d => out.push({ uid: d.id, ...d.data() }));
