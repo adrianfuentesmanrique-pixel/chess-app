@@ -2,6 +2,49 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Friends — the two-account run finally happened (2026-08-16). The system
+  is verified against production.** Adrian ran it on the live site as
+  `Zugzwang` (`hxxaE1n6T1WzxLvIGTMby1RfkZs1`) with `miguelafuentesm`
+  (`f3trpsGqDXXXcV9OQsUw0TGlbjh1`). **Every "Owed: the two-account run" note
+  below is now settled — read this entry instead of them.**
+  - **Proved against live Firestore:** `usernameLower` publishing; the prefix
+    search; `sendFriendRequest()` writing exactly four fields;
+    `acceptFriendRequest()` creating the friendship and deleting the request;
+    `fetchFriendUids()` + `fetchLeaderboardByUids()` filling the Friends list;
+    the friends leaderboard with my own row ringed, all four category tabs;
+    and `blockUser()`, `unblockUser()`, `fetchBlockedUids()` — block wrote
+    `blocks/{me}/blocked/{them}`, removed the friendship and the request I had
+    sent, the Blocked screen listed them, and Unblock cleared it.
+  - **Still never executed, and do not claim otherwise:** `unfriend()`
+    itself (though `blockUser()` runs the identical delete on the identical
+    document under the identical rule, and that was watched succeeding),
+    `rejectFriendRequest()`, `cancelFriendRequest()`, and the blocked
+    sender's side — "the blocked account tries to ask again and no document
+    appears" needs a second account Adrian can sign into. He does not have
+    one right now.
+  - **One real bug was found and fixed — `5326426`, `sw.js` → v63.**
+    `renderFind()` in `js/friends.js` decided the search row's button from
+    `Friends.sent` alone, i.e. the uids clicked in *this page session*. It
+    never checked the friends list or the outgoing requests, which
+    `paintAddFriend()` has checked since commit 7 — so **an existing friend
+    came back from a search as a live ➕ that really did send another
+    request.** It now resolves the same four states from the same three
+    lists, and `search()` awaits `loadFriends()` when it has never run.
+    Verified at 375px, light and dark, both languages, all four states.
+  - **The "createdAt changed on a second send" scare was not a rules bug and
+    there is no rules drift.** Accepting deletes the request document, so a
+    later ➕ press was a fresh create, not a denied overwrite. Do not
+    re-investigate it.
+  - **Commit 9 (unique usernames) is NOT DOING**, decided here. Prefix search
+    already distinguishes duplicates by avatar, display name, username and
+    ELO; commit 9 changes signup, adds a new failure path on a new user's
+    first screen, and does not fix existing duplicates — and there are 0
+    duplicate usernames live. The plan's commit 9 section carries the full
+    reasoning. Do not re-cost it.
+  - `Velociraptorblue` and `foTtAx0VzRXgPgkkyRdESxJ0LN02` have no
+    `usernameLower` and are correctly unsearchable until their next sign-in.
+    That is the documented behaviour, not a bug.
+
 - **The 26 streak icons are animated — CSS only, no new art (2026-08-16,
   `85c45ba`).** `sw.js` v63 → **v64**. The deliberately deferred half of the art
   rebuild is now done.
@@ -155,10 +198,9 @@
     `usernameLower`,** which happens on their next sign-in. Confirmed over the
     REST API: today no `/leaderboard` document has the field, and the query
     itself runs server-side with no index error.
-  - **Owed: the two-account run.** It needs a real sign-in, which this session
-    could not do (and the headless localhost client cannot reach Firestore at
-    all — App Check has no debug token for it). The three steps are written
-    out at the end of the "Commit 3" section of the plan.
+  - ~~**Owed: the two-account run.**~~ **DONE 2026-08-16 — see the top entry.**
+    Search and send are verified against production. The line above about no
+    `/leaderboard` document having `usernameLower` is also stale: two now do.
 - **Friends system — commit 4 of 9 is done (2026-08-15). Requests go live.**
   `js/firebase.js` gained six exports — `fetchIncomingRequests()`,
   `fetchOutgoingRequests()`, `fetchLeaderboardByUids()`,
@@ -176,9 +218,10 @@
     because request rows need names and avatars too. Commit 5 must reuse it.
   - **The outgoing list has no status filter on purpose** — a rejected request
     must look exactly like a pending one to whoever sent it.
-  - **Owed: the two-account run**, both commit 3's three steps and commit 4's
-    walk-through. Same reason as before — signing in needs Adrian's own
-    credentials and the local client cannot reach Firestore at all.
+  - ~~**Owed: the two-account run.**~~ **PARTLY DONE 2026-08-16 — see the top
+    entry.** `acceptFriendRequest()` has run against production and the
+    friendship document exists. `rejectFriendRequest()` and
+    `cancelFriendRequest()` still have never executed.
 
 - **Friends system — commit 5 of 9 is done (2026-08-15). The Friends list.**
   One new export, `fetchFriendUids()`, does
@@ -198,11 +241,10 @@
   - **The 100-friend cap awaits the list before deciding.** At the cap the
     button comes back and the uid is not marked spent. The cap toast is about
     *my* list, so it does not break the neutral-toast rule for blocks.
-  - **Owed, still: the two-account run** (commits 3, 4 and now 5) and **the two
-    composite indexes for the Requests tab**. Same reason for the third session
-    running — signing in needs Adrian's own credentials, and the local client
-    cannot reach Firestore at all. The friends list here was verified with rows
-    **seeded by hand in the page**; the query itself has never run.
+  - ~~**Owed, still: the two-account run.**~~ **DONE 2026-08-16 — see the top
+    entry.** The `array-contains` query has run against production and the
+    Friends list rendered a real friend. The two composite indexes are
+    created and deployed.
 
 - **Friends system — commit 6 of 9 is done (2026-08-15). The friends
   leaderboard.** `#screen-friends-leaderboard` now builds real rows from
@@ -223,11 +265,10 @@
     screen**: leaving a Rush board for an ELO board resets `season` but leaves
     the switch lit on "This month". `#flb-period` now moves back with it;
     `#leaderboard-period` still does not.
-  - **Owed, still: the two-account run** (commits 3, 4, 5 and 6) and **the two
-    composite indexes for the Requests tab**. Fourth session running — signing
-    in needs Adrian's own credentials and the local client cannot reach
-    Firestore at all. Everything here was verified with rows **seeded by hand
-    in the page**.
+  - ~~**Owed, still: the two-account run.**~~ **DONE 2026-08-16 — see the top
+    entry.** The board was opened on the live site with a real friend: two
+    rows, my own ringed, all four category tabs. **Not covered:** the 30+
+    friend chunk boundary — Adrian has one friend.
 
 - **Friends system — commit 7 of 9 is done (2026-08-15). Add, unfriend,
   block.** `js/firebase.js` gained four exports — `unfriend()`, `blockUser()`,
@@ -251,11 +292,14 @@
     already imports `js/leaderboard.js`, and it is awaited before
     `showScreen()`, which is what "resolved before the screen renders" means.
   - **One new string**, `friends_blocked_empty`. Everything else existed.
-  - **Owed, still: the two-account run** (commits 3, 4, 5, 6 and now 7) and
-    **the two composite indexes for the Requests tab**. Fifth session running.
-    Nothing in this commit has ever written to Firestore — `unfriend`,
-    `blockUser` and `unblockUser` have never executed. Everything was verified
-    with lists **seeded by hand in the page**.
+  - ~~**Owed, still: the two-account run.**~~ **MOSTLY DONE 2026-08-16 — see
+    the top entry.** `blockUser()`, `unblockUser()` and `fetchBlockedUids()`
+    have all executed against production, in a **one-account** run: blocking
+    is a write by my own account, so it needed nobody else signed in.
+    **`unfriend()` itself still has never been called** — but `blockUser()`
+    runs the identical delete on the identical friendship document under the
+    identical rule, and that delete was watched succeeding. **The blocked
+    sender's side is still untested** and needs a second account.
 - **Friends system — commit 8 of 9 is done (2026-08-15, `c3b1e4f`). Comment
   only.** The note above `VISIBILITY_SECTIONS` in `js/leaderboard.js` used to
   claim a `friends` level could be added by adding a line to that table. It
@@ -267,10 +311,11 @@
   - **No code line changed and `sw.js` stays at v60** — nothing a user can see
     is different, and a bump would make every returning user redownload the
     app for nothing. Same reasoning commit 1 used.
-  - **Owed, still: the two-account run** (commits 3–7) and **the two composite
-    indexes for the Requests tab**. Unchanged by this commit.
-  - **Next task: commit 9 — unique usernames. It is marked OPTIONAL in the
-    plan and it changes signup.**
+  - ~~**Owed, still: the two-account run.**~~ **Settled 2026-08-16 — see the
+    top entry.** The two composite indexes are created and deployed.
+  - ~~**Next task: commit 9 — unique usernames.**~~ **NOT DOING**, decided
+    2026-08-16. The reasoning is in the top entry and in full in the plan's
+    commit 9 section. Do not re-cost it.
 
 
 - **👣 Walk through is now on the Endings studies too (2026-08-15).** Adrian

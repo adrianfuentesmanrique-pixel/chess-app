@@ -550,18 +550,43 @@ API against production):
   error** and returns nothing, which is the documented pre-backfill state:
   no `/leaderboard` document has `usernameLower` yet.
 
-**What is NOT verified, and why.** The two-account run in the plan below has
-not happened. Signing in needs Adrian's own credentials, and the headless
-localhost client cannot reach Firestore at all (App Check has no debug token
-registered for it, so the SDK drops to offline mode — `fetchLeaderboard` also
-returns nothing there). So these three are still owed, on the real site with
-two accounts:
+**VERIFIED against production, 2026-08-16.** Adrian ran this on the live site
+signed in as `Zugzwang` (`hxxaE1n6T1WzxLvIGTMby1RfkZs1`), with
+`miguelafuentesm` (`f3trpsGqDXXXcV9OQsUw0TGlbjh1`) as the second account. All
+three steps below passed.
 
-1. Sign in on both accounts once, so each public doc picks up `usernameLower`.
-2. Search account B's username from account A → one row → ➕ Add friend →
-   `friendRequests/{A}_{B}` exists in the console with exactly `from`, `to`,
-   `status: 'pending'`, `createdAt` and nothing else.
-3. Press it again → still one document, `createdAt` unchanged.
+1. **Done and no longer needed for these two.** Both accounts already carry
+   `usernameLower`. Read over the REST API: `/leaderboard` holds 4 documents,
+   and `Velociraptorblue` (`nSHhzp3xzGgwkkrC0Ua0PpEvCRQ2`) and
+   `foTtAx0VzRXgPgkkyRdESxJ0LN02` still do **not** have the field, so they are
+   correctly unsearchable until their next sign-in. That is the documented
+   behaviour, not a bug — do not "fix" it.
+2. **Passed.** Searching the prefix `mig` returned one row and ➕ Add friend
+   wrote `friendRequests/{A}_{B}` with exactly `from`, `to`, `status:
+   'pending'`, `createdAt` and nothing else, confirmed in the console.
+   - The prefix query itself was also proved server-side over REST as an
+     anonymous client, with the real U+F8FF sentinel: `mig` → 200
+     miguelafuentesm, `zug` → 200 Zugzwang, `z` → 200 Zugzwang, `ve` → 200
+     empty. A degenerate `'mig' <= x < 'mig'` control returned empty, so the
+     test was not lying to itself. **No index error on any of them, and no
+     composite index exists or is needed.**
+3. **Passed, with a caveat this plan had wrong.** "Still one document,
+   `createdAt` unchanged" is only true *while the request still exists*. In
+   the real run the request had already been accepted — and accepting
+   **deletes** it — so a later press created a genuinely new document with a
+   new `createdAt`. That is the rules working, not failing: the second write
+   was a create, not an overwrite. There is **no rules drift**; do not
+   re-investigate this.
+
+**The run found one real bug, now fixed (`5326426`, `sw.js` → v63).**
+`renderFind()` decided the search row's button from `Friends.sent` alone —
+the uids clicked in *this page session*. It never consulted the friends list
+or the outgoing requests, both of which `paintAddFriend()` has checked since
+commit 7. So an existing friend came back from a search as a live ➕ that
+really did send another request, and so did anyone asked before the last
+reload. It now resolves the same four states from the same three lists, and
+`search()` awaits `loadFriends()` when it has never run — a read
+`sendRequest()` already did on the first press for the 100-friend cap.
 
 ---
 
@@ -658,10 +683,18 @@ languages — no Firestore, so the lists were seeded by hand in the page):
   355px wide, 94px tall.
 - The rules suite is unchanged and still **87 passing**.
 
-**What is NOT verified.** The whole two-account walk-through, plus commit 3's
-three owed steps, which have to happen first — commit 4 cannot be tested
-without a real pending request. Nothing in this commit has been seen working
-against production data.
+**VERIFIED in part, 2026-08-16.** `acceptFriendRequest()` **has run against
+production.** `friendships/f3trpsGqDXXXcV9OQsUw0TGlbjh1_hxxaE1n6T1WzxLvIGTMby1RfkZs1`
+exists in the console, and the only thing that can create a friendship is the
+Accept button — the create rule requires the sender's pending request to still
+exist at that moment. Its shape is guaranteed by the rule that let it in
+(`hasOnly(['members','createdAt'])`), and the request document really was
+deleted afterwards, which is what made a later ➕ press create a fresh
+document instead of overwriting one (see commit 3's note).
+
+**Still not verified here:** `rejectFriendRequest()` and
+`cancelFriendRequest()` have never executed. Both need a second account
+Adrian can sign into, which he does not currently have.
 
 ---
 
@@ -750,11 +783,11 @@ here):
   colours) and both languages were checked on the list, the empty hint and the
   cap toast.
 
-**What is NOT verified.** The `array-contains` query has never run — the
-headless client cannot reach Firestore at all (App Check has no debug token for
-localhost). Nothing in this commit has been seen working against production
-data, and commits 3 and 4 still owe their two-account walk-through, plus the two
-composite indexes for the Requests tab are still uncreated.
+**VERIFIED against production, 2026-08-16.** The `array-contains` query has
+run for real: signed in on the live site, the Friends tab listed the real
+friend with avatar, username and puzzle ELO, drawn from
+`fetchFriendUids()` + `fetchLeaderboardByUids()` against live Firestore. No
+index was needed, exactly as written above.
 
 ---
 
@@ -833,10 +866,15 @@ in the page** — there is still no Firestore from here):
   the screen still clips its own watermark. Row is 355×56.
 - Light **and** dark, and both languages on the empty hint and the loading line.
 
-**What is NOT verified.** Nothing here has run against Firestore. The
-`array-contains` query behind the list still has never executed, commits 3, 4
-and 5 still owe their two-account walk-through, and the two composite indexes
-for the Requests tab are still uncreated.
+**VERIFIED against production, 2026-08-16.** The friends leaderboard was
+opened on the live site with one real friend: two rows (the friend and me),
+my own row ringed, and all four category tabs checked. It is built from
+`Friends.friends`, which by then had come from a real `array-contains` query,
+so this board has now been drawn from live data rather than seeded rows.
+
+**Not covered:** the 30+ friend chunk boundary. Adrian has one friend, so the
+`fetchLeaderboardByUids()` chunking has still only ever been exercised with a
+handful of uids.
 
 ---
 
@@ -941,12 +979,27 @@ the page** — there is still no Firestore from here):
   note and Unblock button, on the sheet, on both confirm sentences and on all
   three ➕ labels.
 
-**What is NOT verified.** No write in this commit has run against Firestore —
-`unfriend`, `blockUser`, `unblockUser` and `fetchBlockedUids` have never
-executed. So the plan's own verification ("block, then have the blocked account
-try to send a request") is **not done**, and neither is unfriend actually
-removing a row. Commits 3 to 6 still owe their two-account walk-through and the
-two composite indexes for the Requests tab are still uncreated.
+**VERIFIED against production, 2026-08-16, by a one-account run.**
+`blockUser()`, `unblockUser()` and `fetchBlockedUids()` have all executed
+against live Firestore. Blocking is a write by *my* account on *my* side, so
+it did not need the other person to be signed in.
+
+Observed in the Firebase console, all at once, after ⋯ → Block → Yes:
+`blocks/{me}/blocked/{them}` created, the friendship document **gone**, and
+the leftover request I had sent them **gone** too (step 4 of `blockUser`).
+`#screen-friends-blocked` then listed them with Unblock, and Unblock removed
+the block document and left the empty note.
+
+**Still not verified, and say so:**
+- **`unfriend()` itself has never been called.** Its rule is proved, though —
+  `blockUser()` runs the identical `deleteDoc` on the identical friendship
+  document under the identical `allow delete` clause, and that delete was
+  watched succeeding.
+- **The blocked sender's side.** "Block, then have the blocked account try to
+  send a request and confirm it produces no document" needs the other account
+  signed in. Not done. The rule that enforces it
+  (`!exists(.../blocks/$(after().to)/blocked/$(me()))`) is covered by the
+  rules test suite, but not by a real client.
 
 ---
 
@@ -974,7 +1027,28 @@ accurate note pointing at this plan's "future options" section.
 
 ---
 
-## Commit 9 (optional) — Unique usernames
+## Commit 9 — Unique usernames — **NOT DOING. Decided 2026-08-16.**
+
+> This is settled, not pending. Do not re-cost it in a future session.
+>
+> The case for it was that with **exact-match** search, two people called
+> `Adrian` were indistinguishable: you typed the name, got one row, and could
+> not tell whether it was the right person. **Prefix search killed that
+> argument.** Search now returns up to five rows, each showing avatar, display
+> name, username *and* puzzle ELO, so duplicates are visibly different from
+> one another.
+>
+> Against it: it changes **signup**, which is the first screen a brand-new
+> user ever sees, and adds a new way for that screen to fail. It needs a new
+> collection, new rules and new tests. And by its own admission below it does
+> **not** resolve existing duplicates, so it was never a complete answer to
+> the problem it named.
+>
+> And there is no problem: **4 accounts live, 0 duplicate usernames**
+> (checked over the REST API, 2026-08-16).
+>
+> Revisit only if two identical usernames ever actually turn up in one search
+> result. That is a five-minute check, not a commit.
 
 Not needed to ship, and it changes signup, so it is deliberately last.
 
