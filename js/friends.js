@@ -378,11 +378,21 @@ export const Friends = {
       // gets a note instead of a button rather than being filtered out — a
       // missing row would just look like search is broken.
       const self = signedIn && e.uid === Auth.user.uid;
-      const done = this.sent.has(e.uid);
-      const actions = (self || done) ? [] : [
+      // The same four states paintAddFriend() resolves on a public profile, from
+      // the same three lists. This row used to read `sent` alone, which is only
+      // "uids I clicked in this page session" — so an existing friend, or anyone
+      // asked before the last reload, came back as a live ➕ that really did send
+      // another request. All three are facts about MY lists, so consulting them
+      // leaks nothing about the other person; that is paintAddFriend's reasoning
+      // and it holds here. If either button's states change, change both.
+      const friend = this.friends.some(f => f.uid === e.uid);
+      const done = !friend && (this.sent.has(e.uid) || this.outgoing.some(o => o.uid === e.uid));
+      const actions = (self || friend || done) ? [] : [
         { cls: 'btn small primary', key: 'friends_add', on: btn => this.sendRequest(e.uid, btn) },
       ];
-      const note = self ? t('friends_self') : (done ? t('friends_pending') : '');
+      const note = self ? t('friends_self')
+        : friend ? t('friends_already')
+        : done ? t('friends_pending') : '';
       el.appendChild(this.personRow(e, actions, note));
     }
     $('friends-no-match').classList.toggle('hidden',
@@ -405,6 +415,11 @@ export const Friends = {
       } catch (e) {
         console.error('Friend search failed', e);
       }
+      // renderFind() now needs the friends list to tell "✓ Friends" from a live
+      // ➕. sendRequest() would have fetched it on the first press anyway, for
+      // the 100-friend cap, so this only moves that read earlier — and it lands
+      // during a round trip the user is already waiting on.
+      if (!this.friendsLoaded) await this.loadFriends();
     }
     this.renderFind();
   },
