@@ -22,6 +22,23 @@ I am not a programmer, so I cannot write these myself. Every session ends with a
 copy-paste prompt for the next one, in a fenced block, **without me asking for
 it.** This rule is part of the prompt you hand over, so it keeps propagating.
 
+### The prompt must continue THIS session's work — never pick a backlog item
+The handover exists so a task that outgrew one conversation can carry on. It is
+**not** a "what should Adrian do next" suggestion. So:
+
+- **The next task must come out of the work we just did** — the part that was
+  deferred, the follow-on it unblocked, or a real defect this session found and
+  did not fix.
+- **If the work is genuinely finished with nothing following from it, say so in
+  one line and write NO prompt.** That is the correct ending, not a failure to
+  follow this rule. Do not go shopping in HANDOVER's "Still to do" list for
+  something to fill the block with — I did not ask for it, it costs tokens, and
+  a stale backlog item wastes a whole conversation.
+- **Never hand over a task without first checking against git that it is still
+  undone.** HANDOVER and the plan files go stale; another session may have
+  finished the thing while this one was running. `git log --oneline -15` and a
+  grep for the symbol, every time.
+
 The prompt must contain, in this order:
 1. The standing token rules (`js/app.js` sizes, never read the data files, the
    `cd C:\Users\Adrian\chess-app;` + `npm.cmd` command shape, one task per chat).
