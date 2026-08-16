@@ -553,10 +553,10 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   width: 64px; height: 64px; margin-top: -32px;
   background: var(--streak-icon) center / contain no-repeat;
   filter: blur(5px); opacity: 0; pointer-events: none; z-index: 0;
-  /* The shipped PNGs carry a faint non-zero alpha across the whole square
-     (a residue of the JPEG->alpha recovery; you can see it on the locked
-     ladder rows too). Blurring that would give the haze a soft square edge,
-     so it is masked down to a circle — a heat haze has no corners. */
+  /* The blurred copy fills its whole 64px box, so at peak opacity it could
+     take on a square edge. Masked to a circle — a heat haze has no corners.
+     (This is not compensating for anything in the art: the PNGs' outer ring
+     measures 2-6/255 alpha, which is invisible.) */
   -webkit-mask-image: radial-gradient(closest-side, #000 40%, transparent 100%);
   mask-image: radial-gradient(closest-side, #000 40%, transparent 100%);
   animation: streak-embers 4.4s ease-out infinite;
