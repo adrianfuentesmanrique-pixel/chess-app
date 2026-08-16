@@ -76,12 +76,16 @@
     inside a custom property is resolved by Chrome against *the stylesheet that
     reads it*, not the document, so `streaks/x.png` became `css/streaks/x.png`
     and 404'd. This was caught in verification, not guessed.
-  - **The haze is masked to a circle.** The shipped PNGs carry a faint non-zero
-    alpha across the whole square — a residue of the JPEG→alpha recovery, and
-    **visible on the locked ladder rows as a pale box even with every animation
-    off.** Blurring that would have given the haze corners. The box itself is
-    pre-existing art, not an animation bug; fixing it means redoing the alpha
-    recovery in `docs/STREAK-ART-SPEC.md` §3, which nobody has asked for.
+  - **The haze is masked to a circle**, as cheap insurance: the blurred copy
+    fills its whole 64px box, so without a mask it could take on a square edge
+    at peak opacity. A radial mask has no corners.
+  - **There is NO alpha-residue defect in the art — this was measured, after a
+    first look at a 4× screenshot suggested otherwise.** Across all 26 PNGs the
+    outer 20px ring averages 2–6/255 alpha and the dead corners sit at 2/255;
+    composited on white that is a 253/255 grey, i.e. one to two levels. What
+    reads as a faint box at high zoom is the ember and bloom field, which is
+    intended art per `docs/STREAK-ART-SPEC.md`. **Do not "fix" this by redoing
+    the alpha recovery** — there is nothing there to remove.
   - **One `prefers-reduced-motion` guard covers all three**, with selectors
     identical to the animation rules so specificity matches. Verified: reduced
     motion sets `animation: none` on all four elements and the Kael popup falls
