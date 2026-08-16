@@ -474,12 +474,11 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 }
 
 /* ── streak ladder ────────────────────── */
-/* Fixed height, auto width everywhere below: the source art ranges from
-   tall/narrow (early tiers) to short/wide (later tiers), so forcing a square
-   box made later tiers look shrunken. Sharing one height keeps every icon
-   reading as the same size regardless of its natural aspect ratio. */
-.streak-now { display: flex; align-items: center; gap: 12px; margin: 2px 0 12px; }
-.streak-now-icon { width: 64px; height: 64px; flex: 0 0 auto; display: block; }
+/* The art is square (256x256), so every rule below sets width AND height. The
+   old set was 160px tall with widths from 134 to 354, which is why these used
+   to be height-only with width:auto. Do not reintroduce width:auto. */
+.streak-now { display: flex; align-items: center; gap: 12px; margin: 2px 0 12px; position: relative; }
+.streak-now-icon { width: 64px; height: 64px; flex: 0 0 auto; display: block; position: relative; z-index: 1; }
 .streak-now-icon.locked { filter: grayscale(1); opacity: .4; }
 .streak-now-text { flex: 1; min-width: 0; }
 .streak-now-day { font-size: 18px; font-weight: 700; color: var(--gold); }
@@ -503,6 +502,78 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .streak-tier-check { color: var(--gold); font-weight: 700; flex: 0 0 auto; }
 .streak-tier-away { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
 .streak-ladder-more { width: 100%; margin-top: 10px; }
+
+/* ── idle flame motion ─────────────────── */
+/* The 26 icons stay flat PNGs. Per-frame art would have meant ~130 more files
+   and undone the 2.5 MB -> 488 KB rebuild, in an offline-first PWA every user
+   downloads on install. So the flame is faked the way a real one moves: it
+   rises and settles from its own base (scaleY off a bottom origin) while its
+   glow breathes on a deliberately unrelated period — 3.1s against 4.7s, so the
+   two never line up and the loop never reads as a metronome. Zero new bytes.
+   This extends the @keyframes streak-pop / .streak-badge.tier-up pattern in
+   the header section; it is not a second animation system.
+
+   Only the places where the art is big enough to be seen animate: the 64px
+   Profile icon, the 64px Kael tier-up popup, and the 34px icon on the CURRENT
+   ladder row. The 20px header badge stays still except on tier-up, on purpose
+   — a permanent pulse in a status strip you always see is a distraction.
+   Locked tiers never animate: a dim grey future rung should not flicker, and
+   the animated filter would wipe out their grayscale(1). */
+@keyframes streak-flicker {
+  0%   { transform: scaleY(1)     scaleX(1); }
+  22%  { transform: scaleY(1.045) scaleX(.985); }
+  41%  { transform: scaleY(.995)  scaleX(1.008); }
+  63%  { transform: scaleY(1.03)  scaleX(.992); }
+  84%  { transform: scaleY(.985)  scaleX(1.006); }
+  100% { transform: scaleY(1)     scaleX(1); }
+}
+@keyframes streak-emberglow {
+  0%   { filter: brightness(1)    drop-shadow(0 0 4px var(--gold-glow)); }
+  30%  { filter: brightness(1.1)  drop-shadow(0 0 10px var(--gold-glow)); }
+  55%  { filter: brightness(1.03) drop-shadow(0 0 6px var(--gold-glow)); }
+  78%  { filter: brightness(1.13) drop-shadow(0 0 12px var(--gold-glow)); }
+  100% { filter: brightness(1)    drop-shadow(0 0 4px var(--gold-glow)); }
+}
+.streak-now-icon:not(.locked),
+.kael-quote-streak,
+.streak-tier-row.current:not(.locked) img {
+  transform-origin: 50% 100%;
+  animation: streak-flicker 3.1s ease-in-out infinite,
+             streak-emberglow 4.7s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+/* Heat haze on the flagship 64px slot only. It is a blurred copy of the very
+   same cached PNG — no second image is fetched — drifting up and fading out
+   behind the icon. `--streak-icon` is set inline by renderStreakLadder(), and
+   `.has-flame` is absent at day 0, so a locked flame gets no haze. At 34px
+   this would be invisible, which is why the ladder rows do not get it. */
+.streak-now.has-flame::before {
+  content: ''; position: absolute; left: 0; top: 50%;
+  width: 64px; height: 64px; margin-top: -32px;
+  background: var(--streak-icon) center / contain no-repeat;
+  filter: blur(5px); opacity: 0; pointer-events: none; z-index: 0;
+  /* The shipped PNGs carry a faint non-zero alpha across the whole square
+     (a residue of the JPEG->alpha recovery; you can see it on the locked
+     ladder rows too). Blurring that would give the haze a soft square edge,
+     so it is masked down to a circle — a heat haze has no corners. */
+  -webkit-mask-image: radial-gradient(closest-side, #000 40%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 40%, transparent 100%);
+  animation: streak-embers 4.4s ease-out infinite;
+}
+@keyframes streak-embers {
+  0%   { opacity: 0;   transform: translateY(6%)   scale(1.05); }
+  35%  { opacity: .32; }
+  100% { opacity: 0;   transform: translateY(-26%) scale(1.26); }
+}
+/* Same guard as the header's, with the same selectors so specificity matches
+   and this always wins. Reduced motion means a still flame, not a slower one. */
+@media (prefers-reduced-motion: reduce) {
+  .streak-now-icon:not(.locked),
+  .kael-quote-streak,
+  .streak-tier-row.current:not(.locked) img { animation: none; }
+  .streak-now.has-flame::before { animation: none; opacity: 0; }
+}
 
 /* "How the flame works" — the rules panel under the ladder. Same panel2 card
    and gold accents as the rest of the streak block; nothing new invented. */
@@ -1056,9 +1127,9 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 }
 .kael-quote-row { display: flex; align-items: center; gap: 10px; }
 .kael-quote-badge { width: 48px; height: 48px; border-radius: 28%; object-fit: cover; flex: 0 0 auto; }
-/* Streak art is exported at a shared height with natural widths, so it must
-   never get a fixed box or object-fit — that's what made these look shrunken.
-   Height-only keeps every tier reading at the same visual weight. */
+/* Streak art is square, so both dimensions are set — see the note in the
+   streak ladder section. The idle flicker/glow animation for this element also
+   lives there, next to the other two slots, so all three stay one thing. */
 .kael-quote-streak { width: 64px; height: 64px; flex: 0 0 auto; filter: drop-shadow(0 0 8px var(--gold-glow)); }
 .kael-quote-title { display: block; font-size: 13px; margin-bottom: 2px; }
 .modal-box {

@@ -5773,8 +5773,20 @@ export const Profile = {
     const toggleLabel = open ? t('streak_show_less') : t('streak_show_all').replace('{n}', STREAK_TIERS.length);
     const showToggle = open || end - start < STREAK_TIERS.length;
 
-    el.innerHTML = `<div class="streak-now">
-        <img class="streak-now-icon${days > 0 ? '' : ' locked'}" src="streaks/${streakIcon(days)}.png" alt="">
+    // `--streak-icon` feeds the .streak-now::before heat haze in css/style.css:
+    // a blurred copy of this same (already cached) PNG drifting up behind it.
+    // Both the class and the property are withheld at day 0 so a locked flame
+    // stays completely still. The icon name comes from STREAK_TIERS, never user
+    // input, so it is safe inside url().
+    // The URL must be ABSOLUTE. A relative one inside a custom property is
+    // resolved by Chrome against the stylesheet that reads it, not against this
+    // document, so `streaks/x.png` became `css/streaks/x.png` and 404'd.
+    // document.baseURI gives the same absolute URL the <img> below resolves to,
+    // so the browser reuses the one cached file rather than fetching a second.
+    const nowIcon = streakIcon(days);
+    const hazeUrl = new URL(`streaks/${nowIcon}.png`, document.baseURI).href;
+    el.innerHTML = `<div class="streak-now${days > 0 ? ' has-flame' : ''}"${days > 0 ? ` style="--streak-icon:url(&quot;${hazeUrl}&quot;)"` : ''}>
+        <img class="streak-now-icon${days > 0 ? '' : ' locked'}" src="streaks/${nowIcon}.png" alt="">
         <div class="streak-now-text">
           <div class="streak-now-day">${esc(dayLine)}</div>
           <div class="streak-now-next">${esc(nextLine)}</div>
