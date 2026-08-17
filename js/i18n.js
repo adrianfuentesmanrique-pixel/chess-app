@@ -493,6 +493,10 @@ const DICT = {
   // Said once, when the teacher stops. Without it a follower's board simply
   // freezes and looks broken.
   mc_live_ended: { es: 'La clase terminó la emisión.', en: 'The class stopped broadcasting.' },
+  // Shown in the SAME bar as the two lines above, replacing their text, whenever
+  // the listener's last snapshot came out of the cache instead of the server.
+  // It never claims the class stopped — it says we cannot see it right now.
+  mc_reconnecting: { es: 'Reconectando… tu tablero no se está actualizando.', en: "Reconnecting… your board isn't updating." },
   trophy_case: { es: 'Logros', en: 'Achievements' },
   badge_earned: { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },
   streak_tier_up: { es: '¡Racha en aumento!', en: 'Streak milestone!' },

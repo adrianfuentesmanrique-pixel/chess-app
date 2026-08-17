@@ -115,6 +115,13 @@ function findFen(node, fen) {
   return null;
 }
 
+// A live state boiled down to the three fields that decide where a board goes,
+// so two snapshots carrying the same position can be told apart from a real
+// move. Only used to skip redundant work — never to decide what to draw.
+function liveKey(st) {
+  return st ? `${st.chapterId}|${st.path}|${st.fen}` : '';
+}
+
 export const Masterclass = {
   // The classes I own or have been added to, from one collection-group query.
   classes: [],
@@ -150,6 +157,11 @@ export const Masterclass = {
   // The onSnapshot unsubscribe. A listener left running is a document read per
   // teacher move, so this is never dropped on the floor — see closeLive().
   unwatch: null,
+  // Did the last snapshot come out of the cache instead of the server? That is
+  // the only reliable "I have lost the connection" signal Firestore gives, and
+  // it is what draws the Reconnecting bar. Owners never have one: an owner does
+  // not watch their own document, so there is no listener to go stale.
+  liveStale: false,
   // Which chapter is on the Analysis board for this class. It is what the owner
   // broadcasts and what tells a follower whether the incoming state needs a
   // different chapter loaded or just a move.
@@ -179,6 +191,20 @@ export const Masterclass = {
       if (activeScreen === 'base') this.load();
       else this.renderList();
     });
+    // The connection coming and going changes what both screens can honestly
+    // say, so both are redrawn. Going offline: the section says so and the live
+    // bar says Reconnecting without waiting for Firestore to notice. Coming
+    // back: the section refetches — but only when the Bases tab is actually
+    // open, so a reconnect while somebody is solving puzzles costs no reads.
+    // The live listener needs no nudge; it resubscribes and reports fromCache
+    // false by itself.
+    for (const ev of ['online', 'offline']) {
+      window.addEventListener(ev, () => {
+        if (ev === 'online' && activeScreen === 'base') this.load();
+        else this.renderList();
+        this.renderLive();
+      });
+    }
   },
 
   // Called from Base.showList(), so the section is rebuilt every time the
@@ -200,6 +226,11 @@ export const Masterclass = {
       this.renderList();
       return;
     }
+    // Offline, the query cannot answer: a Firestore read with no network never
+    // resolves and never rejects, so this would sit on the await forever and the
+    // section would be stuck on "Loading…" behind the offline message. The
+    // 'online' listener in init() is what retries it.
+    if (!navigator.onLine) { this.renderList(); return; }
     try {
       this.classes = await fetchMyMasterclasses();
       this.loadFailed = false;
@@ -217,15 +248,23 @@ export const Masterclass = {
     const el = $('mc-list');
     if (!el) return;
     el.innerHTML = '';
-    if (!this.classes.length) {
+    // Offline replaces the whole section, even when a list is already in memory
+    // from before the connection went. Every row leads to a screen that cannot
+    // load its chapters or its members, so leaving them tappable would trade one
+    // honest message for three broken ones. mc_needs_network is the string that
+    // says the LOCAL BASES below still work, which is the whole point of putting
+    // it here rather than an "offline" banner over the tab.
+    const offline = !navigator.onLine;
+    if (offline || !this.classes.length) {
       const p = document.createElement('p');
       p.className = 'mc-empty';
-      // Four states, and they are not interchangeable: signed out, still
-      // waiting, the query failed, and genuinely nothing here yet.
-      p.textContent = !Auth.user ? t('mc_needs_signin')
-        : !this.classesLoaded ? t('loading')
-          : this.loadFailed ? t('mc_needs_network')
-            : t('mc_empty');
+      // Five states, and they are not interchangeable: no connection, signed
+      // out, still waiting, the query failed, and genuinely nothing here yet.
+      p.textContent = offline ? t('mc_needs_network')
+        : !Auth.user ? t('mc_needs_signin')
+          : !this.classesLoaded ? t('loading')
+            : this.loadFailed ? t('mc_needs_network')
+              : t('mc_empty');
       el.appendChild(p);
       return;
     }
@@ -632,24 +671,43 @@ export const Masterclass = {
   watch() {
     const mc = this.current;
     if (!mc || !Auth.user || mc.role === 'owner') return;
-    this.unwatch = watchLiveState(mc.id, (state) => {
-      // The screen moved on to another class while this was in flight.
-      if (this.current !== mc) return;
-      // Self-healing cleanup. Leaving through mc-back or Leave calls
-      // closeLive(), but the tab bar can take you off this screen without
-      // passing through either — so a listener that finds nobody looking ends
-      // itself on the next teacher move rather than reading forever.
-      const onBoard = activeScreen === 'analysis'
-        && Analysis.ctx && Analysis.ctx.fromMasterclass === mc.id;
-      if (activeScreen !== 'masterclass' && !onBoard) { this.closeLive(); return; }
-      const wasLive = !!this.liveState;
-      this.liveState = state;
-      // Said once. Without it a follower's board simply freezes and there is
-      // nothing on screen to explain why.
-      if (wasLive && !state) toast(t('mc_live_ended'));
-      this.renderLive();
-      this.applyLive();
-    });
+    this.unwatch = watchLiveState(mc.id, (state, meta) => this.onLiveSnapshot(mc, state, meta));
+  },
+
+  // One snapshot from the listener. It is a named method rather than a closure so
+  // it can be driven directly in a test: the real listener cannot run from this
+  // machine at all (App Check blocks Firestore from localhost), so a snapshot
+  // that arrives from the cache is otherwise unreachable outside production.
+  onLiveSnapshot(mc, state, meta) {
+    // The screen moved on to another class while this was in flight.
+    if (this.current !== mc) return;
+    // Self-healing cleanup. Leaving through mc-back or Leave calls
+    // closeLive(), but the tab bar can take you off this screen without
+    // passing through either — so a listener that finds nobody looking ends
+    // itself on the next teacher move rather than reading forever.
+    const onBoard = activeScreen === 'analysis'
+      && Analysis.ctx && Analysis.ctx.fromMasterclass === mc.id;
+    if (activeScreen !== 'masterclass' && !onBoard) { this.closeLive(); return; }
+    const stale = !!(meta && meta.fromCache);
+    this.liveStale = stale;
+    // A cached null means "I cannot see the document", NOT "the document is
+    // gone". Believing it would wipe the last known position off a viewer's
+    // board and tell them the lesson ended every time their signal dropped —
+    // and the error path in watchLiveState() hands us exactly that pair. So a
+    // disappearance is only believed when the server said it.
+    if (!state && stale) { this.renderLive(); return; }
+    const wasLive = !!this.liveState;
+    const changed = liveKey(this.liveState) !== liveKey(state);
+    this.liveState = state;
+    // Said once. Without it a follower's board simply freezes and there is
+    // nothing on screen to explain why.
+    if (wasLive && !state) toast(t('mc_live_ended'));
+    this.renderLive();
+    // includeMetadataChanges means the same position can arrive twice — once
+    // from the cache and once from the server. Re-applying it would re-run
+    // gotoPath() and Analysis.refresh() for nothing, so only a real move moves
+    // the board.
+    if (changed) this.applyLive();
   },
 
   // Ends the broadcast AND the listener, and forgets everything about the live
@@ -669,15 +727,33 @@ export const Masterclass = {
     this.liveState = null;
     this.following = true;
     this.liveChapterId = null;
+    // There is no listener any more, so there is nothing left to be stale. Left
+    // set, it would draw Reconnecting on the next class opened offline before
+    // that class's own first snapshot had said anything.
+    this.liveStale = false;
     this.renderLive();
   },
 
   // The bar is drawn in two places from one piece of state: on the Masterclass
   // screen, and again above the Analysis board, because once you are following
   // a lesson that is the screen you are on.
+  //
+  // Losing the connection REPLACES the live text in this same bar rather than
+  // adding a second line, and the action button stays exactly where it was.
+  // Adrian's decision: the bar sits directly above the board on Analysis at
+  // 375px, so a second line would push the board down and back up on every
+  // wobble, and taking the bar over entirely would remove Stop following at the
+  // one moment a viewer most wants a way out of a frozen board.
   renderLive() {
     const mc = this.current;
     let text = '', action = '', handler = null;
+    // Two independent signals, one expression. The browser's offline event fires
+    // the instant the interface drops; Firestore can take several seconds to
+    // decide it has lost the server. Neither alone is prompt AND reliable.
+    // Owners are excluded: they have no listener, and goLive()/stopLive() already
+    // toast mc_needs_network when the connection is gone.
+    const stale = !!mc && mc.role !== 'owner' && !!Auth.user
+      && (this.liveStale || !navigator.onLine);
     if (mc && mc.role === 'owner') {
       if (!this.live) {
         text = t('mc_live_off');
@@ -698,12 +774,21 @@ export const Masterclass = {
       action = t(this.following ? 'mc_follow_stop' : 'mc_follow_resume');
       handler = () => this.toggleFollow();
     }
+    // Disconnected, and nobody was live when we lost the server: there is no
+    // button, because Following applies to a broadcast we cannot see. The bar
+    // still appears, text only — a hidden bar would be the app quietly claiming
+    // the class is not live, which is exactly what it does not know.
+    if (stale) text = t('mc_reconnecting');
+    if (stale) action = this.liveState ? action : '';
     // The Analysis copy also needs the board to actually belong to this class.
     const inMc = !!(Analysis.ctx && mc && Analysis.ctx.fromMasterclass === mc.id);
     for (const [id, ok] of [['mc-live-bar', !!text], ['ana-mc-live', !!text && inMc]]) {
       const bar = $(id);
       if (!bar) continue;
       bar.classList.toggle('hidden', !ok);
+      // Grey, not gold. The live pill is the app telling you something is
+      // happening; this is the app telling you it cannot tell.
+      bar.classList.toggle('mc-live-stale', ok && stale);
       bar.innerHTML = '';
       if (!ok) continue;
       // textContent, not innerHTML: nothing here comes from Firestore today,
@@ -711,11 +796,14 @@ export const Masterclass = {
       const span = document.createElement('span');
       span.className = 'mc-live-text';
       span.textContent = text;
+      bar.append(span);
+      // An empty label would draw a live-looking button that does nothing.
+      if (!action) continue;
       const btn = document.createElement('button');
       btn.className = 'btn small';
       btn.textContent = action;
       btn.onclick = handler;
-      bar.append(span, btn);
+      bar.append(btn);
     }
   },
 

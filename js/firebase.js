@@ -891,9 +891,17 @@ export async function stopLiveState(mcId) {
 //
 // Returns the unsubscribe function. A listener left running is a document read
 // per teacher move, forever, so every caller must hold onto it.
+//
+// { includeMetadataChanges: true } is LOAD-BEARING, and it is what commit 7
+// added. By default onSnapshot only raises an event when the document DATA
+// changes — losing the server is a metadata-only change, so an idle viewer whose
+// connection dropped would never be called back and the Reconnecting bar would
+// never appear. The flag costs no document reads: the extra events are raised
+// locally, from the same snapshot, and Firestore bills reads, not callbacks.
 export function watchLiveState(mcId, cb) {
   if (!mcId) return () => {};
   return onSnapshot(doc(firestore, 'masterclasses', mcId, 'live', 'state'),
+    { includeMetadataChanges: true },
     snap => cb(snap.exists() ? snap.data() : null, { fromCache: snap.metadata.fromCache }),
     err => { console.error('live watch failed', err); cb(null, { fromCache: true }); });
 }

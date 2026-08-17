@@ -1012,6 +1012,13 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .mc-live-bar .btn { flex: 0 0 auto; }
+/* Lost the connection. Same bar, same geometry, same button position — only the
+   colour and the text change, so the board underneath it on Analysis never moves
+   at 375px. Deliberately NOT gold: gold in this app means something is
+   happening, and the whole message here is that we cannot tell. */
+.mc-live-bar.mc-live-stale {
+  background: var(--panel2); color: var(--muted);
+}
 /* A flex item will not shrink below its text without this, so .ellipsis alone
    would let a long class name push the ⋯ button off the screen. */
 #mc-title { min-width: 0; font-size: 18px; }
