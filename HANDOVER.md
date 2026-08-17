@@ -2,6 +2,76 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — commit 4 of 7 is done (2026-08-16, `2d2f47c`). Chapters are
+  real: added from a base or from the board, opened in Analysis, deleted by the
+  owner.** `sw.js` v66 → **v67**. `firestore.rules`, `firestore.indexes.json`
+  and every test are untouched — **still 122 passing, 0 failing**, and nothing
+  was deployed. **No rules change was needed**: the chapters block already
+  allows create and delete for the owner.
+  - `js/firebase.js` gained `MAX_CHAPTERS` (50), `MAX_CHAPTER_BYTES` (100000),
+    `addChapter()`, `fetchChapters()` and `deleteChapter()`.
+  - **The oversize check runs BEFORE the auth check**, deliberately: it is
+    validation of the input, not of the session, so a >100 KB PGN always throws
+    the same `chapter-too-big` and the UI can show a readable message instead of
+    a bare permission-denied. It uses `new Blob([pgn]).size` (bytes) while the
+    rule counts characters, so the client bound is the stricter of the two and
+    can never let through something the rules would refuse.
+  - **`fetchMasterclass()` is STILL unused, and that is the right answer.** The
+    plan expected commit 4 to reread the class after a chapter write moved
+    `updatedAt`. Nothing on any screen renders `updatedAt`, and bumping the
+    parent would be a second write per chapter for a field nobody reads — so
+    the parent is not bumped and the class document is not reread. Commit 6
+    (live follow) is where it earns its place. Do not add a bump "for
+    tidiness"; it costs a write every time.
+  - **`chooseBase()` in `js/app.js` is now exported** — one word, no behaviour
+    change, same as `askText()` in commit 2. The plan's "around line 1591" was
+    stale; it is at `js/app.js:245`. Masterclass calls it as
+    `chooseBase(false)`: a chapter is taken *from* a base, so offering to
+    create an empty one would only ever lead to "No games yet".
+  - **The game picker shows the 50 most recently touched games and says so**
+    (`PICK_GAMES` in `js/masterclass.js`, `mc_pick_recent`). A base can hold
+    thousands, and a modal with one button per game would be unusable. Anything
+    older is still reachable — open it from Bases and use "From the current
+    board".
+  - **There is deliberately no "share the whole base" entry.** Costed in the
+    plan: 5,000 games is 5,000 writes and 5,000 reads per student.
+  - **A chapter opens in the existing Analysis screen**, not a second board:
+    `Analysis.loadTree(parsePgn(ch.pgn), { baseId: null, gameId: null,
+    fromMasterclass: mcId })`. The plan's "verify the ⋯ menu writes nothing
+    with a null baseId" was checked and it is clean — `💾 Save to database` is
+    the only IndexedDB writer there and with no `baseId` it *asks* which base to
+    copy into, so it never writes with a null one. `🗑 Delete game` only appears
+    with a `historyId`.
+  - New `#ana-mc-nav` / `#ana-mc-back` in `index.html` (`← Masterclass`), shown
+    by `Analysis.updateBaseNav()` on `ctx.fromMasterclass`, which also re-lights
+    the **Bases** tab. `Masterclass.backFromChapter()` redraws from memory
+    rather than refetching; with nothing in memory (page reloaded while the
+    chapter was open) it falls through to the Bases tab.
+  - **Chapter rows reuse `.fr-row.tappable`** — the friends-list grid, which
+    truncates the title and keeps the ⋯ on screen at 375px. `.list-item` would
+    have wrapped a long title onto a second line. One new CSS rule,
+    `.mc-chapter-n`, for the position number.
+  - `chaptersLoaded` / `chaptersFailed` mirror the class list: the count label
+    reads "Loading…" until the fetch lands, so a class with ten chapters never
+    flashes "0 capítulos", and a failed fetch says "needs a connection" instead
+    of "No chapters yet".
+  - 10 new bilingual strings (`mc_from_base`, `mc_from_board`, `mc_choose_game`,
+    `mc_pick_recent`, `mc_delete_chapter`, `mc_delete_chapter_confirm`,
+    `mc_chapter_too_big`).
+  - Verified over CDP at 375px in light and dark, in **both languages**: the
+    loading / empty / offline states, 50 real rows, an escaped `<b>xss</b>`
+    title, a long title truncating with the ⋯ still on screen, a viewer with no
+    ⋯ and no ➕, the two-entry sheet, the base picker, the 51-game picker
+    showing 50 plus its hint, both title prompts, the cap toast at 50, the
+    oversize message, the delete confirm, a chapter opening on the right FEN
+    with the right moves list, `← Masterclass` returning with the tab lit on
+    Bases, `document.scrollWidth` exactly 375 everywhere, and no console error
+    but the App Check 403.
+  - **Nothing in this commit has ever reached real Firestore** — App Check
+    blocks this machine from Firestore entirely. The live-site checklist is in
+    the commit-5 handover prompt and is not optional.
+  - Committed on local `main`, **not pushed**.
+
 - **Masterclass — commit 3 of 7 is done (2026-08-16, `fa5b0d7`). The list, the
   create and the delete are real Firestore calls.** `sw.js` v65 → **v66**.
   `firestore.rules`, `firestore.indexes.json` and `tests/rules/masterclass.test.js`
