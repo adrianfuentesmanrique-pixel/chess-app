@@ -9,6 +9,10 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
+  // Masterclass. onSnapshot is not used until the live board lands; it is
+  // imported now because the whole firebase-firestore module is already
+  // downloaded, so naming one more symbol from it costs zero extra bytes.
+  addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -525,6 +529,145 @@ export async function fetchBlockedUids() {
   const out = [];
   snap.forEach(d => out.push(d.id));
   return out;
+}
+
+// ── Masterclass ──────────────────────────────────────────────────────────
+// A Masterclass is an online, shared database: chapters the owner publishes and
+// members who read them. Plan:
+// docs/superpowers/plans/2026-08-16-masterclass-stage-1.md
+
+// ADVISORY, UI-side only. This cap cannot be enforced in Firestore rules
+// without a server-maintained counter, and a counter the client can write is
+// not a security control. It counts the classes you OWN, not the ones you have
+// been added to. js/masterclass.js imports this — there must never be a second
+// copy of the number.
+export const MAX_MASTERCLASSES = 5;
+
+// A Masterclass is created as TWO writes, in this order: the class document
+// first, then the owner's own membership. The order is load-bearing — the
+// member create rule reads the parent's ownerUid to decide who may add members,
+// so the parent has to exist first. There is no transaction; if the second
+// write fails the owner is left with a class they can still read (the get rule
+// also accepts resource.data.ownerUid == me()) but which does not appear in
+// their list, and creating it again is harmless.
+//
+// serverTimestamp(), not Date.now(): the rules require createdAt == request.time
+// and a client clock that is a few seconds out would be refused.
+export async function createMasterclass(name) {
+  const user = auth.currentUser;
+  if (!user || !name) return null;
+  const ref = await addDoc(collection(firestore, 'masterclasses'), {
+    ownerUid: user.uid,
+    name: String(name).slice(0, 60),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    memberCount: 1,
+  });
+  await setDoc(doc(firestore, 'masterclasses', ref.id, 'members', user.uid), {
+    uid: user.uid,
+    role: 'owner',
+    addedBy: user.uid,
+    addedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+// One collection-group query over every membership document carrying my uid,
+// then one read per class for its name. `masterclasses` itself has
+// `allow list: if false`, so this membership-first shape is the ONLY way to
+// find my classes — and it is also what stops anyone enumerating the
+// collection. Needs the COLLECTION_GROUP index on members.uid in
+// firestore.indexes.json (deployed 2026-08-16); without it this throws
+// 'failed-precondition'.
+//
+// The limit is MAX_MASTERCLASSES * 4, not MAX_MASTERCLASSES: the cap is on
+// classes you OWN and you can be a viewer in many more.
+//
+// Rows come back keyed `id`, not `mcId` — the whole app identifies a row by
+// `id` (bases, friends, history), and js/masterclass.js opens on `mc.id`. The
+// rename happens here, at the boundary, so exactly one shape exists above it.
+export async function fetchMyMasterclasses() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const snap = await getDocs(query(
+    collectionGroup(firestore, 'members'),
+    where('uid', '==', user.uid),
+    limit(MAX_MASTERCLASSES * 4)));
+  const rows = [];
+  snap.forEach(d => {
+    const parent = d.ref.parent.parent;
+    if (parent) rows.push({ id: parent.id, role: d.data().role || 'viewer' });
+  });
+  const classes = await Promise.all(
+    rows.map(r => getDoc(doc(firestore, 'masterclasses', r.id))));
+  const out = [];
+  classes.forEach((c, i) => {
+    // A membership whose class has been deleted is skipped, not shown. See
+    // deleteMasterclass() for the one document that can be left behind.
+    if (c.exists()) out.push({ ...rows[i], ...c.data() });
+  });
+  return out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+// One class, by id, for a screen that was reached without the list in hand.
+// Returns null when it does not exist or is not mine to read. Nothing calls
+// this yet — the list carries every field the Masterclass screen needs today.
+// Commit 4 uses it to reread a class after a chapter write moves updatedAt.
+export async function fetchMasterclass(mcId) {
+  if (!mcId) return null;
+  const snap = await getDoc(doc(firestore, 'masterclasses', mcId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Firestore does NOT cascade. Deleting the class document alone would leave its
+// members and chapters readable by anyone still holding a membership document —
+// a privacy problem, not just untidiness. So the subcollections go FIRST and the
+// parent LAST: if this is interrupted the class is still there and the owner can
+// try again. A batch caps at 500 operations, which the advisory 50-chapter and
+// 30-member caps stay well inside.
+//
+// TWO deletes here are refused by the current rules and are therefore made
+// OUTSIDE the batch, quietly. This was measured against the emulator, not
+// assumed — the plan had both inside the batch, and because a batch is atomic
+// that would have made deleting a Masterclass fail outright, every time:
+//
+//   * live/state — the live block has one `allow write` whose every clause
+//     reads after(), i.e. request.resource.data. On a delete request.resource
+//     is null, so the rule errors and denies. There is no id under live/ that
+//     the owner can delete. Commit 6, which is the commit that first writes
+//     this document, must add `allow delete: if mcIsOwner(mcId);` and a test.
+//     Until then the call is a no-op against a document that never exists.
+//   * the owner's own membership — the member rule refuses an owner deleting
+//     their own membership while the class exists (that would orphan a class
+//     nobody could read), and once the parent is gone mcOwnerUid() does a get()
+//     on a document that is not there, which errors and denies too. So exactly
+//     one document survives a delete: the owner's own
+//     `{ uid, role, addedBy, addedAt }`. Nobody else can read it — both read
+//     rules need the deleted parent — and fetchMyMasterclasses() skips it
+//     because the class is gone. It holds no other member's data. Closing it
+//     needs one more clause in firestore.rules, which this commit deliberately
+//     does not touch.
+//
+// Everyone ELSE's membership and every chapter do go, and they go first, which
+// is the part that matters.
+export async function deleteMasterclass(mcId) {
+  const user = auth.currentUser;
+  if (!user || !mcId) return;
+  const batch = writeBatch(firestore);
+  const [chapters, members] = await Promise.all([
+    getDocs(collection(firestore, 'masterclasses', mcId, 'chapters')),
+    getDocs(collection(firestore, 'masterclasses', mcId, 'members')),
+  ]);
+  chapters.forEach(d => batch.delete(d.ref));
+  members.forEach(d => { if (d.id !== user.uid) batch.delete(d.ref); });
+  await batch.commit();
+  // Before the parent goes, so this starts working by itself the day commit 6
+  // adds the delete rule.
+  await deleteDoc(doc(firestore, 'masterclasses', mcId, 'live', 'state'))
+    .catch(() => {});
+  await deleteDoc(doc(firestore, 'masterclasses', mcId));
+  await deleteDoc(doc(firestore, 'masterclasses', mcId, 'members', user.uid))
+    .catch(() => {});
 }
 
 async function pullOrBootstrap(uid) {

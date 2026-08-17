@@ -1,35 +1,46 @@
 // Masterclass — a shared, online database: chapters you publish and members
-// who follow along, eventually on a live board. Commit 2 of
+// who follow along, eventually on a live board. Commit 3 of
 // docs/superpowers/plans/2026-08-16-masterclass-stage-1.md.
 //
-// NOTHING HERE TALKS TO FIRESTORE YET. This commit is the screens and the
-// strings only, so they can be judged at 375px before any network code makes
-// them hard to reason about. `classes`, `chapters` and `members` are empty and
-// every list draws its real empty state — deliberately no sample data, because
-// Friends commit 2 shipped an invented SAMPLE array and commit 3 had to delete
-// it again.
+// Commit 2 built these screens inert. Commit 3 fills in the network calls:
+// the list is a real collection-group query, ➕ really creates a class and the
+// ⋯ menu really deletes one. Chapters and members are still empty — those are
+// commits 4 and 5. There is still deliberately no sample data: every list
+// draws its real empty state, so nothing invented can reach the site.
 //
-// Everything that will arrive from Firestore is another user's text, so every
-// one of those values goes through esc() before it reaches innerHTML — the
-// same rule js/friends.js follows.
+// Everything that arrives from Firestore is another user's text, so every one
+// of those values goes through esc() before it reaches innerHTML — the same
+// rule js/friends.js follows.
 //
 // Imports from js/app.js (cycle) — every app.js binding used here is touched
 // inside a function only, never at module top level. A top-level read throws
 // "Cannot access '...' before initialization".
 import { t, tn } from './i18n.js';
-import { Auth } from './firebase.js';
-import { $, esc, toast, sheet, askText, showScreen } from './app.js';
+import {
+  Auth, MAX_MASTERCLASSES, createMasterclass, fetchMyMasterclasses,
+  deleteMasterclass,
+} from './firebase.js';
+import { $, esc, toast, sheet, askText, askConfirm, showScreen, activeScreen } from './app.js';
 
-// ADVISORY, UI-side only. These three caps cannot be enforced in Firestore
-// rules without a server-maintained counter, and a counter the client can
-// write is not a security control. The rules-enforced bound is the
-// 100,000-byte chapter PGN limit. Do not describe these as enforced.
-const MC_LIMIT = 5;
+// The 5-class cap is MAX_MASTERCLASSES, imported from js/firebase.js next to
+// the query that uses it. It is ADVISORY and UI-side only: it cannot be
+// enforced in Firestore rules without a server-maintained counter, and a
+// counter the client can write is not a security control. Same for the
+// 50-chapter and 30-member caps in commits 4 and 5. The rules-enforced bound
+// is the 100,000-byte chapter PGN limit.
+//
+// There is deliberately no second copy of the number here. Two constants for
+// one cap is the js/badges.js STREAK_TIERS trap in reverse — that name exists
+// twice on purpose, in two files, meaning two different things; this one must
+// exist once.
 
 export const Masterclass = {
-  // The classes I own or have been added to. Filled by one collection-group
-  // query in commit 3; empty until then.
+  // The classes I own or have been added to, from one collection-group query.
   classes: [],
+  // Whether that query has ever come back, and whether the last attempt failed.
+  // "Empty" and "not loaded yet" and "offline" are three different screens.
+  classesLoaded: false,
+  loadFailed: false,
   // The class the Masterclass screen is showing, or null.
   current: null,
   // Its chapters and members. Commits 4 and 5 fill these.
@@ -42,18 +53,48 @@ export const Masterclass = {
     // showScreen('base') calls Base.refresh(), which redraws the list.
     $('mc-back').onclick = () => showScreen('base');
     $('mc-menu').onclick = () => this.menu();
-    // Signing in or out changes whose classes these are. Nothing is fetched
-    // here — the list simply empties and the section says which of "sign in"
-    // or "create one" applies.
+    // Signing in or out changes whose classes these are, so the list is
+    // invalidated — never fetched here. Loading at boot would cost reads for
+    // someone who never opens the Bases tab. It reloads when the tab does,
+    // which is the js/friends.js pattern.
     Auth.onChange(() => {
       this.classes = [];
-      this.renderList();
+      this.classesLoaded = false;
+      this.loadFailed = false;
+      if (activeScreen === 'base') this.load();
+      else this.renderList();
     });
   },
 
   // Called from Base.showList(), so the section is rebuilt every time the
-  // Bases tab is shown. Commit 3 starts a real query here.
+  // Bases tab is shown. It refetches each time rather than trusting a cache:
+  // a class somebody else added me to has to be able to appear, and the query
+  // is one collection-group read plus one read per class.
   openList() {
+    this.renderList();
+    this.load();
+  },
+
+  // The one query. `classes` is left alone until it comes back, so reopening
+  // the tab redraws the list that is already there instead of blanking it.
+  async load() {
+    if (!Auth.user) {
+      this.classes = [];
+      this.classesLoaded = true;
+      this.loadFailed = false;
+      this.renderList();
+      return;
+    }
+    try {
+      this.classes = await fetchMyMasterclasses();
+      this.loadFailed = false;
+    } catch (e) {
+      // Offline, or the collection-group index missing. Either way the section
+      // says so rather than claiming the list is empty.
+      console.error('Loading Masterclasses failed', e);
+      this.loadFailed = true;
+    }
+    this.classesLoaded = true;
     this.renderList();
   },
 
@@ -64,9 +105,12 @@ export const Masterclass = {
     if (!this.classes.length) {
       const p = document.createElement('p');
       p.className = 'mc-empty';
-      // Signed out there is nothing to create, so the empty state says so
-      // instead of inviting an action that cannot work.
-      p.textContent = Auth.user ? t('mc_empty') : t('mc_needs_signin');
+      // Four states, and they are not interchangeable: signed out, still
+      // waiting, the query failed, and genuinely nothing here yet.
+      p.textContent = !Auth.user ? t('mc_needs_signin')
+        : !this.classesLoaded ? t('loading')
+          : this.loadFailed ? t('mc_needs_network')
+            : t('mc_empty');
       el.appendChild(p);
       return;
     }
@@ -76,27 +120,57 @@ export const Masterclass = {
       const n = mc.memberCount || 0;
       item.innerHTML =
         `<b>🎓 ${esc(mc.name || '?')}</b>` +
-        `<span class="sub">${n} ${tn('mc_members', n)}</span>`;
+        `<span class="sub">${this.roleChip(mc.role)}${n} ${tn('mc_members', n)}</span>`;
       item.onclick = () => this.open(mc.id);
       el.appendChild(item);
     }
   },
 
+  // The gold pill that says what I am in this class. An unrecognised role
+  // draws nothing rather than an empty pill — 'editor' is a legal stored value
+  // that stage 1 never writes, so this has to survive meeting one.
+  roleChip(role) {
+    const key = `mc_role_${role}`;
+    const label = t(key);
+    if (!label || label === key) return '';
+    return `<span class="mc-role">${esc(label)}</span> `;
+  },
+
   // Both guards are real and permanent: a Masterclass is an online object, so
-  // it needs an account and a connection. The write itself lands in commit 3.
+  // it needs an account and a connection.
+  //
+  // Signed out, the button STAYS LIVE and explains itself — Adrian's call, and
+  // the plan's "hide #mc-new" line is superseded. A button that toasts
+  // "Sign in to use Masterclass" teaches what the feature needs; a missing
+  // button just looks like the feature does not exist.
   async newClass() {
     if (!Auth.user) { toast(t('mc_needs_signin')); return; }
     if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
-    if (this.classes.length >= MC_LIMIT) {
-      toast(t('mc_limit').replace('{n}', MC_LIMIT));
+    // The cap counts the classes I OWN. Being a viewer in someone else's class
+    // costs me nothing and must not block me from making my own.
+    //
+    // The list is awaited when it has never arrived: counting an empty array
+    // that simply has not loaded would wave the sixth class straight through.
+    if (!this.classesLoaded) await this.load();
+    if (this.owned().length >= MAX_MASTERCLASSES) {
+      toast(t('mc_limit').replace('{n}', MAX_MASTERCLASSES));
       return;
     }
     const name = await askText(t('mc_name'));
     if (!name) return;
-    // Commit 3 creates the document here and reopens the list. Until then the
-    // prompt exists so its flow can be judged, and the name goes nowhere —
-    // inventing a local-only class would be exactly the sample data this
-    // commit is avoiding.
+    try {
+      await createMasterclass(name);
+    } catch (e) {
+      console.error('Creating a Masterclass failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    await this.load();
+  },
+
+  owned() {
+    const uid = Auth.user && Auth.user.uid;
+    return this.classes.filter(c => c.ownerUid === uid);
   },
 
   open(mcId) {
@@ -153,16 +227,39 @@ export const Masterclass = {
   },
 
   // Owner and member get different items — deleting a class and leaving one
-  // are not the same action. Both writes land later (commit 3 deletes,
-  // commit 5 leaves), so the items are inert here.
+  // are not the same action. Delete is live from this commit; leaving is
+  // commit 5's write and is still inert.
   menu() {
     const mc = this.current;
     if (!mc) return;
     const owner = mc.role === 'owner';
     sheet([
       owner
-        ? { label: t('mc_delete'), danger: true, action: () => {} }
+        ? { label: t('mc_delete'), danger: true, action: () => this.confirmDelete() }
         : { label: t('mc_leave'), danger: true, action: () => {} },
     ]);
+  },
+
+  // Destructive and shared: this deletes the class for every member, which is
+  // what the confirm text says. There is no undo, so it goes through
+  // askConfirm() exactly like unfriending does.
+  async confirmDelete() {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!await askConfirm(t('mc_delete_confirm'))) return;
+    try {
+      await deleteMasterclass(mc.id);
+    } catch (e) {
+      console.error('Deleting a Masterclass failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    // The screen showing a class that no longer exists has to go. showScreen
+    // ('base') runs Base.refresh() → showList() → openList(), which refetches
+    // the list, so nothing else has to be invalidated by hand.
+    this.current = null;
+    this.chapters = [];
+    this.members = [];
+    showScreen('base');
   },
 };
