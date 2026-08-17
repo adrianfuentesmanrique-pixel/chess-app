@@ -189,5 +189,158 @@ service cloud.firestore {
     match /blocks/{uid}/blocked/{other} {
       allow read, write: if signedIn() && me() == uid;
     }
+
+    // ═══════════════════════ Masterclass ═══════════════════════
+    // A Masterclass is a shared base that lives here rather than in the
+    // device's IndexedDB. Unlike /leaderboard, NOTHING here is world-readable:
+    // `allow list` is false on the class collection, so the ids cannot even be
+    // enumerated, and every read needs a membership document.
+    //
+    // Membership is a SUBCOLLECTION with a role STRING, deliberately:
+    //   - a subcollection (not a roles map on the parent) is what will let a
+    //     link-invited stranger create their OWN membership in stage 2 without
+    //     writing the owner's document;
+    //   - a string (not isOwner: true) means 'editor' is already a legal stored
+    //     value, so stage 2 grants it by changing three clauses below and
+    //     changes no stored data at all.
+    // Do not "simplify" either one.
+    //
+    // Every clause here is covered by a test in tests/rules/masterclass.test.js.
+
+    function mcPath(mcId) {
+      return /databases/$(database)/documents/masterclasses/$(mcId);
+    }
+
+    // Admin decisions key off the PARENT document's ownerUid, not off a member
+    // document. That dodges a bootstrap problem: the owner has to create their
+    // own member document, and a rule asking "are you already an owner-member?"
+    // could never let the first one through.
+    function mcOwnerUid(mcId) {
+      return get(mcPath(mcId)).data.ownerUid;
+    }
+    function mcIsOwner(mcId) {
+      return signedIn() && mcOwnerUid(mcId) == me();
+    }
+    function mcIsMember(mcId) {
+      return signedIn() && exists(/databases/$(database)/documents/masterclasses/$(mcId)/members/$(me()));
+    }
+    // get() results are cached per request for identical paths, so mcIsOwner()
+    // and mcIsMember() together cost ONE document read, not two per call.
+
+    match /masterclasses/{mcId} {
+      // get only. `list` stays false so the collection cannot be enumerated —
+      // this is the opposite of /leaderboard and it is deliberate.
+      allow get: if signedIn()
+        && (resource.data.ownerUid == me() || mcIsMember(mcId));
+      allow list: if false;
+
+      allow create: if signedIn()
+        && after().keys().hasOnly(['ownerUid', 'name', 'createdAt', 'updatedAt', 'memberCount'])
+        && after().ownerUid == me()
+        && after().name is string && after().name.size() > 0 && after().name.size() <= 60
+        && after().createdAt == request.time
+        && after().updatedAt == request.time
+        && after().memberCount is int;
+
+      // ownerUid is immutable: transferring a class is not a feature, and
+      // letting it move would let an owner hand off a class full of somebody
+      // else's work.
+      allow update: if signedIn()
+        && resource.data.ownerUid == me()
+        && after().ownerUid == resource.data.ownerUid
+        && after().keys().hasOnly(['ownerUid', 'name', 'createdAt', 'updatedAt', 'memberCount'])
+        && after().name is string && after().name.size() > 0 && after().name.size() <= 60
+        && after().createdAt == resource.data.createdAt
+        && after().updatedAt == request.time
+        && after().memberCount is int;
+
+      // Firestore does NOT cascade. Deleting this document leaves members and
+      // chapters behind forever, so the client deletes them first — see the
+      // deleteMasterclass() comment in js/firebase.js.
+      allow delete: if signedIn() && resource.data.ownerUid == me();
+    }
+
+    match /masterclasses/{mcId}/members/{memberUid} {
+      // Anyone in the class can see who else is in it.
+      allow read: if mcIsMember(mcId) || mcIsOwner(mcId);
+
+      // Stage 1: only the owner adds people, and only someone who has not
+      // blocked them. Stage 2 adds a second create path for link invites —
+      // it is an extra `||` branch here, nothing above changes.
+      allow create: if mcIsOwner(mcId)
+        && after().keys().hasOnly(['uid', 'role', 'addedBy', 'addedAt'])
+        && after().uid == memberUid
+        && after().role in ['owner', 'editor', 'viewer']
+        && after().addedBy == me()
+        && after().addedAt == request.time
+        && !exists(/databases/$(database)/documents/blocks/$(memberUid)/blocked/$(me()));
+
+      // A role is granted or revoked, never edited in place. Changing somebody
+      // from viewer to editor is a delete plus a create, so there is exactly
+      // one code path that hands out a role.
+      allow update: if false;
+
+      // Either the owner removing someone, or a member leaving on their own.
+      // The owner may NOT delete their own membership — that would leave a
+      // class nobody can read.
+      allow delete: if (mcIsOwner(mcId) && memberUid != me())
+        || (signedIn() && memberUid == me() && mcOwnerUid(mcId) != me());
+    }
+
+    // Serves the collection-group query fetchMyMasterclasses() runs:
+    //   collectionGroup('members').where('uid','==',me)
+    // A collection-group query is NOT matched by the path-specific rule above,
+    // so it needs its own match.
+    //
+    // It checks the uid FIELD, not the {memberUid} document id, and that is not
+    // a style choice: on a collection-group LIST the id wildcard is not bound to
+    // anything, so reading it raises "Null value error" and denies the query.
+    // (The plan's draft of this rule used the id and failed test 24 for exactly
+    // that reason.) This is what the redundant `uid` field on every member
+    // document is FOR — do not delete it as duplication.
+    //
+    // The wildcard is still safe: the clause is unprovable unless the query
+    // itself constrains uid == my own uid, so an unfiltered collection-group
+    // read, or one asking for somebody else's uid, is refused outright. And the
+    // create rule forces uid == the document id, so the field cannot be pointed
+    // at a document it does not name.
+    match /{path=**}/members/{memberUid} {
+      allow read: if signedIn() && resource.data.uid == me();
+    }
+
+    match /masterclasses/{mcId}/chapters/{chapterId} {
+      allow read: if mcIsMember(mcId) || mcIsOwner(mcId);
+
+      // STAGE 2: this becomes `mcIsOwner(mcId) || mcRole(mcId) == 'editor'`.
+      // That is the whole change — the stored shape does not move.
+      allow write: if mcIsOwner(mcId)
+        && after().keys().hasOnly(['title', 'pgn', 'startFen', 'order', 'updatedAt', 'updatedBy'])
+        && after().title is string && after().title.size() <= 80
+        // The real anti-abuse bound. The 50-chapter and 30-member caps in the
+        // UI are advisory and cannot be enforced here; this one can.
+        && after().pgn is string && after().pgn.size() <= 100000
+        && after().startFen is string && after().startFen.size() <= 100
+        && after().order is number
+        && after().updatedBy == me()
+        && after().updatedAt == request.time;
+
+      allow delete: if mcIsOwner(mcId);
+    }
+
+    // Exactly one document, id 'state'. Any other id is refused so this cannot
+    // quietly become a second content store.
+    match /masterclasses/{mcId}/live/{docId} {
+      allow read: if mcIsMember(mcId) || mcIsOwner(mcId);
+
+      // STAGE 2: this becomes `mcIsOwner(mcId) || mcRole(mcId) == 'editor'`.
+      allow write: if docId == 'state'
+        && mcIsOwner(mcId)
+        && after().keys().hasOnly(['chapterId', 'fen', 'path', 'drivenBy', 'updatedAt'])
+        && (after().chapterId == null || (after().chapterId is string && after().chapterId.size() <= 64))
+        && after().fen is string && after().fen.size() <= 100
+        && after().path is string && after().path.size() <= 512
+        && after().drivenBy == me()
+        && after().updatedAt == request.time;
+    }
   }
 }
