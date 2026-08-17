@@ -136,6 +136,11 @@ if (window.Sentry && window.Sentry.onLoad) {
       </div>
       <div id="ana-hist-head" class="hint ellipsis" style="flex:1 1 100%; margin:2px 0 0;"></div>
     </div>
+    <!-- A chapter opened from a Masterclass. No prev/next: chapters are a
+         short curated list you go back to, not a database you page through. -->
+    <div id="ana-mc-nav" class="row hidden" style="margin:0 0 6px;">
+      <button id="ana-mc-back" class="btn small">← <span data-i18n="mc_section"></span></button>
+    </div>
     <div class="row" style="justify-content:flex-end; gap:6px; margin:0 0 6px;">
       <button id="ana-undo-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="undo_annotation">↩️</button>
       <button id="ana-new-game-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="new_game">

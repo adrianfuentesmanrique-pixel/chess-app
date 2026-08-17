@@ -1006,6 +1006,13 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 /* A flex item will not shrink below its text without this, so .ellipsis alone
    would let a long class name push the ⋯ button off the screen. */
 #mc-title { min-width: 0; font-size: 18px; }
+/* Chapter rows reuse .fr-row — the same three-column grid the friends list
+   uses, which truncates the middle column and keeps the ⋯ on screen at 375px.
+   This is only the position number in the first column. */
+.mc-chapter-n {
+  color: var(--muted); font-size: 13px;
+  min-width: 14px; text-align: right;
+}
 
 /* ── puzzle rush ───────────────────────── */
 .rush-board-stack { position: relative; }

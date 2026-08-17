@@ -242,7 +242,9 @@ export function sheet(items) {
   });
 }
 
-async function chooseBase(allowCreate = true) {
+// Exported for js/masterclass.js, which picks a base to take a chapter from.
+// One word, no behaviour change — same as askText() in Masterclass commit 2.
+export async function chooseBase(allowCreate = true) {
   let bases = await db.listBases();
   if (!bases.length) {
     const id = await db.createBase(t('my_games'));
@@ -1380,6 +1382,7 @@ export const Analysis = {
     $('ana-base-prev').onclick = () => this.gotoAdjacentGame(-1);
     $('ana-base-next').onclick = () => this.gotoAdjacentGame(1);
     $('ana-hist-back').onclick = () => this.backToHistory();
+    $('ana-mc-back').onclick = () => Masterclass.backFromChapter();
     $('ana-hist-prev').onclick = () => this.gotoAdjacentHistory(-1);
     $('ana-hist-next').onclick = () => this.gotoAdjacentHistory(1);
     $('ana-annotate-toggle').onclick = () => {
@@ -1472,6 +1475,17 @@ export const Analysis = {
       $('ana-base-next').disabled = idx === -1 || idx >= Base.gamesCache.length - 1;
     }
     $('ana-gr-nav').classList.toggle('hidden', !this.ctx.fromGameReview);
+
+    // A Masterclass chapter is deliberately opened with baseId: null — it is
+    // not a local game, so none of the base nav applies and 💾 Save to database
+    // asks which base to put a COPY in rather than writing anywhere by itself.
+    // But the player still came from the Bases tab, so that tab stays lit and
+    // they get their own way back to the class.
+    const inMc = !!this.ctx.fromMasterclass;
+    $('ana-mc-nav').classList.toggle('hidden', !inMc);
+    if (inMc) {
+      document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.screen === 'base'));
+    }
 
     const inHist = !!this.ctx.historyId;
     $('ana-hist-nav').classList.toggle('hidden', !inHist);

@@ -446,6 +446,17 @@ const DICT = {
   mc_remove_member: { es: 'Quitar de la Masterclass', en: 'Remove from Masterclass' },
   mc_limit: { es: 'Puedes tener hasta {n} Masterclass.', en: 'You can have up to {n} Masterclasses.' },
   mc_chapter_limit: { es: 'Una Masterclass admite hasta {n} capítulos.', en: 'A Masterclass holds up to {n} chapters.' },
+  // The two ways a chapter can be created. There is deliberately no "share the
+  // whole base": a base can hold thousands of games, and that would be
+  // thousands of writes for you and thousands of reads for every student.
+  mc_from_base: { es: '📚 Desde una base', en: '📚 From a database' },
+  mc_from_board: { es: '♟️ Desde el tablero actual', en: '♟️ From the current board' },
+  mc_choose_game: { es: 'Elige una partida', en: 'Choose a game' },
+  mc_pick_recent: { es: 'Mostrando las {n} partidas más recientes.', en: 'Showing the {n} most recent games.' },
+  mc_delete_chapter: { es: '🗑 Borrar capítulo', en: '🗑 Delete chapter' },
+  mc_delete_chapter_confirm: { es: '¿Borrar este capítulo? Se borra para todos.', en: 'Delete this chapter? It is deleted for everyone.' },
+  // The 100,000-byte PGN limit is the one cap Firestore rules really enforce.
+  mc_chapter_too_big: { es: 'Esta partida es demasiado grande para un capítulo (máximo {n} KB).', en: 'This game is too big for a chapter (max {n} KB).' },
   mc_member_limit: { es: 'Una Masterclass admite hasta {n} miembros.', en: 'A Masterclass holds up to {n} members.' },
   trophy_case: { es: 'Logros', en: 'Achievements' },
   badge_earned: { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },

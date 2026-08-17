@@ -1,12 +1,13 @@
 // Masterclass — a shared, online database: chapters you publish and members
-// who follow along, eventually on a live board. Commit 3 of
+// who follow along, eventually on a live board. Commit 4 of
 // docs/superpowers/plans/2026-08-16-masterclass-stage-1.md.
 //
-// Commit 2 built these screens inert. Commit 3 fills in the network calls:
-// the list is a real collection-group query, ➕ really creates a class and the
-// ⋯ menu really deletes one. Chapters and members are still empty — those are
-// commits 4 and 5. There is still deliberately no sample data: every list
-// draws its real empty state, so nothing invented can reach the site.
+// Commit 2 built these screens inert. Commit 3 made the list, the create and
+// the delete real. Commit 4 adds chapters: the owner takes one from a local
+// base or from the Analysis board, everyone in the class can open one on that
+// same board, and the owner can delete one. Members are still empty — that is
+// commit 5. There is still deliberately no sample data: every list draws its
+// real empty state, so nothing invented can reach the site.
 //
 // Everything that arrives from Firestore is another user's text, so every one
 // of those values goes through esc() before it reaches innerHTML — the same
@@ -18,9 +19,21 @@
 import { t, tn } from './i18n.js';
 import {
   Auth, MAX_MASTERCLASSES, createMasterclass, fetchMyMasterclasses,
-  deleteMasterclass,
+  deleteMasterclass, MAX_CHAPTERS, MAX_CHAPTER_BYTES, addChapter, fetchChapters,
+  deleteChapter,
 } from './firebase.js';
-import { $, esc, toast, sheet, askText, askConfirm, showScreen, activeScreen } from './app.js';
+import {
+  $, esc, toast, modal, sheet, askText, askConfirm, showScreen, activeScreen,
+  chooseBase, Analysis,
+} from './app.js';
+import { parsePgn } from './tree.js';
+import * as db from './db.js';
+
+// A base can hold thousands of games and this picker is a modal full of
+// buttons, so it shows the most recently touched ones and says so. Anything
+// older is still reachable — open it from the Bases tab and use
+// "From the current board".
+const PICK_GAMES = 50;
 
 // The 5-class cap is MAX_MASTERCLASSES, imported from js/firebase.js next to
 // the query that uses it. It is ADVISORY and UI-side only: it cannot be
@@ -43,12 +56,17 @@ export const Masterclass = {
   loadFailed: false,
   // The class the Masterclass screen is showing, or null.
   current: null,
-  // Its chapters and members. Commits 4 and 5 fill these.
+  // Its chapters and members. Commit 5 fills members.
   chapters: [],
+  // Same three-state rule the class list follows: "empty", "still loading" and
+  // "the fetch failed" are three different things to draw.
+  chaptersLoaded: false,
+  chaptersFailed: false,
   members: [],
 
   init() {
     $('mc-new').onclick = () => this.newClass();
+    $('mc-add-chapter').onclick = () => this.addChapterMenu();
     // Back goes to the Bases tab, which is where the section lives.
     // showScreen('base') calls Base.refresh(), which redraws the list.
     $('mc-back').onclick = () => showScreen('base');
@@ -176,13 +194,53 @@ export const Masterclass = {
   open(mcId) {
     this.current = this.classes.find(c => c.id === mcId) || null;
     this.chapters = [];
+    this.chaptersLoaded = false;
+    this.chaptersFailed = false;
     this.members = [];
     showScreen('masterclass');
-    // The user came from the Bases tab, so that is the tab that stays lit —
-    // same trick Analysis.updateBaseNav() uses for a game opened from a base.
+    this.lightBasesTab();
+    this.render();
+    this.loadChapters();
+  },
+
+  // Coming back from a chapter that was opened in Analysis. The class, its
+  // chapters and its members are all still in memory, so this redraws what is
+  // already there instead of paying for the reads again. If the page was
+  // reloaded while the chapter was open there is nothing to come back to, so
+  // it falls back to the Bases tab, which refetches the list.
+  backFromChapter() {
+    if (!this.current) { showScreen('base'); return; }
+    showScreen('masterclass');
+    this.lightBasesTab();
+    this.render();
+  },
+
+  // The user came from the Bases tab, so that is the tab that stays lit —
+  // same trick Analysis.updateBaseNav() uses for a game opened from a base.
+  lightBasesTab() {
     document.querySelectorAll('#tabbar button').forEach(b =>
       b.classList.toggle('on', b.dataset.screen === 'base'));
-    this.render();
+  },
+
+  // One read per chapter, and the PGN comes with it — which is what makes
+  // tapping a row instant and needs no second fetch.
+  async loadChapters() {
+    const mc = this.current;
+    if (!mc) return;
+    try {
+      const rows = await fetchChapters(mc.id);
+      // The screen may have moved on to another class while this was in
+      // flight; dropping a stale answer is cheaper than cancelling it.
+      if (this.current !== mc) return;
+      this.chapters = rows;
+      this.chaptersFailed = false;
+    } catch (e) {
+      if (this.current !== mc) return;
+      console.error('Loading chapters failed', e);
+      this.chaptersFailed = true;
+    }
+    this.chaptersLoaded = true;
+    this.renderChapters();
   },
 
   render() {
@@ -200,16 +258,79 @@ export const Masterclass = {
 
   renderChapters() {
     const n = this.chapters.length;
-    $('mc-chapters-label').textContent = `${n} ${tn('mc_chapters', n)}`;
+    // The count is a fact about a list that has arrived. Until then it would
+    // read "0 capítulos" for a class that has ten, so it says Loading instead
+    // and the empty state below stays quiet.
+    $('mc-chapters-label').textContent = this.chaptersLoaded
+      ? `${n} ${tn('mc_chapters', n)}` : t('loading');
     const el = $('mc-chapter-list');
     el.innerHTML = '';
     if (!n) {
+      if (!this.chaptersLoaded) return;
       const p = document.createElement('p');
       p.className = 'mc-empty';
-      p.textContent = t('mc_no_chapters');
+      // Offline is not the same as empty — saying "No chapters yet" to someone
+      // whose connection dropped would be a lie about someone else's class.
+      p.textContent = this.chaptersFailed ? t('mc_needs_network') : t('mc_no_chapters');
       el.appendChild(p);
+      return;
     }
-    // Commit 4 renders the real rows.
+    const owner = !!this.current && this.current.role === 'owner';
+    this.chapters.forEach((ch, i) => {
+      // .fr-row is the friends-list row: a three-column grid that truncates
+      // the middle with an ellipsis and keeps the ⋯ on screen at 375px. A
+      // .list-item would wrap a long title onto a second line instead.
+      const row = document.createElement('div');
+      row.className = 'fr-row tappable';
+      row.innerHTML =
+        `<span class="mc-chapter-n">${i + 1}</span>` +
+        `<span class="fr-name">${esc(ch.title || '?')}</span>` +
+        (owner ? `<button class="fr-more" aria-label="⋯">⋯</button>` : '');
+      row.onclick = () => this.openChapter(ch);
+      // stopPropagation so the menu does not also open the chapter behind it.
+      const more = row.querySelector('.fr-more');
+      if (more) more.onclick = ev => { ev.stopPropagation(); this.chapterMenu(ch); };
+      el.appendChild(row);
+    });
+  },
+
+  // A chapter is a game, so it opens in the board the app already has —
+  // moves list, engine, annotations and all. `baseId: null` is what keeps
+  // Analysis from treating it as a local game: 💾 Save to database then asks
+  // which base to copy it into instead of writing one by itself, and nothing
+  // in that ⋯ menu writes to IndexedDB on its own.
+  openChapter(ch) {
+    let tree;
+    try {
+      tree = parsePgn(ch.pgn || '');
+    } catch (e) {
+      console.error('Chapter PGN did not parse', e);
+      toast(t('import_failed'));
+      return;
+    }
+    Analysis.loadTree(tree, { baseId: null, gameId: null, fromMasterclass: this.current && this.current.id });
+  },
+
+  chapterMenu(ch) {
+    sheet([
+      { label: t('mc_delete_chapter'), danger: true, action: () => this.confirmDeleteChapter(ch) },
+    ]);
+  },
+
+  // Shared and with no undo, like deleting the class itself, so it goes
+  // through askConfirm() too.
+  async confirmDeleteChapter(ch) {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!await askConfirm(t('mc_delete_chapter_confirm'))) return;
+    try {
+      await deleteChapter(mc.id, ch.id);
+    } catch (e) {
+      console.error('Deleting a chapter failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    await this.loadChapters();
   },
 
   renderMembers() {
@@ -259,7 +380,121 @@ export const Masterclass = {
     // the list, so nothing else has to be invalidated by hand.
     this.current = null;
     this.chapters = [];
+    this.chaptersLoaded = false;
+    this.chaptersFailed = false;
     this.members = [];
     showScreen('base');
+  },
+
+  // ── Adding a chapter ────────────────────────────────────────────────────
+  // Two ways in, and deliberately no third: there is NO "share the whole
+  // base". A base can hold thousands of games, and sharing one would be
+  // thousands of writes for the owner and thousands of reads for every
+  // student who opens the class. A Masterclass is a curated lesson, and the
+  // 50-chapter cap is the shape of that decision.
+  async addChapterMenu() {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!Auth.user) { toast(t('mc_needs_signin')); return; }
+    if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
+    // The cap is checked against a list that has actually arrived, for the
+    // same reason the 5-class cap is: counting an empty array that simply has
+    // not loaded would wave the fifty-first chapter straight through.
+    if (!this.chaptersLoaded) await this.loadChapters();
+    if (this.chaptersFailed) { toast(t('mc_needs_network')); return; }
+    if (this.chapters.length >= MAX_CHAPTERS) {
+      toast(t('mc_chapter_limit').replace('{n}', MAX_CHAPTERS));
+      return;
+    }
+    sheet([
+      { label: t('mc_from_base'), action: () => this.addFromBase() },
+      { label: t('mc_from_board'), action: () => this.addFromBoard() },
+    ]);
+  },
+
+  // chooseBase(false) — a chapter is taken FROM a base, so offering to create
+  // an empty one here would only ever lead to "no games yet".
+  async addFromBase() {
+    const baseId = await chooseBase(false);
+    if (!baseId) return;
+    const games = await db.listGameSummaries(baseId);
+    if (!games.length) { toast(t('no_games')); return; }
+    const g = await this.chooseGame(games);
+    if (!g) return;
+    const full = await db.getGame(g.id);
+    if (!full || !full.pgn) { toast(t('import_failed')); return; }
+    // The same "White vs Black" the base list shows, so the default title is
+    // the name the owner just tapped.
+    const startFen = (full.pgn.match(/\[FEN\s+"([^"]*)"\]/) || [])[1] || '';
+    await this.saveChapter(`${g.white || '?'} vs ${g.black || '?'}`, full.pgn, startFen);
+  },
+
+  // Whatever is on the Analysis board right now, variations and comments
+  // included — tree.toPgn() is the same text the ⋯ menu shares and copies.
+  async addFromBoard() {
+    const tree = Analysis.tree;
+    if (!tree) { toast(t('import_failed')); return; }
+    const H = tree.headers || {};
+    // A game that came from a base or from Game Review has names; a scratch
+    // board does not, and prefilling the prompt with its own heading would be
+    // noise the owner has to delete before typing.
+    const def = (H['White'] || H['Black'])
+      ? `${H['White'] || '?'} vs ${H['Black'] || '?'}`
+      : '';
+    await this.saveChapter(def, tree.toPgn(), tree.startFen || '');
+  },
+
+  chooseGame(games) {
+    // Most recently touched first, and only the first PICK_GAMES of them: a
+    // modal holding one button per game in a 5,000-game base would be
+    // unusable and slow to build.
+    const rows = games
+      .slice()
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+      .slice(0, PICK_GAMES);
+    const truncated = games.length > rows.length;
+    return modal((box, close) => {
+      box.innerHTML = `<h3>${t('mc_choose_game')}</h3>`;
+      if (truncated) {
+        const hint = document.createElement('p');
+        hint.className = 'mc-empty';
+        hint.textContent = t('mc_pick_recent').replace('{n}', PICK_GAMES);
+        box.appendChild(hint);
+      }
+      for (const g of rows) {
+        const btn = document.createElement('button');
+        btn.className = 'sheet-btn';
+        btn.textContent = `${g.white || '?'} vs ${g.black || '?'}`
+          + (g.result && g.result !== '*' ? ` · ${g.result}` : '');
+        btn.onclick = () => close(g);
+        box.appendChild(btn);
+      }
+      const ca = document.createElement('button');
+      ca.className = 'sheet-btn cancel'; ca.textContent = t('cancel');
+      ca.onclick = () => close(null);
+      box.appendChild(ca);
+    });
+  },
+
+  async saveChapter(defaultTitle, pgn, startFen) {
+    const mc = this.current;
+    if (!mc) return;
+    const title = await askText(t('mc_chapter_title'), defaultTitle);
+    if (!title) return;
+    // New chapters go on the end. `order` is a plain number rather than the
+    // array index so a future reorder does not have to rewrite every document.
+    const order = this.chapters.reduce((max, c) => Math.max(max, c.order ?? 0), 0) + 1;
+    try {
+      await addChapter(mc.id, { title, pgn, startFen, order });
+    } catch (e) {
+      if (e && e.message === 'chapter-too-big') {
+        toast(t('mc_chapter_too_big').replace('{n}', Math.round(MAX_CHAPTER_BYTES / 1000)));
+        return;
+      }
+      console.error('Adding a chapter failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    await this.loadChapters();
   },
 };

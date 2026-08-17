@@ -670,6 +670,64 @@ export async function deleteMasterclass(mcId) {
     .catch(() => {});
 }
 
+// ── Chapters ──────────────────────────────────────────────────────────────
+// A chapter IS a game: the PGN is produced by tree.toPgn() and consumed by
+// parsePgn(), both already in js/tree.js, so nothing new is serialised and a
+// chapter opens in the normal Analysis board.
+
+// ADVISORY, UI-side only, exactly like MAX_MASTERCLASSES: no rule can count
+// documents without a server-maintained counter. It is also the `limit()` on
+// the fetch below, so a class that somehow held more would still cost one
+// bounded read.
+export const MAX_CHAPTERS = 50;
+// This one is REAL — firestore.rules refuses `pgn.size() > 100000`. The client
+// checks it too so an oversized game gives a readable message instead of a
+// bare permission-denied.
+export const MAX_CHAPTER_BYTES = 100000;
+
+// The five stored fields are exactly the five the rules allow — the key set is
+// checked with hasOnly(), so adding a sixth here fails the write.
+// serverTimestamp(), never Date.now(): the rule is `updatedAt == request.time`
+// and a client clock a few seconds out would be refused.
+export async function addChapter(mcId, { title, pgn, startFen, order }) {
+  // Size first, so an oversized PGN always reports itself the same way — this
+  // is validation of the input, not of the session. Blob counts bytes and the
+  // rule counts characters, so it is the stricter of the two and can never let
+  // through something the rules would refuse.
+  if (new Blob([pgn || '']).size > MAX_CHAPTER_BYTES) throw new Error('chapter-too-big');
+  const user = auth.currentUser;
+  if (!user || !mcId) return null;
+  const ref = await addDoc(collection(firestore, 'masterclasses', mcId, 'chapters'), {
+    title: String(title || '').slice(0, 80),
+    pgn,
+    startFen: String(startFen || '').slice(0, 100),
+    order: Number(order) || 0,
+    updatedBy: user.uid,
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+// Sorted here rather than with orderBy so no composite index is needed — the
+// same shape the friends list uses. The whole PGN of every chapter comes down,
+// which is why the cap is also the limit.
+export async function fetchChapters(mcId) {
+  if (!mcId) return [];
+  const snap = await getDocs(query(
+    collection(firestore, 'masterclasses', mcId, 'chapters'),
+    limit(MAX_CHAPTERS)));
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+// `allow delete: if mcIsOwner(mcId)` — unlike live/state, a chapter really can
+// be deleted, and the rules test for it passes.
+export async function deleteChapter(mcId, chapterId) {
+  if (!mcId || !chapterId) return;
+  await deleteDoc(doc(firestore, 'masterclasses', mcId, 'chapters', chapterId));
+}
+
 async function pullOrBootstrap(uid) {
   const ref = doc(firestore, 'users', uid);
   const snap = await getDoc(ref);
