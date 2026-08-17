@@ -2,6 +2,42 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — commit 1 of 7 is done (2026-08-16, `feca228`). Rules and
+  tests only, nothing the browser loads changed, `sw.js` stays at v64.** The
+  plan is `docs/superpowers/plans/2026-08-16-masterclass-stage-1.md` (committed
+  in the same commit; it was untracked before).
+  - `firestore.rules` gained the Masterclass block as a **sibling** of the
+    Friends blocks: `masterclasses/{mcId}`, its `members`, `chapters` and
+    `live/{docId}` subcollections, plus the `mcPath` / `mcOwnerUid` /
+    `mcIsOwner` / `mcIsMember` helpers. `signedIn()`, `me()`, `after()` and
+    `num()` were reused, not redefined.
+  - `tests/rules/masterclass.test.js` — 35 new tests, numbered to match the
+    plan's list. **`npm run test:rules` is at 122 passing**, zero failing, on
+    two consecutive runs.
+  - **Deployed 2026-08-16 — rules AND indexes.** `firebase
+    firestore:indexes` read back from the live project shows the `members` /
+    `uid` field override with `COLLECTION_GROUP` scope, so the collection-group
+    query in commit 3 will not hit `failed-precondition`. Edit the file and
+    deploy, never the console.
+  - **Two things in the plan's Task 1 are WRONG and were fixed here — do not
+    copy them back out of the plan:**
+    1. The recursive rule `match /{path=**}/members/{memberUid}` must test
+       **`resource.data.uid == me()`**, not `memberUid == me()`. On a
+       collection-group *list* the document-id wildcard is not bound, so
+       reading it raises `Null value error` and denies the query. This is
+       precisely what the redundant `uid` field on every member document is
+       for; do not delete it as duplication.
+    2. The new test suite runs under its own emulator `projectId`
+       (`chess-training-center-mc`). `node --test` runs the test **files** in
+       parallel and `clearFirestore()` wipes the whole project, which was
+       deleting `friends.test.js`'s seeded documents mid-test and failing two
+       existing Friends tests for the wrong reason. `existing.test.js` never
+       clears, which is why this never bit before.
+  - **The 50-chapter, 30-member and 5-Masterclass caps are advisory, UI-side
+    only.** They cannot be enforced in rules without a server-maintained
+    counter. The rules-enforced bound is the 100,000-byte chapter PGN limit.
+  - Committed on local `main`, **not pushed**.
+
 - **Friends — the two-account run finally happened (2026-08-16). The system
   is verified against production.** Adrian ran it on the live site as
   `Zugzwang` (`hxxaE1n6T1WzxLvIGTMby1RfkZs1`) with `miguelafuentesm`
