@@ -1,15 +1,16 @@
-// Masterclass — a shared, online database: chapters you publish and members
-// who follow along, eventually on a live board. Commit 5 of
+// Masterclass — a shared, online database: chapters you publish, members who
+// follow along, and a live board. Commit 6 of
 // docs/superpowers/plans/2026-08-16-masterclass-stage-1.md.
 //
 // Commit 2 built these screens inert. Commit 3 made the list, the create and
 // the delete real. Commit 4 added chapters: the owner takes one from a local
 // base or from the Analysis board, everyone in the class can open one on that
-// same board, and the owner can delete one. Commit 5 adds members — the owner
+// same board, and the owner can delete one. Commit 5 added members — the owner
 // invites friends, everyone sees who is in the class, the owner can remove
-// somebody and a member can leave. There is still deliberately no sample
-// data: every list draws its real empty state, so nothing invented can reach
-// the site.
+// somebody and a member can leave. Commit 6 adds live follow: the owner
+// broadcasts the board they are on, and members watch it move. There is still
+// deliberately no sample data: every list draws its real empty state, so
+// nothing invented can reach the site.
 //
 // Everything that arrives from Firestore is another user's text, so every one
 // of those values goes through esc() before it reaches innerHTML — the same
@@ -24,6 +25,7 @@ import {
   deleteMasterclass, MAX_CHAPTERS, MAX_CHAPTER_BYTES, addChapter, fetchChapters,
   deleteChapter, MAX_MEMBERS, addMembers, fetchMembers, removeMember,
   leaveMasterclass, setMemberCount, fetchLeaderboardByUids,
+  pushLiveState, watchLiveState, stopLiveState,
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askText, askConfirm, showScreen, activeScreen,
@@ -57,6 +59,62 @@ const PICK_GAMES = 50;
 // twice on purpose, in two files, meaning two different things; this one must
 // exist once.
 
+// ── Where the teacher is, as a string ───────────────────────────────────────
+// A live update has to name a NODE, not just a position: a chapter with
+// variations can reach the same FEN twice, and "the same position" is not the
+// same as "the same place in the lesson".
+//
+// Node.id in js/tree.js cannot be used for this. It comes from a module-level
+// counter that starts at 0 on page load, so the ids two people get for the
+// same PGN depend on what each of them opened earlier. The path — the child
+// index at every step down from the root, joined by dots — is a property of
+// the PGN itself, so both clients compute the same one. "" is the root.
+//
+// These two are exported only so the round trip can be exercised directly:
+// they are the whole correctness of live follow, and one of them runs on the
+// teacher's machine while the other runs on the student's, so a test that only
+// ever calls one of them proves nothing.
+export function nodePath(tree) {
+  const out = [];
+  let n = tree.current;
+  while (n && n.parent) {
+    const i = n.parent.children.indexOf(n);
+    if (i < 0) return '';
+    out.push(i);
+    n = n.parent;
+  }
+  return out.reverse().join('.');
+}
+
+// Walks a path back down. Returns false rather than landing somewhere
+// approximate: a wrong node is worse than not moving, because the follower
+// cannot tell the difference.
+export function gotoPath(tree, path) {
+  let n = tree.root;
+  for (const part of String(path || '').split('.')) {
+    if (part === '') continue;
+    const i = Number(part);
+    if (!Number.isInteger(i) || !n.children[i]) return false;
+    n = n.children[i];
+  }
+  tree.goto(n);
+  return true;
+}
+
+// The fallback when a path does not resolve — a path truncated at 512
+// characters, or a chapter edited since the follower loaded it. The FEN is
+// unambiguous enough to be right nearly always, and landing on the position
+// beats freezing.
+function findFen(node, fen) {
+  if (!fen) return null;
+  if (node.fen === fen) return node;
+  for (const c of node.children) {
+    const r = findFen(c, fen);
+    if (r) return r;
+  }
+  return null;
+}
+
 export const Masterclass = {
   // The classes I own or have been added to, from one collection-group query.
   classes: [],
@@ -78,19 +136,43 @@ export const Masterclass = {
   membersLoaded: false,
   membersFailed: false,
 
+  // ── Live follow ────────────────────────────────────────────────────────
+  // Am I, the owner, broadcasting? Never on by itself: being watched is
+  // something you switch on, not something that happens to you.
+  live: false,
+  // The teacher's last known position, straight off the listener, or null when
+  // nobody is driving. Only a non-owner ever has one — the owner does not watch
+  // their own document.
+  liveState: null,
+  // Should my board chase it? Default on, so opening a class that is live puts
+  // you in the lesson; it goes off the moment you choose to browse.
+  following: true,
+  // The onSnapshot unsubscribe. A listener left running is a document read per
+  // teacher move, so this is never dropped on the floor — see closeLive().
+  unwatch: null,
+  // Which chapter is on the Analysis board for this class. It is what the owner
+  // broadcasts and what tells a follower whether the incoming state needs a
+  // different chapter loaded or just a move.
+  liveChapterId: null,
+
   init() {
     $('mc-new').onclick = () => this.newClass();
     $('mc-add-chapter').onclick = () => this.addChapterMenu();
     $('mc-add-member').onclick = () => this.invite();
     // Back goes to the Bases tab, which is where the section lives.
     // showScreen('base') calls Base.refresh(), which redraws the list.
-    $('mc-back').onclick = () => showScreen('base');
+    // Leaving the class ends the broadcast and drops the listener — closing a
+    // lesson is exactly when a teacher expects to stop being watched.
+    $('mc-back').onclick = () => { this.closeLive(); showScreen('base'); };
     $('mc-menu').onclick = () => this.menu();
     // Signing in or out changes whose classes these are, so the list is
     // invalidated — never fetched here. Loading at boot would cost reads for
     // someone who never opens the Bases tab. It reloads when the tab does,
     // which is the js/friends.js pattern.
     Auth.onChange(() => {
+      // Signing out ends any broadcast and drops the listener: the reads it
+      // would make are no longer allowed, and the document is no longer mine.
+      this.closeLive();
       this.classes = [];
       this.classesLoaded = false;
       this.loadFailed = false;
@@ -207,6 +289,9 @@ export const Masterclass = {
   },
 
   open(mcId) {
+    // Before this.current moves: closeLive() stops a broadcast on the class we
+    // are leaving, which is the one it can still write to.
+    this.closeLive();
     this.current = this.classes.find(c => c.id === mcId) || null;
     this.chapters = [];
     this.chaptersLoaded = false;
@@ -219,6 +304,7 @@ export const Masterclass = {
     this.render();
     this.loadChapters();
     this.loadMembers();
+    this.watch();
   },
 
   // Coming back from a chapter that was opened in Analysis. The class, its
@@ -259,6 +345,10 @@ export const Masterclass = {
     }
     this.chaptersLoaded = true;
     this.renderChapters();
+    // A live state can arrive before the chapter list does — the listener and
+    // this fetch start together. applyLive() gives up quietly while
+    // chaptersLoaded is false, so this is the retry.
+    this.applyLive();
   },
 
   render() {
@@ -272,6 +362,7 @@ export const Masterclass = {
     const owner = !!mc && mc.role === 'owner';
     $('mc-add-chapter').classList.toggle('hidden', !owner);
     $('mc-add-member').classList.toggle('hidden', !owner);
+    this.renderLive();
     this.renderChapters();
     this.renderMembers();
   },
@@ -328,6 +419,10 @@ export const Masterclass = {
       toast(t('import_failed'));
       return;
     }
+    // What the owner broadcasts and what a follower compares against. Set
+    // BEFORE loadTree(), because loadTree() calls Analysis.refresh(), which is
+    // what fires onBoardChange() and pushes the first state of the chapter.
+    this.liveChapterId = ch.id;
     Analysis.loadTree(tree, { baseId: null, gameId: null, fromMasterclass: this.current && this.current.id });
   },
 
@@ -499,6 +594,9 @@ export const Masterclass = {
     const mc = this.current;
     if (!mc || mc.role === 'owner') return;
     if (!await askConfirm(t('mc_leave_confirm'))) return;
+    // Drop the listener before the membership goes: once it is gone the read
+    // rule refuses me, and the listener would start erroring instead of ending.
+    this.closeLive();
     try {
       await leaveMasterclass(mc.id);
     } catch (e) {
@@ -517,6 +615,197 @@ export const Masterclass = {
     this.membersLoaded = false;
     this.membersFailed = false;
     showScreen('base');
+  },
+
+  // ── The live board ──────────────────────────────────────────────────────
+  // One document, masterclasses/{id}/live/state, holding where the teacher is
+  // right now. The owner writes it (throttled to one write a second in
+  // js/firebase.js) and every member reads it through one onSnapshot listener.
+  //
+  // Only the OWNER can drive in stage 1. The rules already say so, but the
+  // button is hidden from members as well: a button that can only ever fail is
+  // worse than no button. 'editor' is a legal stored role that stage 1 never
+  // grants, and it falls on the member side of this line until stage 2 moves it.
+
+  // Members only — the owner never watches their own document. There is no
+  // point paying a read to be told what you just wrote.
+  watch() {
+    const mc = this.current;
+    if (!mc || !Auth.user || mc.role === 'owner') return;
+    this.unwatch = watchLiveState(mc.id, (state) => {
+      // The screen moved on to another class while this was in flight.
+      if (this.current !== mc) return;
+      // Self-healing cleanup. Leaving through mc-back or Leave calls
+      // closeLive(), but the tab bar can take you off this screen without
+      // passing through either — so a listener that finds nobody looking ends
+      // itself on the next teacher move rather than reading forever.
+      const onBoard = activeScreen === 'analysis'
+        && Analysis.ctx && Analysis.ctx.fromMasterclass === mc.id;
+      if (activeScreen !== 'masterclass' && !onBoard) { this.closeLive(); return; }
+      const wasLive = !!this.liveState;
+      this.liveState = state;
+      // Said once. Without it a follower's board simply freezes and there is
+      // nothing on screen to explain why.
+      if (wasLive && !state) toast(t('mc_live_ended'));
+      this.renderLive();
+      this.applyLive();
+    });
+  },
+
+  // Ends the broadcast AND the listener, and forgets everything about the live
+  // session. Safe to call twice and safe to call when nothing was running.
+  closeLive() {
+    if (this.unwatch) {
+      try { this.unwatch(); } catch (e) { console.error('Unsubscribing failed', e); }
+      this.unwatch = null;
+    }
+    // Fire and forget: the local state is already off, so a failed delete
+    // cannot mislead ME. It can leave viewers looking at a frozen board, which
+    // is why the deliberate Stop button below does report a failure.
+    if (this.live && this.current) {
+      stopLiveState(this.current.id).catch(e => console.error('Stopping the live board failed', e));
+    }
+    this.live = false;
+    this.liveState = null;
+    this.following = true;
+    this.liveChapterId = null;
+    this.renderLive();
+  },
+
+  // The bar is drawn in two places from one piece of state: on the Masterclass
+  // screen, and again above the Analysis board, because once you are following
+  // a lesson that is the screen you are on.
+  renderLive() {
+    const mc = this.current;
+    let text = '', action = '', handler = null;
+    if (mc && mc.role === 'owner') {
+      if (!this.live) {
+        text = t('mc_live_off');
+        action = t('mc_live_start');
+        handler = () => this.goLive();
+      } else {
+        // Live with nothing open yet is a real state — the owner switched it on
+        // from the class screen. Claiming the class can see their board there
+        // would be a lie.
+        text = t(this.liveChapterId ? 'mc_live_on' : 'mc_live_open_chapter');
+        action = t('mc_live_stop');
+        handler = () => this.stopLive();
+      }
+    } else if (mc && this.liveState) {
+      // Nobody is driving → no bar at all. An empty "not live" line on every
+      // class anyone ever opens is noise.
+      text = t(this.following ? 'mc_live_following' : 'mc_live_now');
+      action = t(this.following ? 'mc_follow_stop' : 'mc_follow_resume');
+      handler = () => this.toggleFollow();
+    }
+    // The Analysis copy also needs the board to actually belong to this class.
+    const inMc = !!(Analysis.ctx && mc && Analysis.ctx.fromMasterclass === mc.id);
+    for (const [id, ok] of [['mc-live-bar', !!text], ['ana-mc-live', !!text && inMc]]) {
+      const bar = $(id);
+      if (!bar) continue;
+      bar.classList.toggle('hidden', !ok);
+      bar.innerHTML = '';
+      if (!ok) continue;
+      // textContent, not innerHTML: nothing here comes from Firestore today,
+      // and building it out of nodes means it still cannot if that changes.
+      const span = document.createElement('span');
+      span.className = 'mc-live-text';
+      span.textContent = text;
+      const btn = document.createElement('button');
+      btn.className = 'btn small';
+      btn.textContent = action;
+      btn.onclick = handler;
+      bar.append(span, btn);
+    }
+  },
+
+  goLive() {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!Auth.user) { toast(t('mc_needs_signin')); return; }
+    if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
+    this.live = true;
+    this.renderLive();
+    // If a chapter is already on the board, start from where it is instead of
+    // making the class wait for the next move.
+    if (this.liveChapterId && Analysis.tree
+        && Analysis.ctx && Analysis.ctx.fromMasterclass === mc.id) {
+      this.onBoardChange(mc.id, Analysis.tree);
+    }
+  },
+
+  // Deleting the document is what tells the class the lesson is over. This is
+  // the delete rule commit 6 added: before it, the `allow write` block's
+  // after() clauses evaluated against null and denied even the owner.
+  async stopLive() {
+    const mc = this.current;
+    this.live = false;
+    this.renderLive();
+    if (!mc) return;
+    try {
+      await stopLiveState(mc.id);
+    } catch (e) {
+      // Worth reporting, unlike the one in closeLive(): the class is still
+      // looking at my last position and I have just been told it stopped.
+      console.error('Stopping the live board failed', e);
+      toast(t('mc_needs_network'));
+    }
+  },
+
+  toggleFollow() {
+    this.following = !this.following;
+    this.renderLive();
+    // Resuming snaps to where the teacher is NOW. The moves missed while
+    // browsing are deliberately not replayed — this is a lesson, not a video.
+    if (this.following) this.applyLive();
+  },
+
+  // Put my board where the teacher's is. Called on every snapshot, when the
+  // chapter list lands, and when Following is switched back on.
+  applyLive() {
+    const mc = this.current;
+    const st = this.liveState;
+    if (!mc || mc.role === 'owner' || !st || !this.following) return;
+    // The chapter list is what turns an id into a PGN, so there is nothing to
+    // do until it has arrived. loadChapters() calls back here when it does.
+    if (!this.chaptersLoaded) return;
+    const ch = this.chapters.find(c => c.id === st.chapterId);
+    if (!ch) return;
+    // Only re-parse when the chapter really changed. Doing it per move would
+    // rebuild the whole tree on every ply and throw away the engine.
+    const onBoard = activeScreen === 'analysis'
+      && Analysis.ctx && Analysis.ctx.fromMasterclass === mc.id;
+    if (this.liveChapterId !== ch.id || !onBoard) {
+      this.openChapter(ch);
+    }
+    const tree = Analysis.tree;
+    if (!tree) return;
+    // Path first, FEN second. A path names the node; the FEN is the fallback
+    // for a path that no longer resolves. If neither lands, stay put rather
+    // than jumping somewhere arbitrary.
+    if (!gotoPath(tree, st.path)) {
+      const node = findFen(tree.root, st.fen);
+      if (!node) return;
+      tree.goto(node);
+    }
+    Analysis.refresh();
+  },
+
+  // Called from Analysis.refresh() — the one choke point every board change in
+  // that screen goes through, so a move, an arrow key, a variation and a jump
+  // in the moves list all broadcast without four separate hooks.
+  onBoardChange(mcId, tree) {
+    const mc = this.current;
+    if (!this.live || !mc || mc.id !== mcId || mc.role !== 'owner') return;
+    if (!tree) return;
+    // Throttled to one write a second inside pushLiveState(); the newest
+    // pending state wins. Fire and forget — a dropped frame of a live board is
+    // not worth a toast, and the next move sends the position again anyway.
+    pushLiveState(mcId, {
+      chapterId: this.liveChapterId,
+      fen: tree.fen(),
+      path: nodePath(tree),
+    });
   },
 
   // ── Inviting ────────────────────────────────────────────────────────────
@@ -629,6 +918,11 @@ export const Masterclass = {
     const mc = this.current;
     if (!mc || mc.role !== 'owner') return;
     if (!await askConfirm(t('mc_delete_confirm'))) return;
+    // Before the delete, not after: stopping the broadcast removes live/state,
+    // and mcIsOwner() in that rule does a get() on the parent — once the parent
+    // is gone the null dereference denies it and the document would be stranded.
+    // deleteMasterclass() also removes it, so this is belt and braces.
+    this.closeLive();
     try {
       await deleteMasterclass(mc.id);
     } catch (e) {

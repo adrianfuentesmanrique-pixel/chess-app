@@ -382,4 +382,22 @@ describe('/masterclasses/{id}/live — the followed board', () => {
     await seedClass();
     await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/live/other`), live()));
   });
+
+  // The reason `allow delete` had to be written out separately: `allow write`
+  // covers create, update AND delete, but every clause in it reads after() —
+  // request.resource.data — which is null on a delete, so the rule ERRORS and
+  // denies. Before this clause existed nobody could remove live/state at all,
+  // which broke both deleteMasterclass()'s cleanup and "stop broadcasting".
+  it('36. the owner CAN delete live/state', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/live/state`, { ...live(), updatedAt: new Date() });
+    await assertSucceeds(deleteDoc(doc(asOwner(), `masterclasses/${MC}/live/state`)));
+  });
+
+  it('37. a viewer CANNOT delete live/state', async () => {
+    await seedClass();
+    await seedMember(VIEWER);
+    await seed(`masterclasses/${MC}/live/state`, { ...live(), updatedAt: new Date() });
+    await assertFails(deleteDoc(doc(asViewer(), `masterclasses/${MC}/live/state`)));
+  });
 });

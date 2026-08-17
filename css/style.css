@@ -1003,6 +1003,15 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   margin-bottom: 10px; border-radius: var(--radius);
   background: var(--gold-bg); color: var(--gold); font-size: 13px;
 }
+/* The text takes the room the button does not, and truncates rather than
+   pushing the button off the right edge at 375px — the same deal .fr-name has
+   in a friends row. A flex item will not shrink below its content without the
+   min-width: 0. */
+.mc-live-bar .mc-live-text {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mc-live-bar .btn { flex: 0 0 auto; }
 /* A flex item will not shrink below its text without this, so .ellipsis alone
    would let a long class name push the ⋯ button off the screen. */
 #mc-title { min-width: 0; font-size: 18px; }

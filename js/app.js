@@ -1486,6 +1486,10 @@ export const Analysis = {
     if (inMc) {
       document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.screen === 'base'));
     }
+    // #ana-mc-live is the second copy of the live bar, so the Stop following /
+    // Go live control is reachable from the board you are actually looking at.
+    // renderLive() hides it by itself when the board is not a Masterclass one.
+    Masterclass.renderLive();
 
     const inHist = !!this.ctx.historyId;
     $('ana-hist-nav').classList.toggle('hidden', !inHist);
@@ -1556,6 +1560,14 @@ export const Analysis = {
     this.renderMoves();
     this.updateNagBar();
     if (this.engineOn) this.restartEngine();
+    // The live board. refresh() is the one choke point every board change here
+    // goes through — a move, an arrow key, a click in the moves list — so the
+    // broadcast needs exactly this one hook rather than four. It does nothing
+    // unless this game came from a Masterclass AND I am its owner AND I have
+    // switched broadcasting on; the write itself is throttled to one a second.
+    if (this.ctx && this.ctx.fromMasterclass) {
+      Masterclass.onBoardChange(this.ctx.fromMasterclass, this.tree);
+    }
   },
 
   updateNagBar() {

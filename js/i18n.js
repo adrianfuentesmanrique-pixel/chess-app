@@ -474,6 +474,25 @@ const DICT = {
   // Friends screen rather than jumping there, because a jump would close the
   // Masterclass you are in the middle of setting up.
   mc_no_friends: { es: 'Aún no tienes amigos. Añádelos en Perfil → Amigos y vuelve aquí.', en: 'You have no friends yet. Add them in Profile → Friends, then come back here.' },
+  // The live board. Broadcasting is never automatic — the owner turns it on,
+  // and the bar says plainly whether the class can see their board, because
+  // "am I being watched right now?" is not something to leave ambiguous.
+  mc_live_off: { es: 'Tu tablero no se está compartiendo.', en: "Your board isn't being shared." },
+  mc_live_start: { es: 'Emitir en vivo', en: 'Go live' },
+  mc_live_on: { es: '🔴 En vivo — la clase ve tu tablero', en: '🔴 Live — the class sees your board' },
+  // Live, but nothing is open yet: the owner turned it on from the class
+  // screen. Saying "the class sees your board" there would be a lie.
+  mc_live_open_chapter: { es: '🔴 En vivo — abre un capítulo', en: '🔴 Live — open a chapter' },
+  mc_live_stop: { es: 'Detener', en: 'Stop' },
+  // A viewer's two states: chasing the teacher, or browsing on their own while
+  // the class carries on without them.
+  mc_live_following: { es: '🔴 Siguiendo la clase', en: '🔴 Following the class' },
+  mc_live_now: { es: '🔴 La clase está en vivo', en: '🔴 The class is live' },
+  mc_follow_stop: { es: 'Dejar de seguir', en: 'Stop following' },
+  mc_follow_resume: { es: 'Volver al vivo', en: 'Back to live' },
+  // Said once, when the teacher stops. Without it a follower's board simply
+  // freezes and looks broken.
+  mc_live_ended: { es: 'La clase terminó la emisión.', en: 'The class stopped broadcasting.' },
   trophy_case: { es: 'Logros', en: 'Achievements' },
   badge_earned: { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },
   streak_tier_up: { es: '¡Racha en aumento!', en: 'Streak milestone!' },

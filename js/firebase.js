@@ -9,9 +9,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
-  // Masterclass. onSnapshot is not used until the live board lands; it is
-  // imported now because the whole firebase-firestore module is already
-  // downloaded, so naming one more symbol from it costs zero extra bytes.
+  // Masterclass. onSnapshot drives the live board — watchLiveState() below is
+  // the only place in the app that opens a Firestore listener at all.
   addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
@@ -814,6 +813,89 @@ export async function setMemberCount(mcId, n) {
     memberCount: Math.max(0, Math.round(n) || 0),
     updatedAt: serverTimestamp(),
   });
+}
+
+// ── The live board ────────────────────────────────────────────────────────
+// One document per class, `masterclasses/{mcId}/live/state`, holding where the
+// teacher is right now. It is not a history and it is not a message queue: a
+// viewer who reconnects gets the CURRENT position, never a replay of the moves
+// they missed. For a lesson that is the right behaviour.
+
+// Firestore's sustained write limit on a SINGLE document is about one write per
+// second. This document is written on every move the teacher makes, so writes
+// are coalesced: at most one per second, and the newest pending state wins.
+// Removing this throttle does not fail loudly — it degrades into rejected
+// writes and rising latency under exactly the conditions (a busy lesson) where
+// it matters most. Do not remove it.
+export const LIVE_THROTTLE_MS = 1000;
+
+let livePending = null;
+let liveTimer = null;
+
+export function pushLiveState(mcId, next) {
+  const user = auth.currentUser;
+  if (!user || !mcId) return;
+  livePending = { mcId, next };
+  // Leading edge: the first move of a quiet minute goes out at once, and only a
+  // burst gets coalesced. A trailing-only throttle would put a second of lag on
+  // every single move.
+  if (liveTimer) return;
+  const flush = () => {
+    liveTimer = null;
+    if (!livePending) return;
+    const { mcId: id, next: state } = livePending;
+    livePending = null;
+    liveTimer = setTimeout(flush, LIVE_THROTTLE_MS);
+    // The rule refuses a path over 512 characters, and a path is child indices
+    // joined by dots — so it is cut at a SEPARATOR, never mid-number. A
+    // truncated path then resolves to a real ancestor instead of to the wrong
+    // move, and the viewer's FEN fallback corrects it exactly. Only a line past
+    // roughly 250 plies can reach this at all.
+    let path = String(state.path || '');
+    if (path.length > 512) {
+      const cut = path.lastIndexOf('.', 512);
+      path = cut > 0 ? path.slice(0, cut) : '';
+    }
+    setDoc(doc(firestore, 'masterclasses', id, 'live', 'state'), {
+      chapterId: state.chapterId ?? null,
+      fen: String(state.fen || '').slice(0, 100),
+      path,
+      drivenBy: user.uid,
+      // serverTimestamp(), never Date.now(): the rule is
+      // `updatedAt == request.time` and a client clock a few seconds out would
+      // be refused.
+      updatedAt: serverTimestamp(),
+    }).catch(e => console.error('live push failed', e));
+  };
+  flush();
+}
+
+// Stopping a broadcast has to cancel the queued write FIRST. Without this, an
+// owner who moves and immediately taps Stop deletes the document and then the
+// pending flush writes it straight back, and the class looks live with nobody
+// driving it. The delete needs the rule this commit added — before it, the
+// `allow write` block's after() clauses evaluated against null and denied.
+export async function stopLiveState(mcId) {
+  livePending = null;
+  if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
+  if (!mcId || !auth.currentUser) return;
+  await deleteDoc(doc(firestore, 'masterclasses', mcId, 'live', 'state'));
+}
+
+// metadata.fromCache is the ONLY reliable signal that this client has lost the
+// server. It flips true the moment the connection drops and false on
+// resubscribe. Note the app does NOT enable Firestore disk persistence (plain
+// getFirestore above), so that cache is in-memory and dies on reload — a viewer
+// who reloads while offline sees the offline state, not stale content. That is
+// intended, not a bug. Commit 7 is what draws a Reconnecting… bar from it.
+//
+// Returns the unsubscribe function. A listener left running is a document read
+// per teacher move, forever, so every caller must hold onto it.
+export function watchLiveState(mcId, cb) {
+  if (!mcId) return () => {};
+  return onSnapshot(doc(firestore, 'masterclasses', mcId, 'live', 'state'),
+    snap => cb(snap.exists() ? snap.data() : null, { fromCache: snap.metadata.fromCache }),
+    err => { console.error('live watch failed', err); cb(null, { fromCache: true }); });
 }
 
 async function pullOrBootstrap(uid) {

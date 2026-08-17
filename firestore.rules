@@ -341,6 +341,15 @@ service cloud.firestore {
         && after().path is string && after().path.size() <= 512
         && after().drivenBy == me()
         && after().updatedAt == request.time;
+
+      // A delete is NOT covered by the `allow write` above, and this is the
+      // trap: every clause up there reads after(), i.e. request.resource.data,
+      // which is NULL on a delete. The rule errors and denies, so until this
+      // clause landed NOBODY could remove live/state — not even the owner.
+      // deleteMasterclass() in js/firebase.js has been attempting it (quietly,
+      // outside the batch) since commit 3, and stopping a broadcast deletes it
+      // too, so viewers see the class go off air. Two real callers, not tidying.
+      allow delete: if mcIsOwner(mcId);
     }
   }
 }

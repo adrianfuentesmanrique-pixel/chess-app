@@ -141,6 +141,11 @@ if (window.Sentry && window.Sentry.onLoad) {
     <div id="ana-mc-nav" class="row hidden" style="margin:0 0 6px;">
       <button id="ana-mc-back" class="btn small">← <span data-i18n="mc_section"></span></button>
     </div>
+    <!-- The second copy of the live bar. #mc-live-bar lives on the Masterclass
+         screen, but once you are following a lesson you are on THIS screen, so
+         the Stop following / Go live control has to be reachable from here too.
+         Masterclass.renderLive() fills both from the same state. -->
+    <div id="ana-mc-live" class="mc-live-bar hidden"></div>
     <div class="row" style="justify-content:flex-end; gap:6px; margin:0 0 6px;">
       <button id="ana-undo-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="undo_annotation">↩️</button>
       <button id="ana-new-game-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="new_game">
