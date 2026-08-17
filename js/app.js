@@ -21,6 +21,7 @@ import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Friends } from './friends.js';
+import { Masterclass } from './masterclass.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -118,7 +119,7 @@ export function modal(contentBuilder) {
   });
 }
 
-function askText(title, initial = '') {
+export function askText(title, initial = '') {
   return modal((box, close) => {
     box.innerHTML = `<h3>${title}</h3>`;
     const inp = document.createElement('input');
@@ -1111,7 +1112,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'rush', 'blind'];
+const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'blind'];
 export let activeScreen = 'analysis';
 
 export function showScreen(name) {
@@ -2205,6 +2206,8 @@ const Base = {
     $('base-games-view').classList.add('hidden');
     this.basesCache = await db.listBases();
     this.renderBases();
+    // The Masterclass section lives above the base list on this same screen.
+    Masterclass.openList();
   },
 
   renderBases() {
@@ -6020,6 +6023,7 @@ async function main() {
   Leaderboard.init();
   PublicProfile.init();
   Friends.init();
+  Masterclass.init();
   Setup.init();
   await Themes.init();
   await Streak.init();

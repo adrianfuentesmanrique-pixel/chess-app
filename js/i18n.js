@@ -414,6 +414,39 @@ const DICT = {
   friends_signin_needed: { es: 'Inicia sesión para usar Amigos.', en: 'Sign in to use Friends.' },
   friends_max: { es: 'Has alcanzado el máximo de 100 amigos.', en: "You've reached the maximum of 100 friends." },
   friends_self: { es: 'Ese eres tú.', en: "That's you." },
+  // Masterclass. "Masterclass" is deliberately NOT translated — the word
+  // appears verbatim in the Spanish strings too. Do not "fix" it to
+  // "Clase magistral" or "Masterclase".
+  mc_section: { es: 'Masterclass', en: 'Masterclass' },
+  mc_new: { es: 'Nueva Masterclass', en: 'New Masterclass' },
+  mc_name: { es: 'Nombre de la Masterclass', en: 'Masterclass name' },
+  mc_empty: { es: 'Aún no tienes ninguna Masterclass. Crea una para compartir posiciones con tus amigos en vivo.', en: "You don't have a Masterclass yet. Create one to share positions with your friends live." },
+  mc_needs_signin: { es: 'Inicia sesión para usar Masterclass.', en: 'Sign in to use Masterclass.' },
+  mc_needs_network: { es: 'Una Masterclass necesita conexión. Tus bases locales siguen funcionando sin internet.', en: 'A Masterclass needs a connection. Your local databases still work offline.' },
+  mc_role_owner: { es: 'Propietario', en: 'Owner' },
+  mc_role_editor: { es: 'Editor', en: 'Editor' },
+  mc_role_viewer: { es: 'Espectador', en: 'Viewer' },
+  // Always rendered after a number — "3 chapters", "1 miembro" — exactly like
+  // `games` in the base list right below the Masterclass section, so they are
+  // lower case. Capitalising them mid-phrase is wrong in Spanish and
+  // inconsistent with "0 games" on the same screen.
+  mc_chapters: { es: 'capítulos', en: 'chapters' },
+  mc_chapters_one: { es: 'capítulo', en: 'chapter' },
+  mc_members: { es: 'miembros', en: 'members' },
+  mc_members_one: { es: 'miembro', en: 'member' },
+  mc_no_chapters: { es: 'Sin capítulos todavía.', en: 'No chapters yet.' },
+  mc_no_members: { es: 'Sin miembros todavía.', en: 'No members yet.' },
+  mc_add_chapter: { es: '➕ Añadir capítulo', en: '➕ Add chapter' },
+  mc_add_member: { es: '➕ Invitar amigos', en: '➕ Invite friends' },
+  mc_chapter_title: { es: 'Título del capítulo', en: 'Chapter title' },
+  mc_delete: { es: 'Borrar la Masterclass', en: 'Delete Masterclass' },
+  mc_delete_confirm: { es: '¿Borrar esta Masterclass? Se borra para todos.', en: 'Delete this Masterclass? It is deleted for everyone.' },
+  mc_leave: { es: 'Salir de la Masterclass', en: 'Leave Masterclass' },
+  mc_leave_confirm: { es: '¿Salir de esta Masterclass?', en: 'Leave this Masterclass?' },
+  mc_remove_member: { es: 'Quitar de la Masterclass', en: 'Remove from Masterclass' },
+  mc_limit: { es: 'Puedes tener hasta {n} Masterclass.', en: 'You can have up to {n} Masterclasses.' },
+  mc_chapter_limit: { es: 'Una Masterclass admite hasta {n} capítulos.', en: 'A Masterclass holds up to {n} chapters.' },
+  mc_member_limit: { es: 'Una Masterclass admite hasta {n} miembros.', en: 'A Masterclass holds up to {n} members.' },
   trophy_case: { es: 'Logros', en: 'Achievements' },
   badge_earned: { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },
   streak_tier_up: { es: '¡Racha en aumento!', en: 'Streak milestone!' },

@@ -220,6 +220,16 @@ if (window.Sentry && window.Sentry.onLoad) {
         <h2 data-i18n="tab_base"></h2>
         <button id="base-new" class="btn primary" data-i18n="new_base"></button>
       </div>
+      <!-- Masterclass sits ABOVE the local base list and is a separate thing:
+           bases are offline and yours, a Masterclass is online and shared.
+           Everything below this block is untouched. -->
+      <div class="mc-section">
+        <div class="mc-section-head">
+          <h3 data-i18n="mc_section"></h3>
+          <button id="mc-new" class="btn small" data-i18n="mc_new"></button>
+        </div>
+        <div id="mc-list" class="list"></div>
+      </div>
       <input type="text" id="base-search" class="input" data-i18n-ph="search">
       <div id="base-list" class="list"></div>
       <p class="hint" data-i18n="cbh_note"></p>
@@ -776,6 +786,35 @@ if (window.Sentry && window.Sentry.onLoad) {
     </div>
     <div id="flb-status" class="hint"></div>
     <div id="flb-list" class="list"></div>
+  </section>
+
+  <!-- ══════════ MASTERCLASS ══════════ -->
+  <!-- Reached from the Masterclass section on the Bases tab. Inert in commit 2:
+       the chapter and member lists have no data source until commits 4 and 5,
+       so both draw their empty state. #mc-live-bar is in the markup now, and
+       stays hidden until commit 6, so the layout is judged with the space it
+       will occupy. -->
+  <section id="screen-masterclass" class="screen hidden">
+    <div class="row screen-head">
+      <button id="mc-back" class="btn" data-i18n="back"></button>
+      <h2 id="mc-title" class="ellipsis"></h2>
+      <button id="mc-menu" class="fr-more hidden" aria-label="⋯">⋯</button>
+    </div>
+    <div id="mc-live-bar" class="mc-live-bar hidden"></div>
+    <div class="mc-block">
+      <div class="mc-block-head">
+        <span id="mc-chapters-label"></span>
+        <button id="mc-add-chapter" class="btn small hidden" data-i18n="mc_add_chapter"></button>
+      </div>
+      <div id="mc-chapter-list" class="list"></div>
+    </div>
+    <div class="mc-block">
+      <div class="mc-block-head">
+        <span id="mc-members-label"></span>
+        <button id="mc-add-member" class="btn small hidden" data-i18n="mc_add_member"></button>
+      </div>
+      <div id="mc-member-list" class="list"></div>
+    </div>
   </section>
 
   <!-- ══════════ PUBLIC PROFILE ══════════ -->

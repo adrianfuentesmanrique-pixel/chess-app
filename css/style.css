@@ -973,6 +973,40 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
    left-hugging the segmented control above it. */
 #flb-status:not(:empty) { text-align: center; padding: 22px 18px; }
 
+/* ── Masterclass ───────────────────────── */
+/* Only existing tokens — --panel2, --gold, --gold-bg, --muted, --radius. The
+   section sits above the local base list on the Bases tab. */
+.mc-section { margin-bottom: 18px; }
+.mc-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 6px;
+}
+.mc-section-head h3 { margin: 0; font-size: 15px; }
+.mc-block {
+  background: var(--panel2); border-radius: var(--radius);
+  padding: 10px; margin-bottom: 12px;
+}
+.mc-block-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 8px;
+}
+.mc-block-head span { color: var(--muted); font-size: 13px; }
+.mc-role {
+  font-size: 11px; padding: 1px 6px; border-radius: 999px;
+  background: var(--gold-bg); color: var(--gold);
+}
+.mc-empty { color: var(--muted); font-size: 13px; padding: 6px 2px; }
+/* Hidden until commit 6 — the live board. It is in the markup already so the
+   screen is laid out with the space it will take. */
+.mc-live-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  margin-bottom: 10px; border-radius: var(--radius);
+  background: var(--gold-bg); color: var(--gold); font-size: 13px;
+}
+/* A flex item will not shrink below its text without this, so .ellipsis alone
+   would let a long class name push the ⋯ button off the screen. */
+#mc-title { min-width: 0; font-size: 18px; }
+
 /* ── puzzle rush ───────────────────────── */
 .rush-board-stack { position: relative; }
 .rush-strike { color: var(--muted); opacity: .35; margin: 0 1px; }
