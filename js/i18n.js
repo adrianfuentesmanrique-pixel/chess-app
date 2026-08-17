@@ -458,6 +458,22 @@ const DICT = {
   // The 100,000-byte PGN limit is the one cap Firestore rules really enforce.
   mc_chapter_too_big: { es: 'Esta partida es demasiado grande para un capítulo (máximo {n} KB).', en: 'This game is too big for a chapter (max {n} KB).' },
   mc_member_limit: { es: 'Una Masterclass admite hasta {n} miembros.', en: 'A Masterclass holds up to {n} members.' },
+  // The picker only ever reports HOW MANY landed, never who did not. Somebody
+  // who has blocked you is refused by the rules, and naming them would make a
+  // block detectable — the same guarantee the single neutral "Request sent"
+  // toast gives. So "1 added" and "0 added" are both honest and both silent.
+  // No ✓ on these: the same message has to read honestly at 0, which is what
+  // somebody who has blocked you produces.
+  mc_member_added: { es: '{n} miembros añadidos', en: '{n} members added' },
+  mc_member_added_one: { es: '1 miembro añadido', en: '1 member added' },
+  mc_remove_member_confirm: { es: '¿Quitar a {n} de la Masterclass?', en: 'Remove {n} from this Masterclass?' },
+  mc_invite_title: { es: 'Invitar amigos', en: 'Invite friends' },
+  mc_invite_add: { es: 'Añadir', en: 'Add' },
+  mc_already_member: { es: 'Ya es miembro', en: 'Already a member' },
+  // Shown INSIDE the picker instead of an empty dialog. It points at the
+  // Friends screen rather than jumping there, because a jump would close the
+  // Masterclass you are in the middle of setting up.
+  mc_no_friends: { es: 'Aún no tienes amigos. Añádelos en Perfil → Amigos y vuelve aquí.', en: 'You have no friends yet. Add them in Profile → Friends, then come back here.' },
   trophy_case: { es: 'Logros', en: 'Achievements' },
   badge_earned: { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },
   streak_tier_up: { es: '¡Racha en aumento!', en: 'Streak milestone!' },

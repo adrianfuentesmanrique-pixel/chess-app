@@ -1013,6 +1013,20 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   color: var(--muted); font-size: 13px;
   min-width: 14px; text-align: right;
 }
+/* The invite picker row: the friends row with a checkbox in front, so four
+   columns instead of .fr-row's three. Only the name column grows, which is
+   what keeps a long display name from pushing the chip off screen at 375px.
+   .modal-box already scrolls at 85dvh, so a long friends list needs nothing. */
+.mc-pick {
+  display: grid; grid-template-columns: auto auto 1fr auto;
+  align-items: center; gap: 10px;
+  background: var(--panel2); border-radius: var(--radius);
+  padding: 10px 12px; color: var(--text);
+  width: 100%; margin-bottom: 7px; cursor: pointer;
+}
+/* Someone already in the class: no checkbox, and dimmed so the eye skips it. */
+.mc-pick.taken { opacity: .55; cursor: default; }
+.mc-pick input { width: 18px; height: 18px; accent-color: var(--gold); margin: 0; }
 
 /* ── puzzle rush ───────────────────────── */
 .rush-board-stack { position: relative; }

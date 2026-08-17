@@ -728,6 +728,94 @@ export async function deleteChapter(mcId, chapterId) {
   await deleteDoc(doc(firestore, 'masterclasses', mcId, 'chapters', chapterId));
 }
 
+// ── Members ───────────────────────────────────────────────────────────────
+// A member document is four fields and NOT ONE OF THEM IS A NAME. Names,
+// usernames and avatars are read live from /leaderboard with
+// fetchLeaderboardByUids(), exactly as the friends list and the request lists
+// do — so they cannot go stale, and nobody can store text on a document that
+// carries somebody else's uid.
+
+// ADVISORY, UI-side only, like MAX_MASTERCLASSES and MAX_CHAPTERS: no rule can
+// count documents without a server-maintained counter, and a counter the client
+// writes is not a security control. It is also the bound on the fetch below.
+export const MAX_MEMBERS = 30;
+
+// Each add is its own write, and each one can legitimately fail on its own —
+// the create rule refuses anyone who has blocked the owner. Failures are
+// COUNTED, never named and never thrown, so inviting five friends when one has
+// blocked you still adds four and reports four. Naming the one that failed
+// would make a block detectable, which is the very thing sendFriendRequest()'s
+// single neutral toast exists to prevent.
+//
+// serverTimestamp(), never Date.now(): the rule is `addedAt == request.time`
+// and a client clock a few seconds out would be refused.
+export async function addMembers(mcId, uids, role = 'viewer') {
+  const user = auth.currentUser;
+  if (!user || !mcId) return 0;
+  let added = 0;
+  // My own membership already exists and the rule would refuse a second one,
+  // so it is filtered out rather than counted as a failure.
+  for (const uid of [...new Set(uids)].filter(u => u && u !== user.uid)) {
+    try {
+      await setDoc(doc(firestore, 'masterclasses', mcId, 'members', uid), {
+        uid, role, addedBy: user.uid, addedAt: serverTimestamp(),
+      });
+      added++;
+    } catch { /* blocked, or offline — silent by design, see above */ }
+  }
+  return added;
+}
+
+// Everyone in the class can see who else is in it. Unsorted here; the screen
+// sorts, the same way fetchChapters() and the friends list do, so no composite
+// index is needed.
+export async function fetchMembers(mcId) {
+  if (!mcId) return [];
+  const snap = await getDocs(query(
+    collection(firestore, 'masterclasses', mcId, 'members'),
+    limit(MAX_MEMBERS + 10)));
+  const out = [];
+  snap.forEach(d => out.push({ uid: d.id, ...d.data() }));
+  return out;
+}
+
+// The owner removing somebody. The rule refuses `memberUid == me()` here, so
+// the owner cannot remove themselves — a class with no owner-member is
+// unreachable. js/masterclass.js therefore draws no ⋯ on the owner's own row.
+export async function removeMember(mcId, uid) {
+  if (!mcId || !uid) return;
+  await deleteDoc(doc(firestore, 'masterclasses', mcId, 'members', uid));
+}
+
+// Leaving is the same delete, done to my own document, and the rule allows it
+// only while I am NOT the owner — for the same reason.
+export async function leaveMasterclass(mcId) {
+  const user = auth.currentUser;
+  if (!user || !mcId) return;
+  await deleteDoc(doc(firestore, 'masterclasses', mcId, 'members', user.uid));
+}
+
+// The number on the Bases row, so the list can say "3 members" without reading
+// the subcollection. Advisory — if it drifts, the member screen is the truth.
+//
+// BOTH fields are mandatory. The parent update rule requires
+// `after().updatedAt == request.time` AND
+// `keys().hasOnly(['ownerUid','name','createdAt','updatedAt','memberCount'])`,
+// so sending memberCount on its own is DENIED, not merely untidy.
+//
+// Only the owner may update the parent, so a member who LEAVES cannot fix the
+// count. That is deliberate and there is nothing to do about it client-side:
+// the number goes stale by one until the owner next opens the class, and the
+// member list underneath it is always right.
+export async function setMemberCount(mcId, n) {
+  const user = auth.currentUser;
+  if (!user || !mcId) return;
+  await updateDoc(doc(firestore, 'masterclasses', mcId), {
+    memberCount: Math.max(0, Math.round(n) || 0),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 async function pullOrBootstrap(uid) {
   const ref = doc(firestore, 'users', uid);
   const snap = await getDoc(ref);

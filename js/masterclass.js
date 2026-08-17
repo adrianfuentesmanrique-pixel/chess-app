@@ -1,13 +1,15 @@
 // Masterclass — a shared, online database: chapters you publish and members
-// who follow along, eventually on a live board. Commit 4 of
+// who follow along, eventually on a live board. Commit 5 of
 // docs/superpowers/plans/2026-08-16-masterclass-stage-1.md.
 //
 // Commit 2 built these screens inert. Commit 3 made the list, the create and
-// the delete real. Commit 4 adds chapters: the owner takes one from a local
+// the delete real. Commit 4 added chapters: the owner takes one from a local
 // base or from the Analysis board, everyone in the class can open one on that
-// same board, and the owner can delete one. Members are still empty — that is
-// commit 5. There is still deliberately no sample data: every list draws its
-// real empty state, so nothing invented can reach the site.
+// same board, and the owner can delete one. Commit 5 adds members — the owner
+// invites friends, everyone sees who is in the class, the owner can remove
+// somebody and a member can leave. There is still deliberately no sample
+// data: every list draws its real empty state, so nothing invented can reach
+// the site.
 //
 // Everything that arrives from Firestore is another user's text, so every one
 // of those values goes through esc() before it reaches innerHTML — the same
@@ -20,12 +22,20 @@ import { t, tn } from './i18n.js';
 import {
   Auth, MAX_MASTERCLASSES, createMasterclass, fetchMyMasterclasses,
   deleteMasterclass, MAX_CHAPTERS, MAX_CHAPTER_BYTES, addChapter, fetchChapters,
-  deleteChapter,
+  deleteChapter, MAX_MEMBERS, addMembers, fetchMembers, removeMember,
+  leaveMasterclass, setMemberCount, fetchLeaderboardByUids,
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askText, askConfirm, showScreen, activeScreen,
   chooseBase, Analysis,
 } from './app.js';
+import { avatarHtml } from './avatars.js';
+// js/friends.js does NOT import this file, so this is a plain edge and not a
+// second cycle — and js/app.js imports friends.js one line before masterclass.js,
+// so it has finished evaluating by the time anything here runs. The picker
+// reads Friends.friends, the list fetchFriendUids() already fills, rather than
+// running a second query of its own.
+import { Friends } from './friends.js';
 import { parsePgn } from './tree.js';
 import * as db from './db.js';
 
@@ -56,17 +66,22 @@ export const Masterclass = {
   loadFailed: false,
   // The class the Masterclass screen is showing, or null.
   current: null,
-  // Its chapters and members. Commit 5 fills members.
+  // Its chapters and its members.
   chapters: [],
   // Same three-state rule the class list follows: "empty", "still loading" and
   // "the fetch failed" are three different things to draw.
   chaptersLoaded: false,
   chaptersFailed: false,
+  // Members, joined to their public /leaderboard rows for names and avatars.
+  // The same three states, drawn apart for the same reason.
   members: [],
+  membersLoaded: false,
+  membersFailed: false,
 
   init() {
     $('mc-new').onclick = () => this.newClass();
     $('mc-add-chapter').onclick = () => this.addChapterMenu();
+    $('mc-add-member').onclick = () => this.invite();
     // Back goes to the Bases tab, which is where the section lives.
     // showScreen('base') calls Base.refresh(), which redraws the list.
     $('mc-back').onclick = () => showScreen('base');
@@ -197,10 +212,13 @@ export const Masterclass = {
     this.chaptersLoaded = false;
     this.chaptersFailed = false;
     this.members = [];
+    this.membersLoaded = false;
+    this.membersFailed = false;
     showScreen('masterclass');
     this.lightBasesTab();
     this.render();
     this.loadChapters();
+    this.loadMembers();
   },
 
   // Coming back from a chapter that was opened in Analysis. The class, its
@@ -248,7 +266,9 @@ export const Masterclass = {
     $('mc-title').textContent = mc ? (mc.name || '?') : t('mc_section');
     // The ⋯ menu is about the open class, so it is hidden when there is none.
     $('mc-menu').classList.toggle('hidden', !mc);
-    // Only the owner adds chapters and members. Commits 4 and 5 unhide these.
+    // Only the owner adds chapters and invites members. A viewer gets neither
+    // button, no ⋯ on a chapter row and no ⋯ on a member row — the rules
+    // refuse all three, so there is nothing for them to press.
     const owner = !!mc && mc.role === 'owner';
     $('mc-add-chapter').classList.toggle('hidden', !owner);
     $('mc-add-member').classList.toggle('hidden', !owner);
@@ -333,23 +353,131 @@ export const Masterclass = {
     await this.loadChapters();
   },
 
+  // ── Members ─────────────────────────────────────────────────────────────
+  // One read per member for the membership, then ONE batch of public
+  // /leaderboard documents for the names and avatars. Nothing about a person
+  // is ever copied onto a member document, so a name here can never go stale
+  // and a stranger cannot store text on a document carrying someone else's uid.
+  async loadMembers() {
+    const mc = this.current;
+    if (!mc) return;
+    try {
+      const rows = await fetchMembers(mc.id);
+      const people = await fetchLeaderboardByUids(rows.map(r => r.uid));
+      // The screen may have moved on to another class while this was in
+      // flight; dropping a stale answer is cheaper than cancelling it.
+      if (this.current !== mc) return;
+      // A member with no public document still gets a row, with `?` for a
+      // name — dropping it would hide somebody who really is in the class.
+      this.members = rows
+        .map(r => ({ ...(people[r.uid] || {}), uid: r.uid, role: r.role || 'viewer' }))
+        // Owner first, then by name: whose class this is, is the first thing
+        // a viewer opening it wants to know.
+        .sort((a, b) =>
+          (a.role === 'owner' ? 0 : 1) - (b.role === 'owner' ? 0 : 1)
+          || String(a.profileName || '').localeCompare(String(b.profileName || '')));
+      this.membersFailed = false;
+    } catch (e) {
+      if (this.current !== mc) return;
+      console.error('Loading members failed', e);
+      this.membersFailed = true;
+    }
+    this.membersLoaded = true;
+    this.renderMembers();
+  },
+
   renderMembers() {
     const n = this.members.length;
-    $('mc-members-label').textContent = `${n} ${tn('mc_members', n)}`;
+    // Same rule as the chapter count: until the fetch lands this is not a
+    // fact, so it says Loading rather than "0 miembros" for a class with five.
+    $('mc-members-label').textContent = this.membersLoaded
+      ? `${n} ${tn('mc_members', n)}` : t('loading');
     const el = $('mc-member-list');
     el.innerHTML = '';
     if (!n) {
+      if (!this.membersLoaded) return;
       const p = document.createElement('p');
       p.className = 'mc-empty';
-      p.textContent = t('mc_no_members');
+      // Offline is not empty. A class always has at least its owner, so "No
+      // members yet" on a dropped connection would be visibly wrong.
+      p.textContent = this.membersFailed ? t('mc_needs_network') : t('mc_no_members');
       el.appendChild(p);
+      return;
     }
-    // Commit 5 renders the real rows.
+    const mc = this.current;
+    const owner = !!mc && mc.role === 'owner';
+    const myUid = Auth.user && Auth.user.uid;
+    for (const m of this.members) {
+      const row = document.createElement('div');
+      // The same three-column grid as a chapter row and a friends row: the
+      // middle column truncates and the ⋯ stays on screen at 375px.
+      row.className = 'fr-row';
+      // The owner's own row gets NO ⋯. The delete rule refuses an owner
+      // removing themselves — that would leave a class nobody can read — so
+      // the button could only ever fail, and a button that always fails is
+      // worse than no button.
+      const canRemove = owner && m.uid !== myUid;
+      // The role chip goes on the sub line, first, so a long username cannot
+      // clip it. Everything here came out of Firestore, so it is all escaped.
+      row.innerHTML =
+        avatarHtml(m.avatarId, 36) +
+        `<span class="fr-name">${esc(m.profileName || '?')}` +
+        `<span class="fr-sub">${this.roleChip(m.role)}${esc(m.username || '')}</span></span>` +
+        (canRemove ? '<button class="fr-more" aria-label="⋯">⋯</button>' : '');
+      const more = row.querySelector('.fr-more');
+      if (more) more.onclick = () => this.memberMenu(m);
+      el.appendChild(row);
+    }
+  },
+
+  memberMenu(m) {
+    sheet([
+      { label: t('mc_remove_member'), danger: true, action: () => this.confirmRemoveMember(m) },
+    ]);
+  },
+
+  // askConfirm() puts its message into innerHTML, so the name is escaped
+  // before it is substituted — the same thing Friends.confirmText() does.
+  async confirmRemoveMember(m) {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    const name = m.profileName || '?';
+    if (!await askConfirm(t('mc_remove_member_confirm').replace('{n}', esc(name)))) return;
+    try {
+      await removeMember(mc.id, m.uid);
+    } catch (e) {
+      console.error('Removing a member failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    await this.loadMembers();
+    this.bumpCount();
+  },
+
+  // The number the Bases row shows, so the list can say "3 members" without
+  // reading the subcollection. Fire and forget: the member list on screen is
+  // already right, and only the owner is allowed to write it, so a failure is
+  // not worth a toast. See setMemberCount() in js/firebase.js for why the
+  // write has to carry updatedAt as well.
+  async bumpCount() {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!this.membersLoaded || this.membersFailed) return;
+    const n = this.members.length;
+    try {
+      await setMemberCount(mc.id, n);
+      // Keep the cached row in step so the Bases tab is right immediately,
+      // not only after its next refetch.
+      mc.memberCount = n;
+    } catch (e) {
+      console.error('Updating the member count failed', e);
+    }
   },
 
   // Owner and member get different items — deleting a class and leaving one
-  // are not the same action. Delete is live from this commit; leaving is
-  // commit 5's write and is still inert.
+  // are not the same action, and the rules refuse each of them to the other.
+  // The owner's menu gets no Leave for exactly the reason their row gets no
+  // Remove.
   menu() {
     const mc = this.current;
     if (!mc) return;
@@ -357,8 +485,141 @@ export const Masterclass = {
     sheet([
       owner
         ? { label: t('mc_delete'), danger: true, action: () => this.confirmDelete() }
-        : { label: t('mc_leave'), danger: true, action: () => {} },
+        : { label: t('mc_leave'), danger: true, action: () => this.confirmLeave() },
     ]);
+  },
+
+  // Leaving deletes my own membership document, and that is all it can do:
+  // memberCount lives on the parent and the update rule only lets the OWNER
+  // write the parent. So the count on the owner's Bases row goes stale by one
+  // until they next open the class and bumpCount() fixes it. That is what
+  // "advisory" means here — the member list is the truth. Do not try to work
+  // around it; the write would simply be denied.
+  async confirmLeave() {
+    const mc = this.current;
+    if (!mc || mc.role === 'owner') return;
+    if (!await askConfirm(t('mc_leave_confirm'))) return;
+    try {
+      await leaveMasterclass(mc.id);
+    } catch (e) {
+      console.error('Leaving a Masterclass failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    // The screen is showing a class I am no longer in, and I can no longer
+    // read it, so it has to go. showScreen('base') runs Base.refresh() →
+    // showList() → openList(), which refetches the list without it.
+    this.current = null;
+    this.chapters = [];
+    this.chaptersLoaded = false;
+    this.chaptersFailed = false;
+    this.members = [];
+    this.membersLoaded = false;
+    this.membersFailed = false;
+    showScreen('base');
+  },
+
+  // ── Inviting ────────────────────────────────────────────────────────────
+  // Only friends can be invited, and only by the owner. There is no search
+  // box here on purpose: the Find tab on the Friends screen is the one place
+  // that turns a username into a uid, and duplicating it would mean two
+  // different answers to "who is this".
+  async invite() {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!Auth.user) { toast(t('mc_needs_signin')); return; }
+    if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
+    // The cap and the "already a member" chips are both facts about a list
+    // that has actually arrived. Counting an empty array that simply has not
+    // loaded would wave the thirty-first member straight through.
+    if (!this.membersLoaded) await this.loadMembers();
+    if (this.membersFailed) { toast(t('mc_needs_network')); return; }
+    if (this.members.length >= MAX_MEMBERS) {
+      toast(t('mc_member_limit').replace('{n}', MAX_MEMBERS));
+      return;
+    }
+    // The friends list is lazy — it may never have been opened this session.
+    if (!Friends.friendsLoaded) await Friends.loadFriends();
+    let uids = await this.pickFriends();
+    if (!uids || !uids.length) return;
+    // Advisory, UI-side: trim rather than refuse, so checking six with room
+    // for four still adds four instead of doing nothing.
+    const room = MAX_MEMBERS - this.members.length;
+    if (uids.length > room) {
+      toast(t('mc_member_limit').replace('{n}', MAX_MEMBERS));
+      uids = uids.slice(0, room);
+    }
+    let added = 0;
+    try {
+      added = await addMembers(mc.id, uids);
+    } catch (e) {
+      console.error('Inviting members failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    // The COUNT and nothing else. addMembers() swallows each refusal on
+    // purpose: the rules refuse anyone who has blocked me, and naming them
+    // would make a block detectable. Same guarantee as the single neutral
+    // toast sendFriendRequest() shows for every outcome.
+    toast(tn('mc_member_added', added));
+    await this.loadMembers();
+    this.bumpCount();
+  },
+
+  // Resolves to an array of uids, or null if cancelled. Checkboxes plus one
+  // Add button — the plan also wanted a single tap on a row to add that one
+  // friend immediately, which was dropped: one tap meaning two different
+  // things on the same 44px target is a mis-tap that writes to somebody
+  // else's class. Tapping the row still toggles its box, because it is a
+  // <label>.
+  pickFriends() {
+    const inClass = new Set(this.members.map(m => m.uid));
+    const list = Friends.friends;
+    return modal((box, close) => {
+      box.innerHTML = `<h3>${esc(t('mc_invite_title'))}</h3>`;
+      if (!list.length) {
+        // No friends yet: one line pointing at Profile → Friends rather than
+        // an empty dialog. Deliberately NOT a jump — Friends.open() exists and
+        // would work, but it calls showScreen('friends'), which would throw
+        // away the Masterclass screen being set up.
+        const p = document.createElement('p');
+        p.className = 'mc-empty';
+        p.textContent = t('mc_no_friends');
+        box.appendChild(p);
+      }
+      const boxes = [];
+      for (const f of list) {
+        const taken = inClass.has(f.uid);
+        const row = document.createElement('label');
+        row.className = 'mc-pick' + (taken ? ' taken' : '');
+        // The empty span holds the checkbox column open on a taken row, so
+        // every avatar in the list still lines up.
+        row.innerHTML =
+          (taken ? '<span></span>' : '<input type="checkbox">') +
+          avatarHtml(f.avatarId, 36) +
+          `<span class="fr-name">${esc(f.profileName || '?')}` +
+          `<span class="fr-sub">${esc(f.username || '')}</span></span>` +
+          (taken ? `<span class="mc-role">${esc(t('mc_already_member'))}</span>` : '');
+        const cb = row.querySelector('input');
+        if (cb) boxes.push([cb, f.uid]);
+        box.appendChild(row);
+      }
+      const actions = document.createElement('div');
+      actions.className = 'row';
+      const ca = document.createElement('button');
+      ca.className = 'btn'; ca.textContent = t('cancel');
+      ca.onclick = () => close(null);
+      if (boxes.length) {
+        const ok = document.createElement('button');
+        ok.className = 'btn primary'; ok.textContent = t('mc_invite_add');
+        ok.onclick = () => close(boxes.filter(([c]) => c.checked).map(([, u]) => u));
+        actions.append(ok, ca);
+      } else {
+        // Nothing to check — no friends, or all of them are already in.
+        actions.append(ca);
+      }
+      box.appendChild(actions);
+    });
   },
 
   // Destructive and shared: this deletes the class for every member, which is
