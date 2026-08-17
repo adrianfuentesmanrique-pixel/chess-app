@@ -2,6 +2,77 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — commit 5 of 7 is done (2026-08-17, `e2cba06`). Members are
+  real: the owner invites friends, everyone sees who is in the class, the owner
+  removes and a member leaves.** `sw.js` v67 → **v68**. `firestore.rules`,
+  `firestore.indexes.json` and every test are untouched — **still 122 passing,
+  0 failing**, and nothing was deployed. **No rules change was needed**: the
+  members block already allows the owner to add and remove and a member to
+  leave.
+  - `js/firebase.js` gained `MAX_MEMBERS` (30), `addMembers()`,
+    `fetchMembers()`, `removeMember()`, `leaveMasterclass()` and
+    `setMemberCount()`.
+  - **`addMembers()` counts failures and never names them.** The create rule
+    refuses anyone who has blocked the owner, so inviting five friends when one
+    has blocked you adds four and reports four. Naming the one that failed
+    would make a block detectable — the same guarantee
+    `sendFriendRequest()`'s single neutral toast gives. **Do not "improve" this
+    into a real error message.** The two new toast strings
+    (`mc_member_added`, `mc_member_added_one`) deliberately carry **no ✓**, so
+    the same message still reads honestly at zero.
+  - **`setMemberCount()` must send `updatedAt` as well as `memberCount`.** The
+    parent update rule requires `after().updatedAt == request.time` *and*
+    `keys().hasOnly(['ownerUid','name','createdAt','updatedAt','memberCount'])`,
+    so a write carrying `memberCount` alone is **denied**, not merely untidy.
+  - **A member who LEAVES cannot fix the count**, and this is not a bug to
+    chase: only the owner may write the parent document. The number on the
+    owner's Bases row goes stale by one until they next open the class, where
+    `bumpCount()` corrects it. That is what "advisory" means here — the member
+    list is the truth.
+  - **No name or avatar is ever copied onto a member document.** A member
+    document is `{uid, role, addedBy, addedAt}` and nothing else; names,
+    usernames and avatars are read live from `/leaderboard` through the
+    existing `fetchLeaderboardByUids()`, the same batch read the friends list
+    and the request lists use. The picker reads `Friends.friends` — the list
+    `fetchFriendUids()` already fills — rather than running a query of its own.
+    `js/masterclass.js` now imports `js/friends.js`; that is a plain edge, not a
+    second cycle, and `js/app.js` imports friends.js one line before
+    masterclass.js so it has finished evaluating.
+  - **The owner's own row gets no Remove and the owner's ⋯ menu gets no
+    Leave.** The delete rule refuses both — a class with no owner-member is
+    unreachable — so the buttons could only ever fail.
+  - **The picker is checkboxes plus one Add button.** The plan's "one tap on a
+    single row adds that one friend" half was **dropped deliberately**: one tap
+    meaning two different things on the same target is a mis-tap that writes to
+    somebody else's class. Tapping a row still toggles its box, because the row
+    is a `<label>`. Friends already in the class are dimmed, lose their
+    checkbox and gain an "Already a member" chip.
+  - **With no friends yet the picker shows one line pointing at Profile →
+    Friends** (`mc_no_friends`) instead of an empty dialog. Adrian's decision,
+    and it is deliberately **not** a jump: `Friends.open()` exists at
+    `js/friends.js:94` and would work, but it calls `showScreen('friends')`,
+    which throws away the Masterclass screen being set up.
+  - `membersLoaded` / `membersFailed` mirror the chapter list exactly:
+    "loading", "offline" and "empty" are three different screens, and a class
+    always has at least its owner, so "No members yet" on a dropped connection
+    would be visibly wrong.
+  - 8 new bilingual strings (`mc_member_added`, `mc_member_added_one`,
+    `mc_remove_member_confirm`, `mc_invite_title`, `mc_invite_add`,
+    `mc_already_member`, `mc_no_friends`) and one new CSS block, `.mc-pick`.
+  - Verified over CDP at 375px in light and dark, in **both languages**: the
+    loading / offline / empty states drawn apart, the role chip in owner,
+    editor and viewer, an escaped `<b>xss</b>` name, a 45-character display
+    name truncating with the row's right edge at 355, a member with no public
+    document rendering as `?`, a viewer with no ➕ buttons and no ⋯ on any row,
+    the picker with an "Already a member" row and with no friends at all,
+    `document.scrollWidth` exactly 375 everywhere, and zero console errors.
+  - **NOT YET VERIFIED AGAINST PRODUCTION.** This one needs BOTH accounts and
+    Adrian has to run it. Nothing in this commit has ever reached real
+    Firestore.
+  - **Commit 6 MUST add `allow delete: if mcIsOwner(mcId);` to the
+    `masterclasses/{mcId}/live/{docId}` block, plus a test.** Today nobody can
+    delete `live/state` at all. Commit 5 deliberately did not fix it.
+
 - **Masterclass — commit 4 of 7 is done (2026-08-16, `2d2f47c`). Chapters are
   real: added from a base or from the board, opened in Analysis, deleted by the
   owner.** `sw.js` v66 → **v67**. `firestore.rules`, `firestore.indexes.json`
