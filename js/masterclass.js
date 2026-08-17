@@ -518,6 +518,10 @@ export const Masterclass = {
     }
     this.membersLoaded = true;
     this.renderMembers();
+    // The member list is the truth and the count on the Bases row is advisory,
+    // so this is where a count that drifted gets corrected — a member leaving
+    // cannot write it themselves. bumpCount() writes only when the two disagree.
+    this.bumpCount();
   },
 
   renderMembers() {
@@ -593,11 +597,18 @@ export const Masterclass = {
   // already right, and only the owner is allowed to write it, so a failure is
   // not worth a toast. See setMemberCount() in js/firebase.js for why the
   // write has to carry updatedAt as well.
+  //
+  // It writes ONLY when the number is actually wrong, which is what makes it
+  // safe to call on every open. A member who LEAVES cannot fix the count —
+  // only the owner may write the parent document — so without this the owner's
+  // Bases row stayed one too high until they next added or removed somebody.
+  // Guarded, the normal case (the count is already right) costs zero writes.
   async bumpCount() {
     const mc = this.current;
     if (!mc || mc.role !== 'owner') return;
     if (!this.membersLoaded || this.membersFailed) return;
     const n = this.members.length;
+    if (mc.memberCount === n) return;
     try {
       await setMemberCount(mc.id, n);
       // Keep the cached row in step so the Bases tab is right immediately,
@@ -626,8 +637,10 @@ export const Masterclass = {
   // Leaving deletes my own membership document, and that is all it can do:
   // memberCount lives on the parent and the update rule only lets the OWNER
   // write the parent. So the count on the owner's Bases row goes stale by one
-  // until they next open the class and bumpCount() fixes it. That is what
-  // "advisory" means here — the member list is the truth. Do not try to work
+  // until the owner next OPENS the class, where loadMembers() → bumpCount()
+  // corrects it. (Commit 7 made that true: bumpCount() used to run only on an
+  // add or a remove, so the stale number could sit there indefinitely.) That is
+  // what "advisory" means here — the member list is the truth. Do not try to work
   // around it; the write would simply be denied.
   async confirmLeave() {
     const mc = this.current;

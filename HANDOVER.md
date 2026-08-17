@@ -2,6 +2,115 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — commit 7 of 7 is done (2026-08-17, `50d0f43`). Stage 1 is
+  CODE-COMPLETE.** Connection state: the Reconnecting bar, the offline
+  Masterclass section, and one real bug fixed on the way. `sw.js` v69 →
+  **v70**. `firestore.rules`, `firestore.indexes.json` and every test are
+  untouched — **still 124 passing, 0 failing**, and **nothing needs
+  deploying but the site itself.**
+  - **`watchLiveState()` now passes `{ includeMetadataChanges: true }`, and that
+    flag is LOAD-BEARING.** `onSnapshot` by default only raises an event when the
+    document **data** changes. Losing the server is a *metadata*-only change, so
+    an idle viewer whose connection dropped would never have been called back
+    and **the Reconnecting bar would never have appeared at all.** The plan's
+    Task 7 did not mention this. The flag costs **no document reads** — the extra
+    events are raised locally from the same snapshot, and Firestore bills reads,
+    not callbacks. **Do not remove it as noise.**
+  - **A cached `null` is no longer believed, and this was a real bug.** The error
+    path in `watchLiveState()` hands the callback
+    `(null, { fromCache: true })`, and the old code read that as "the teacher
+    stopped": it **wiped the last known position off the viewer's board and
+    toasted "The class stopped broadcasting" every time their signal dropped.**
+    A disappearance is now only accepted when `fromCache` is false, i.e. when the
+    server said it. A cached null draws Reconnecting and changes nothing else.
+  - **The Reconnecting bar REPLACES the live text in the same two containers**
+    (`#mc-live-bar` and `#ana-mc-live`) — not a second line, not a takeover.
+    Adrian's decision, and the reasoning is load-bearing: the bar sits directly
+    above the board on Analysis at 375px, so a second line would push the board
+    down and back up on every wobble, and taking the bar over entirely would
+    remove **Stop following** at the one moment a viewer most wants a way out of
+    a frozen board. Geometry and button position are byte-identical between the
+    two looks; only the colour and the text change.
+  - **Grey, not gold** — `.mc-live-bar.mc-live-stale` swaps `--gold-bg` /
+    `--gold` for `--panel2` / `--muted`. Gold in this app means something is
+    happening; the whole message here is that we cannot tell.
+  - **Two signals feed one expression.** `stale` is
+    `this.liveStale || !navigator.onLine`. The browser's `offline` event fires
+    the instant the interface drops; Firestore can take several seconds to decide
+    it has lost the server. Neither alone is both prompt and reliable. **Owners
+    are excluded from it entirely** — an owner has no listener (they never watch
+    their own document), and `goLive()` / `stopLive()` already toast
+    `mc_needs_network`.
+  - **Disconnected with nobody live shows a text-only bar, no button.** Following
+    applies to a broadcast we cannot see. A *hidden* bar would be the app quietly
+    claiming the class is not live, which is exactly what it does not know.
+  - **The snapshot callback became a named method, `onLiveSnapshot(mc, state,
+    meta)`.** The real listener cannot run from this machine at all (App Check),
+    so a snapshot arriving from the cache is unreachable outside production
+    unless it can be called directly. `watch()` is now one line.
+  - **`liveKey()` skips a redundant re-apply.** `includeMetadataChanges` makes
+    the same position arrive twice as routine — once from the cache, once from
+    the server — and re-applying it would re-run `gotoPath()` and
+    `Analysis.refresh()` for nothing. It is used **only** to skip work, never to
+    decide what to draw.
+  - **Offline replaces the WHOLE Masterclass section on the Bases tab**, even
+    when a list is already in memory from before the connection went. Every row
+    leads to a screen that cannot load its chapters or its members, so leaving
+    them tappable would trade one honest message for three broken ones.
+    `renderList()` now has **five** states, and the offline check is FIRST —
+    ahead of signed-out. `mc_needs_network` already said "your local databases
+    still work offline", which is why it was reused rather than a new string
+    written.
+  - **`load()` returns early when offline.** A Firestore read with no network
+    never resolves and never rejects, so it would sit on the `await` forever and
+    leave the section stuck on "Loading…" *behind* the offline message. The
+    `online` listener is the retry, **and it only refetches when the Bases tab is
+    actually open** — a reconnect while somebody is solving puzzles costs no
+    reads.
+  - **Only ONE new string, `mc_reconnecting`.** Everything the plan's Task 7
+    listed already existed: its `mc_live`, `mc_following` and `mc_back_to_live`
+    are `mc_live_on`, `mc_live_following` and `mc_follow_resume`, and
+    `mc_member_added` shipped in commit 5 deliberately **without** the plan's ✓.
+    The plan's Task 7 string block is stale — do not paste it in.
+  - **`fetchMasterclass()` is STILL unused, and stage 1 ends that way.** Commits
+    4 and 6 both predicted it would earn a caller and it did not. Commit 7 has no
+    use for it either: rereading the parent is a document read that changes
+    nothing on screen. **Do not add a call for tidiness.** Stage 2 or nothing.
+  - **One more real defect fixed: the stale member count never actually
+    corrected itself.** Commit 5's note (and the comment in the code) claimed the
+    owner's Bases row was fixed "next time they open the class". It was not —
+    `bumpCount()` was only ever called from `addMembers()` and
+    `removeMember()`, so after a member **left**, the number stayed one too high
+    until the owner happened to add or remove somebody. `loadMembers()` now calls
+    it, and `bumpCount()` **returns without writing when the count is already
+    right**, so opening a class costs zero writes in the normal case and exactly
+    one when it has drifted. **The documented behaviour is now the real
+    behaviour.**
+  - **Firestore has no on-disk cache to go stale with** — `getFirestore(app)` is
+    called plain, with no `enableIndexedDbPersistence` and no
+    `persistentLocalCache`. Confirmed, not assumed: after a reload while offline
+    the only IndexedDB database matching /firestore|firebaseLocalStorage/ is
+    `firebaseLocalStorageDb`, which is **Auth's** store, not Firestore's. So a
+    viewer who reloads offline sees the offline message, never stale content.
+  - Verified over CDP at 375px in light and dark, in **both languages**: nine bar
+    states drawn apart (viewer following / browsing / stale-following /
+    stale-browsing / stale-nobody-live / hidden-nobody-live / offline-event-only,
+    owner idle and owner live, both while offline and both correctly NOT grey), a
+    300-character bar text keeping the button at **355** with `scrollWidth` 375,
+    a cached null keeping the position, a server null ending it, `applyLive()`
+    called once for cache-then-server and again only on a real move, a snapshot
+    for a class already left being dropped, `closeLive()` clearing the flag, all
+    six list states, and a **reload while offline** loading the shell from
+    `chess-training-center-v70` with the offline message showing and the local
+    base list still working. Zero page errors.
+  - **NOT YET VERIFIED AGAINST PRODUCTION.** It goes out with the deferred
+    commits 5 + 6 + 7 two-account run — the numbered checklist is in
+    `docs/MASTERCLASS-LIVE-CHECKLIST.md`, written 2026-08-17. **Step 0 of that
+    run is re-adding the friend**: `blockUser()` removed the Zugzwang ↔
+    miguelafuentesm friendship and the invite picker only shows friends.
+  - **Stage 1 is code-complete. There is no commit 8.** Stage 2 (the editor role,
+    link sharing) is sketched in the plan and needs a plan of its own.
+
 - **Masterclass — commit 6 of 7 is done (2026-08-17, `9be6cb4`). The live
   board: the owner broadcasts the position they are on and members follow it.**
   `sw.js` v68 → **v69**. **`firestore.rules` CHANGED and must be deployed.**
@@ -112,7 +221,11 @@
     chase: only the owner may write the parent document. The number on the
     owner's Bases row goes stale by one until they next open the class, where
     `bumpCount()` corrects it. That is what "advisory" means here — the member
-    list is the truth.
+    list is the truth. **⚠ The "next time they open the class" half of this was
+    NOT TRUE when it was written and was fixed in commit 7 (`50d0f43`)** —
+    `bumpCount()` was only called from `addMembers()` and `removeMember()`. It is
+    called from `loadMembers()` now, guarded so it writes only when the count
+    really disagrees.
   - **No name or avatar is ever copied onto a member document.** A member
     document is `{uid, role, addedBy, addedAt}` and nothing else; names,
     usernames and avatars are read live from `/leaderboard` through the
