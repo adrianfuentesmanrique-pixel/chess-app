@@ -2,6 +2,53 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — commit 2 of 7 is done (2026-08-16, `6236198`). Screens and
+  strings only, nothing talks to Firestore.** `sw.js` v64 → **v65**.
+  - New `js/masterclass.js` (the `js/friends.js` pattern: one exported object,
+    `init()` wiring buttons, `render*()` rebuilding from state), a Masterclass
+    section above the base list inside `#base-list-view`, a new
+    `#screen-masterclass`, a `.mc-*` CSS block and **27** bilingual `mc_*`
+    strings.
+  - **"Masterclass" is untranslated in Spanish and must stay that way** — not
+    *Clase magistral*, not *Masterclase*. The word appears verbatim in the
+    `es:` values.
+  - **NO sample data, deliberately.** Friends commit 2 shipped a `SAMPLE` array
+    and commit 3 had to delete it; every list here draws its real empty state,
+    so nothing invented can reach the site. `Masterclass.classes`, `.chapters`
+    and `.members` are all `[]` until commits 3, 4 and 5 fill them.
+  - **`askText()` in `js/app.js` is now exported.** One word, no behaviour
+    change. The plan's Task 2 "Interfaces" line already listed it as an import
+    and it was not exported — commits 3 and 4 need a text prompt too, so it was
+    exported rather than duplicated.
+  - **`#mc-live-bar` is in the markup and hidden until commit 6**, so the
+    screen was laid out with the space it will occupy. Do not delete it.
+  - **`MC_LIMIT = 5` is ADVISORY, UI-side only** — the comment in the file says
+    so. Same for the 50-chapter and 30-member caps when they land. They cannot
+    be enforced in rules without a server counter.
+  - **The tab bar stays lit on Bases** while `#screen-masterclass` is open —
+    `open()` re-lights it after `showScreen()`, the same trick
+    `Analysis.updateBaseNav()` uses for a game opened from a base. `←` calls
+    `showScreen('base')`, which runs `Base.refresh()` → `showList()` →
+    `Masterclass.openList()`.
+  - **`mc_chapters` / `mc_members` are lower case** (*capítulos*, *members*) —
+    they are only ever rendered after a number, exactly like `games` in the
+    base list directly underneath. They were capitalised in the plan; that was
+    changed here after seeing "3 Miembros" next to "0 partidas" at 375px.
+  - **The ⋯ menu and the New Masterclass prompt are inert on purpose.** The
+    ⋯ sheet picks the right item from the role (delete for an owner, leave for
+    a member) and both actions are empty — the writes land in commits 3 and 5.
+    `newClass()`'s two guards (signed out → `mc_needs_signin`, offline →
+    `mc_needs_network`) are real and permanent; the `askText()` prompt opens
+    and the name goes nowhere until commit 3 writes the document.
+  - `firestore.rules`, `firestore.indexes.json` and every test are untouched —
+    **still 122 passing, 0 failing.**
+  - Verified over CDP at 375px in light and dark, in both languages: section
+    above an unchanged base list, screen opens and closes, `←` returns with the
+    tab lit on Bases, `document.scrollWidth` exactly 375 on both screens,
+    singular and plural labels correct, long class name truncates with `←` and
+    `⋯` both still on screen, and the only console error is the App Check 403.
+  - Committed on local `main`, **not pushed**.
+
 - **Masterclass — commit 1 of 7 is done (2026-08-16, `feca228`). Rules and
   tests only, nothing the browser loads changed, `sw.js` stays at v64.** The
   plan is `docs/superpowers/plans/2026-08-16-masterclass-stage-1.md` (committed
