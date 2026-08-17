@@ -2,6 +2,66 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — commit 3 of 7 is done (2026-08-16, `fa5b0d7`). The list, the
+  create and the delete are real Firestore calls.** `sw.js` v65 → **v66**.
+  `firestore.rules`, `firestore.indexes.json` and `tests/rules/masterclass.test.js`
+  are untouched — **still 122 passing, 0 failing.**
+  - `js/firebase.js` gained `MAX_MASTERCLASSES`, `createMasterclass()`,
+    `fetchMyMasterclasses()`, `fetchMasterclass()` and `deleteMasterclass()`,
+    plus `addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot` on
+    the firebase-firestore import. **`onSnapshot` and `fetchMasterclass()` are
+    deliberately unused** — commit 6 and commit 4 use them, and naming one more
+    symbol from an already-downloaded module costs nothing.
+  - **TWO bugs in the plan's `deleteMasterclass()` were found and fixed, and
+    both were MEASURED against the emulator with a throwaway probe test, not
+    reasoned about. Do not copy the plan's version back out.**
+    1. **`live/state` cannot be deleted by anybody.** The `live` block has one
+       `allow write` and every clause reads `after()`, i.e.
+       `request.resource.data`, which is **null on a delete** — so the rule
+       errors and denies. The plan had this delete *inside the batch*, and a
+       batch is atomic, so **deleting a Masterclass would have failed outright,
+       every single time.** It is now a separate quiet call placed *before* the
+       parent delete, so it starts working by itself the day **commit 6 adds
+       `allow delete: if mcIsOwner(mcId);` to that block** — commit 6 must do
+       that, with a test.
+    2. **The owner's own membership document cannot be deleted either.**
+       Refused while the class exists (test 22 — that would orphan a class
+       nobody can read), and refused afterwards too, because `mcOwnerUid()`
+       does a `get()` on the parent that is now gone and the null dereference
+       denies. **So exactly one document survives a delete: the owner's own
+       `{uid, role, addedBy, addedAt}`.** Nobody else can read it (both read
+       rules need the deleted parent) and `fetchMyMasterclasses()` skips it, so
+       it is not a leak of anyone else's data — but it is real, expected
+       leftover, and the Firestore console will show it. Closing it needs one
+       more clause in `firestore.rules`. **Every OTHER member's document and
+       every chapter are deleted, and they go first** — that is the part that
+       matters for privacy.
+  - **`MC_LIMIT` is gone.** The cap is `MAX_MASTERCLASSES`, imported from
+    `js/firebase.js` — one constant, one place. It is still **advisory,
+    UI-side only**, and it counts the classes you **OWN** (`Masterclass.owned()`),
+    not the ones you have been added to.
+  - **`fetchMyMasterclasses()` returns rows keyed `id`, not `mcId`.** The
+    rename happens at the fetch boundary so only one shape exists above it. The
+    plan's `mcId` is superseded.
+  - **`#mc-new` stays live when signed out and toasts `mc_needs_signin`** —
+    Adrian's call. The plan's "signed out → hide `#mc-new`" line is superseded.
+    A button that explains itself teaches what the feature needs.
+  - The list is **lazy**, exactly like Friends: `Auth.onChange` only
+    invalidates it and `Base.showList()` → `openList()` refetches. The four
+    list states — signed out / loading / offline / genuinely empty — are drawn
+    apart, and the `.mc-role` chip (`mc_role_owner|editor|viewer`) is now on
+    the row. An unrecognised role draws no chip rather than an empty pill.
+  - Verified over CDP at 375px in light and dark, in **both languages**: all
+    four empty states, the role chip in all three roles plus an unknown one, an
+    escaped `<b>xss</b>` name, the cap toast at 5 owned and the name prompt at
+    4, the owner ⋯ sheet reaching the delete confirm and the member sheet
+    showing Leave instead, `scrollWidth` exactly 375 everywhere, and no console
+    error but the App Check 403.
+  - **Nothing in this commit has ever reached real Firestore** — App Check
+    blocks this machine from Firestore entirely. The live-site checklist is in
+    the commit-4 handover prompt and is not optional.
+  - Committed on local `main`, **not pushed**.
+
 - **Masterclass — commit 2 of 7 is done (2026-08-16, `6236198`). Screens and
   strings only, nothing talks to Firestore.** `sw.js` v64 → **v65**.
   - New `js/masterclass.js` (the `js/friends.js` pattern: one exported object,
