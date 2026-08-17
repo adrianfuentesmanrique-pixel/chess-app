@@ -2,6 +2,90 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — commit 6 of 7 is done (2026-08-17, `9be6cb4`). The live
+  board: the owner broadcasts the position they are on and members follow it.**
+  `sw.js` v68 → **v69**. **`firestore.rules` CHANGED and must be deployed.**
+  Tests went 122 → **124 passing, 0 failing**.
+  - **The rules change commit 5 owed is done.**
+    `masterclasses/{mcId}/live/{docId}` now has
+    `allow delete: if mcIsOwner(mcId);`. The block had one `allow write`, and
+    every clause in it reads `after()` — `request.resource.data`, which is
+    **null on a delete** — so the rule *errored* and denied, and **nobody could
+    remove `live/state` at all**. The emulator trace shows it exactly:
+    `evaluation error at L336 for 'delete'`, then the new clause at L352
+    answering properly. Tests **36** (owner can delete) and **37** (viewer
+    cannot). `deleteMasterclass()` has been attempting this delete since commit
+    3 and starts working the moment the rules are deployed.
+  - `js/firebase.js` gained `LIVE_THROTTLE_MS` (1000), `pushLiveState()`,
+    `stopLiveState()` and `watchLiveState()` — **the only `onSnapshot`
+    listener in the whole app.**
+  - **The throttle is load-bearing.** Firestore's sustained write limit on a
+    SINGLE document is about one per second and this document is written on
+    every move. Writes are coalesced on a **leading edge** — the first move of
+    a quiet minute goes out at once, only a burst is merged, and the newest
+    pending state wins. A trailing-only throttle would put a second of lag on
+    every move.
+  - **`stopLiveState()` cancels the queued write BEFORE deleting.** Without
+    that, an owner who moves and immediately taps Stop deletes the document and
+    then the pending flush writes it straight back, and the class looks live
+    with nobody driving.
+  - **Position travels as a PATH of child indices ("0.0.1"), never a
+    `Node.id`.** `Node.id` in `js/tree.js` comes from a module-level counter
+    that starts at 0 on page load, so the ids the teacher and the student get
+    for the same PGN depend on what each opened earlier. A path is a property
+    of the PGN itself. **`nodePath()` and `gotoPath()` are exported from
+    `js/masterclass.js`** so the round trip can be exercised directly — one of
+    them runs on the teacher's machine and the other on the student's, so a
+    test that calls only one proves nothing.
+  - **The FEN is the fallback, and "neither resolves" means stay put.** A
+    wrong node is worse than not moving, because the follower cannot tell.
+  - **`Analysis.refresh()` is the single broadcast hook.** Every board change
+    on that screen goes through it, so a move, an arrow key, a click in the
+    moves list and a variation jump all broadcast without four separate hooks.
+  - **Broadcasting is never automatic** — the owner switches it on. Only the
+    owner drives in stage 1; the control is hidden from members even though the
+    rules would refuse them anyway, because a button that can only fail is
+    worse than no button. `'editor'` sits on the member side of that line until
+    stage 2.
+  - **A follower's default is Following ON**, so opening a class that is live
+    puts you in the lesson. On reconnect or on "Back to live" the viewer jumps
+    to where the teacher is **NOW** — the missed moves are deliberately not
+    replayed. It is a lesson, not a video.
+  - **The bar is drawn in TWO places from one piece of state**: `#mc-live-bar`
+    on the Masterclass screen and a new `#ana-mc-live` above the Analysis
+    board, because once you are following you are on the Analysis screen and
+    Stop following has to be reachable. `Masterclass.renderLive()` fills both;
+    `Analysis.updateBaseNav()` calls it.
+  - **The listener is self-healing.** `closeLive()` runs on ←, Leave, Delete,
+    sign-out and opening another class, but the tab bar can take you off the
+    screen without passing through any of them — so a snapshot that finds
+    nobody looking ends the subscription itself.
+  - 11 new bilingual strings (`mc_live_off`, `mc_live_start`, `mc_live_on`,
+    `mc_live_open_chapter`, `mc_live_stop`, `mc_live_following`, `mc_live_now`,
+    `mc_follow_stop`, `mc_follow_resume`, `mc_live_ended`) and two CSS rules on
+    `.mc-live-bar`.
+  - Verified over CDP at 375px in light and dark, in **both languages**: all
+    six bar states drawn apart (owner idle / live-no-chapter / live-with-
+    chapter, viewer nobody-live / following / browsing), the path round trip
+    across **two independently parsed copies** of the same PGN including a
+    variation branch and the root, a bogus path returning false, following into
+    a variation, following on down the same tree **without re-parsing it**,
+    Stop following holding still while the teacher moved, Back to live snapping
+    to the current position, the FEN fallback, "neither resolves" not moving,
+    a state arriving before the chapter list, `closeLive()` twice, a forced
+    300-character bar text still keeping the button at 355, `scrollWidth`
+    exactly 375 everywhere, and **zero page errors**.
+  - **NOTHING IN THIS COMMIT HAS TOUCHED REAL FIRESTORE.** Live follow needs
+    two accounts *and* a friendship, and Adrian has decided to run commits 5
+    and 6 together **after commit 7**. `blockUser()` removed the Zugzwang ↔
+    miguelafuentesm friendship, so **step 0 of that run is re-adding the
+    friend** — a member can only be invited from the friends list.
+  - **`fetchMasterclass()` is STILL unused after all.** Commit 4 predicted
+    commit 6 would earn it. It did not: the live document is its own listener,
+    the parent is not reread, and rereading it would be a document read that
+    changes nothing on screen. Stage 2 or nothing — do not add a call for
+    tidiness.
+
 - **Masterclass — commit 5 of 7 is done (2026-08-17, `e2cba06`). Members are
   real: the owner invites friends, everyone sees who is in the class, the owner
   removes and a member leaves.** `sw.js` v67 → **v68**. `firestore.rules`,
@@ -66,12 +150,16 @@
     document rendering as `?`, a viewer with no ➕ buttons and no ⋯ on any row,
     the picker with an "Already a member" row and with no friends at all,
     `document.scrollWidth` exactly 375 everywhere, and zero console errors.
-  - **NOT YET VERIFIED AGAINST PRODUCTION.** This one needs BOTH accounts and
-    Adrian has to run it. Nothing in this commit has ever reached real
-    Firestore.
-  - **Commit 6 MUST add `allow delete: if mcIsOwner(mcId);` to the
-    `masterclasses/{mcId}/live/{docId}` block, plus a test.** Today nobody can
-    delete `live/state` at all. Commit 5 deliberately did not fix it.
+  - **NOT YET VERIFIED AGAINST PRODUCTION, and deliberately deferred.** Adrian
+    decided on 2026-08-17 to run this **together with commit 6, after commit
+    7** — one two-account session instead of three. It needs a friendship
+    before it can start: `blockUser()` removed the Zugzwang ↔ miguelafuentesm
+    one during the Friends run, so **the second account has to be re-added as a
+    friend first** or the invite picker has nobody in it. Nothing in this commit
+    has ever reached real Firestore.
+  - ~~**Commit 6 MUST add `allow delete: if mcIsOwner(mcId);`**~~ **DONE
+    2026-08-17 in `9be6cb4`**, with tests 36 and 37 — see the commit 6 entry at
+    the top.
 
 - **Masterclass — commit 4 of 7 is done (2026-08-16, `2d2f47c`). Chapters are
   real: added from a base or from the board, opened in Analysis, deleted by the
