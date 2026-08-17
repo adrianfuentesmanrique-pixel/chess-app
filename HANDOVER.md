@@ -67,10 +67,25 @@
     with the right moves list, `← Masterclass` returning with the tab lit on
     Bases, `document.scrollWidth` exactly 375 everywhere, and no console error
     but the App Check 403.
-  - **Nothing in this commit has ever reached real Firestore** — App Check
-    blocks this machine from Firestore entirely. The live-site checklist is in
-    the commit-5 handover prompt and is not optional.
-  - Committed on local `main`, **not pushed**.
+  - **VERIFIED AGAINST PRODUCTION 2026-08-16 — Adrian ran the whole checklist
+    on chesstrainingcenter.app and everything passed.** This is the first
+    Masterclass code that has ever touched real Firestore. Proved live:
+    `addChapter()` from a database AND from the current board (both wrote, both
+    appeared), `fetchChapters()` surviving a full reload with the chapters in
+    the order they were added, opening a chapter on the right position with a
+    walkable moves list, `← Masterclass` returning with the tab bar still lit
+    on Bases, and `deleteChapter()` removing a row. In both languages, light
+    and dark. **So the chapter rules, the `updatedAt == request.time` clause and
+    the `hasOnly` key set are all confirmed against the deployed rules, not just
+    the emulator.**
+  - **Still never executed live, and do not claim otherwise:** the >100 KB
+    oversize path (`mc_chapter_too_big`), the 50-chapter cap toast, the 50-game
+    picker truncation hint, and what a **viewer** sees — that last one needs the
+    second account and is commit 5's job.
+  - **Pushed and deployed 2026-08-16.** `origin/main` is level with local
+    `main`; the live `sw.js` reads `chess-training-center-v67` and the live
+    `js/masterclass.js` carries this code. Commits 1–4 all went out in the same
+    push — the "not pushed" lines on the three entries below are historical.
 
 - **Masterclass — commit 3 of 7 is done (2026-08-16, `fa5b0d7`). The list, the
   create and the delete are real Firestore calls.** `sw.js` v65 → **v66**.
@@ -127,10 +142,15 @@
     4, the owner ⋯ sheet reaching the delete confirm and the member sheet
     showing Leave instead, `scrollWidth` exactly 375 everywhere, and no console
     error but the App Check 403.
-  - **Nothing in this commit has ever reached real Firestore** — App Check
-    blocks this machine from Firestore entirely. The live-site checklist is in
-    the commit-4 handover prompt and is not optional.
-  - Committed on local `main`, **not pushed**.
+  - ~~**Nothing in this commit has ever reached real Firestore.**~~ **PARTLY
+    SETTLED 2026-08-16** by the commit-4 live run. `fetchMyMasterclasses()` —
+    the collection-group query and its COLLECTION_GROUP index — really works
+    against production: the class list drew a real owned class and it opened.
+    `createMasterclass()` must have run too, since a class exists to open.
+    **`deleteMasterclass()` has still never been called live**, so the
+    one-leftover-membership-document behaviour above is still reasoned from the
+    emulator, not watched in the Firestore console.
+  - Committed on local `main`; **pushed and deployed 2026-08-16** with commit 4.
 
 - **Masterclass — commit 2 of 7 is done (2026-08-16, `6236198`). Screens and
   strings only, nothing talks to Firestore.** `sw.js` v64 → **v65**.
@@ -177,7 +197,7 @@
     tab lit on Bases, `document.scrollWidth` exactly 375 on both screens,
     singular and plural labels correct, long class name truncates with `←` and
     `⋯` both still on screen, and the only console error is the App Check 403.
-  - Committed on local `main`, **not pushed**.
+  - Committed on local `main`; **pushed and deployed 2026-08-16** with commit 4.
 
 - **Masterclass — commit 1 of 7 is done (2026-08-16, `feca228`). Rules and
   tests only, nothing the browser loads changed, `sw.js` stays at v64.** The
@@ -213,7 +233,7 @@
   - **The 50-chapter, 30-member and 5-Masterclass caps are advisory, UI-side
     only.** They cannot be enforced in rules without a server-maintained
     counter. The rules-enforced bound is the 100,000-byte chapter PGN limit.
-  - Committed on local `main`, **not pushed**.
+  - Committed on local `main`; **pushed and deployed 2026-08-16** with commit 4.
 
 - **Friends — the two-account run finally happened (2026-08-16). The system
   is verified against production.** Adrian ran it on the live site as
