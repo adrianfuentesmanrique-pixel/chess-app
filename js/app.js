@@ -1394,6 +1394,7 @@ export const Analysis = {
     $('ana-base-next').onclick = () => this.gotoAdjacentGame(1);
     $('ana-hist-back').onclick = () => this.backToHistory();
     $('ana-mc-back').onclick = () => Masterclass.backFromChapter();
+    $('ana-mc-save').onclick = () => Masterclass.saveToChapter();
     $('ana-hist-prev').onclick = () => this.gotoAdjacentHistory(-1);
     $('ana-hist-next').onclick = () => this.gotoAdjacentHistory(1);
     $('ana-annotate-toggle').onclick = () => {
@@ -1494,6 +1495,9 @@ export const Analysis = {
     // they get their own way back to the class.
     const inMc = !!this.ctx.fromMasterclass;
     $('ana-mc-nav').classList.toggle('hidden', !inMc);
+    // Owner-only, and only on a chapter board. A follower is looking at a
+    // chapter too, so `inMc` alone is not the question — canSaveChapter() is.
+    $('ana-mc-save').classList.toggle('hidden', !Masterclass.canSaveChapter());
     if (inMc) {
       document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.screen === 'base'));
     }

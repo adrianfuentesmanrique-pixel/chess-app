@@ -140,6 +140,12 @@ if (window.Sentry && window.Sentry.onLoad) {
          short curated list you go back to, not a database you page through. -->
     <div id="ana-mc-nav" class="row hidden" style="margin:0 0 6px;">
       <button id="ana-mc-back" class="btn small">← <span data-i18n="mc_section"></span></button>
+      <!-- Only the owner of the class ever sees this, and only on a board that
+           came from a chapter — Analysis.updateBaseNav() asks
+           Masterclass.canSaveChapter(). It overwrites the chapter this board
+           was opened from; 💾 Save to database still puts a COPY in a local
+           base, which is a different thing and stays where it is. -->
+      <button id="ana-mc-save" class="btn small hidden" data-i18n="mc_save_chapter"></button>
     </div>
     <!-- The second copy of the live bar. #mc-live-bar lives on the Masterclass
          screen, but once you are following a lesson you are on THIS screen, so

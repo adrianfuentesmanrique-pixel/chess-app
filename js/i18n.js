@@ -451,6 +451,9 @@ const DICT = {
   // thousands of writes for you and thousands of reads for every student.
   mc_from_base: { es: '📚 Desde una base', en: '📚 From a database' },
   mc_from_board: { es: '♟️ Desde el tablero actual', en: '♟️ From the current board' },
+  mc_save_chapter: { es: '💾 Guardar en el capítulo', en: '💾 Save to chapter' },
+  mc_chapter_saved: { es: 'Capítulo guardado', en: 'Chapter saved' },
+  mc_chapter_gone: { es: 'Ese capítulo ya no existe', en: 'That chapter no longer exists' },
   mc_choose_game: { es: 'Elige una partida', en: 'Choose a game' },
   mc_pick_recent: { es: 'Mostrando las {n} partidas más recientes.', en: 'Showing the {n} most recent games.' },
   mc_delete_chapter: { es: '🗑 Borrar capítulo', en: '🗑 Delete chapter' },

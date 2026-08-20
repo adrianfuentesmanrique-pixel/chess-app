@@ -366,6 +366,38 @@ describe('/masterclasses/{id}/chapters — the content', () => {
     await assertFails(setDoc(doc(asEditor(), `masterclasses/${MC}/chapters/ch2`),
       chapter({ updatedBy: EDITOR })));
   });
+
+  // ── editing a chapter, which is what updateChapter() does ──────────────
+  // `allow write` covers create AND update, so no rule had to change to make a
+  // chapter editable — but "no rule had to change" is a claim, and these are
+  // what make it one that has been checked. Test 26 above is the other side:
+  // a viewer still cannot overwrite one.
+  it('41. the owner CAN overwrite an existing chapter', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/chapters/ch1`, { ...chapter(), updatedAt: new Date() });
+    await assertSucceeds(setDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      chapter({ pgn: '[Event "?"]\n\n1. d4 d5 2. c4 *' })));
+  });
+
+  // The edit path has to use serverTimestamp() exactly like the create path.
+  // A client clock a few seconds out is not a rounding problem to be tolerated
+  // — it is the difference between the rule passing and failing.
+  it('42. an overwrite carrying a client-clock updatedAt is denied', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/chapters/ch1`, { ...chapter(), updatedAt: new Date() });
+    await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      chapter({ updatedAt: new Date() })));
+  });
+
+  // hasOnly() is checked against the WHOLE resulting document, which is why
+  // updateChapter() writes all six keys with setDoc() rather than patching a
+  // couple with updateDoc(): an edit cannot quietly grow the stored shape.
+  it('43. an overwrite that adds a seventh field is denied', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/chapters/ch1`, { ...chapter(), updatedAt: new Date() });
+    await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      chapter({ note: 'smuggled' })));
+  });
 });
 
 // ═══════════════════ masterclasses/{mcId}/live/state ═══════════════════

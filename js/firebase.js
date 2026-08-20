@@ -709,6 +709,38 @@ export async function addChapter(mcId, { title, pgn, startFen, order }) {
   return ref.id;
 }
 
+// The other half of addChapter(), and the reason a chapter opened on the
+// Analysis board can be edited at all. Before this existed a chapter was
+// add-and-delete only: 💾 Save to database put a COPY in a local base, because
+// openChapter() loads with baseId: null, and nothing ever wrote back to the
+// class.
+//
+// No rules change was needed for it. `allow write` on a chapter covers create
+// AND update, and the clauses it already carries are exactly the ones an edit
+// has to satisfy — so this passes the same six keys addChapter() does, in full.
+// It is setDoc(), not updateDoc(), on purpose: hasOnly() is checked against the
+// WHOLE resulting document, so writing all six keys every time makes the write
+// mean the same thing whatever shape the stored document had.
+//
+// updatedAt is serverTimestamp() for the same reason as everywhere else here —
+// the rule is `updatedAt == request.time` and a client clock a few seconds out
+// is refused.
+export async function updateChapter(mcId, chapterId, { title, pgn, startFen, order }) {
+  // Checked before the session, identically to addChapter(), so an oversized
+  // PGN reports itself the same way whichever door it came through.
+  if (new Blob([pgn || '']).size > MAX_CHAPTER_BYTES) throw new Error('chapter-too-big');
+  const user = auth.currentUser;
+  if (!user || !mcId || !chapterId) return;
+  await setDoc(doc(firestore, 'masterclasses', mcId, 'chapters', chapterId), {
+    title: String(title || '').slice(0, 80),
+    pgn,
+    startFen: String(startFen || '').slice(0, 100),
+    order: Number(order) || 0,
+    updatedBy: user.uid,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 // Sorted here rather than with orderBy so no composite index is needed — the
 // same shape the friends list uses. The whole PGN of every chapter comes down,
 // which is why the cap is also the limit.

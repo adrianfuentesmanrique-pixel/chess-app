@@ -23,7 +23,7 @@ import { t, tn } from './i18n.js';
 import {
   Auth, MAX_MASTERCLASSES, createMasterclass, fetchMyMasterclasses,
   deleteMasterclass, MAX_CHAPTERS, MAX_CHAPTER_BYTES, addChapter, fetchChapters,
-  deleteChapter, MAX_MEMBERS, addMembers, fetchMembers, removeMember,
+  deleteChapter, updateChapter, MAX_MEMBERS, addMembers, fetchMembers, removeMember,
   leaveMasterclass, setMemberCount, fetchLeaderboardByUids,
   pushLiveState, watchLiveState, stopLiveState,
 } from './firebase.js';
@@ -295,6 +295,65 @@ export const Masterclass = {
   // already there instead of paying for the reads again. If the page was
   // reloaded while the chapter was open there is nothing to come back to, so
   // it falls back to the Bases tab, which refetches the list.
+  // TRUE only when the board in front of you is a chapter of a class YOU own.
+  // A follower's board is a chapter too, and a viewer's rewrite would be
+  // refused by the rules anyway — so the button is not shown rather than shown
+  // and then failing.
+  canSaveChapter() {
+    const mc = this.current;
+    return !!(mc && mc.role === 'owner'
+      && Analysis.ctx && Analysis.ctx.fromMasterclass === mc.id
+      && Analysis.ctx.mcChapterId);
+  },
+
+  // The other half of addFromBoard(). Same tree, same toPgn() — the difference
+  // is only whether it lands on a NEW document or the one this board came from.
+  //
+  // Before this existed, editing a chapter had nowhere to go: openChapter()
+  // loads with baseId: null, so 💾 Save to database offers to copy the game
+  // into a local base and there was no path back to the class at all. The
+  // workaround was "add a second chapter and delete the first", which loses
+  // the chapter's place in the order and its id.
+  //
+  // title and order are read from the STORED row, not from the board: an edit
+  // changes the moves, and silently renaming a chapter or moving it up the list
+  // because the PGN headers happen to say something else would be a surprise.
+  async saveToChapter() {
+    const mc = this.current;
+    if (!this.canSaveChapter()) return;
+    if (!Auth.user) { toast(t('mc_needs_signin')); return; }
+    if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
+    const tree = Analysis.tree;
+    if (!tree) return;
+    const chapterId = Analysis.ctx.mcChapterId;
+    const row = this.chapters.find(c => c.id === chapterId);
+    // The row is gone if somebody deleted the chapter while it was open. Saving
+    // would recreate it as a document nobody expects, so this stops instead.
+    if (!row) { toast(t('mc_chapter_gone')); return; }
+    try {
+      await updateChapter(mc.id, chapterId, {
+        title: row.title,
+        pgn: tree.toPgn(),
+        startFen: tree.startFen || row.startFen || '',
+        order: row.order ?? 0,
+      });
+    } catch (e) {
+      if (e && e.message === 'chapter-too-big') {
+        toast(t('mc_chapter_too_big').replace('{n}', Math.round(MAX_CHAPTER_BYTES / 1000)));
+        return;
+      }
+      console.error('Saving a chapter failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    // Keep the in-memory list honest without a refetch: the class screen reads
+    // this array, and a stale pgn here is what would make a saved edit look
+    // like it had not saved when you went back and opened it again.
+    row.pgn = tree.toPgn();
+    row.startFen = tree.startFen || row.startFen || '';
+    toast(t('mc_chapter_saved'));
+  },
+
   backFromChapter() {
     if (!this.current) { showScreen('base'); return; }
     showScreen('masterclass');
@@ -406,7 +465,16 @@ export const Masterclass = {
     // BEFORE loadTree(), because loadTree() calls Analysis.refresh(), which is
     // what fires onBoardChange() and pushes the first state of the chapter.
     this.liveChapterId = ch.id;
-    Analysis.loadTree(tree, { baseId: null, gameId: null, fromMasterclass: this.current && this.current.id });
+    // mcChapterId is what makes the chapter EDITABLE: it is the only record of
+    // which document the board came from, and it rides in ctx rather than on
+    // this object so that loading any other game clears it by itself. A stale
+    // copy kept here would let "Save to chapter" overwrite a chapter the board
+    // is no longer showing.
+    Analysis.loadTree(tree, {
+      baseId: null, gameId: null,
+      fromMasterclass: this.current && this.current.id,
+      mcChapterId: ch.id,
+    });
   },
 
   chapterMenu(ch) {
