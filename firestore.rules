@@ -335,10 +335,15 @@ service cloud.firestore {
       // STAGE 2: this becomes `mcIsOwner(mcId) || mcRole(mcId) == 'editor'`.
       allow write: if docId == 'state'
         && mcIsOwner(mcId)
-        && after().keys().hasOnly(['chapterId', 'fen', 'path', 'drivenBy', 'updatedAt'])
+        && after().keys().hasOnly(['chapterId', 'fen', 'line', 'drivenBy', 'updatedAt'])
         && (after().chapterId == null || (after().chapterId is string && after().chapterId.size() <= 64))
         && after().fen is string && after().fen.size() <= 100
-        && after().path is string && after().path.size() <= 512
+        // `line` is the teacher's moves in SAN, not a pointer into the stored
+        // chapter: moves played during a lesson are never saved to the chapter,
+        // so a pointer names a node the follower does not have. See BUG A.
+        // 4096 characters is roughly 800 half-moves — the cap bounds abuse, not
+        // size; against the 1 MB document limit it is a rounding error.
+        && after().line is string && after().line.size() <= 4096
         && after().drivenBy == me()
         && after().updatedAt == request.time;
 

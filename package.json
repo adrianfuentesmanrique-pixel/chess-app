@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test:rules": "node tests/run-rules-tests.mjs",
+    "test:tree": "node --test tests/unit/*.test.js",
     "rules:deploy": "firebase deploy --only firestore:rules --project chess-training-center",
     "indexes:deploy": "firebase deploy --only firestore:indexes --project chess-training-center"
   },

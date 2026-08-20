@@ -824,6 +824,11 @@ export async function setMemberCount(mcId, n) {
 // Firestore's sustained write limit on a SINGLE document is about one write per
 // second. This document is written on every move the teacher makes, so writes
 // are coalesced: at most one per second, and the newest pending state wins.
+// That coalescing is LOSSLESS now that the document carries the whole line and
+// not a pointer: a burst of ten moves in one second collapses to one write that
+// still contains all ten, where a dropped intermediate write used to be a
+// skipped position. The payload grows through a lesson but stays at hundreds of
+// bytes, so it has no effect on the throttle.
 // Removing this throttle does not fail loudly — it degrades into rejected
 // writes and rising latency under exactly the conditions (a busy lesson) where
 // it matters most. Do not remove it.
@@ -846,20 +851,21 @@ export function pushLiveState(mcId, next) {
     const { mcId: id, next: state } = livePending;
     livePending = null;
     liveTimer = setTimeout(flush, LIVE_THROTTLE_MS);
-    // The rule refuses a path over 512 characters, and a path is child indices
-    // joined by dots — so it is cut at a SEPARATOR, never mid-number. A
-    // truncated path then resolves to a real ancestor instead of to the wrong
-    // move, and the viewer's FEN fallback corrects it exactly. Only a line past
-    // roughly 250 plies can reach this at all.
-    let path = String(state.path || '');
-    if (path.length > 512) {
-      const cut = path.lastIndexOf('.', 512);
-      path = cut > 0 ? path.slice(0, cut) : '';
+    // The rule refuses a line over 4096 characters, and a line is SAN moves
+    // joined by single spaces — so it is cut at a SEPARATOR, never mid-move. A
+    // trimmed line still replays to a real, earlier position in the lesson
+    // rather than to half a move, and the teacher's next move sends the whole
+    // line again anyway. At roughly five characters a move that is about 800
+    // plies; like the 512-character path before it, no real lesson reaches it.
+    let line = String(state.line || '');
+    if (line.length > 4096) {
+      const cut = line.lastIndexOf(' ', 4096);
+      line = cut > 0 ? line.slice(0, cut) : '';
     }
     setDoc(doc(firestore, 'masterclasses', id, 'live', 'state'), {
       chapterId: state.chapterId ?? null,
       fen: String(state.fen || '').slice(0, 100),
-      path,
+      line,
       drivenBy: user.uid,
       // serverTimestamp(), never Date.now(): the rule is
       // `updatedAt == request.time` and a client clock a few seconds out would

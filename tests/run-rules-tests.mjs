@@ -56,7 +56,10 @@ const res = spawnSync(
   'npx',
   ['firebase', 'emulators:exec', '--only', 'firestore',
     '--project', 'chess-training-center',
-    '"node --test \\"tests/**/*.test.js\\""'],
+    // tests/rules only, NOT tests/**: tests/unit/ is the plain-Node suite that
+    // must run without an emulator at all (npm run test:tree), and sweeping it
+    // in here would make one green line mean two different things.
+    '"node --test \\"tests/rules/*.test.js\\""'],
   {
     stdio: 'inherit',
     shell: true,

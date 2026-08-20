@@ -100,7 +100,7 @@ const chapter = (over = {}) => ({
 const live = (over = {}) => ({
   chapterId: 'ch1',
   fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-  path: 'e4 e5 Nf3',
+  line: 'e4 e5 Nf3',
   drivenBy: OWNER,
   updatedAt: serverTimestamp(),
   ...over,
@@ -370,10 +370,10 @@ describe('/masterclasses/{id}/live — the followed board', () => {
     await assertFails(getDoc(doc(asStranger(), `masterclasses/${MC}/live/state`)));
   });
 
-  it('34. a path longer than 512 characters is denied', async () => {
+  it('34. a line longer than 4096 characters is denied', async () => {
     await seedClass();
     await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/live/state`),
-      live({ path: 'e4 '.repeat(200) })));
+      live({ line: 'Nf3 '.repeat(1100) })));
   });
 
   // One document, fixed id. Any other id is refused so live/ cannot quietly
@@ -399,5 +399,22 @@ describe('/masterclasses/{id}/live — the followed board', () => {
     await seedMember(VIEWER);
     await seed(`masterclasses/${MC}/live/state`, { ...live(), updatedAt: new Date() });
     await assertFails(deleteDoc(doc(asViewer(), `masterclasses/${MC}/live/state`)));
+  });
+
+  // BUG A's swap, made one-way. `path` was a pointer into the chapter's stored
+  // PGN, and the moves a teacher plays during a lesson are never saved there,
+  // so it named a node the follower did not have. `line` carries the moves
+  // themselves. hasOnly() is what makes the swap clean rather than additive:
+  // this test is what would catch a half-finished migration, where an old
+  // client kept broadcasting the shape the new followers cannot read.
+  it('38. a live document still carrying the old `path` field is denied', async () => {
+    await seedClass();
+    const { line, ...noLine } = live();
+    await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/live/state`),
+      { ...noLine, path: '0.0.0' }));
+    // And it is denied even alongside a valid `line` — an extra field is an
+    // extra field.
+    await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/live/state`),
+      live({ path: '0.0.0' })));
   });
 });

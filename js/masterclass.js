@@ -38,7 +38,7 @@ import { avatarHtml } from './avatars.js';
 // reads Friends.friends, the list fetchFriendUids() already fills, rather than
 // running a second query of its own.
 import { Friends } from './friends.js';
-import { parsePgn } from './tree.js';
+import { parsePgn, lineOf, gotoLine } from './tree.js';
 import * as db from './db.js';
 
 // A base can hold thousands of games and this picker is a modal full of
@@ -59,67 +59,11 @@ const PICK_GAMES = 50;
 // twice on purpose, in two files, meaning two different things; this one must
 // exist once.
 
-// ── Where the teacher is, as a string ───────────────────────────────────────
-// A live update has to name a NODE, not just a position: a chapter with
-// variations can reach the same FEN twice, and "the same position" is not the
-// same as "the same place in the lesson".
-//
-// Node.id in js/tree.js cannot be used for this. It comes from a module-level
-// counter that starts at 0 on page load, so the ids two people get for the
-// same PGN depend on what each of them opened earlier. The path — the child
-// index at every step down from the root, joined by dots — is a property of
-// the PGN itself, so both clients compute the same one. "" is the root.
-//
-// These two are exported only so the round trip can be exercised directly:
-// they are the whole correctness of live follow, and one of them runs on the
-// teacher's machine while the other runs on the student's, so a test that only
-// ever calls one of them proves nothing.
-export function nodePath(tree) {
-  const out = [];
-  let n = tree.current;
-  while (n && n.parent) {
-    const i = n.parent.children.indexOf(n);
-    if (i < 0) return '';
-    out.push(i);
-    n = n.parent;
-  }
-  return out.reverse().join('.');
-}
-
-// Walks a path back down. Returns false rather than landing somewhere
-// approximate: a wrong node is worse than not moving, because the follower
-// cannot tell the difference.
-export function gotoPath(tree, path) {
-  let n = tree.root;
-  for (const part of String(path || '').split('.')) {
-    if (part === '') continue;
-    const i = Number(part);
-    if (!Number.isInteger(i) || !n.children[i]) return false;
-    n = n.children[i];
-  }
-  tree.goto(n);
-  return true;
-}
-
-// The fallback when a path does not resolve — a path truncated at 512
-// characters, or a chapter edited since the follower loaded it. The FEN is
-// unambiguous enough to be right nearly always, and landing on the position
-// beats freezing.
-function findFen(node, fen) {
-  if (!fen) return null;
-  if (node.fen === fen) return node;
-  for (const c of node.children) {
-    const r = findFen(c, fen);
-    if (r) return r;
-  }
-  return null;
-}
-
 // A live state boiled down to the three fields that decide where a board goes,
 // so two snapshots carrying the same position can be told apart from a real
 // move. Only used to skip redundant work — never to decide what to draw.
 function liveKey(st) {
-  return st ? `${st.chapterId}|${st.path}|${st.fen}` : '';
+  return st ? `${st.chapterId}|${st.line}|${st.fen}` : '';
 }
 
 export const Masterclass = {
@@ -718,7 +662,7 @@ export const Masterclass = {
     this.renderLive();
     // includeMetadataChanges means the same position can arrive twice — once
     // from the cache and once from the server. Re-applying it would re-run
-    // gotoPath() and Analysis.refresh() for nothing, so only a real move moves
+    // gotoLine() and Analysis.refresh() for nothing, so only a real move moves
     // the board.
     if (changed) this.applyLive();
   },
@@ -881,14 +825,12 @@ export const Masterclass = {
     }
     const tree = Analysis.tree;
     if (!tree) return;
-    // Path first, FEN second. A path names the node; the FEN is the fallback
-    // for a path that no longer resolves. If neither lands, stay put rather
-    // than jumping somewhere arbitrary.
-    if (!gotoPath(tree, st.path)) {
-      const node = findFen(tree.root, st.fen);
-      if (!node) return;
-      tree.goto(node);
-    }
+    // Walk the teacher's moves down, growing this tree wherever the stored
+    // chapter runs out. st.fen is deliberately NOT consulted: it is a
+    // consistency signal, not an instruction. A line that cannot be fully
+    // replayed lands on the deepest move that worked, and the teacher's next
+    // move corrects it.
+    gotoLine(tree, st.line);
     Analysis.refresh();
   },
 
@@ -905,7 +847,7 @@ export const Masterclass = {
     pushLiveState(mcId, {
       chapterId: this.liveChapterId,
       fen: tree.fen(),
-      path: nodePath(tree),
+      line: lineOf(tree),
     });
   },
 

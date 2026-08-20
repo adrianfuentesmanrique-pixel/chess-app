@@ -247,6 +247,59 @@ function wrap(text, width = 80) {
   return lines.join('\n');
 }
 
+// --- the live board's protocol -----------------------------------------
+
+// A live update has to name a NODE, not just a position: a chapter with
+// variations can reach the same FEN twice, and "the same position" is not the
+// same as "the same place in the lesson". It cannot name it with Node.id
+// either — that comes from a module-level counter that starts at 0 on page
+// load, so the ids two people get for the same PGN depend on what each of them
+// opened earlier.
+//
+// So the teacher sends the MOVES. Not a pointer into a PGN: the moves played
+// during a lesson are never saved to the chapter, so a pointer names a node the
+// follower does not have, and the follower's board freezes with nothing on
+// screen to explain it. See BUG A. The whole line goes every time, which makes
+// the document self-contained — a student who joins late, reconnects or toggles
+// Following gets everything, with no shared assumption to break.
+//
+// These two live HERE and not in js/masterclass.js deliberately. This file
+// imports only ../vendor/chess.js, so it runs under plain Node with no browser,
+// no Firebase and no App Check; masterclass.js imports i18n, firebase and
+// app.js and can never be unit-tested. tests/unit/tree-line.test.js is the
+// whole reason for the placement. Their predecessors carried a comment saying
+// they were exported "only so the round trip can be exercised directly" and
+// nothing ever exercised it — that is how BUG A reached production.
+export function lineOf(tree) {
+  const out = [];
+  for (let n = tree.current; n && n.parent; n = n.parent) out.push(n.san);
+  return out.reverse().join(' ');
+}
+
+// Walks a line down, EXTENDING the tree where it runs past what was parsed.
+// play() steps onto a child that already has the move and builds the node when
+// it does not, so a follower grows its copy of the chapter as the lesson goes
+// and the engine is never rebuilt. Only genuinely new moves construct a Chess —
+// normally exactly one per snapshot.
+//
+// An illegal or garbled move stops the walk at the last good node rather than
+// throwing: the follower lands on a real position from the lesson, behind
+// rather than wrong, and the teacher's next move corrects it. There is nothing
+// to return, because there is no failure a caller could do anything about —
+// the tree is always left on a legal node.
+export function gotoLine(tree, line) {
+  let n = tree.root;
+  for (const san of String(line || '').split(' ')) {
+    if (!san) continue;
+    const child = n.children.find(c => c.san === san);
+    if (child) { n = child; continue; }
+    tree.goto(n);
+    if (!tree.play(san)) break;
+    n = tree.current;
+  }
+  tree.goto(n);
+}
+
 // --- PGN input ---------------------------------------------------------
 
 // Split a PGN file (may contain many games) into individual game strings.
