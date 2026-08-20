@@ -23,7 +23,7 @@ whole of Part D were **not run**. Do not read this table as a pass.
 | `leaveMasterclass()` | 5 | **NEVER** |
 | `pushLiveState()` | 6 | **YES — works.** `live/state` was written with correct `chapterId`, `path`, `fen`, `drivenBy` and a server `updatedAt`, and it updated as the owner moved. |
 | `watchLiveState()` | 6 | **PARTLY.** The first snapshot was delivered and applied — the follower was taken to the right chapter by itself. Everything after that is blocked by BUG A below. |
-| `stopLiveState()` | 6 | **NO — FAILED. See BUG B.** |
+| `stopLiveState()` | 6 | **YES — works, once the rules were actually deployed.** The delete lands, `live/state` disappears from the console, and the follower's bar clears with the `mc_live_ended` message. See BUG B — the code was never at fault. |
 | `deleteMasterclass()` | 3 | **NEVER** |
 | `{ includeMetadataChanges: true }`, the Reconnecting bar, the offline section | 7 | **NEVER** — Part C2 was never reached. |
 
@@ -67,28 +67,55 @@ a lesson interacting with the 1-per-second throttle, and an `applyLive()` that
 **extends** the follower's tree instead of walking it, without re-parsing every
 ply. **It needs its own plan. Do not patch it in a debugging session.**
 
-## BUG B — Stop does not remove `live/state`
+## BUG B — Stop does not remove `live/state` — **FIXED 2026-08-19**
 
-**Confirmed in production on 2026-08-19.** The owner pressed **Stop**;
-`live/state` survived, and the follower's bar stayed on "Following the class"
-with no toast. The `allow delete: if mcIsOwner(mcId);` clause **is** deployed —
-checked in the Firebase console's Rules tab — so this is not the missing rule
-commit 6 added.
+**Root cause: a committed but undeployed ruleset. There was never an
+application bug here.**
 
-Two candidates, not yet separated:
+`9be6cb4` added `allow delete: if mcIsOwner(mcId);` to the
+`masterclasses/{mcId}/live/{docId}` block and was committed at
+**2026-08-17 01:26**. `npm run rules:deploy` was never run for it. The ruleset
+actually serving production was the one deployed with `feca228` at
+**2026-08-16 20:01**, three days stale — the Firebase console's Rules tab
+reported exactly that date. Deploying the file fixed it with no code change,
+and Stop was then confirmed working end to end in production.
 
-1. **A race in `pushLiveState()`.** `setDoc()` is fired and never awaited.
-   `stopLiveState()` cancels the *pending* write and clears the timer, but it
-   cannot cancel a `setDoc` already in flight. A write issued for the last move
-   can land **after** the delete and recreate the document. This is a real hole
-   in the code regardless of whether it caused this.
-2. **The delete was refused** for some other reason, in which case `stopLive()`
-   logged `Stopping the live board failed` and toasted. Adrian was on a phone
-   and could not read the console.
+**How the earlier "the clause IS deployed" confirmation went wrong, because it
+will go wrong again.** The line `allow delete: if mcIsOwner(mcId);` appears
+**twice**, character for character: once in the `chapters` block, shipped in
+`feca228` and deployed since 2026-08-16, and once in the `live` block, new in
+`9be6cb4`. Searching the console's Rules tab for that line finds the `chapters`
+copy whether or not the `live` copy was ever deployed. **Never confirm a rules
+clause by searching for the clause. Find its `match` line, then read down to
+that block's closing brace.** Better still, read the ruleset's deploy date and
+compare it to `git log -1 --date=iso -- firestore.rules`.
 
-**Separating these needs the member side run in a desktop browser in incognito**,
-where the console is readable. Do that before writing any fix.
+**What actually identified it, in one step.** Production writes to `live/state`
+were succeeding, and the write rule's first real condition is `mcIsOwner(mcId)`.
+The delete rule is that same condition and nothing else — no `after()`, no size
+checks. So under the rules as written the delete could not be refused, yet
+production refused it with `Missing or insufficient permissions`. The rules
+running in production therefore were not the rules in the file. That deduction
+needed no instrumentation and no second run.
 
+**The race in `pushLiveState()` was NOT the cause, and on inspection is not
+reachable.** `setDoc()` is fired without `await`, but Firestore sends a client's
+mutations in a FIFO queue and applies them in issue order, so a `setDoc` issued
+*before* a `deleteDoc` cannot land after it. The only stale write would be one
+issued *after* the stop, and `stopLiveState()` clears `livePending` and
+`liveTimer` synchronously while `onBoardChange()` refuses to push once
+`this.live` is false. Left as it is, deliberately.
+
+**The one reachable ordering hole that IS real, and is not this bug.** If the
+owner presses Stop while offline, `deleteDoc()` never resolves, `stopLive()`
+awaits forever and reports nothing. If they then press Start again and move,
+the queued delete lands *after* the new broadcast's writes and silently kills
+it. Not seen in production, not fixed, recorded here so it is not rediscovered
+as a mystery.
+
+**Process rule this produced: a rules commit is not done until
+`npm run rules:deploy` has run.** `test:rules` passing proves the *file* is
+right and says nothing about what production is serving.
 
 ## Two accounts
 
