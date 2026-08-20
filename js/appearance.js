@@ -54,8 +54,14 @@ export const ColorMode = {
     const eff = this.effective();
     document.body.classList.remove('mode-light', 'mode-dark');
     document.body.classList.add('mode-' + eff);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', eff === 'light' ? '#f5f3ef' : '#1a1714');
+    // Both theme-color metas (the light-media one and the dark-media one) get
+    // the effective colour: the mode can be forced independently of the OS, so
+    // once JS is running it is the authority, not the media query. These must
+    // stay equal to --bg in css/style.css — Android paints the status bar with
+    // this, and Bubblewrap bakes the manifest's colours into the TWA splash.
+    const eff_bg = eff === 'light' ? '#f6f7fb' : '#0e131a';
+    document.querySelectorAll('meta[name="theme-color"]')
+      .forEach(m => m.setAttribute('content', eff_bg));
     if (activeScreen === 'profile') Profile.refresh();
   },
 };
