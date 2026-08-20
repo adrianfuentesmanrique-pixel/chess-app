@@ -2,6 +2,85 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **THE FIRESTORE WRITE RULES ARE VERIFIED (2026-08-20). This was listed as an
+  open unknown "for months" and it was already closed — the note saying only the
+  READ rules had ever been tested is STALE. Do not re-open it, and do not plan a
+  live write test.** No production write was made and none is needed: the whole
+  thing runs on the local Firestore emulator via `npm.cmd run test:rules`, which
+  loads `firestore.rules` from disk into an empty local database. The suite was
+  RUN, not read: **169 tests, 169 passing, 0 failing.**
+  - **The four write claims that were asked for are each proved by a named,
+    passing test — no new tests were written, because all four already existed:**
+    1. *A signed-in user CAN write their own `/users/{uid}`* —
+       `existing.test.js` "the owner can write their own document", plus
+       `notifications.test.js` "creating the user document for the first time
+       succeeds" (the create path, where `resource` is null, is a separate case
+       and is covered separately).
+    2. *A signed-in user CANNOT write someone else's* —
+       `existing.test.js` "another signed-in user CANNOT write it" and
+       `notifications.test.js` "a stranger CANNOT write someone else's user
+       document".
+    3. *An anonymous client cannot write either* —
+       `notifications.test.js` "a signed-out visitor CANNOT read or write a user
+       document" (it asserts BOTH, in one test) and `existing.test.js`
+       "a signed-out visitor CANNOT write".
+    4. *The leaderboard cannot be written with a forged rating or someone else's
+       uid* — `existing.test.js` "another user CANNOT write someone else's
+       entry", "CANNOT write an impossible puzzle ELO", "CANNOT write a negative
+       puzzle ELO", "CANNOT write an impossible Rush score", "CANNOT write a
+       puzzle ELO as a string", and "CAN write a believable top score" as the
+       matching allow-case.
+  - **Well beyond the four**, the same green run also covers the field allowlist
+    (email, real name and date of birth are each refused on the public
+    document), the private-profile guarantee, the 60-character text bounds, the
+    `lastNudgeDate` / `lastWarnDate` function-owned fields, the whole
+    `fcmTokens` block, and every Friends and Masterclass clause.
+  - **No rule was weakened and no rule was found to be wrong.** Nothing in
+    `firestore.rules` was edited, so there was no rules commit and **no rules
+    deploy for this**.
+  - **The file that was tested IS what is live.** The emulator only ever proves
+    the file on disk, so this was checked separately rather than assumed:
+    `firestore.rules` is committed and clean, its last change is `a59db0e`
+    (2026-08-20, the notifications rules), and the note at the top of
+    `docs/superpowers/plans/2026-08-17-notifications.md` records that commit as
+    **built and deployed** the same day. So live and file agree as of
+    2026-08-20 and no `rules:deploy` is owed.
+  - **Firebase has no "download the live rules" CLI command** — `firebase
+    firestore:*` has no rules subcommand and `gcloud` is not installed on this
+    machine. The only ways to read the deployed text are the Firebase console's
+    **Firestore → Rules** tab and the REST Rules API. If drift is ever suspected,
+    re-running `cd C:\Users\Adrian\chess-app; npm.cmd run rules:deploy` is
+    idempotent and settles it.
+
+- **MASTERCLASS IS CLOSED — Adrian stopped work on it on 2026-08-20.** He said
+  he does not want to touch Masterclass any more and that **there is no real bug
+  so far**. **This note overrides everything written below about BUG A (a
+  follower cannot leave the stored chapter PGN) and BUG B (Stop does not remove
+  `live/state`), and everything in `docs/MASTERCLASS-LIVE-CHECKLIST.md`.** Those
+  write-ups stay in the repo as a record of what was observed, but they are
+  **not a work queue**. Do not plan them, do not patch them, do not put
+  Masterclass in a handover prompt as the next task, and do not offer it as a
+  suggestion. Only reopen it if Adrian raises Masterclass himself.
+
+- **Dated keys follow the player's own calendar day, not UTC (2026-08-20,
+  `ef52616`, deployed and confirmed live by Adrian).** `monthStr()` built the
+  monthly-leaderboard season key from `toISOString()`, which rolls over at 19:00
+  Panama time, so on the last evening of a month a Rush score was filed under the
+  NEXT month and the player's own row vanished from the "This month" board while
+  their local calendar still said the old month. It now slices `todayStr()`,
+  which was already local. The three PGN `Date` headers had the same bug and now
+  reformat `todayStr()` too. **`todayStr()`, `streakCount`, `streakLastDate` and
+  `bestStreak` were deliberately NOT touched** — they were already local and
+  correct; do not "fix" them. `toISOString()` is now gone from `js/` apart from
+  one mention inside the explanatory comment at `js/app.js:1098`. `sw.js` v76 →
+  **v77**. No `firestore.rules` change, so **no rules deploy for this**.
+  - **Both halves of the deploy were verified**, not assumed: the live
+    `sw.js` flipped v76 → v77 about 40s after the push, and live
+    `js/app.js` was fetched and checked to contain the new `monthStr()` and all
+    three rewritten `Date` headers.
+  - **Adrian confirmed on production, signed in as himself, that his own Rush row
+    appears on the "This month" board. That closes this work — do not re-test it.**
+
 - **Masterclass — the first production run happened on 2026-08-19 and STOPPED
   PART-WAY THROUGH PART C. Stage 1 is code-complete but NOT proven.** Two real
   first-contact failures, both written up in full in
@@ -579,13 +658,27 @@
     and `blockUser()`, `unblockUser()`, `fetchBlockedUids()` — block wrote
     `blocks/{me}/blocked/{them}`, removed the friendship and the request I had
     sent, the Blocked screen listed them, and Unblock cleared it.
-  - **Still never executed, and do not claim otherwise:** `unfriend()`
-    itself (though `blockUser()` runs the identical delete on the identical
-    document under the identical rule, and that was watched succeeding),
-    `rejectFriendRequest()`, `cancelFriendRequest()`, and the blocked
-    sender's side — "the blocked account tries to ask again and no document
-    appears" needs a second account Adrian can sign into. He does not have
-    one right now.
+  - **THE FRIENDS SYSTEM IS CLOSED — 2026-08-20. Stop testing it.** Adrian ran
+    the last four checks himself against production and reported all four
+    working and correct in Firestore: `rejectFriendRequest()`,
+    `cancelFriendRequest()`, `unfriend()` and the blocked sender's side (a
+    blocked account presses ➕, gets the neutral "Solicitud enviada ✓" toast,
+    and no `friendRequests` document is created). The third account, not
+    `miguelafuentesm`, was the other side.
+  - **What that rests on:** Adrian's own confirmation. No session watched these
+    four in the console step by step, so there are no document ids recorded for
+    them and no separate 375px / light-and-dark / both-languages pass for
+    `unfriend()` or the blocked-sender check. Deliberate stopping point, not an
+    oversight. **Do not reopen this and do not re-run them.** If something
+    surfaces in real use, Adrian will say so and it gets debugged then.
+  - **Still true and worth keeping:** `unfriend()`'s rule had already been
+    proved independently — `blockUser()` runs the identical delete on the
+    identical friendship document under the identical rule, watched succeeding
+    — and the blocked-sender rule is covered by the rules test suite.
+  - **One thing left open, and it is a MASTERCLASS problem, not a Friends
+    one:** Adrian **cannot** sign into `miguelafuentesm`, and Zugzwang ↔
+    miguelafuentesm are **not** friends. Step 0 of the Masterclass live run
+    needs both. Nothing in the Friends system is waiting on it.
   - **One real bug was found and fixed — `5326426`, `sw.js` → v63.**
     `renderFind()` in `js/friends.js` decided the search row's button from
     `Friends.sent` alone, i.e. the uids clicked in *this page session*. It
@@ -788,8 +881,10 @@
     must look exactly like a pending one to whoever sent it.
   - ~~**Owed: the two-account run.**~~ **PARTLY DONE 2026-08-16 — see the top
     entry.** `acceptFriendRequest()` has run against production and the
-    friendship document exists. `rejectFriendRequest()` and
-    `cancelFriendRequest()` still have never executed.
+    friendship document exists. **`rejectFriendRequest()` and
+    `cancelFriendRequest()` have now run too, on the real site — Adrian
+    confirmed both correct in Firestore on 2026-08-20.** Commit 4 is closed;
+    see the top entry.
 
 - **Friends system — commit 5 of 9 is done (2026-08-15). The Friends list.**
   One new export, `fetchFriendUids()`, does
@@ -864,10 +959,12 @@
     the top entry.** `blockUser()`, `unblockUser()` and `fetchBlockedUids()`
     have all executed against production, in a **one-account** run: blocking
     is a write by my own account, so it needed nobody else signed in.
-    **`unfriend()` itself still has never been called** — but `blockUser()`
-    runs the identical delete on the identical friendship document under the
-    identical rule, and that delete was watched succeeding. **The blocked
-    sender's side is still untested** and needs a second account.
+    **`unfriend()` and the blocked sender's side were closed out by Adrian on
+    2026-08-20** against production, using the third account — see the top
+    entry for exactly what that record rests on. `unfriend()`'s rule was
+    already proved anyway: `blockUser()` runs the identical delete on the
+    identical friendship document under the identical rule, watched
+    succeeding. **Commit 7 is closed. The whole Friends system is closed.**
 - **Friends system — commit 8 of 9 is done (2026-08-15, `c3b1e4f`). Comment
   only.** The note above `VISIBILITY_SECTIONS` in `js/leaderboard.js` used to
   claim a `friends` level could be added by adding a line to that table. It
@@ -1034,6 +1131,35 @@
 - Endgame tab: 265 endgames, bilingual, live.
 
 ## Still to do
+
+### Restrict the Firebase web API key by HTTP referrer — ADRIAN ONLY (2026-08-20)
+
+**No session can do this and none should try.** It is a Google Cloud Console
+change on a key nobody but the project owner can edit; there is no CLI path and
+no file in this repo controls it. The exact click-by-click steps and the full
+allow-list were written for Adrian on 2026-08-20 — the list is
+`chesstrainingcenter.app/*`, `www.chesstrainingcenter.app/*`,
+**`chess-training-center.firebaseapp.com/*`**, `chess-training-center.web.app/*`,
+`localhost:8811/*` and `127.0.0.1:8811/*`.
+
+- **The `firebaseapp.com` entry is the lockout trap and must not be dropped.**
+  `js/firebase.js:107` uses `signInWithPopup`, and that popup is served from
+  `chess-training-center.firebaseapp.com/__/auth/handler`, which calls Google's
+  identity API *from that domain* with the same key. Leave it out and **Google
+  sign-in breaks for everybody, on the live site and in the Android TWA**, while
+  the rest of the app looks fine.
+- **The TWA needs no entry of its own.** A Trusted Web Activity is Chrome
+  rendering `chesstrainingcenter.app`, so its requests carry that origin. There
+  is no Android package name to add here (`com.chesstrainingcenter.app` belongs
+  in `.well-known/assetlinks.json`, which is already correct).
+- **`8811` is the dev port** — it comes from `.claude/launch.json`, not from
+  memory. If that port ever changes, the referrer list has to change with it.
+- **This is a QUOTA-ABUSE control, not a data control, and it must not be sold
+  as one.** A Firebase web API key is a public project identifier, not a secret;
+  it is *meant* to ship in `js/firebase.js` and every Firebase web app on earth
+  exposes one. What protects the data is `firestore.rules` (169 passing tests —
+  see the top entry) plus App Check. Do not let "the key is visible in the
+  source" get written up as a vulnerability.
 
 ### English copy review — COMPLETE (2026-08-08). All ten batches done.
 
