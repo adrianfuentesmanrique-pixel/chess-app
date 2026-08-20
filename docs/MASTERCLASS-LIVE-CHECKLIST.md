@@ -34,6 +34,9 @@ Already proved live in the commit-4 run and **not** re-tested: `createMasterclas
 
 ## BUG A — a follower cannot leave the stored chapter PGN
 
+**A plan for this exists and is approved: `docs/superpowers/plans/2026-08-19-masterclass-live-carries-moves.md`.**
+It has not been implemented. Read it before touching any of this.
+
 **Confirmed by local reproduction AND by production data on 2026-08-19.**
 
 The live document carries a **pointer** (`path`, a list of child indices) into a
