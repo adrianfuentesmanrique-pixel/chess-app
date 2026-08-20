@@ -23,7 +23,7 @@ import { t, tn } from './i18n.js';
 import {
   Auth, MAX_MASTERCLASSES, createMasterclass, fetchMyMasterclasses,
   deleteMasterclass, MAX_CHAPTERS, MAX_CHAPTER_BYTES, addChapter, fetchChapters,
-  deleteChapter, updateChapter, renameMasterclass,
+  deleteChapter, updateChapter, setChapterOrder, renameMasterclass,
   MAX_MEMBERS, addMembers, fetchMembers, removeMember,
   leaveMasterclass, setMemberCount, fetchLeaderboardByUids,
   pushLiveState, watchLiveState, stopLiveState,
@@ -40,6 +40,7 @@ import { avatarHtml } from './avatars.js';
 // running a second query of its own.
 import { Friends } from './friends.js';
 import { parsePgn, lineOf, gotoLine } from './tree.js';
+import { planMove } from './chapter-order.js';
 import * as db from './db.js';
 
 // A base can hold thousands of games and this picker is a modal full of
@@ -478,11 +479,64 @@ export const Masterclass = {
     });
   },
 
+  // The index is read here rather than passed in from renderChapters(), so a
+  // menu left open while the list reloads acts on where the chapter IS, not on
+  // where it was drawn. -1 means it was deleted underneath: both move entries
+  // then drop out and renameChapter()/confirmDeleteChapter() report it.
   chapterMenu(ch) {
-    sheet([
-      { label: t('mc_rename_chapter'), action: () => this.renameChapter(ch) },
-      { label: t('mc_delete_chapter'), danger: true, action: () => this.confirmDeleteChapter(ch) },
-    ]);
+    const i = this.chapters.findIndex(c => c.id === ch.id);
+    const items = [];
+    // No entry that can do nothing: the first chapter is offered no Up and the
+    // last no Down, so every line in this sheet moves something.
+    if (i > 0) items.push({ label: t('mc_move_up'), action: () => this.moveChapter(ch, -1) });
+    if (i >= 0 && i < this.chapters.length - 1) {
+      items.push({ label: t('mc_move_down'), action: () => this.moveChapter(ch, 1) });
+    }
+    items.push({ label: t('mc_rename_chapter'), action: () => this.renameChapter(ch) });
+    items.push({ label: t('mc_delete_chapter'), danger: true, action: () => this.confirmDeleteChapter(ch) });
+    sheet(items);
+  },
+
+  // One step up or down. The arithmetic is planMove() in js/chapter-order.js,
+  // which imports nothing and is unit-tested; what is left here is the three
+  // guards, the writes and the redraw.
+  //
+  // Offline is refused rather than queued, exactly as renameChapter() refuses
+  // it. A queued reorder is worse than a queued rename: it would land whenever
+  // the connection came back, after whatever anybody else had done to the list
+  // in between, and reshuffle a class nobody was looking at.
+  //
+  // Nothing local changes until every write has returned. A half-applied move —
+  // one document's order stored, the other's refused — leaves the list on
+  // screen showing an order that is not what is stored, and re-reading is the
+  // honest answer to that, so a failure reloads instead of guessing.
+  async moveChapter(ch, dir) {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!Auth.user) { toast(t('mc_needs_signin')); return; }
+    if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
+    const i = this.chapters.findIndex(c => c.id === ch.id);
+    const writes = planMove(this.chapters, i, dir);
+    // The chapter was deleted while the menu sat open, or it is already at the
+    // end it was asked to move towards. Neither is an error worth a toast.
+    if (!writes.length) return;
+    try {
+      await Promise.all(writes.map(w => setChapterOrder(mc.id, w.id, w.order)));
+    } catch (e) {
+      console.error('Moving a chapter failed', e);
+      toast(t('mc_needs_network'));
+      // Whatever landed before the failure is now the truth, and it is not
+      // what is on screen. Ask the server rather than invent it.
+      this.loadChapters();
+      return;
+    }
+    const byId = new Map(writes.map(w => [w.id, w.order]));
+    this.chapters.forEach(c => { if (byId.has(c.id)) c.order = byId.get(c.id); });
+    // The same comparison fetchChapters() sorts by, so the list after a move
+    // and the list after a reload are the same list.
+    this.chapters.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    this.renderChapters();
+    toast(t('mc_chapter_moved'));
   },
 
   // The title is the one field an edit could not otherwise reach: saveToChapter()

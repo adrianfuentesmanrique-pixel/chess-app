@@ -460,6 +460,9 @@ const DICT = {
   mc_renamed: { es: 'Masterclass renombrada', en: 'Masterclass renamed' },
   mc_rename_chapter: { es: '✏️ Renombrar capítulo', en: '✏️ Rename chapter' },
   mc_chapter_renamed: { es: 'Capítulo renombrado', en: 'Chapter renamed' },
+  mc_move_up: { es: '⬆️ Subir capítulo', en: '⬆️ Move chapter up' },
+  mc_move_down: { es: '⬇️ Bajar capítulo', en: '⬇️ Move chapter down' },
+  mc_chapter_moved: { es: 'Capítulo movido', en: 'Chapter moved' },
   mc_delete_chapter: { es: '🗑 Borrar capítulo', en: '🗑 Delete chapter' },
   mc_delete_chapter_confirm: { es: '¿Borrar este capítulo? Se borra para todos.', en: 'Delete this chapter? It is deleted for everyone.' },
   // The 100,000-byte PGN limit is the one cap Firestore rules really enforce.

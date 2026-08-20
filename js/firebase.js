@@ -741,6 +741,28 @@ export async function updateChapter(mcId, chapterId, { title, pgn, startFen, ord
   });
 }
 
+// Moving a chapter. This writes `order` and nothing else, so the PGN never
+// leaves the phone — which is the whole reason it is not updateChapter().
+//
+// updateDoc(), not setDoc(), and that is safe for a reason worth writing down:
+// the chapter rule tests after().keys().hasOnly([...six...]) against the WHOLE
+// RESULTING document, not against the keys this call sends. A stored chapter
+// already has all six, so touching three of them leaves six behind and the rule
+// is satisfied. updateChapter() uses setDoc() because it changes `pgn` and so
+// has to send `pgn` anyway; there, writing all six makes the write mean the same
+// thing whatever shape the stored document had.
+//
+// updatedAt is serverTimestamp() because the rule is `updatedAt == request.time`.
+export async function setChapterOrder(mcId, chapterId, order) {
+  const user = auth.currentUser;
+  if (!user || !mcId || !chapterId) return;
+  await updateDoc(doc(firestore, 'masterclasses', mcId, 'chapters', chapterId), {
+    order: Number(order) || 0,
+    updatedBy: user.uid,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 // Sorted here rather than with orderBy so no composite index is needed — the
 // same shape the friends list uses. The whole PGN of every chapter comes down,
 // which is why the cap is also the limit.

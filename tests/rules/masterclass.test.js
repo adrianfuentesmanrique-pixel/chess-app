@@ -398,6 +398,49 @@ describe('/masterclasses/{id}/chapters — the content', () => {
     await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
       chapter({ note: 'smuggled' })));
   });
+
+  // ── reordering, which is what setChapterOrder() does ───────────────────
+  // Moving a chapter writes `order` and nothing else, so the PGN never leaves
+  // the phone. That is only legal because hasOnly() is checked against the
+  // WHOLE RESULTING document: a stored chapter already has all six keys, so
+  // patching three of them leaves six behind. Test 43 above is the same fact
+  // from the other side — the shape still cannot grow. These three are what
+  // turn "no rules change was needed" into something that has been checked.
+  it('44. the owner CAN patch order alone, without resending the PGN', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/chapters/ch1`, { ...chapter(), updatedAt: new Date() });
+    await assertSucceeds(updateDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      { order: 7, updatedBy: OWNER, updatedAt: serverTimestamp() }));
+  });
+
+  it('45. a viewer CANNOT reorder the chapters', async () => {
+    await seedClass();
+    await seedMember(VIEWER);
+    await seed(`masterclasses/${MC}/chapters/ch1`, { ...chapter(), updatedAt: new Date() });
+    await assertFails(updateDoc(doc(asViewer(), `masterclasses/${MC}/chapters/ch1`),
+      { order: 7, updatedBy: VIEWER, updatedAt: serverTimestamp() }));
+  });
+
+  // The same trap test 42 sets for an edit. setChapterOrder() uses
+  // serverTimestamp() for exactly this reason.
+  it('46. a reorder carrying a client-clock updatedAt is denied', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/chapters/ch1`, { ...chapter(), updatedAt: new Date() });
+    await assertFails(updateDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      { order: 7, updatedBy: OWNER, updatedAt: new Date() }));
+  });
+
+  // A patch that leaves updatedBy pointing at whoever wrote the chapter last
+  // would let a move be attributed to somebody who did not make it. The rule
+  // says after().updatedBy == me(), and after() is the stored document, so an
+  // omitted updatedBy is not "unchanged" — it is the OLD value, and it fails.
+  it('47. a reorder that does not claim updatedBy is denied', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/chapters/ch1`,
+      { ...chapter(), updatedBy: VIEWER, updatedAt: new Date() });
+    await assertFails(updateDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      { order: 7, updatedAt: serverTimestamp() }));
+  });
 });
 
 // ═══════════════════ masterclasses/{mcId}/live/state ═══════════════════
