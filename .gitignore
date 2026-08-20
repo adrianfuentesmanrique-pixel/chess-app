@@ -33,3 +33,8 @@ android/keystore.properties
 # Python bytecode from tools/
 __pycache__/
 *.pyc
+
+# Incoming notification artwork, same reason as icons/Streak Flames/ above:
+# large source images that the app does not reference yet. The downscaled PNGs
+# that ship live in icons/notif/ and are committed.
+Notification/

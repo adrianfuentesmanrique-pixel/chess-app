@@ -2,6 +2,57 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> ## ⛔ PARKED — 2026-08-20. Do not start Task 2, 3, 4, 5, 6 or 7.
+>
+> **Adrian has decided not to put a card on this project.** Blaze is therefore
+> not happening, and every remaining task in this plan depends on it. This is a
+> settled decision, not an open question — do not re-pitch it, do not re-cost
+> it, and do not look for a way around it. There isn't one: the web platform
+> cannot schedule a notification for later without a server (Part 1 explains
+> why), and the server needs Blaze.
+>
+> **What actually exists, and what was thrown away:**
+>
+> * **Commit 1 is built and deployed** — `a59db0e`, 2026-08-20. The
+>   `users/{uid}/fcmTokens/{tokenId}` rules block, the field constraints on
+>   `users/{uid}`, and `tests/rules/notifications.test.js`. 169 rules tests, all
+>   passing. **Leave it alone.** It is inert: it permits writes to a collection
+>   that nothing writes to, and it costs nothing to keep. Reverting it would
+>   churn live security rules for no benefit.
+> * **Commit 2 was attempted on 2026-08-20 and deliberately backed out.** The
+>   `functions/` directory, the `functions` block in `firebase.json` and the
+>   `functions:deploy` / `functions:logs` scripts were written, then removed
+>   once the Blaze answer came back. Nothing of commit 2 is in the repo. Task 2
+>   below is complete enough to rebuild it in minutes if the decision ever
+>   changes — with one correction folded in, below.
+> * **`.gitignore` gained `Notification/`** and that entry was kept. It is
+>   useful regardless: the raw artwork sits untracked in the checkout and this
+>   keeps `git status` readable.
+>
+> **Two facts worth not re-discovering, both established by running the commands:**
+>
+> 1. **Task 2 Step 1 is answered. The database is in `nam5`** (from
+>    `firebase firestore:databases:get "(default)"`), which is the US
+>    multi-region, so the functions region is **`us-central1`**. Do not re-run
+>    the lookup and do not guess.
+> 2. **The Blaze block is real and it lands at API-enablement time,** before any
+>    code is built or uploaded. The exact error from
+>    `firebase deploy --only functions`:
+>
+>    > Error: Your project chess-training-center must be on the Blaze
+>    > (pay-as-you-go) plan to complete this command. Required API
+>    > artifactregistry.googleapis.com can't be enabled until the upgrade is
+>    > complete.
+>
+>    That attempt asked Google to enable `cloudfunctions`, `cloudbuild` and
+>    `artifactregistry`. It failed on the third. Enabled-but-unused APIs bill
+>    nothing, and a Spark project has no card to charge in any case, so there is
+>    nothing to clean up and nothing to worry about.
+>
+> **If this is ever un-parked**, the order is: Blaze → $1 budget alert → rebuild
+> Task 2 → deploy → *then* the Artifact Registry cleanup policy, which cannot be
+> set before the first deploy creates the `gcf-artifacts` repository.
+
 Written 2026-08-20. **Nothing here is built yet.** Adrian must approve before any
 feature code is written. This document was produced in a session that edited no
 `js/` file, no `sw.js` and no `firestore.rules`.
@@ -905,6 +956,11 @@ cd C:\Users\Adrian\chess-app; npx.cmd firebase firestore:databases:list --projec
 
 Write the answer into `functions/index.js` as a `REGION` constant. Every function
 in this plan uses it.
+
+**Already answered, 2026-08-20: the database is `nam5`, so `REGION` is
+`'us-central1'`.** The command above prints the location but the plan's original
+wording implied the region name would be usable directly — it is not. `nam5` is a
+multi-region and the matching function region is `us-central1`. Skip this step.
 
 - [ ] **Step 2: Upgrade the project to Blaze**
 
