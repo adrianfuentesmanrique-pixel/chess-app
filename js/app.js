@@ -1098,14 +1098,16 @@ const DailyMissions = {
 // The player's own calendar day, not UTC. toISOString() rolls over at 19:00 in
 // Panama, so an evening session used to be filed under tomorrow — you could
 // keep a streak alive on a day you never opened the app, and lose one on a day
-// you did. Every dated key in the app goes through this function.
+// you did. Everything else that needs a date derives from this one function —
+// monthStr() slices it, and the PGN Date header reformats it — so there is a
+// single place where "what day is it" is decided.
 function todayStr() {
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 // 'YYYY-MM' — the season key for the monthly leaderboards.
-export function monthStr() { return new Date().toISOString().slice(0, 7); }
+export function monthStr() { return todayStr().slice(0, 7); }
 function isYesterday(dateStr, todayStrVal) {
   const d = new Date(dateStr + 'T00:00:00');
   const t = new Date(todayStrVal + 'T00:00:00');
@@ -2641,7 +2643,7 @@ const Play = {
       const tree = treeFromHistory(this.startFen, hist);
       tree.setHeader('White', this.playerColor === 'w' ? me : bot);
       tree.setHeader('Black', this.playerColor === 'b' ? me : bot);
-      tree.setHeader('Date', new Date().toISOString().slice(0, 10).replace(/-/g, '.'));
+      tree.setHeader('Date', todayStr().replace(/-/g, '.'));
       tree.setHeader('Event', t('history_event'));
       const rec = History.buildRecord({
         chess: this.chess,
@@ -2675,7 +2677,7 @@ const Play = {
     const sf = `Stockfish (${names[this.level]})`;
     tree.setHeader('White', this.playerColor === 'w' ? me : sf);
     tree.setHeader('Black', this.playerColor === 'b' ? me : sf);
-    tree.setHeader('Date', new Date().toISOString().slice(0, 10).replace(/-/g, '.'));
+    tree.setHeader('Date', todayStr().replace(/-/g, '.'));
     if (this.over && this.chess.isCheckmate()) tree.setHeader('Result', this.chess.turn() === 'w' ? '0-1' : '1-0');
     else if (this.over && this.chess.isDraw()) tree.setHeader('Result', '1/2-1/2');
     engine.stop();
@@ -2836,7 +2838,7 @@ const GameReview = {
         });
         tree.setHeader('White', whiteName);
         tree.setHeader('Black', blackName);
-        tree.setHeader('Date', new Date().toISOString().slice(0, 10).replace(/-/g, '.'));
+        tree.setHeader('Date', todayStr().replace(/-/g, '.'));
         const finalChess = new Chess(fens[fens.length - 1]);
         if (finalChess.isCheckmate()) tree.setHeader('Result', finalChess.turn() === 'w' ? '0-1' : '1-0');
         else if (finalChess.isDraw()) tree.setHeader('Result', '1/2-1/2');
