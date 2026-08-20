@@ -16,10 +16,11 @@ production on **2026-08-20** against `c54a0f3` (sw.js v72, rules deployed
 2026-08-20T01:37Z), on `masterclasses/beQxGO1s4Vfr02yw0VEk`, two desktop
 browsers, Zugzwang as owner.
 
-**Everything in Part C now passes, steps 1 to 20 inclusive** — including the
-three cases that had never worked: a move past the end of the stored PGN, a
-variation, and a late join. Part C2 and Part D are still **not run**; this
-table is a pass for the live board and nothing else.
+**The WHOLE of Part C now passes, steps 1 to 25** — including the three cases
+that had never worked: a move past the end of the stored PGN, a variation, and
+a late join. Part C2 (the offline / Reconnecting section) and Part D (removal,
+leaving, delete) are still **not run**; this table is a pass for the live board
+and nothing else.
 
 | Function / feature | Commit | Ever run live? |
 |---|---|---|
@@ -33,7 +34,9 @@ table is a pass for the live board and nothing else.
 | `lineOf()` / `gotoLine()` (`js/tree.js`) | BUG A fix | **YES — works.** The live protocol itself. Also the first code in this feature under a unit test: `npm run test:tree`, 6 tests, whose test 2 is the exact production failure and fails against `3232dd0`. |
 | `stopLiveState()` | 6 | **YES — works, once the rules were actually deployed.** The delete lands, `live/state` disappears from the console, and the follower's bar clears with the `mc_live_ended` message. See BUG B — the code was never at fault. Re-proved 2026-08-20 as a regression check after the BUG A fix. |
 | `deleteMasterclass()` | 3 | **NEVER** |
-| `{ includeMetadataChanges: true }`, the Reconnecting bar, the offline section | 7 | **NEVER** — Part C2 was never reached. |
+| Follow / Stop following (`toggleFollow()`) | 6 | **YES — works.** 2026-08-20, step 21-22: with Following off the student's board stayed put through three teacher moves, and Back to live snapped to the teacher's CURRENT position without replaying the three. |
+| Leaving the class screen by the tab bar and returning, both sides | 6 | **YES — works.** 2026-08-20, steps 24-25. The owner keeps broadcasting across a tab round-trip, the member picks the class back up, and after Stop + back the bar is gone on both sides. |
+| `{ includeMetadataChanges: true }`, the Reconnecting bar, the offline section | 7 | **NEVER** — Part C2 has still never been reached. It is the next thing to run. |
 
 Already proved live in the commit-4 run and **not** re-tested: `createMasterclass()`,
 `fetchMyMasterclasses()`, `addChapter()`, `fetchChapters()`, `deleteChapter()`.
