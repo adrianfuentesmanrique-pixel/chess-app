@@ -52,6 +52,57 @@
     re-running `cd C:\Users\Adrian\chess-app; npm.cmd run rules:deploy` is
     idempotent and settles it.
 
+- **THE FIREBASE WEB API KEY IS RESTRICTED BY HTTP REFERRER — Adrian did it in
+  Google Cloud Console on 2026-08-20 and confirmed the site still works. BOTH
+  pre-launch security items are now closed. Do not re-open either one and do not
+  ask him to re-check them.**
+  - **The key was ALREADY partly restricted before this** — a session had
+    assumed it was wide open, and it was not. Four entries were already on it,
+    almost certainly written by Firebase itself at project creation:
+    `http://localhost/*`, `https://chess-training-center.firebaseapp.com/*`,
+    `https://chess-training-center.web.app/*` and
+    `https://chesstrainingcenter.app/*`. **Check the console before claiming a
+    Google-side setting is unset.**
+  - Adrian added three more: `https://www.chesstrainingcenter.app/*`,
+    `http://localhost:8811/*` and `http://127.0.0.1:8811/*`. Seven entries
+    total. **`8811` is the dev port from `.claude/launch.json`** — if that port
+    ever changes, this list has to change with it.
+  - **Both `localhost` forms are listed deliberately, and the plain
+    `http://localhost/*` was NOT removed.** Whether a portless entry also covers
+    port 8811 was not established either way, so the explicit ones were added
+    rather than guessed at. Do not "tidy" the duplicate away.
+  - **`chess-training-center.firebaseapp.com/*` is the lockout trap. Never
+    remove it.** `js/firebase.js:107` uses `signInWithPopup`, and that popup is
+    served from `chess-training-center.firebaseapp.com/__/auth/handler`, which
+    calls Google's identity API *from that domain* with the same key. Without it
+    **Google sign-in breaks for everybody, live site and Android TWA both**,
+    while the rest of the app looks perfectly fine — so it would not be caught
+    by a casual look.
+  - **The TWA needs no entry of its own.** A Trusted Web Activity is Chrome
+    rendering `chesstrainingcenter.app`, so its requests already carry that
+    origin. The Android package name `com.chesstrainingcenter.app` belongs in
+    `.well-known/assetlinks.json`, which is already correct — it is not a
+    referrer and does not go on this page.
+  - **"API restrictions" (the second section on that page) was deliberately left
+    on "Don't restrict key".** Only *Application restrictions* was touched.
+    Restricting the API list is a different control and getting it wrong takes
+    down sign-in and Firestore.
+  - **To undo, if it ever misbehaves:** same page, set **Application
+    restrictions** to **None**, Save, wait 5 minutes. No data is affected and it
+    can be flipped back and forth freely.
+  - **What this rests on: Adrian's own confirmation ("all done, looks good so
+    far") after applying it.** No session watched a post-change Google sign-in,
+    and there was no separate 375px / light-and-dark / both-languages pass for
+    it — there is nothing visual to check. Deliberate stopping point, not an
+    oversight. If something surfaces in real use he will say so.
+  - **Do not sell this as a data-security fix.** A Firebase web API key is a
+    public project identifier, not a secret; it is *meant* to ship in
+    `js/firebase.js` and every Firebase web app exposes one. This restriction
+    limits quota abuse from other people's sites. What protects the data is
+    `firestore.rules` (169 passing tests — see the entry below) plus App Check.
+    "The key is visible in the source" is not a vulnerability and must not be
+    written up as one.
+
 - **MASTERCLASS IS CLOSED — Adrian stopped work on it on 2026-08-20.** He said
   he does not want to touch Masterclass any more and that **there is no real bug
   so far**. **This note overrides everything written below about BUG A (a
@@ -1132,35 +1183,6 @@
 
 ## Still to do
 
-### Restrict the Firebase web API key by HTTP referrer — ADRIAN ONLY (2026-08-20)
-
-**No session can do this and none should try.** It is a Google Cloud Console
-change on a key nobody but the project owner can edit; there is no CLI path and
-no file in this repo controls it. The exact click-by-click steps and the full
-allow-list were written for Adrian on 2026-08-20 — the list is
-`chesstrainingcenter.app/*`, `www.chesstrainingcenter.app/*`,
-**`chess-training-center.firebaseapp.com/*`**, `chess-training-center.web.app/*`,
-`localhost:8811/*` and `127.0.0.1:8811/*`.
-
-- **The `firebaseapp.com` entry is the lockout trap and must not be dropped.**
-  `js/firebase.js:107` uses `signInWithPopup`, and that popup is served from
-  `chess-training-center.firebaseapp.com/__/auth/handler`, which calls Google's
-  identity API *from that domain* with the same key. Leave it out and **Google
-  sign-in breaks for everybody, on the live site and in the Android TWA**, while
-  the rest of the app looks fine.
-- **The TWA needs no entry of its own.** A Trusted Web Activity is Chrome
-  rendering `chesstrainingcenter.app`, so its requests carry that origin. There
-  is no Android package name to add here (`com.chesstrainingcenter.app` belongs
-  in `.well-known/assetlinks.json`, which is already correct).
-- **`8811` is the dev port** — it comes from `.claude/launch.json`, not from
-  memory. If that port ever changes, the referrer list has to change with it.
-- **This is a QUOTA-ABUSE control, not a data control, and it must not be sold
-  as one.** A Firebase web API key is a public project identifier, not a secret;
-  it is *meant* to ship in `js/firebase.js` and every Firebase web app on earth
-  exposes one. What protects the data is `firestore.rules` (169 passing tests —
-  see the top entry) plus App Check. Do not let "the key is visible in the
-  source" get written up as a vulnerability.
-
 ### English copy review — COMPLETE (2026-08-08). All ten batches done.
 
 Every English string in the app now reads like a native speaker who knows chess.
@@ -1262,7 +1284,9 @@ Lower priority, not in the work order:
      permission-denied, which stopped being true when the delete rule landed in
      `fa39468`. Comment corrected; the tolerant error handling around it was
      left alone on purpose.
-3. Restrict the Firebase web API key by HTTP referrer in Google Cloud Console.
+3. ~~Restrict the Firebase web API key by HTTP referrer in Google Cloud
+   Console.~~ **DONE 2026-08-20 by Adrian — see the top entry. Do not re-open
+   it and do not ask him to re-check it.**
 4. ~~Puzzle difficulty does not scale with ELO~~ — **NOT A BUG ANY MORE. Fixed
    on 31 Jul in `7bfc92e`; verified empirically 7 Aug, no code changed.** The
    old cause was that puzzle bands were fetched once at startup, so a rating
