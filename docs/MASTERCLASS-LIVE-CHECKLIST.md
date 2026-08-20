@@ -8,11 +8,18 @@ Run it on **https://chesstrainingcenter.app**, not on localhost. App Check
 blocks the localhost client from Firestore entirely, so none of this can be
 proved from Adrian's machine.
 
-## Ever run live? — rewritten 2026-08-19 after the first production attempt
+## Ever run live? — rewritten 2026-08-20, after BUG A was fixed and re-run
 
-The run was **STOPPED PART-WAY THROUGH PART C** by two real first-contact
-failures. Steps 1-18 were reached; step 19 onward, the whole of Part C2 and the
-whole of Part D were **not run**. Do not read this table as a pass.
+The 2026-08-19 run was **STOPPED PART-WAY THROUGH PART C** by two real
+first-contact failures. Both are now fixed and the live board was re-run in
+production on **2026-08-20** against `c54a0f3` (sw.js v72, rules deployed
+2026-08-20T01:37Z), on `masterclasses/beQxGO1s4Vfr02yw0VEk`, two desktop
+browsers, Zugzwang as owner.
+
+**Everything in Part C now passes, steps 1 to 20 inclusive** — including the
+three cases that had never worked: a move past the end of the stored PGN, a
+variation, and a late join. Part C2 and Part D are still **not run**; this
+table is a pass for the live board and nothing else.
 
 | Function / feature | Commit | Ever run live? |
 |---|---|---|
@@ -21,9 +28,10 @@ whole of Part D were **not run**. Do not read this table as a pass.
 | `fetchMembers()` | 5 | **Not confirmed.** The class screen was opened on both accounts but the members list was never read back step by step. |
 | `removeMember()` | 5 | **NEVER** |
 | `leaveMasterclass()` | 5 | **NEVER** |
-| `pushLiveState()` | 6 | **YES — works.** `live/state` was written with correct `chapterId`, `path`, `fen`, `drivenBy` and a server `updatedAt`, and it updated as the owner moved. |
-| `watchLiveState()` | 6 | **PARTLY.** The first snapshot was delivered and applied — the follower was taken to the right chapter by itself. Everything after that is blocked by BUG A below. |
-| `stopLiveState()` | 6 | **YES — works, once the rules were actually deployed.** The delete lands, `live/state` disappears from the console, and the follower's bar clears with the `mc_live_ended` message. See BUG B — the code was never at fault. |
+| `pushLiveState()` | 6 | **YES — works.** Re-proved 2026-08-20 on the new protocol: `live/state` carries `chapterId`, `line`, `fen`, `drivenBy` and a server `updatedAt`, **and no `path` field**, and `line` grows by one move on every move the owner plays. |
+| `watchLiveState()` | 6 | **YES — works.** 2026-08-20: the follower tracked moves inside the stored PGN, moves **past** the end of it, two backward steps, a jump from the moves list, a move into a **variation**, and a **late join** (leaving the class screen and returning mid-lesson lands on the teacher's current position). BUG A is fixed. |
+| `lineOf()` / `gotoLine()` (`js/tree.js`) | BUG A fix | **YES — works.** The live protocol itself. Also the first code in this feature under a unit test: `npm run test:tree`, 6 tests, whose test 2 is the exact production failure and fails against `3232dd0`. |
+| `stopLiveState()` | 6 | **YES — works, once the rules were actually deployed.** The delete lands, `live/state` disappears from the console, and the follower's bar clears with the `mc_live_ended` message. See BUG B — the code was never at fault. Re-proved 2026-08-20 as a regression check after the BUG A fix. |
 | `deleteMasterclass()` | 3 | **NEVER** |
 | `{ includeMetadataChanges: true }`, the Reconnecting bar, the offline section | 7 | **NEVER** — Part C2 was never reached. |
 
@@ -32,43 +40,49 @@ Already proved live in the commit-4 run and **not** re-tested: `createMasterclas
 
 ---
 
-## BUG A — a follower cannot leave the stored chapter PGN
+## BUG A — a follower cannot leave the stored chapter PGN — **FIXED 2026-08-20**
 
-**A plan for this exists and is approved: `docs/superpowers/plans/2026-08-19-masterclass-live-carries-moves.md`.**
-It has not been implemented. Read it before touching any of this.
+Fixed in `c54a0f3`, to the plan in
+`docs/superpowers/plans/2026-08-19-masterclass-live-carries-moves.md`, and
+**re-run in production the same evening — every case in Part C passed.**
 
-**Confirmed by local reproduction AND by production data on 2026-08-19.**
+**What it was.** The live document carried a **pointer** (`path`, a list of
+child indices) into a PGN both sides were assumed to already share. The follower
+parses its copy from the chapter stored in Firestore. Moves the owner plays
+**during** the lesson were never saved there, so those nodes did not exist in
+the follower's tree: `gotoPath()` returned false, and the FEN fallback failed
+too because `findFen()` searched only that same incomplete tree. `applyLive()`
+then deliberately did nothing — "a wrong node is worse than not moving" — and
+the follower's board froze silently, with nothing on screen to say so.
 
-The live document carries a **pointer** (`path`, a list of child indices) into a
-PGN both sides are assumed to already share. The follower parses its copy from
-the chapter stored in Firestore. Moves the owner plays **during** the lesson were
-never saved there, so those nodes do not exist in the follower's tree:
-`gotoPath()` returns false, and the FEN fallback fails too because `findFen()`
-searches only that same incomplete tree. `applyLive()` then deliberately does
-nothing — "a wrong node is worse than not moving" — and the follower's board
-freezes silently, with nothing on screen to say so.
-
-The first jump works, which is what makes this look like a half-working feature:
+The first jump worked, which is what made it look like a half-working feature:
 the chapter's own last position **is** in the stored PGN.
 
-Production evidence, `masterclasses/beQxGO1s4Vfr02yw0VEk`:
+Production evidence, `masterclasses/beQxGO1s4Vfr02yw0VEk`, 2026-08-19:
 
 - chapter `7luHArjcr1v4hs58RVPH` stores a PGN ending at `Bb5` — **five plies**
 - `live/state` held `path: "0.0.0.0.0.0"` — **six**, the owner had played `Nb4`
 - `fen: "r1bqkbnr/pppp1ppp/8/1B2p3/1n2P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"`
 
-A local reproduction (chapter `1. e4 e5`, teacher demonstrates `Nf3 Nc6 Bb5
-Nb4`) produces that **exact** path and that **exact** FEN, with
-`pathResolved: false` and `fenFallbackFound: false`. A control where the teacher
-stays inside the stored PGN resolves true.
+**What fixed it.** The document carries `line` — the teacher's SAN moves, whole,
+every time — and `path` is gone. `gotoLine()` walks the line with
+`GameTree.play()`, which steps onto a child that already has the move and builds
+the node when it does not, so the follower **extends** its copy of the chapter
+as the lesson goes. Sending the whole line every time is what makes a late join
+and a reconnect work for free.
 
-**This is a design gap, not a typo.** Demonstrating a new move is the whole
-point of a live lesson, and the protocol cannot carry one. Fixing it means the
-live document must carry the **moves**, not a pointer — which needs a
-`firestore.rules` change with a size cap and tests, a payload that grows through
-a lesson interacting with the 1-per-second throttle, and an `applyLive()` that
-**extends** the follower's tree instead of walking it, without re-parsing every
-ply. **It needs its own plan. Do not patch it in a debugging session.**
+**Guarded against coming back.** `tests/unit/tree-line.test.js` test 2 is that
+exact production failure — chapter `1. e4 e5`, line six plies deep, landing on
+that same FEN — and it fails against `3232dd0`. Rules test 38 denies a document
+still carrying `path`, so a half-finished migration cannot pass silently.
+
+**Not fixed, because it was decided against:** moves demonstrated during a
+lesson are still **not** saved to the chapter. Reload the member's browser and
+they are gone. Automatic saving would make every improvised sideline permanent
+teaching material with no undo; a deliberate "save this lesson to the chapter"
+button is a separate, later feature.
+
+---
 
 ## BUG B — Stop does not remove `live/state` — **FIXED 2026-08-19**
 
