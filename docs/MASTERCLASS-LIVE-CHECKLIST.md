@@ -8,35 +8,72 @@ Run it on **https://chesstrainingcenter.app**, not on localhost. App Check
 blocks the localhost client from Firestore entirely, so none of this can be
 proved from Adrian's machine.
 
-## Ever run live? — rewritten 2026-08-20, after BUG A was fixed and re-run
+## Ever run live? - rewritten 2026-08-20 (second entry), after Parts C2 and D
 
-The 2026-08-19 run was **STOPPED PART-WAY THROUGH PART C** by two real
-first-contact failures. Both are now fixed and the live board was re-run in
-production on **2026-08-20** against `c54a0f3` (sw.js v72, rules deployed
-2026-08-20T01:37Z), on `masterclasses/beQxGO1s4Vfr02yw0VEk`, two desktop
-browsers, Zugzwang as owner.
+**The whole checklist has now been run in production, steps 0 to 36.** Part C
+was re-run and passed earlier on 2026-08-20 against `c54a0f3`; **Part C2 and
+Part D were run for the first time ever the same day**, against `1547679`
+(sw.js v72), on `masterclasses/beQxGO1s4Vfr02yw0VEk`, two desktop windows,
+Zugzwang as owner and miguelafuentesm as member.
 
-**The WHOLE of Part C now passes, steps 1 to 25** — including the three cases
-that had never worked: a move past the end of the stored PGN, a variation, and
-a late join. Part C2 (the offline / Reconnecting section) and Part D (removal,
-leaving, delete) are still **not run**; this table is a pass for the live board
-and nothing else.
+**That class no longer exists.** Step 35 deleted it, on purpose. Anything run
+after this needs a new class built from step 6 upward.
+
+**How the member was taken offline, and why it matters.** Not by turning wifi
+off - that would have taken the owner window and the Firestore console down
+with it, and step 29 needs the teacher to keep moving while the member is
+blind. It was done in the member tab's own **DevTools -> Network -> Offline**,
+which sets `navigator.onLine` false and fires the `offline` event for that tab
+alone. Every C2 result below is from that method.
 
 | Function / feature | Commit | Ever run live? |
 |---|---|---|
-| `addMembers()` | 5 | **YES — works.** A second member document exists and Impervious can open the class, which the read rule allows only to a member. |
-| `setMemberCount()` | 5 | **YES — works.** The parent carries `memberCount: 2` with a same-day `updatedAt`; the rule denies a write carrying `memberCount` alone, so its presence proves the pair went together. |
-| `fetchMembers()` | 5 | **Not confirmed.** The class screen was opened on both accounts but the members list was never read back step by step. |
-| `removeMember()` | 5 | **NEVER** |
-| `leaveMasterclass()` | 5 | **NEVER** |
-| `pushLiveState()` | 6 | **YES — works.** Re-proved 2026-08-20 on the new protocol: `live/state` carries `chapterId`, `line`, `fen`, `drivenBy` and a server `updatedAt`, **and no `path` field**, and `line` grows by one move on every move the owner plays. |
-| `watchLiveState()` | 6 | **YES — works.** 2026-08-20: the follower tracked moves inside the stored PGN, moves **past** the end of it, two backward steps, a jump from the moves list, a move into a **variation**, and a **late join** (leaving the class screen and returning mid-lesson lands on the teacher's current position). BUG A is fixed. |
-| `lineOf()` / `gotoLine()` (`js/tree.js`) | BUG A fix | **YES — works.** The live protocol itself. Also the first code in this feature under a unit test: `npm run test:tree`, 6 tests, whose test 2 is the exact production failure and fails against `3232dd0`. |
-| `stopLiveState()` | 6 | **YES — works, once the rules were actually deployed.** The delete lands, `live/state` disappears from the console, and the follower's bar clears with the `mc_live_ended` message. See BUG B — the code was never at fault. Re-proved 2026-08-20 as a regression check after the BUG A fix. |
-| `deleteMasterclass()` | 3 | **NEVER** |
-| Follow / Stop following (`toggleFollow()`) | 6 | **YES — works.** 2026-08-20, step 21-22: with Following off the student's board stayed put through three teacher moves, and Back to live snapped to the teacher's CURRENT position without replaying the three. |
-| Leaving the class screen by the tab bar and returning, both sides | 6 | **YES — works.** 2026-08-20, steps 24-25. The owner keeps broadcasting across a tab round-trip, the member picks the class back up, and after Stop + back the bar is gone on both sides. |
-| `{ includeMetadataChanges: true }`, the Reconnecting bar, the offline section | 7 | **NEVER** — Part C2 has still never been reached. It is the next thing to run. |
+| `addMembers()` | 5 | **YES - works.** A second member document exists and the member can open the class, which the read rule allows only to a member. Run again at step 32 to re-invite after a removal. |
+| `setMemberCount()` | 5 | **YES - works.** The parent carries `memberCount: 2` with a same-day `updatedAt`; the rule denies a write carrying `memberCount` alone, so its presence proves the pair went together. |
+| `fetchMembers()` | 5 | **YES - works.** 2026-08-20, Part D: the list was read back and redrawn three separate times and each time matched the console - two rows after the invite, one after the removal, one after the member left. |
+| `removeMember()` | 5 | **YES - works.** 2026-08-20, step 31, first live run. The row went, the count dropped to 1, and the console showed one membership document left. |
+| `leaveMasterclass()` | 5 | **YES - works.** 2026-08-20, step 33, first live run. The member landed back on the Databases tab, the class was gone from their Masterclass section, and the console agreed. |
+| `pushLiveState()` | 6 | **YES - works.** `live/state` carries `chapterId`, `line`, `fen`, `drivenBy` and a server `updatedAt`, **and no `path` field**, and `line` grows by one move on every move the owner plays. |
+| `watchLiveState()` | 6 | **YES - works.** Moves inside the stored PGN, past the end of it, backward steps, a jump from the moves list, a variation, and a late join. BUG A is fixed. |
+| `lineOf()` / `gotoLine()` (`js/tree.js`) | BUG A fix | **YES - works.** The live protocol itself, and the only code in this feature under a unit test: `npm run test:tree`, 6 tests. |
+| `stopLiveState()` | 6 | **YES - works, once the rules were actually deployed.** See BUG B - the code was never at fault. |
+| `deleteMasterclass()` | 3 | **YES - works, and it was run exactly once, on a class that is now gone.** 2026-08-20, steps 35-36, first live run ever. The owner landed back on the Databases tab, the class left the list, and in the console the parent document, every chapter and the `live` document were all gone. **Exactly one document survived: the owner's own membership**, `members/hxxaE1n6T1WzxLvIGTMby1RfkZs1` - which is what the emulator predicted and what the comment above the function in `js/firebase.js` says. **No chapter and no other member's document survived**, which is the part that would have been a privacy problem. The `permission-denied` on that last delete is expected and is swallowed by `.catch(() => {})`. Not re-runnable without building a new class. |
+| Follow / Stop following (`toggleFollow()`) | 6 | **YES - works.** With Following off the student's board stayed put through three teacher moves, and Back to live snapped to the teacher's CURRENT position without replaying them. |
+| Leaving the class screen by the tab bar and returning, both sides | 6 | **YES - works.** Steps 24-25. |
+| `{ includeMetadataChanges: true }`, the Reconnecting bar | 7 | **YES - works.** 2026-08-20, step 26, **first contact.** The bar turned grey the instant the tab went offline - driven by the browser's `offline` event, not by Firestore noticing, so the checklist's "within a second or two" understates it. It read `Reconnecting... your board isn't updating.` The last position stayed on the board, **Stop following** did not move or change size, the bar stayed one line and the board did not shift. Screenshot taken. |
+| The offline Bases section (`mc_needs_network`) | 7 | **YES - works.** Step 27: the Masterclass section was replaced by the offline message with no class rows left tappable, and the **local base list underneath still opened a base and played through a game** - the claim that wording makes. |
+| Offline reload off the service worker | 7 | **YES - works.** Step 28: the shell came up from the service worker with no browser offline page, and the Masterclass section showed the offline message and **no stale class list**. Firestore has no on-disk cache and this is the run that proves it. |
+| Recovery when the network returns | 7 | **YES - works.** Step 29: with the tab put back on **No throttling** the Masterclass section **refilled by itself**, with no reload and no tab switch - the `online` handler in `Masterclass.init()`. Reopening the class put the bar back to gold and **the board caught up to the teacher's current position, including the three moves played while the member was offline.** That catch-up is only possible because the document carries the whole `line`; it could not have worked under the old `path`. |
+| The grey bar in dark mode and in Spanish | 7 | **YES - works.** Step 30. `Reconectando... tu tablero no se esta actualizando.` with `Dejar de seguir` unmoved and legible against the dark panel, and `Una Masterclass necesita conexion...` on the Bases tab. Both themes define `--panel2` and `--muted`, so the bar is themed either way. |
+| `loadMembers()` -> `bumpCount()` self-heal | 7 | **YES - works.** Step 34, and this is the behaviour commit 7 added. After the member left, the owner's Bases row still read **2 members** - correct, since only the owner may write the parent. Opening the class showed one member row, and going back the row read **1**. |
+
+### The one thing Part C2 did NOT settle
+
+On the **first** offline flip Adrian reported that "the toast fired", and it was
+never identified before the tab was flipped back. Two toasts are reachable
+there: `mc_live_ended` ("The class stopped broadcasting."), which would be a
+real failure of the thing commit 7 exists to prevent, and `mc_needs_network`,
+which is harmless and fires on any tap made while offline. The flip that was
+**captured in a screenshot** showed the correct grey bar with no toast, and
+every later offline flip, including both of step 30's, passed. **Recorded as
+unresolved rather than as a pass**, because a transient toast nobody read is
+not evidence either way.
+
+The guard is `if (!state && stale)` in `onLiveSnapshot()`; the only combination
+that can fire `mc_live_ended` is `hasState:false, fromCache:false`. If it is
+ever seen again, arm this in the member tab's console **before** going offline
+and read the log:
+
+```
+const M=(await import('/js/masterclass.js')).Masterclass;const o=M.onLiveSnapshot.bind(M);M.onLiveSnapshot=(mc,s,m)=>{console.log('SNAP',{hasState:!!s,fromCache:m&&m.fromCache,online:navigator.onLine});return o(mc,s,m);};
+```
+
+### Still not walked into, and that is fine
+
+The offline-Stop ordering hole recorded under BUG B is **still never
+exercised**. Part C2 only ever took the **member** offline; the owner was
+connected throughout, and that hole needs the *owner* to press Stop while
+offline. It stays open and deliberately unfixed.
 
 Already proved live in the commit-4 run and **not** re-tested: `createMasterclass()`,
 `fetchMyMasterclasses()`, `addChapter()`, `fetchChapters()`, `deleteChapter()`.
