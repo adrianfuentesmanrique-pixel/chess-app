@@ -12,8 +12,69 @@ service cloud.firestore {
     // second-guess legitimate play.
     function num(v, lo, hi) { return v is number && v >= lo && v <= hi; }
 
+    // An hour of the day. `is int` and not num(): a whole-numbered double
+    // (19.0) would never equal the integer hour the scheduled function
+    // compares against, so it must not be storable in the first place.
+    function hourOk(h) { return h is int && h >= 0 && h <= 23; }
+
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if signedIn() && me() == userId;
+
+      // Deliberately NO hasOnly() field allowlist on this document, unlike
+      // /leaderboard below. Two reasons: it would have to list every key in
+      // SYNCED_KEYS (js/firebase.js), so it would break silently every time a
+      // key is added there — a trap, not a control; and this document is
+      // PRIVATE (the read rule above is owner-only), so there is no privacy
+      // promise for an allowlist to enforce. What IS constrained is the
+      // handful of fields whose value the app depends on being sane, and the
+      // two fields the Cloud Functions own.
+      allow write: if signedIn() && me() == userId
+        // The client may NEVER write the send-history fields. They are the
+        // only thing enforcing the two-notifications-a-day ceiling; a client
+        // that could set them could silence itself or spam itself. The
+        // FUNCTIONS write these with the Admin SDK, which bypasses these rules
+        // entirely.
+        //
+        // resource is NULL on a create, and diff() against a null document
+        // errors — which denies the very first write of every new account.
+        // That is exactly the trap that stopped anyone deleting live/state for
+        // two commits, so the guard comes first and short-circuits.
+        && (resource == null
+            ? !after().keys().hasAny(['lastNudgeDate', 'lastWarnDate'])
+            : !after().diff(resource.data).affectedKeys()
+                  .hasAny(['lastNudgeDate', 'lastWarnDate']))
+        && (!('remindHourLocal' in after()) || hourOk(after().remindHourLocal))
+        && (!('notifyHourUtc'   in after()) || hourOk(after().notifyHourUtc))
+        && (!('warnHourUtc'     in after()) || hourOk(after().warnHourUtc))
+        && (!('timeZone' in after())
+            || (after().timeZone is string && after().timeZone.size() <= 64))
+        && (!('notifPrefs' in after())
+            || after().notifPrefs.keys().hasOnly(['daily','warn','friends','live']));
+    }
+
+    // One document per registered device. A SUBCOLLECTION, because rules do
+    // NOT cascade from users/{userId} — without this block nobody could write
+    // a token at all. Nothing here is readable by anyone but the owner; the
+    // FUNCTIONS read it with the Admin SDK, which does not consult these
+    // rules.
+    //
+    // The token is both the document id AND a field, same as the Masterclass
+    // members collection: the id is what the rule can check, the field is what
+    // a query can filter on, so they are forced to agree.
+    //
+    // The 10-tokens-per-user cap is NOT here and cannot be: enforcing it needs
+    // a server-maintained counter, and a counter the client can write is not a
+    // security control. It is advisory, pruned oldest-first by the client.
+    match /users/{userId}/fcmTokens/{tokenId} {
+      allow read, list, delete: if signedIn() && me() == userId;
+
+      allow create, update: if signedIn() && me() == userId
+        && after().keys().hasOnly(['token','createdAt','platform','lang'])
+        && after().token is string
+        && after().token.size() <= 4096
+        && after().token == tokenId
+        && after().platform in ['android','ios','desktop','other']
+        && after().lang in ['es','en'];
     }
 
     match /leaderboard/{uid} {

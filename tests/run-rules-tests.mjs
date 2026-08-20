@@ -59,7 +59,16 @@ const res = spawnSync(
     // tests/rules only, NOT tests/**: tests/unit/ is the plain-Node suite that
     // must run without an emulator at all (npm run test:tree), and sweeping it
     // in here would make one green line mean two different things.
-    '"node --test \\"tests/rules/*.test.js\\""'],
+    // --test-concurrency=1 is LOAD-BEARING, not a speed setting. node --test
+    // runs test FILES in parallel by default, every file here shares one
+    // emulator under one projectId, and every file's beforeEach calls
+    // clearFirestore(), which wipes the WHOLE database. In parallel, one
+    // file's reset deletes the documents another file seeded a millisecond
+    // ago, and that file then fails on a rule reading resource.data of a
+    // document that vanished. It shows up as a DIFFERENT test failing on
+    // each run — the signature of a race, not of a broken rule. One file at
+    // a time is the only thing that makes these suites mean anything.
+    '"node --test --test-concurrency=1 \\"tests/rules/*.test.js\\""'],
   {
     stdio: 'inherit',
     shell: true,
