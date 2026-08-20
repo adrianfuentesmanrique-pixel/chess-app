@@ -8,24 +8,87 @@ Run it on **https://chesstrainingcenter.app**, not on localhost. App Check
 blocks the localhost client from Firestore entirely, so none of this can be
 proved from Adrian's machine.
 
-## What has NEVER executed against real Firestore
+## Ever run live? — rewritten 2026-08-19 after the first production attempt
 
-Everything in this list is being run for the first time. If a step fails, it is
-a genuine first-contact failure, not a regression.
+The run was **STOPPED PART-WAY THROUGH PART C** by two real first-contact
+failures. Steps 1-18 were reached; step 19 onward, the whole of Part C2 and the
+whole of Part D were **not run**. Do not read this table as a pass.
 
 | Function / feature | Commit | Ever run live? |
 |---|---|---|
-| `addMembers()` | 5 | **NEVER** |
-| `fetchMembers()` | 5 | **NEVER** |
+| `addMembers()` | 5 | **YES — works.** A second member document exists and Impervious can open the class, which the read rule allows only to a member. |
+| `setMemberCount()` | 5 | **YES — works.** The parent carries `memberCount: 2` with a same-day `updatedAt`; the rule denies a write carrying `memberCount` alone, so its presence proves the pair went together. |
+| `fetchMembers()` | 5 | **Not confirmed.** The class screen was opened on both accounts but the members list was never read back step by step. |
 | `removeMember()` | 5 | **NEVER** |
 | `leaveMasterclass()` | 5 | **NEVER** |
-| `setMemberCount()` | 5 | **NEVER** |
-| The whole live board — `pushLiveState()`, `stopLiveState()`, `watchLiveState()` | 6 | **NEVER** |
-| `deleteMasterclass()` | 3 | **NEVER** — and it is known to leave one document behind |
-| `{ includeMetadataChanges: true }`, the Reconnecting bar, the offline section | 7 | **NEVER** |
+| `pushLiveState()` | 6 | **YES — works.** `live/state` was written with correct `chapterId`, `path`, `fen`, `drivenBy` and a server `updatedAt`, and it updated as the owner moved. |
+| `watchLiveState()` | 6 | **PARTLY.** The first snapshot was delivered and applied — the follower was taken to the right chapter by itself. Everything after that is blocked by BUG A below. |
+| `stopLiveState()` | 6 | **NO — FAILED. See BUG B.** |
+| `deleteMasterclass()` | 3 | **NEVER** |
+| `{ includeMetadataChanges: true }`, the Reconnecting bar, the offline section | 7 | **NEVER** — Part C2 was never reached. |
 
 Already proved live in the commit-4 run and **not** re-tested: `createMasterclass()`,
 `fetchMyMasterclasses()`, `addChapter()`, `fetchChapters()`, `deleteChapter()`.
+
+---
+
+## BUG A — a follower cannot leave the stored chapter PGN
+
+**Confirmed by local reproduction AND by production data on 2026-08-19.**
+
+The live document carries a **pointer** (`path`, a list of child indices) into a
+PGN both sides are assumed to already share. The follower parses its copy from
+the chapter stored in Firestore. Moves the owner plays **during** the lesson were
+never saved there, so those nodes do not exist in the follower's tree:
+`gotoPath()` returns false, and the FEN fallback fails too because `findFen()`
+searches only that same incomplete tree. `applyLive()` then deliberately does
+nothing — "a wrong node is worse than not moving" — and the follower's board
+freezes silently, with nothing on screen to say so.
+
+The first jump works, which is what makes this look like a half-working feature:
+the chapter's own last position **is** in the stored PGN.
+
+Production evidence, `masterclasses/beQxGO1s4Vfr02yw0VEk`:
+
+- chapter `7luHArjcr1v4hs58RVPH` stores a PGN ending at `Bb5` — **five plies**
+- `live/state` held `path: "0.0.0.0.0.0"` — **six**, the owner had played `Nb4`
+- `fen: "r1bqkbnr/pppp1ppp/8/1B2p3/1n2P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"`
+
+A local reproduction (chapter `1. e4 e5`, teacher demonstrates `Nf3 Nc6 Bb5
+Nb4`) produces that **exact** path and that **exact** FEN, with
+`pathResolved: false` and `fenFallbackFound: false`. A control where the teacher
+stays inside the stored PGN resolves true.
+
+**This is a design gap, not a typo.** Demonstrating a new move is the whole
+point of a live lesson, and the protocol cannot carry one. Fixing it means the
+live document must carry the **moves**, not a pointer — which needs a
+`firestore.rules` change with a size cap and tests, a payload that grows through
+a lesson interacting with the 1-per-second throttle, and an `applyLive()` that
+**extends** the follower's tree instead of walking it, without re-parsing every
+ply. **It needs its own plan. Do not patch it in a debugging session.**
+
+## BUG B — Stop does not remove `live/state`
+
+**Confirmed in production on 2026-08-19.** The owner pressed **Stop**;
+`live/state` survived, and the follower's bar stayed on "Following the class"
+with no toast. The `allow delete: if mcIsOwner(mcId);` clause **is** deployed —
+checked in the Firebase console's Rules tab — so this is not the missing rule
+commit 6 added.
+
+Two candidates, not yet separated:
+
+1. **A race in `pushLiveState()`.** `setDoc()` is fired and never awaited.
+   `stopLiveState()` cancels the *pending* write and clears the timer, but it
+   cannot cancel a `setDoc` already in flight. A write issued for the last move
+   can land **after** the delete and recreate the document. This is a real hole
+   in the code regardless of whether it caused this.
+2. **The delete was refused** for some other reason, in which case `stopLive()`
+   logged `Stopping the live board failed` and toasted. Adrian was on a phone
+   and could not read the console.
+
+**Separating these needs the member side run in a desktop browser in incognito**,
+where the console is readable. Do that before writing any fix.
+
 
 ## Two accounts
 

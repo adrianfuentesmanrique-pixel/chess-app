@@ -2,6 +2,65 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **Masterclass — the first production run happened on 2026-08-19 and STOPPED
+  PART-WAY THROUGH PART C. Stage 1 is code-complete but NOT proven.** Two real
+  first-contact failures, both written up in full in
+  `docs/MASTERCLASS-LIVE-CHECKLIST.md`, whose "Ever run live?" table has been
+  rewritten to say what actually happened rather than what was planned.
+  - **Proved live and working:** `addMembers()`, `setMemberCount()` and
+    **`pushLiveState()`** — the live document is written with correct
+    `chapterId`, `path`, `fen`, `drivenBy` and a server `updatedAt`, and it
+    updates as the owner moves. `watchLiveState()` delivered its first snapshot
+    and the follower was carried to the right chapter by itself.
+  - **BUG A — a follower cannot leave the stored chapter PGN.** The live
+    document carries a POINTER (`path`, child indices) into a PGN both sides are
+    assumed to share, but the moves the owner plays *during* a lesson are never
+    saved to the chapter, so they do not exist in the follower's parsed copy.
+    `gotoPath()` returns false, `findFen()` fails too because it searches that
+    same incomplete tree, and `applyLive()` deliberately does nothing. **The
+    follower's board freezes silently after the first jump.** Confirmed twice
+    over: production held `path: "0.0.0.0.0.0"` against a chapter PGN that stops
+    at `Bb5` (five plies), and a local reproduction produced the identical path
+    and the identical FEN with `pathResolved: false`.
+    **This needs its own plan** — the live document has to carry the MOVES, which
+    means a `firestore.rules` change with a size cap plus tests, a payload that
+    grows through a lesson against the 1-per-second throttle, and an
+    `applyLive()` that EXTENDS the follower's tree rather than walking it. Do not
+    patch it in a debugging session; that is how the two bugs in the original
+    plan's `deleteMasterclass()` got written.
+  - **BUG B — Stop does not remove `live/state`.** The owner pressed Stop, the
+    document survived, and the follower stayed on "Following the class". The
+    `allow delete: if mcIsOwner(mcId);` clause **is** deployed (checked in the
+    console's Rules tab), so it is not commit 6's missing rule. Prime suspect is
+    a real race: `pushLiveState()` fires `setDoc()` without awaiting it, and
+    `stopLiveState()` can cancel a *pending* write but not one already in flight,
+    so the last move's write can land after the delete and recreate the document.
+    The alternative is a refusal Adrian could not see — he was on a phone.
+    **Run the member side in a desktop incognito window and read the console
+    before writing any fix.**
+  - **Everything from step 19 on is still NEVER RUN**: the rest of Part C,
+    the whole of Part C2 (the Reconnecting bar and the offline section — the
+    entire commit 7 connection layer), and the whole of Part D
+    (`removeMember()`, `leaveMasterclass()`, `deleteMasterclass()` and the step
+    36 console check).
+
+- **Auth — a profile is not complete without a username (2026-08-19, deployed
+  and verified live).** `Auth.needsProfileCompletion` was gated on `firstName`
+  alone, so every account created before usernames existed — and every Google
+  sign-in, which supplies a display name and nothing else — passed the gate
+  forever and was never asked. `updatePublicLeaderboardDoc()` deletes
+  `usernameLower` when there is no username, so the effect was an account
+  visible everywhere in the app **except friend search**, which is the one place
+  it has to be findable. This is why `Impervious` could not be found by
+  `searchByUsername()`. The gate now requires both, and the dialog prefills the
+  first name, last name and date of birth already held — every field in it is
+  required, so an account that only lacked a username would otherwise have been
+  blocked by an empty first-name box. **Google display names are deliberately
+  NOT adopted as usernames**: they are not unique, and they are usually a real
+  full name, which would make real names searchable by anyone typing three
+  letters. `sw.js` v70 → **v71**. No rules change, so no rules run. Confirmed
+  fixed by Adrian against production the same day.
+
 - **Masterclass — commit 7 of 7 is done (2026-08-17, `50d0f43`). Stage 1 is
   CODE-COMPLETE.** Connection state: the Reconnecting bar, the offline
   Masterclass section, and one real bug fixed on the way. `sw.js` v69 →
