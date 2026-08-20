@@ -840,6 +840,24 @@ export async function leaveMasterclass(mcId) {
 // count. That is deliberate and there is nothing to do about it client-side:
 // the number goes stale by one until the owner next opens the class, and the
 // member list underneath it is always right.
+// updateDoc, not setDoc, and that is the whole reason this is three lines. The
+// class update rule checks hasOnly() against the WHOLE resulting document, so a
+// two-field patch still satisfies it — while a setDoc would have to re-send
+// createdAt and memberCount, and re-sending a memberCount from a client that
+// has not reloaded the class would quietly write back a stale number.
+//
+// The 60-character bound is the rule's (`name.size() <= 60`); the slice here
+// keeps a long name from being a permission-denied instead of a trimmed name.
+// An empty name is refused by the rule, so the caller checks for one first.
+export async function renameMasterclass(mcId, name) {
+  const user = auth.currentUser;
+  if (!user || !mcId) return;
+  await updateDoc(doc(firestore, 'masterclasses', mcId), {
+    name: String(name || '').slice(0, 60),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 export async function setMemberCount(mcId, n) {
   const user = auth.currentUser;
   if (!user || !mcId) return;

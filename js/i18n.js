@@ -456,6 +456,8 @@ const DICT = {
   mc_chapter_gone: { es: 'Ese capítulo ya no existe', en: 'That chapter no longer exists' },
   mc_choose_game: { es: 'Elige una partida', en: 'Choose a game' },
   mc_pick_recent: { es: 'Mostrando las {n} partidas más recientes.', en: 'Showing the {n} most recent games.' },
+  mc_rename: { es: '✏️ Renombrar Masterclass', en: '✏️ Rename Masterclass' },
+  mc_renamed: { es: 'Masterclass renombrada', en: 'Masterclass renamed' },
   mc_rename_chapter: { es: '✏️ Renombrar capítulo', en: '✏️ Rename chapter' },
   mc_chapter_renamed: { es: 'Capítulo renombrado', en: 'Chapter renamed' },
   mc_delete_chapter: { es: '🗑 Borrar capítulo', en: '🗑 Delete chapter' },

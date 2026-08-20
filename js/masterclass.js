@@ -23,7 +23,8 @@ import { t, tn } from './i18n.js';
 import {
   Auth, MAX_MASTERCLASSES, createMasterclass, fetchMyMasterclasses,
   deleteMasterclass, MAX_CHAPTERS, MAX_CHAPTER_BYTES, addChapter, fetchChapters,
-  deleteChapter, updateChapter, MAX_MEMBERS, addMembers, fetchMembers, removeMember,
+  deleteChapter, updateChapter, renameMasterclass,
+  MAX_MEMBERS, addMembers, fetchMembers, removeMember,
   leaveMasterclass, setMemberCount, fetchLeaderboardByUids,
   pushLiveState, watchLiveState, stopLiveState,
 } from './firebase.js';
@@ -681,10 +682,44 @@ export const Masterclass = {
     if (!mc) return;
     const owner = mc.role === 'owner';
     sheet([
+      ...(owner ? [{ label: t('mc_rename'), action: () => this.renameClass() }] : []),
       owner
         ? { label: t('mc_delete'), danger: true, action: () => this.confirmDelete() }
         : { label: t('mc_leave'), danger: true, action: () => this.confirmLeave() },
     ]);
+  },
+
+  // The same gap renameChapter() closed, one level up: a class was named once
+  // at creation and never again, so a misspelling was permanent unless you
+  // deleted the class — which deletes it for every member.
+  //
+  // No new rule and no new rule surface. `allow update` on the class already
+  // lets the owner change `name`, and rules test 8 covers this exact write:
+  // updateDoc({ name, updatedAt }), ownerUid untouched and immutable.
+  //
+  // this.current is the SAME object as the row in this.classes (open() finds
+  // it there), so one mutation fixes the class screen and the Bases list
+  // together and neither has to be refetched.
+  async renameClass() {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!Auth.user) { toast(t('mc_needs_signin')); return; }
+    if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
+    const name = await askText(t('mc_name'), mc.name || '');
+    if (!name || name === mc.name) return;
+    try {
+      await renameMasterclass(mc.id, name);
+    } catch (e) {
+      console.error('Renaming the class failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    // Sliced to the same 60 the rule and renameMasterclass() use, so the screen
+    // shows what was actually stored rather than what was typed.
+    mc.name = String(name).slice(0, 60);
+    this.render();
+    this.renderList();
+    toast(t('mc_renamed'));
   },
 
   // Leaving deletes my own membership document, and that is all it can do:
