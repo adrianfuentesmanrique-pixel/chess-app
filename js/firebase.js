@@ -916,7 +916,15 @@ async function pullOrBootstrap(uid) {
       for (const key of SYNCED_KEYS) {
         if (remote[key] !== undefined) await db.kvSet(key, remote[key]);
       }
-      Auth.needsProfileCompletion = !remote.firstName;
+      // Both, not just firstName. username arrived with Friends, so every
+      // account created before it has a firstName and no username — and those
+      // accounts passed a firstName-only gate forever, were never asked, and
+      // updatePublicLeaderboardDoc() below deletes usernameLower for them.
+      // The result is an account that is visible everywhere except friend
+      // search, which is the one place it needs to be found. A Google sign-in
+      // never sets a username either: the provider supplies a display name and
+      // nothing else, so it lands in exactly the same hole.
+      Auth.needsProfileCompletion = !remote.firstName || !remote.username;
     } else {
       const local = {};
       for (const key of SYNCED_KEYS) {
@@ -924,7 +932,7 @@ async function pullOrBootstrap(uid) {
         if (v !== null) local[key] = v;
       }
       await setDoc(ref, local, { merge: true });
-      Auth.needsProfileCompletion = !local.firstName;
+      Auth.needsProfileCompletion = !local.firstName || !local.username;
     }
   } finally {
     suppressSync = false;

@@ -408,7 +408,7 @@ function openAuthModal() {
 }
 
 function openCompleteProfileModal() {
-  return modal((box, close) => {
+  return modal(async (box, close) => {
     box.innerHTML = `<h3>${t('complete_profile_title')}</h3><p class="hint">${t('complete_profile_hint')}</p>`;
     const first = document.createElement('input'); first.className = 'input'; first.placeholder = t('first_name');
     const last = document.createElement('input'); last.className = 'input'; last.placeholder = t('last_name');
@@ -416,6 +416,17 @@ function openCompleteProfileModal() {
     const usernameHint = document.createElement('p'); usernameHint.className = 'hint'; usernameHint.textContent = t('username_permanent_hint');
     const dob = document.createElement('input'); dob.className = 'input'; dob.type = 'date'; dob.placeholder = t('date_of_birth');
     const errorEl = document.createElement('div'); errorEl.className = 'auth-error';
+    // This dialog is no longer only for brand-new accounts: an account that
+    // predates usernames reaches it with a name it already gave us, and a
+    // Google account reaches it with whatever the provider supplied. Making
+    // those people retype a name we are holding is how a required dialog turns
+    // into a dismissed one — and every field here is required, so a blank
+    // first name would block Save on a profile that only lacked a username.
+    // pullOrBootstrap() has already written the remote values into kv, so
+    // these are the stored answers, not guesses.
+    first.value = (await db.kvGet('firstName', '')) || '';
+    last.value = (await db.kvGet('lastName', '')) || '';
+    dob.value = (await db.kvGet('dateOfBirth', '')) || '';
     const submit = document.createElement('button');
     submit.className = 'btn primary big'; submit.textContent = t('save');
     submit.onclick = async () => {
