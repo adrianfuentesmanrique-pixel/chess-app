@@ -479,8 +479,49 @@ export const Masterclass = {
 
   chapterMenu(ch) {
     sheet([
+      { label: t('mc_rename_chapter'), action: () => this.renameChapter(ch) },
       { label: t('mc_delete_chapter'), danger: true, action: () => this.confirmDeleteChapter(ch) },
     ]);
+  },
+
+  // The title is the one field an edit could not otherwise reach: saveToChapter()
+  // deliberately keeps the stored title, because changing the moves should not
+  // rename anything. So a misspelling had no way to be fixed short of deleting
+  // the chapter and adding it again.
+  //
+  // This writes ch.pgn — the STORED moves, not whatever is on the board. A
+  // rename started from the class list must not quietly save an unsaved
+  // analysis sitting on the board behind it; that is what 💾 Save to chapter
+  // is for, and the two stay separate.
+  //
+  // No askConfirm(). Renaming is visible, reversible by renaming again, and
+  // loses nothing — unlike deleting, which is neither.
+  async renameChapter(ch) {
+    const mc = this.current;
+    if (!mc || mc.role !== 'owner') return;
+    if (!Auth.user) { toast(t('mc_needs_signin')); return; }
+    if (!navigator.onLine) { toast(t('mc_needs_network')); return; }
+    const title = await askText(t('mc_chapter_title'), ch.title || '');
+    // Cancelled, emptied, or not actually changed — all three are "do nothing"
+    // rather than a write that says it saved something it did not.
+    if (!title || title === ch.title) return;
+    try {
+      await updateChapter(mc.id, ch.id, {
+        title,
+        pgn: ch.pgn,
+        startFen: ch.startFen || '',
+        order: ch.order ?? 0,
+      });
+    } catch (e) {
+      console.error('Renaming a chapter failed', e);
+      toast(t('mc_needs_network'));
+      return;
+    }
+    // updateChapter() slices to 80 characters to match the rule, so the list
+    // is updated from the same slice rather than from what was typed.
+    ch.title = String(title).slice(0, 80);
+    this.renderChapters();
+    toast(t('mc_chapter_renamed'));
   },
 
   // Shared and with no undo, like deleting the class itself, so it goes
