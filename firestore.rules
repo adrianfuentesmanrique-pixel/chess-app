@@ -281,9 +281,28 @@ service cloud.firestore {
       allow update: if false;
 
       // Either the owner removing someone, or a member leaving on their own.
-      // The owner may NOT delete their own membership — that would leave a
-      // class nobody can read.
-      allow delete: if (mcIsOwner(mcId) && memberUid != me())
+      // The owner may NOT delete their own membership WHILE THE CLASS EXISTS —
+      // that would leave a class nobody can read.
+      //
+      // The first clause is the one that closes deleteMasterclass()'s leak.
+      // That function deletes the subcollections, then the parent, and only
+      // then its own membership; before this clause existed that last delete
+      // was refused twice over — clause three is false for the owner while the
+      // class is there, and once the parent is gone mcOwnerUid() calls get() on
+      // a document that does not exist and the null dereference ERRORS. So one
+      // document survived every delete: the owner's own membership.
+      //
+      // Order is not cosmetic. `||` is evaluated left to right and an error in
+      // an earlier clause denies the whole rule, so the clause that does NOT
+      // touch the missing parent has to come first — putting it last would
+      // leave it unreachable in exactly the case it exists for.
+      //
+      // It is safe because of `memberUid == me()`: it can only ever delete your
+      // own document, it is unreachable while the class exists, and a document
+      // whose parent is gone is unreadable by anybody else anyway (both read
+      // rules need the parent) and holds nothing but your own uid and role.
+      allow delete: if (signedIn() && memberUid == me() && !exists(mcPath(mcId)))
+        || (mcIsOwner(mcId) && memberUid != me())
         || (signedIn() && memberUid == me() && mcOwnerUid(mcId) != me());
     }
 

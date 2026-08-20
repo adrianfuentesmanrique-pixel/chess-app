@@ -636,19 +636,19 @@ export async function fetchMasterclass(mcId) {
 //     the owner can delete. Commit 6, which is the commit that first writes
 //     this document, must add `allow delete: if mcIsOwner(mcId);` and a test.
 //     Until then the call is a no-op against a document that never exists.
-//   * the owner's own membership — the member rule refuses an owner deleting
-//     their own membership while the class exists (that would orphan a class
-//     nobody could read), and once the parent is gone mcOwnerUid() does a get()
-//     on a document that is not there, which errors and denies too. So exactly
-//     one document survives a delete: the owner's own
-//     `{ uid, role, addedBy, addedAt }`. Nobody else can read it — both read
-//     rules need the deleted parent — and fetchMyMasterclasses() skips it
-//     because the class is gone. It holds no other member's data. Closing it
-//     needs one more clause in firestore.rules, which this commit deliberately
-//     does not touch.
+//   * the owner's own membership — this one is now CLOSED, and closing it is
+//     the reason the last two lines below are ordered the way they are. The
+//     member rule still refuses an owner deleting their own membership while
+//     the class exists (that would orphan a class nobody could read), so the
+//     delete has to come AFTER the parent: firestore.rules gained a clause
+//     reading `memberUid == me() && !exists(mcPath(mcId))`, which is only ever
+//     true once the parent is gone. Do not hoist this line above the parent
+//     delete — that is the one order in which it cannot succeed. It keeps its
+//     .catch() because a failure here leaves one unreadable document behind,
+//     which is not worth failing an otherwise complete delete over.
 //
-// Everyone ELSE's membership and every chapter do go, and they go first, which
-// is the part that matters.
+// Everyone ELSE's membership and every chapter go first, which is the part
+// that matters.
 export async function deleteMasterclass(mcId) {
   const user = auth.currentUser;
   if (!user || !mcId) return;
@@ -665,6 +665,8 @@ export async function deleteMasterclass(mcId) {
   await deleteDoc(doc(firestore, 'masterclasses', mcId, 'live', 'state'))
     .catch(() => {});
   await deleteDoc(doc(firestore, 'masterclasses', mcId));
+  // LAST, and only here: the rule that permits it requires the parent to be
+  // gone already. See the note above.
   await deleteDoc(doc(firestore, 'masterclasses', mcId, 'members', user.uid))
     .catch(() => {});
 }

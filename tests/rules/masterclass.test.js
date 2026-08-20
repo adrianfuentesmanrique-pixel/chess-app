@@ -292,6 +292,27 @@ describe('/masterclasses/{id}/members — who is in the class', () => {
       collectionGroup(asViewer(), 'members'), where('uid', '==', STRANGER))));
     await assertFails(getDocs(collectionGroup(asViewer(), 'members')));
   });
+
+  // ── the document deleteMasterclass() used to leak ──────────────────────
+  // These two seed a membership with NO parent class, which is the state
+  // deleteMasterclass() leaves behind: subcollections, then the parent, then
+  // its own membership last. Test 22 above is the other half of this pair —
+  // while the class exists the owner still cannot walk out of it.
+  it('39. the owner CAN delete their own membership once the class is gone', async () => {
+    await seed(`masterclasses/${MC}/members/${OWNER}`,
+      { uid: OWNER, role: 'owner', addedBy: OWNER, addedAt: new Date() });
+    await assertSucceeds(deleteDoc(doc(asOwner(), `masterclasses/${MC}/members/${OWNER}`)));
+  });
+
+  // The clause is `memberUid == me()`, not "the parent is gone", so an orphan
+  // is not a free-for-all: a deleted class does not let a stranger reach into
+  // what is left of it.
+  it('40. nobody else can delete an orphaned membership', async () => {
+    await seed(`masterclasses/${MC}/members/${OWNER}`,
+      { uid: OWNER, role: 'owner', addedBy: OWNER, addedAt: new Date() });
+    await assertFails(deleteDoc(doc(asStranger(), `masterclasses/${MC}/members/${OWNER}`)));
+    await assertFails(deleteDoc(doc(asNobody(), `masterclasses/${MC}/members/${OWNER}`)));
+  });
 });
 
 // ═══════════════════ masterclasses/{mcId}/chapters ═══════════════════
