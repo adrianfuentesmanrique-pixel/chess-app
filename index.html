@@ -920,7 +920,22 @@ if (window.Sentry && window.Sentry.onLoad) {
   </section>
 </main>
 
-<nav id="tabbar">
+<!-- Bottom menu. The always-visible control is #tabmenu-btn: it names the
+     screen you're on and opens the sheet, so you never lose track of where you
+     are. The seven destination buttons still live in #tabbar below (same
+     data-screen, same order) — that is what keeps TAB_ORDER, the .on highlight,
+     the click handlers and the guided-tour targets all working unchanged.
+     #tabbar is now styled as a sheet that slides up from the bottom. -->
+<div id="tabmenu">
+  <button id="tabmenu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tabbar">
+    <span class="tabmenu-ico" aria-hidden="true">☰</span>
+    <span id="tabmenu-label"></span>
+  </button>
+</div>
+
+<div id="tabsheet-backdrop"></div>
+
+<nav id="tabbar" data-i18n-aria="nav_destinations">
   <button data-screen="analysis"><span class="tab-ico">🔍</span><span data-i18n="tab_analysis"></span></button>
   <button data-screen="endgame"><span class="tab-ico">🎓</span><span data-i18n="tab_endgame"></span></button>
   <button data-screen="base"><span class="tab-ico">📚</span><span data-i18n="tab_base"></span></button>

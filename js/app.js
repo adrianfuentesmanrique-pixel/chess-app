@@ -464,7 +464,12 @@ function kaelRecoText(levelId) {
 // Everything the tour needs from this file, handed over explicitly so the two
 // modules do not import each other.
 function tourCtx() {
-  return { db, modal, toast, showScreen, activeScreen: () => activeScreen };
+  // The tour opens the menu with push:false so its highlighting never touches
+  // the history stack (see the bottom-menu section).
+  return {
+    db, modal, toast, showScreen, activeScreen: () => activeScreen,
+    openMenu: () => openMenu(false), closeMenu: () => closeMenu(false),
+  };
 }
 
 const Onboarding = {
@@ -1150,6 +1155,7 @@ export function showScreen(name) {
   if (name !== 'rush') Rush.stop();
   if (name === 'puzzles' || name === 'blind' || name === 'rush') syncPuzzleModeSeg(name);
   if (name !== prev) pushTabHistory(name);
+  updateTabMenu();
 }
 
 // ── tab history & swipe navigation ─────────────────────────────────────────
@@ -1172,6 +1178,15 @@ function pushTabHistory(name) {
 }
 
 window.addEventListener('popstate', () => {
+  // Our own history.back() from closeMenu — swallow it, then run any navigation
+  // a tapped destination deferred so its entry replaces the menu's.
+  if (closingMenu) {
+    closingMenu = false;
+    if (pendingNav) { const n = pendingNav; pendingNav = null; showScreen(n); }
+    return;
+  }
+  // Android back with the menu open closes the menu and nothing else.
+  if (menuOpen) { closeMenu(true); return; }
   if (tabStack.length <= 1) return; // nothing of ours left — the system back exits
   tabStack.pop();
   poppingTab = true;
@@ -1180,6 +1195,82 @@ window.addEventListener('popstate', () => {
 
 function goBackTab() {
   if (tabStack.length > 1) history.back(); // the popstate handler above does the work
+}
+
+// ── bottom menu sheet ───────────────────────────────────────────────────────
+// The seven destinations live in #tabbar, which slides up as a sheet; the
+// always-visible #tabmenu-btn just names the screen you're on. Opening the menu
+// pushes a history entry so the Android back gesture closes the menu — and only
+// the menu — instead of navigating; a programmatic close consumes that entry
+// itself (see the popstate handler above). A tapped destination carries a
+// pendingNav through the same back, so the menu entry is replaced by the
+// destination's tab entry rather than stacked on top of it.
+//
+// The guided tour opens the menu with push:false, so its highlighting never
+// touches history and can never drift the back stack.
+let menuOpen = false;
+let menuPushed = false;
+let closingMenu = false;
+let pendingNav = null;
+
+// Every screen resolves to one of the seven tab labels, so the button always
+// reads as a real destination even on a sub-screen (a friend's profile, Rush,
+// a leaderboard). Mirrors the tab the app lights via .on for those screens.
+const MENU_AREA = {
+  analysis: 'analysis', setup: 'analysis',
+  endgame: 'endgame',
+  base: 'base', masterclass: 'base',
+  trainer: 'trainer',
+  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles',
+  play: 'play',
+  profile: 'profile', leaderboard: 'profile', 'public-profile': 'profile',
+  friends: 'profile', 'friends-leaderboard': 'profile', 'friends-blocked': 'profile',
+};
+
+function updateTabMenu() {
+  const label = $('tabmenu-label');
+  if (!label) return;
+  const area = MENU_AREA[activeScreen] || 'analysis';
+  // Reuse the tab button's own already-translated label, so this follows a
+  // language switch for free and needs no strings of its own.
+  const src = document.querySelector(`#tabbar button[data-screen="${area}"] [data-i18n]`);
+  label.textContent = src ? src.textContent : '';
+}
+
+function openMenu(push = true) {
+  if (menuOpen) return;
+  menuOpen = true;
+  menuPushed = false;
+  document.body.classList.add('menu-open');
+  $('tabmenu-btn')?.setAttribute('aria-expanded', 'true');
+  // Mirror the history entry only once it really exists (as pushTabHistory does).
+  if (push) { try { history.pushState({ menu: true }, ''); menuPushed = true; } catch {} }
+}
+
+// byBack === true when the browser already popped our entry (the popstate path),
+// so we must not pop it again; otherwise we consume it ourselves via back().
+function closeMenu(byBack) {
+  if (!menuOpen) return;
+  menuOpen = false;
+  document.body.classList.remove('menu-open');
+  $('tabmenu-btn')?.setAttribute('aria-expanded', 'false');
+  if (!byBack && menuPushed) {
+    closingMenu = true;
+    try { history.back(); } catch { closingMenu = false; }
+  }
+}
+
+// A destination was tapped: close the menu, then navigate. When our history
+// entry is in play the navigation is deferred until the back lands (popstate),
+// so the menu entry is swapped for the destination's instead of left behind.
+function navigateFromMenu(name) {
+  if (menuOpen && menuPushed) {
+    pendingNav = name;
+    closeMenu(false);
+  } else {
+    closeMenu(false);
+    showScreen(name);
+  }
 }
 
 const TAB_ORDER = [...document.querySelectorAll('#tabbar button')].map(b => b.dataset.screen);
@@ -1288,7 +1379,10 @@ document.querySelectorAll('.puzzle-modes').forEach(seg => {
 });
 
 document.querySelectorAll('#tabbar button').forEach(b =>
-  b.addEventListener('click', () => showScreen(b.dataset.screen)));
+  b.addEventListener('click', () => navigateFromMenu(b.dataset.screen)));
+
+$('tabmenu-btn')?.addEventListener('click', () => openMenu());
+$('tabsheet-backdrop')?.addEventListener('click', () => closeMenu(false));
 
 // segment control helper
 export function segInit(el, onChange) {
@@ -5634,6 +5728,7 @@ function openSettings() {
 
 function relabel() {
   applyStatic();
+  updateTabMenu();
   buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2), true);
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();

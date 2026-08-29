@@ -2,8 +2,10 @@
 const DICT = {
   // Tabs
   tab_analysis: { es: 'Análisis', en: 'Analysis' },
-  tab_base: { es: 'Bases', en: 'Databases' },
+  tab_base: { es: 'Bases', en: 'Bases' },
   tab_play: { es: 'Jugar', en: 'Play' },
+  // Accessible name for the destinations sheet (the old tab bar, now a menu).
+  nav_destinations: { es: 'Destinos', en: 'Destinations' },
   tab_trainer: { es: 'Aperturas', en: 'Openings' },
   tab_puzzles: { es: 'Puzzles', en: 'Puzzles' },
   // The Learn tab hosts three sections: Rules, Basic Checkmates and Endings.

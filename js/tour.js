@@ -236,6 +236,7 @@ const Tour = {
     document.removeEventListener('scroll', this.onReflow, true);
     window.removeEventListener('resize', this.onReflow);
     document.body.classList.remove('tour-on');
+    this.ctx.closeMenu?.();
     this.root?.remove();
     this.root = null;
     this.finish(this.ctx, status, status === 'completed');
@@ -288,6 +289,11 @@ const Tour = {
     // Back out of a Learn lesson.
     this.internal = true;
     try { step.enter?.(); } finally { this.internal = false; }
+    // The destination buttons now live in the slide-up menu, so a step that
+    // rings one has to open it first; every other step closes it. openMenu here
+    // never touches history (ctx passes push:false), so it can't disturb Back.
+    this.ctx.closeMenu?.();
+    if (typeof step.target === 'string' && step.target.includes('#tabbar')) this.ctx.openMenu?.();
     this.render();
   },
 
