@@ -2,6 +2,34 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **THE BOTTOM TAB BAR IS NOW A MENU BUTTON + SLIDE-UP SHEET (2026-08-29).**
+  Committed (`858b927`), NOT pushed/deployed yet. `sw.js` cache bumped to
+  `chess-training-center-v80`. Browser-verified at 375px in light AND dark, in
+  both languages, and the guided tour was walked through the change.
+  - The old `#tabbar` (seven always-on buttons) is replaced by one centred
+    `#tabmenu-btn` (index.html) that shows `☰` + the current screen's name.
+    Tapping it opens `#tabbar`, which is now styled as a bottom sheet (2-col
+    grid, icon over label); a `#tabsheet-backdrop` catches outside taps.
+  - **The seven destination buttons still live in `#tabbar`, unchanged (same
+    `data-screen`, same order).** That is deliberate and load-bearing: `TAB_ORDER`
+    (js/app.js) and swipe nav, `showScreen`'s `.on` highlight, the click
+    handlers, and every `#tabbar button[data-screen=…]` guided-tour target all
+    keep working without being touched. Do NOT "tidy" those buttons out of the
+    DOM or into JS-built markup — it silently breaks all four.
+  - **Menu ↔ history** (js/app.js `openMenu`/`closeMenu`/`navigateFromMenu` +
+    the `popstate` handler): opening pushes one history entry so Android back
+    closes the menu and nothing else; a programmatic close consumes that entry
+    (`history.back()`), and a tapped destination defers its `showScreen` through
+    the same back (`pendingNav`) so the entry is replaced, never stacked. The
+    label is set by `updateTabMenu()`, called from `showScreen` and `relabel`.
+  - **The guided tour** (js/tour.js) opens the menu for its six tab-tap steps
+    via `ctx.openMenu()`/`ctx.closeMenu()` — `tourCtx()` binds them with
+    `push:false`, so tour highlighting never touches history. The ring lands on
+    the destination inside the open sheet; tap → navigate → advance, verified.
+  - `tab_base` renamed to `'Bases'` in EN too (js/i18n.js); one new key
+    `nav_destinations` for the sheet's aria-label. `prefers-reduced-motion`
+    disables the slide/fade (css/style.css).
+
 - **THE THREE BASES/MOVE-LIST BUGS ARE FIXED (2026-08-28) — HANDOFFS task 1.**
   All four sub-bugs were reproduced, fixed and browser-verified at 375px in
   light AND dark, then the fake test base was deleted. `sw.js` cache bumped to
