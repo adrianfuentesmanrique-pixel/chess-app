@@ -1484,9 +1484,12 @@ export const Analysis = {
     $('ana-base-nav').classList.toggle('hidden', !inBase);
     if (inBase) {
       document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.screen === 'base'));
-      const idx = Base.gamesCache.findIndex(g => g.id === this.ctx.gameId);
+      // Same list the arrows step through, so greying-out at the ends matches
+      // the visible list, not the whole base.
+      const list = Base.visibleGames();
+      const idx = list.findIndex(g => g.id === this.ctx.gameId);
       $('ana-base-prev').disabled = idx <= 0;
-      $('ana-base-next').disabled = idx === -1 || idx >= Base.gamesCache.length - 1;
+      $('ana-base-next').disabled = idx === -1 || idx >= list.length - 1;
     }
     $('ana-gr-nav').classList.toggle('hidden', !this.ctx.fromGameReview);
 
@@ -1557,15 +1560,23 @@ export const Analysis = {
     this.updateBaseNav();
   },
 
-  gotoAdjacentGame(dir) {
-    const idx = Base.gamesCache.findIndex(g => g.id === this.ctx.gameId);
+  async gotoAdjacentGame(dir) {
+    // Walk the list the player is actually looking at (filter + quick search),
+    // in display order — not the whole base.
+    const list = Base.visibleGames();
+    const idx = list.findIndex(g => g.id === this.ctx.gameId);
     if (idx === -1) return;
     const newIdx = idx + dir;
-    if (newIdx < 0 || newIdx >= Base.gamesCache.length) return;
-    const g = Base.gamesCache[newIdx];
+    if (newIdx < 0 || newIdx >= list.length) return;
+    const g = list[newIdx];
     try {
-      const tree = parsePgn(g.pgn);
-      this.loadTree(tree, { baseId: g.baseId, gameId: g.id });
+      // gamesCache holds SUMMARIES — listGameSummaries() omits the PGN text to
+      // keep memory flat — so g.pgn is undefined here. Fetch the full record the
+      // way Base.openGame() does, and guard a record that genuinely has none.
+      const full = g.pgn ? g : await db.getGame(g.id);
+      if (!full || !full.pgn) { toast(t('import_failed')); return; }
+      const tree = parsePgn(full.pgn);
+      this.loadTree(tree, { baseId: full.baseId, gameId: full.id });
     } catch { toast(t('import_failed')); }
   },
 
@@ -1720,7 +1731,17 @@ export const Analysis = {
     }
     this.renderLine(el, this.tree.root, true, 0);
     const curEl = el.querySelector('.mv.current');
-    if (curEl) curEl.scrollIntoView({ block: 'nearest' });
+    if (curEl) {
+      // Keep the current move visible inside #ana-moves ONLY. scrollIntoView
+      // scrolls every scrollable ancestor including the document, so on a game
+      // with a long comment the whole page jumps and the board moves under the
+      // player. Adjust the container's own scrollTop by exactly how far the move
+      // sits outside the list's visible box — the page is never touched.
+      const cr = curEl.getBoundingClientRect();
+      const er = el.getBoundingClientRect();
+      if (cr.top < er.top) el.scrollTop -= (er.top - cr.top);
+      else if (cr.bottom > er.bottom) el.scrollTop += (cr.bottom - er.bottom);
+    }
   },
 
   renderLine(container, fromNode, forceNum, depth) {
@@ -2268,6 +2289,11 @@ const Base = {
   },
 
   async openBase(id) {
+    // openBase() also runs when Analysis.backToBase() returns to the SAME base.
+    // Only a real base SWITCH throws away the search box and the filter — a
+    // filter belongs to the base it was built against. Coming back to the same
+    // base keeps them.
+    const sameBase = this.currentBaseId === id;
     this.currentBaseId = id;
     const base = await db.getBase(id);
     if (!base) { this.showList(); return; }
@@ -2277,29 +2303,45 @@ const Base = {
     // Summaries only — the PGN text is fetched when a game is actually opened.
     this.gamesCache = await db.listGameSummaries(id);
     this.gamesCache.sort((a, b) => b.updatedAt - a.updatedAt);
-    $('game-search').value = '';
     this.gamesShown = 0;
-    // A filter belongs to the base it was built against.
-    this.filter = null;
-    this.filterResults = null;
-    this.filterCapped = false;
-    this.renderFilterChip();
-    this.renderGames();
+    if (sameBase) {
+      // Keep the search text and the filter, but RE-RUN the filter against the
+      // freshly loaded gamesCache via applyFilter() rather than reusing the old
+      // filterResults array — that array can still name games since deleted.
+      if (this.filter) await this.applyFilter(this.filter);
+      else this.renderGames();
+    } else {
+      $('game-search').value = '';
+      this.filter = null;
+      this.filterResults = null;
+      this.filterCapped = false;
+      this.renderFilterChip();
+      this.renderGames();
+    }
+  },
+
+  // The one source of truth for what the game list is showing, in display
+  // order: the advanced filter's results (or the whole base) narrowed by the
+  // quick-search box. renderGames() draws these; Analysis.gotoAdjacentGame()
+  // and Analysis.updateBaseNav() step through the SAME list, so the ◀ ▶ arrows
+  // can never disagree with what is on screen.
+  //
+  // Match only White/Black — the visible name of each entry. Event is
+  // excluded: repertoire-style PGNs (one big book, many chapters) tend to
+  // repeat the same Event string across every game, which would make search
+  // match nearly the whole database instead of narrowing it. The quick search
+  // narrows whatever the advanced filter left, so the two combine.
+  visibleGames() {
+    const q = normalizeSearch($('game-search').value);
+    const source = this.filterResults ?? this.gamesCache;
+    return source.filter(g =>
+      !q || normalizeSearch(`${g.white} ${g.black}`).includes(q));
   },
 
   renderGames() {
-    const q = normalizeSearch($('game-search').value);
     const el = $('game-list');
     el.innerHTML = '';
-    // Match only White/Black — the visible name of each entry. Event is
-    // excluded: repertoire-style PGNs (one big book, many chapters) tend to
-    // repeat the same Event string across every game, which would make
-    // search match nearly the whole database instead of narrowing it.
-    // The quick search narrows whatever the advanced filter left, so the two
-    // combine instead of overriding each other.
-    const source = this.filterResults ?? this.gamesCache;
-    const games = source.filter(g =>
-      !q || normalizeSearch(`${g.white} ${g.black}`).includes(q));
+    const games = this.visibleGames();
     if (!games.length) {
       el.innerHTML = `<p class="hint">${t('no_games')}</p>`;
       return;

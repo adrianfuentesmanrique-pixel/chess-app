@@ -2,6 +2,34 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **THE THREE BASES/MOVE-LIST BUGS ARE FIXED (2026-08-28) — HANDOFFS task 1.**
+  All four sub-bugs were reproduced, fixed and browser-verified at 375px in
+  light AND dark, then the fake test base was deleted. `sw.js` cache bumped to
+  `chess-training-center-v79`. Committed, not pushed/deployed yet.
+  - **Bug 1 — ◀ ▶ game arrows always failed.** `Analysis.gotoAdjacentGame()`
+    called `parsePgn(g.pgn)` on a *summary* (no PGN text), so it always threw
+    `import_failed`. Now `async` and fetches the full record the way
+    `Base.openGame()` does (`g.pgn ? g : await db.getGame(g.id)`), guarding a
+    record that genuinely has no PGN. `js/app.js` `Analysis.gotoAdjacentGame`.
+  - **Bug 2 — arrows now follow the visible list, not the whole base.** New
+    single source of truth `Base.visibleGames()` returns the games as displayed
+    (advanced filter → quick-search box). `Base.renderGames()`,
+    `Analysis.gotoAdjacentGame()` and `Analysis.updateBaseNav()` all read it, so
+    the arrows, the grey-out maths and the on-screen list can never disagree.
+  - **Bug 3 — search/filter no longer thrown away on ← Back.** `Base.openBase()`
+    only clears `game-search` + `filter` when the base id actually CHANGES.
+    Returning to the SAME base keeps them and RE-RUNS the filter via
+    `applyFilter(this.filter)` against the freshly loaded `gamesCache` (never the
+    stale `filterResults` array — verified a game deleted meanwhile drops out of
+    the restored chip). Switching to a different base still clears — verified.
+  - **Bug 4 — board no longer jumps on games with long comments.** Root cause on
+    this build: `renderMoves()`'s `curEl.scrollIntoView({block:'nearest'})`
+    scrolled the `<main>` scroll container (283px measured), which carries the
+    board — not `document.scrollingElement`. Replaced with a container-only
+    scroll: adjust `#ana-moves`'s own `scrollTop` by how far the current move
+    sits outside its box; `<main>` is never touched. The two other `renderMoves`
+    (Play, Trainer) already used `scrollTop`/`scrollHeight` and were left alone.
+
 - **THE FIRESTORE WRITE RULES ARE VERIFIED (2026-08-20). This was listed as an
   open unknown "for months" and it was already closed — the note saying only the
   READ rules had ever been tested is STALE. Do not re-open it, and do not plan a
@@ -1248,8 +1276,12 @@ batch fixed them.
    code change, and they cost nothing. **Leave all of these as they are** unless
    Adrian raises one.
 
-**`HANDOFFS.md` is stale — tasks A–D in it are all done.** Ignore the table
-below and the prompts in that file until someone rewrites them.
+**`HANDOFFS.md` was rewritten on 2026-08-28 and is current again.** Tasks A–D
+are all done and are kept there only for reference; the queue is now task 1
+(three Bases/move-list bugs Adrian reported on 2026-08-28), task 2 (menu
+navigation replacing the tab bar), task 3 (limits, counters, backup and
+restore) and task 4 (the Read tab). **Ignore the A–D table below** — it is left
+in place as a record of what the work order used to say.
 
 One conversation each:
 
@@ -1317,7 +1349,11 @@ Lower priority, not in the work order:
    `toLocaleDateString(undefined, …)`. In Spanish on an English phone you get
    "Aug 5 13:16". Passing `getLang()` instead of `undefined` fixes it. Cosmetic
    and pre-existing to Task 2; not fixed because it was outside Task 4.
-7. New "Read" tab — PDF reader, brief in `READ-TAB-PROMPT.md`. Later.
+7. New "Read" tab — PDF reader. **Planned 2026-08-28; the agreed design and the
+   staging are in `HANDOFFS.md` under task 3.** `READ-TAB-PROMPT.md` is the
+   original brief and is superseded by that. It comes AFTER the menu and the
+   limits page, deliberately: the menu removes the 8-tab crowding problem, and
+   the limits page is where the book count and the storage quota get listed.
 8. **Repo is 137 MB, and 138 MB of the working tree is
    `avatars/CTC new arts/`** — the full-size source PNGs, several over 3 MB
    (`frame-obsidian.png` 3.6 MB, `flamegold.png` 3.2 MB). Nothing loads them at
