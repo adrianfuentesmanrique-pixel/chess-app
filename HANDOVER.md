@@ -1,6 +1,46 @@
-# Chess app — where things stand (updated 2026-08-07)
+# Chess app — where things stand (updated 2026-08-30)
 
 ## Already done and pushed — do NOT redo these
+
+- **CAP COUNTERS + A LIMITS & STORAGE PAGE + BACKUP/RESTORE ALL BASES
+  (2026-08-30).** Committed (`4d9d6b2`) on `main`, NOT pushed/deployed yet.
+  `sw.js` cache bumped to `chess-training-center-v82`. Browser-verified at 375px
+  in light AND dark. Three parts, all reusing existing helpers — do NOT rebuild.
+  - **Part A — live counters.** `paintCapCounter(id, used, cap)` (exported from
+    js/app.js) paints a `used/cap` pill, gold (`.cap-counter.low`) when one slot
+    is left or none. `Base.renderBases()` paints `#base-count` from
+    `basesCache.length`/`MAX_DATABASES`; `Masterclass.renderList()`
+    (js/masterclass.js) paints `#mc-count` from `owned().length`/
+    `MAX_MASTERCLASSES`, passing `null` (blank pill) while signed out/offline/
+    unloaded so it never shows a false 0/5. Counters live in `.head-with-count`
+    wrappers in index.html.
+  - **Part B — Limits & storage page.** Reached from a NEW footer row in
+    `#tabbar`: `#menu-limits`, an `<a role="button">` — deliberately NOT a
+    `<button>`, so every `#tabbar button` selector (TAB_ORDER, swipe, `.on`,
+    click, tour) still matches exactly the seven destinations (verified: still
+    7). It calls `closeMenu(false)` then `openLimitsSheet()`. The page
+    (`openLimitsSheet` + `capRows()` in js/app.js) lists all nine caps, each
+    read from the enforcing constant, never retyped: `MAX_DATABASES`,
+    `MAX_MASTERCLASSES`, `MAX_CHAPTERS`, `MAX_CHAPTER_BYTES` (shown as
+    `round(/1000)` KB = 100 KB), `MAX_MEMBERS`, `MAX_SEARCH_RESULTS` (NEW
+    module const, lifted from the local `const LIMIT = 2000` in the advanced
+    filter), `MAX_ENGINE_LINES`, `MAX_RADAR_THEMES`, `Rush.MAX_STRIKES`. Plus a
+    plain-language storage paragraph (`storage_body`) and the two Part C
+    buttons. All new strings are in js/i18n.js (`limits_*`, `cap_*`,
+    `storage_*`, `backup_*`, `restore_*`), both languages.
+  - **Part C — backup/restore all bases, FILES ONLY (no Firebase).**
+    `backupAllBases()` writes every base + its games to one JSON
+    (`{app,type:'bases-backup',version:1,bases:[{name,games:[…]}]}`) — base
+    names preserved, local `id`/`baseId` stripped — through `shareTextFile()`
+    (NEW generic share/download helper; `sharePgnText()` now delegates to it).
+    `restoreBackup(file)` validates the JSON, then guards BOTH required cases:
+    a name already present is a duplicate → `askDupChoice` (skip / bring as
+    copies, copies get a ` (copia)` suffix); creating past `MAX_DATABASES` →
+    `askCapChoice` (fill only what fits / cancel). Recreates via
+    `db.addGamesBatch` (js/db.js) in 500-game chunks — never one giant
+    transaction — and is cancellable mid-run. `pickBackupFile()` makes its own
+    hidden `<input type=file accept=json>` on demand. Verified: happy path,
+    copy+cap, skip, and the three bad-file toasts.
 
 - **THE BOTTOM TAB BAR IS NOW A MENU BUTTON + SLIDE-UP SHEET (2026-08-29).**
   Committed (`858b927`), NOT pushed/deployed yet. `sw.js` cache bumped to
