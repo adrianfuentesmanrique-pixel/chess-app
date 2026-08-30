@@ -30,7 +30,7 @@ import {
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askText, askConfirm, showScreen, activeScreen,
-  chooseBase, Analysis, updateTabMenu,
+  chooseBase, Analysis, updateTabMenu, paintCapCounter,
 } from './app.js';
 import { avatarHtml } from './avatars.js';
 // js/friends.js does NOT import this file, so this is a plain edge and not a
@@ -193,6 +193,10 @@ export const Masterclass = {
   renderList() {
     const el = $('mc-list');
     if (!el) return;
+    // The count is only real once the query has come back for a signed-in user
+    // on a live connection; otherwise show nothing rather than a false 0/5.
+    const known = Auth.user && this.classesLoaded && !this.loadFailed && navigator.onLine;
+    paintCapCounter('mc-count', known ? this.owned().length : null, MAX_MASTERCLASSES);
     el.innerHTML = '';
     // Offline replaces the whole section, even when a list is already in memory
     // from before the connection went. Every row leads to a screen that cannot

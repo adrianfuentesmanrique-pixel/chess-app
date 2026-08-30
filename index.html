@@ -234,7 +234,12 @@ if (window.Sentry && window.Sentry.onLoad) {
     <div id="base-list-view">
       <img src="icons/logo-mark.png" class="watermark" alt="">
       <div class="row screen-head">
-        <h2 data-i18n="tab_base"></h2>
+        <div class="head-with-count">
+          <h2 data-i18n="tab_base"></h2>
+          <!-- Live "used/cap" so the 10-database limit is watched, not hit blind.
+               Painted by Base.renderBases() in js/app.js. -->
+          <span id="base-count" class="cap-counter" aria-live="polite"></span>
+        </div>
         <button id="base-new" class="btn primary" data-i18n="new_base"></button>
       </div>
       <!-- Masterclass sits ABOVE the local base list and is a separate thing:
@@ -242,7 +247,13 @@ if (window.Sentry && window.Sentry.onLoad) {
            Everything below this block is untouched. -->
       <div class="mc-section">
         <div class="mc-section-head">
-          <h3 data-i18n="mc_section"></h3>
+          <div class="head-with-count">
+            <h3 data-i18n="mc_section"></h3>
+            <!-- Live "used/cap" for owned Masterclasses (blank while signed out
+                 or offline, where the count is unknown). Painted by
+                 Masterclass.renderList() in js/masterclass.js. -->
+            <span id="mc-count" class="cap-counter" aria-live="polite"></span>
+          </div>
           <button id="mc-new" class="btn small" data-i18n="mc_new"></button>
         </div>
         <div id="mc-list" class="list"></div>
@@ -943,6 +954,12 @@ if (window.Sentry && window.Sentry.onLoad) {
   <button data-screen="puzzles"><span class="tab-ico">🧩</span><span data-i18n="tab_puzzles"></span></button>
   <button data-screen="play"><span class="tab-ico">🤖</span><span data-i18n="tab_play"></span></button>
   <button data-screen="profile"><span class="tab-ico">👤</span><span data-i18n="tab_profile"></span></button>
+  <!-- Not a destination and deliberately NOT a <button>: every '#tabbar button'
+       selector (TAB_ORDER, swipe nav, the .on highlight, the click handler, the
+       tour targets) must keep matching exactly the seven data-screen buttons.
+       An <a> spans both grid columns as a footer row and opens the Limits &
+       storage sheet (js/app.js openLimitsSheet). -->
+  <a id="menu-limits" class="sheet-link" role="button" tabindex="0"><span class="tab-ico" aria-hidden="true">📦</span><span data-i18n="limits_menu"></span></a>
 </nav>
 
 <div id="toast" class="hidden"></div>

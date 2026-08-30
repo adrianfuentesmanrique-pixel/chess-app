@@ -11,7 +11,8 @@ import { PUZZLES, PUZZLE_THEMES, PUZZLE_PATTERNS, TRACKED_THEMES,
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
-import { Auth, authErrorMessage, fetchLeaderboard } from './firebase.js';
+import { Auth, authErrorMessage, fetchLeaderboard,
+         MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
@@ -34,6 +35,9 @@ import Tour from './tour.js';
 // actually supports it.
 const MAX_ENGINE_LINES = 2;
 const MAX_DATABASES = 10;
+// The row cap on an advanced search — the most a filter will draw at once.
+// Module-level so the Limits & storage page can name it without a second copy.
+const MAX_SEARCH_RESULTS = 2000;
 
 // One-time cleanup for accounts that accumulated openingElo entries before
 // openings were tracked by detected name instead of by (possibly
@@ -222,6 +226,19 @@ export function askConfirm(msg) {
     row.append(ok, ca);
     box.append(row);
   });
+}
+
+// Paints a live "used/cap" pill in a screen header, so a limit is watched
+// climbing instead of hit blind. Turns gold when one slot is left (or none).
+// Pass used=null when the count is genuinely unknown — Masterclass while signed
+// out or offline — and the pill shows nothing rather than a misleading 0.
+export function paintCapCounter(id, used, cap) {
+  const el = $(id);
+  if (!el) return;
+  if (used == null) { el.textContent = ''; el.classList.remove('low'); el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = `${used}/${cap}`;
+  el.classList.toggle('low', cap - used <= 1);
 }
 
 // Bottom-sheet menu; items = [{label, action, danger}]
@@ -653,18 +670,26 @@ function pickKael(dict) {
   return { text: lines[Math.floor(Math.random() * lines.length)], author: null };
 }
 
-export async function sharePgnText(filename, text) {
-  const file = new File([text], filename, { type: 'application/x-chess-pgn' });
+// Hand a text file to the OS: the native share sheet first (so it can go to
+// Files, Drive, WhatsApp, another device…), falling back to a plain download.
+// The one path every export in the app uses — a PGN, or the whole-library
+// backup — so they all behave identically.
+export async function shareTextFile(filename, text, mime = 'application/x-chess-pgn') {
+  const file = new File([text], filename, { type: mime });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title: filename }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   // fallback: download
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
   const a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast(t('saved'));
+}
+
+export function sharePgnText(filename, text) {
+  return shareTextFile(filename, text, 'application/x-chess-pgn');
 }
 
 // ── shareable stat cards ──────────────────────────────────────────
@@ -1390,6 +1415,18 @@ document.querySelectorAll('#tabbar button').forEach(b =>
 
 $('tabmenu-btn')?.addEventListener('click', () => openMenu());
 $('tabsheet-backdrop')?.addEventListener('click', () => closeMenu(false));
+
+// The Limits & storage footer row in the sheet. Not a destination: it closes
+// the menu (consuming its history entry the same way a tap on a tab does) and
+// opens the info sheet, so Android back still just shuts the menu.
+{
+  const openLimits = () => { closeMenu(false); openLimitsSheet(); };
+  const link = $('menu-limits');
+  link?.addEventListener('click', openLimits);
+  link?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLimits(); }
+  });
+}
 
 // segment control helper
 export function segInit(el, onChange) {
@@ -2318,7 +2355,7 @@ const Base = {
       return true;
     };
 
-    const LIMIT = 2000;
+    const LIMIT = MAX_SEARCH_RESULTS;
     try {
       if (yFrom && yTo) {
         this.filterResults = await db.findGamesBy(this.currentBaseId, 'date',
@@ -2382,6 +2419,9 @@ const Base = {
     const q = normalizeSearch($('base-search').value);
     const el = $('base-list');
     el.innerHTML = '';
+    // Count every base I own, not the search-narrowed view — the cap is on how
+    // many exist, not how many match the box.
+    paintCapCounter('base-count', this.basesCache.length, MAX_DATABASES);
     const bases = this.basesCache.filter(b => !q || normalizeSearch(b.name).includes(q));
     for (const b of bases) {
       const item = document.createElement('button');
@@ -2608,6 +2648,185 @@ function normalizeSearch(s) {
 
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// ═════════════════════ LIMITS & STORAGE ═════════════════════
+// One page that names every real cap. Each number is pulled from the constant
+// that ENFORCES it — never retyped — so the page can't drift when a cap moves.
+// MAX_DATABASES / MAX_ENGINE_LINES / MAX_SEARCH_RESULTS are module consts here;
+// MAX_MASTERCLASSES / MAX_CHAPTERS / MAX_CHAPTER_BYTES / MAX_MEMBERS come from
+// firebase.js; MAX_RADAR_THEMES and Rush.MAX_STRIKES live further down this
+// file and are read at call time, once the module has finished evaluating.
+function capRows() {
+  return [
+    [t('cap_databases'), String(MAX_DATABASES)],
+    [t('cap_masterclasses'), String(MAX_MASTERCLASSES)],
+    [t('cap_chapters'), String(MAX_CHAPTERS)],
+    [t('cap_chapter_size'), `${Math.round(MAX_CHAPTER_BYTES / 1000)} KB`],
+    [t('cap_members'), String(MAX_MEMBERS)],
+    [t('cap_search'), MAX_SEARCH_RESULTS.toLocaleString()],
+    [t('cap_engine_lines'), String(MAX_ENGINE_LINES)],
+    [t('cap_radar'), String(MAX_RADAR_THEMES)],
+    [t('cap_rush'), String(Rush.MAX_STRIKES)],
+  ];
+}
+
+function openLimitsSheet() {
+  modal((box, close) => {
+    const rows = capRows().map(([label, val]) =>
+      `<div class="cap-row"><span>${esc(label)}</span><b>${esc(val)}</b></div>`).join('');
+    box.innerHTML =
+      `<h3>${esc(t('limits_title'))}</h3>` +
+      `<div class="cap-list">${rows}</div>` +
+      `<h3 class="cap-storage-h">${esc(t('storage_heading'))}</h3>` +
+      `<p class="hint cap-storage-body">${esc(t('storage_body'))}</p>`;
+    const actions = document.createElement('div');
+    actions.className = 'cap-actions';
+    const backup = document.createElement('button');
+    backup.className = 'btn primary'; backup.textContent = '📤 ' + t('backup_all');
+    backup.onclick = () => { close(null); backupAllBases(); };
+    const restore = document.createElement('button');
+    restore.className = 'btn'; restore.textContent = '📥 ' + t('restore_backup');
+    restore.onclick = () => { close(null); pickBackupFile(); };
+    const done = document.createElement('button');
+    done.className = 'btn cap-close'; done.textContent = t('close');
+    done.onclick = () => close(null);
+    actions.append(backup, restore, done);
+    box.append(actions);
+  });
+}
+
+// Every base and its games in one JSON file, base names preserved, handed to
+// the OS through the same share/download path a single-base export uses.
+async function backupAllBases() {
+  const bases = await db.listBases();
+  if (!bases.length) { toast(t('backup_empty')); return; }
+  const out = { app: 'chess-training-center', type: 'bases-backup', version: 1,
+                exportedAt: Date.now(), bases: [] };
+  for (const b of bases) {
+    const games = await db.listGames(b.id);
+    // Store only the fields a game needs — never the local id or baseId, which
+    // are meaningless on the device that restores them.
+    out.bases.push({
+      name: b.name,
+      games: games.map(g => ({ white: g.white, black: g.black, event: g.event,
+        date: g.date, result: g.result, pgn: g.pgn, updatedAt: g.updatedAt })),
+    });
+  }
+  const stamp = new Date().toISOString().slice(0, 10);
+  await shareTextFile(`chess-bases-backup-${stamp}.json`, JSON.stringify(out), 'application/json');
+}
+
+function pickBackupFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const file = input.files[0];
+    input.remove();
+    if (file) await restoreBackup(file);
+  });
+  input.click();
+}
+
+// Two small stacked-choice dialogs. Neither restore question has a safe default,
+// so each is asked plainly and cancels (returns null) on tap-outside.
+function askDupChoice(n) {
+  return modal((box, close) => {
+    box.innerHTML = `<h3>${esc(t('restore_dup_title'))}</h3><p class="hint">${esc(t('restore_dup_body').replace('{n}', n))}</p>`;
+    const wrap = document.createElement('div'); wrap.className = 'cap-actions';
+    const copy = document.createElement('button'); copy.className = 'btn primary'; copy.textContent = t('restore_dup_copy');
+    const skip = document.createElement('button'); skip.className = 'btn'; skip.textContent = t('restore_dup_skip');
+    const ca = document.createElement('button'); ca.className = 'btn cap-close'; ca.textContent = t('cancel');
+    copy.onclick = () => close('copy'); skip.onclick = () => close('skip'); ca.onclick = () => close(null);
+    wrap.append(copy, skip, ca); box.append(wrap);
+  });
+}
+
+function askCapChoice(have, want) {
+  return modal((box, close) => {
+    const body = t('restore_cap_body').replace('{have}', have).replace('{want}', want).replace('{max}', MAX_DATABASES);
+    box.innerHTML = `<h3>${esc(t('restore_cap_title'))}</h3><p class="hint">${esc(body)}</p>`;
+    const wrap = document.createElement('div'); wrap.className = 'cap-actions';
+    const fit = document.createElement('button'); fit.className = 'btn primary'; fit.textContent = t('restore_cap_fit');
+    const ca = document.createElement('button'); ca.className = 'btn cap-close'; ca.textContent = t('cancel');
+    fit.onclick = () => close('fit'); ca.onclick = () => close(null);
+    wrap.append(fit, ca); box.append(wrap);
+  });
+}
+
+// Reads a backup file back into local bases. Two guards, both required by the
+// task: never silently pass the 10-base cap, and never silently duplicate a
+// base that is already here — ask instead. Recreated through addGamesBatch in
+// 500-game chunks so a big restore never opens one giant transaction.
+async function restoreBackup(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); }
+  catch { toast(t('restore_bad')); return; }
+  const incoming = data && Array.isArray(data.bases) ? data.bases : null;
+  if (!incoming) { toast(t('restore_bad')); return; }
+  const valid = incoming.filter(b => b && typeof b.name === 'string' && Array.isArray(b.games));
+  if (!valid.length) { toast(t('restore_none')); return; }
+
+  const existing = await db.listBases();
+  const existingNames = new Set(existing.map(b => b.name));
+
+  // A base whose name is already here is a duplicate: ask once for the whole set.
+  const dups = valid.filter(b => existingNames.has(b.name));
+  let importDups = false;
+  if (dups.length) {
+    const choice = await askDupChoice(dups.length);
+    if (choice === null) return;                 // cancelled
+    importDups = choice === 'copy';
+  }
+  let toCreate = importDups ? valid : valid.filter(b => !existingNames.has(b.name));
+  if (!toCreate.length) { toast(t('restore_nothing_new')); return; }
+
+  // Never blow past the cap. If the restore would, offer to fill only what fits.
+  const room = MAX_DATABASES - existing.length;
+  if (toCreate.length > room) {
+    if (await askCapChoice(existing.length, toCreate.length) !== 'fit') return;
+    toCreate = toCreate.slice(0, Math.max(0, room));
+    if (!toCreate.length) { toast(t('restore_full')); return; }
+  }
+
+  const BATCH = 500;
+  const total = toCreate.reduce((n, b) => n + b.games.length, 0);
+  let cancelled = false;
+  const ui = importProgress(file.name, () => { cancelled = true; });
+  let done = 0, basesMade = 0;
+  try {
+    for (const b of toCreate) {
+      if (cancelled) break;
+      // A copy of an existing base keeps a distinct name from the original.
+      let name = existingNames.has(b.name) ? `${b.name} (${t('restore_copy_tag')})` : b.name;
+      const baseId = await db.createBase(name);
+      existingNames.add(name);
+      basesMade++;
+      let batch = [];
+      for (const g of b.games) {
+        if (cancelled) break;
+        batch.push({ baseId, white: g.white ?? '?', black: g.black ?? '?',
+          event: g.event ?? '', date: g.date ?? '', result: g.result ?? '*',
+          pgn: String(g.pgn ?? ''), updatedAt: g.updatedAt ?? Date.now() });
+        if (batch.length >= BATCH) {
+          await db.addGamesBatch(batch); done += batch.length; batch = [];
+          ui.update(done, 0, total ? done / total : 1);
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+      if (batch.length) { await db.addGamesBatch(batch); done += batch.length; ui.update(done, 0, total ? done / total : 1); }
+    }
+    ui.close();
+    toast(t('restore_done').replace('{b}', basesMade).replace('{g}', done.toLocaleString()));
+    if (activeScreen === 'base') Base.showList();
+  } catch (e) {
+    ui.close();
+    console.error('restore failed', e);
+    toast(t('restore_bad'));
+  }
 }
 
 // ═════════════════════ PLAY vs ENGINE ═════════════════════

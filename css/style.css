@@ -325,6 +325,23 @@ body.menu-open #tabbar { transform: translateY(0); }
 #tabbar button.on { color: var(--gold); background: var(--gold-bg); }
 .tab-ico { font-size: 24px; line-height: 1; }
 
+/* Full-width footer row in the destinations sheet: Limits & storage. Spans both
+   grid columns and reads as a horizontal row, distinct from the icon-over-label
+   destination tiles above it. An <a>, not a <button>, so none of the
+   '#tabbar button' JS ever picks it up. */
+#tabbar .sheet-link {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 4px; padding: 12px 14px;
+  border-top: 1px solid var(--input-border);
+  color: var(--muted); font-size: 13px; font-weight: 600;
+  border-radius: 12px; cursor: pointer; text-decoration: none;
+}
+#tabbar .sheet-link .tab-ico { font-size: 20px; }
+#tabbar .sheet-link:hover, #tabbar .sheet-link:focus-visible {
+  color: var(--gold); background: var(--gold-bg); outline: none;
+}
+
 /* Tap-catcher behind the sheet. Kept in the DOM (never display:none) so its
    fade can animate; inert until the menu is open. */
 #tabsheet-backdrop {
@@ -344,6 +361,19 @@ body.menu-open #tabsheet-backdrop { opacity: 1; pointer-events: auto; }
 
 h2 { margin: 4px 0 10px; font-size: 20px; }
 .screen-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* Keeps a header title and its live "used/cap" counter together as one unit on
+   the left, so the New button stays on the right. */
+.head-with-count { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cap-counter {
+  flex: 0 0 auto;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  background: var(--gold-bg); border-radius: 999px; padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+}
+/* One slot left (or none): the number you watch climbing turns gold before it
+   ambushes you. */
+.cap-counter.low { color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
 
 /* ── board ─────────────────────────────── */
 .board-wrap { width: 100%; max-width: 560px; margin: 0 auto; }
@@ -1262,6 +1292,23 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 }
 .sheet-btn.danger { color: var(--danger); }
 .sheet-btn.cancel { text-align: center; color: var(--muted); }
+
+/* Limits & storage page. Each cap is a label on the left, its number on the
+   right in gold. */
+.cap-list { display: flex; flex-direction: column; }
+.cap-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 9px 2px; border-bottom: 1px solid var(--input-border);
+}
+.cap-row span { font-size: 14px; }
+.cap-row b { flex: 0 0 auto; color: var(--gold); font-variant-numeric: tabular-nums; }
+.cap-storage-h { font-size: 15px; margin: 18px 0 8px; }
+.cap-storage-body { margin: 0; }
+/* Stacked, full-width action buttons — one clear tap-target per line, the
+   monkey-proof shape for a phone. */
+.cap-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+.cap-actions .btn { width: 100%; }
+.cap-actions .cap-close { color: var(--muted); }
 
 @media (min-width: 700px) {
   .modal-back { align-items: center; }
