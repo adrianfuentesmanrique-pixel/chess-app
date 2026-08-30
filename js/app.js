@@ -1227,12 +1227,19 @@ const MENU_AREA = {
   friends: 'profile', 'friends-leaderboard': 'profile', 'friends-blocked': 'profile',
 };
 
-function updateTabMenu() {
+export function updateTabMenu() {
   const label = $('tabmenu-label');
   if (!label) return;
+  // Follow whichever tab is actually lit in the sheet, so the button can never
+  // disagree with the highlight: updateBaseNav()/Masterclass override .on to
+  // 'base'/'play' for a game opened from a base or from Play history while
+  // activeScreen stays 'analysis'. Reusing the tab's own already-translated
+  // label also follows a language switch for free and needs no strings here.
+  const lit = document.querySelector('#tabbar button.on [data-i18n]');
+  if (lit) { label.textContent = lit.textContent; return; }
+  // No tab is lit (rush/blind/leaderboard/friends/public-profile light none),
+  // so map the raw screen to its home tab instead.
   const area = MENU_AREA[activeScreen] || 'analysis';
-  // Reuse the tab button's own already-translated label, so this follows a
-  // language switch for free and needs no strings of its own.
   const src = document.querySelector(`#tabbar button[data-screen="${area}"] [data-i18n]`);
   label.textContent = src ? src.textContent : '';
 }
@@ -1617,6 +1624,9 @@ export const Analysis = {
       const rec = History.state.items[idx];
       $('ana-hist-head').textContent = rec ? History.headline(rec) : '';
     }
+    // Re-sync the menu button after any of the .on overrides above (or their
+    // absence), so its label matches the tab this leaves lit.
+    updateTabMenu();
   },
 
   backToHistory() {

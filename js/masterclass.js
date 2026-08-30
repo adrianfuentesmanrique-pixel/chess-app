@@ -30,7 +30,7 @@ import {
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askText, askConfirm, showScreen, activeScreen,
-  chooseBase, Analysis,
+  chooseBase, Analysis, updateTabMenu,
 } from './app.js';
 import { avatarHtml } from './avatars.js';
 // js/friends.js does NOT import this file, so this is a plain edge and not a
@@ -368,6 +368,8 @@ export const Masterclass = {
   lightBasesTab() {
     document.querySelectorAll('#tabbar button').forEach(b =>
       b.classList.toggle('on', b.dataset.screen === 'base'));
+    // Keep the menu button's label in step with the tab we just lit.
+    updateTabMenu();
   },
 
   // One read per chapter, and the PGN comes with it — which is what makes

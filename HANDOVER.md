@@ -30,6 +30,26 @@
     `nav_destinations` for the sheet's aria-label. `prefers-reduced-motion`
     disables the slide/fade (css/style.css).
 
+- **MENU BUTTON LABEL NOW FOLLOWS THE LIT TAB, NOT THE RAW SCREEN (2026-08-29).**
+  Committed on `main`, NOT pushed/deployed. `sw.js` cache bumped to
+  `chess-training-center-v81`. Fixes the cosmetic mismatch where opening a game
+  from a Base or from Play history left the button reading "Analysis" while the
+  sheet highlighted "Bases"/"Play" (activeScreen stays `'analysis'` but
+  `updateBaseNav()`/Masterclass override the `.on` highlight).
+  - `updateTabMenu()` (js/app.js) now reads its label from the currently-lit
+    `#tabbar button.on [data-i18n]` when one exists, falling back to the
+    `MENU_AREA` map only when no tab is lit (rush/blind/leaderboard/friends/
+    public-profile light none). It is now `export`ed.
+  - A single `updateTabMenu()` call was added at the end of
+    `Analysis.updateBaseNav()` (covers the inBase/inMc/inHist `.on` overrides and
+    the no-override case), and one in `Masterclass.lightBasesTab()`
+    (js/masterclass.js, which already imports from app.js — no new import cycle).
+  - Verified in the browser pane at 375px, both languages: base game → "Bases",
+    Play-history game → "Play"/"Jugar", Masterclass chapter → "Bases", the
+    leaderboard fallback → "Profile"/"Perfil", and all seven normal tabs still
+    light and label correctly. TAB_ORDER/swipe, menu↔history, and the tour were
+    not touched.
+
 - **THE THREE BASES/MOVE-LIST BUGS ARE FIXED (2026-08-28) — HANDOFFS task 1.**
   All four sub-bugs were reproduced, fixed and browser-verified at 375px in
   light AND dark, then the fake test base was deleted. `sw.js` cache bumped to
