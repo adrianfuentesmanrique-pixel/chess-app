@@ -2,7 +2,8 @@
 // Drafted to cover the app's actual mechanics: local-first storage, optional
 // Firebase-backed accounts, AI-generated visual assets, chess content adapted
 // from public/educational sources, an embedded open-source (GPLv3) chess
-// engine, and a third-party (Lichess) API integration. Still a baseline for
+// engine, an Apache-2.0 PDF renderer (PDF.js) for the Read tab, and a
+// third-party (Lichess) API integration. Still a baseline for
 // review by a lawyer licensed in your jurisdiction before relying on it
 // commercially — no template can account for your specific business
 // structure, but this covers the categories a reviewer would expect to see.
@@ -36,7 +37,7 @@ export const LEGAL_TERMS = {
       },
       {
         h: '6. Componentes de código abierto y de terceros',
-        p: `La App utiliza software de terceros bajo sus propias licencias de código abierto, incluyendo el motor de ajedrez Stockfish (con licencia GNU GPL v3 — puedes obtener su código fuente en stockfishchess.org) y la biblioteca chess.js. Estos componentes conservan los derechos de sus respectivos autores y se distribuyen conforme a sus licencias originales, independientemente de los términos que rigen el resto de la App. El uso del motor de ajedrez integrado está sujeto además a la sección 11 (uso aceptable).`,
+        p: `La App utiliza software de terceros bajo sus propias licencias de código abierto, incluyendo el motor de ajedrez Stockfish (con licencia GNU GPL v3 — puedes obtener su código fuente en stockfishchess.org), la biblioteca chess.js, y PDF.js de Mozilla Foundation (usada por la sección «Leer» para mostrar tus libros PDF; con licencia Apache 2.0 — su código fuente está disponible en github.com/mozilla/pdf.js). Estos componentes conservan los derechos de sus respectivos autores y se distribuyen conforme a sus licencias originales, independientemente de los términos que rigen el resto de la App. El uso del motor de ajedrez integrado está sujeto además a la sección 11 (uso aceptable).`,
       },
       {
         h: '7. Cuentas de usuario',
@@ -118,7 +119,7 @@ export const LEGAL_TERMS = {
       },
       {
         h: '6. Open-source and third-party components',
-        p: `The App uses third-party software under its own open-source licenses, including the Stockfish chess engine (licensed under the GNU GPL v3 — its source code is available at stockfishchess.org) and the chess.js library. These components remain the property of their respective authors and are distributed under their original licenses, independent of the terms governing the rest of the App. Use of the built-in chess engine is additionally subject to Section 12 (acceptable use).`,
+        p: `The App uses third-party software under its own open-source licenses, including the Stockfish chess engine (licensed under the GNU GPL v3 — its source code is available at stockfishchess.org), the chess.js library, and Mozilla Foundation's PDF.js (used by the "Read" section to display your PDF books; licensed under the Apache License 2.0 — its source code is available at github.com/mozilla/pdf.js). These components remain the property of their respective authors and are distributed under their original licenses, independent of the terms governing the rest of the App. Use of the built-in chess engine is additionally subject to Section 12 (acceptable use).`,
       },
       {
         h: '7. User accounts',

@@ -2,6 +2,58 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — STAGE 1: PDF READER (2026-08-30).** Committed on `main`, NOT
+  pushed/deployed yet. `sw.js` cache bumped to `chess-training-center-v83`.
+  Verified in headless Chrome over CDP (the in-app pane never composites, so
+  rAF never fires and PDF.js's chunked render stalls there — real Chrome is
+  fine; see `tools/cdp-verify.mjs`). Stage 1 is the reader ONLY — NO diagram
+  detection (that is Stage 2, unstarted; do not stub it).
+  - **New module `js/read.js`** (do NOT fold into app.js). Exports
+    `init()`, `refresh()` (draw the shelf), `closeBook()` (destroy the PDF +
+    free memory), and `importFile(file)` (the import path, shared by the picker
+    and tests). PDF.js is `import()`-ed lazily on first open/add.
+  - **PDF.js** = Mozilla pdfjs-dist 6.3.289, Apache-2.0, LEGACY MINIFIED build,
+    self-hosted: `vendor/pdf.min.mjs` (precached in sw.js) + the ~1.3 MB
+    `vendor/pdf.worker.min.mjs` (NOT precached — cached on first use, like the
+    Stockfish wasm; vendor/ is CACHE_FIRST). Shipped WITHOUT cmaps/ and
+    standard_fonts/ — add only if a real book renders wrong. Apache-2.0 notice
+    added to the open-source section of `js/legal-data.js` (both languages).
+  - **Storage:** `js/db.js` is now `DB_VER = 4` — added a `books` store
+    (index `openedAt`) via the stepwise `if (e.oldVersion < 4)` pattern
+    (in-place upgrade verified: v3 data survives). New db fns:
+    `listBookSummaries()` (shelf list, strips the Blob), `addBook()`,
+    `getBook()`, `updateBookMeta()`, `deleteBook()`. Book record =
+    `{id,name,blob,size,cover(dataURL),pageCount,page,addedAt,openedAt}`.
+    `'books'` added to `clearAllLocalData()`; deliberately NOT in
+    `clearSyncedProfileData()` (sign-out must not delete an un-uploaded library).
+  - **HARD RULE kept:** books NEVER go to Firebase. Firestore sync is
+    allowlist-based (`SYNCED_KEYS`, kv-only), so a separate `books` store cannot
+    sync. No "back up my books" button — do not add one.
+  - **App wiring (js/app.js):** `'read'` added to `SCREENS`, to `MENU_AREA`,
+    and to `showScreen()` (refresh on enter, `Read.closeBook()` on leave).
+    `Read.init()` in `main()`. `relabel()` refreshes the shelf on language
+    switch. capRows() has a Books row (`cap_books`/`cap_books_val` = "limited by
+    storage"). `#read-stage` added to `SWIPE_SAFE` so a page-turn gesture can
+    never trigger `goAdjacentTab` (verified: swipe turns the page, tab stays).
+  - **Menu:** `🔖` "Leer"/"Read" destination in `#tabbar`, between Play and
+    Profile; `TAB_ORDER` picks it up automatically.
+  - **Quota:** up-front `navigator.storage.estimate()` check refuses a book that
+    won't fit (names both numbers, saves nothing — verified); mid-write
+    `QuotaExceededError` is caught (single-record tx rolls back). First import
+    calls `navigator.storage.persist()` once (kv flag `booksPersistAsked`); a
+    quiet shelf line shows only while `persisted()` is false. Shelf shows
+    "N books · size · free".
+  - **Reader gestures** (all custom, `#read-stage` is `touch-action:none`):
+    one finger turns pages / pans a zoomed or tall page, two fingers pinch-zoom
+    (max 4×), double-tap toggles 1×/2×. Page position saved (throttled) and
+    flushed on close — reopen returns to the same page (verified across close
+    AND an offline reload).
+  - **Dev tools (not shipped to the app):** `tools/make-test-pdf.mjs`
+    (generates a valid N-page test PDF) and `tools/cdp-verify.mjs` (the headless
+    verification harness). Serve the app and run
+    `node tools/cdp-verify.mjs http://localhost:<port>` after copying a test PDF
+    to `__test-book.pdf` in the app root.
+
 - **CAP COUNTERS + A LIMITS & STORAGE PAGE + BACKUP/RESTORE ALL BASES
   (2026-08-30).** Committed (`4d9d6b2`) on `main`, NOT pushed/deployed yet.
   `sw.js` cache bumped to `chess-training-center-v82`. Browser-verified at 375px

@@ -3,7 +3,8 @@ const DB_NAME = 'mi-ajedrez';
 // v2 adds search indexes on the games store so filtering can be done by the
 // database instead of scanning every record in memory.
 // v3 adds the playHistory store for games played against the engine.
-const DB_VER = 3;
+// v4 adds the books store for the Read tab (PDF chess books, device-only).
+const DB_VER = 4;
 
 let dbPromise = null;
 
@@ -36,6 +37,14 @@ function open() {
         hist.createIndex('playerColor', 'playerColor');
         hist.createIndex('level', 'level');
         hist.createIndex('opening', 'opening');
+      }
+      if (e.oldVersion < 4) {
+        // The user's own PDF books. The PDF Blob lives here and NOWHERE else —
+        // never synced to Firebase (SYNCED_KEYS covers only the kv store, so a
+        // separate store is structurally unable to reach the cloud). Indexed by
+        // openedAt so the shelf can list most-recently-read first.
+        const books = db.createObjectStore('books', { keyPath: 'id', autoIncrement: true });
+        books.createIndex('openedAt', 'openedAt');
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -245,6 +254,73 @@ export async function pageHistory({ count = 30, dir = 'prev', match = null } = {
   });
 }
 
+// --- books (Read tab: the user's own PDF chess books, device-only) ---
+//
+// A book record is:
+//   { id, name, blob (the PDF), size, cover (dataURL thumb), pageCount,
+//     page (last page read, 1-based), addedAt, openedAt }
+// The Blob is the only heavy field, so the shelf reads SUMMARIES (everything
+// but the Blob) and only getBook() pulls the PDF itself.
+
+// Shelf list, most-recently-opened first, WITHOUT the PDF Blob. A cursor lets
+// us keep only the light fields — pulling whole records would drag every book's
+// megabytes into memory just to draw cards.
+export async function listBookSummaries() {
+  const database = await open();
+  return new Promise((resolve, reject) => {
+    const out = [];
+    const idx = database.transaction('books').objectStore('books').index('openedAt');
+    const req = idx.openCursor(null, 'prev'); // newest openedAt first
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) { resolve(out); return; }
+      const { blob, ...summary } = cur.value;
+      out.push(summary);
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// Adds one book and resolves with its new id. A book is 5–50 MB, so a
+// QuotaExceededError can land mid-write. This is a single-record transaction,
+// so IndexedDB aborts and rolls the partial write back automatically — nothing
+// half-written lingers and the other books are untouched. The rejection
+// carries that error up so the caller can tell the user; there is no partial
+// record to clean up by hand.
+export function addBook(rec) {
+  return open().then(database => new Promise((resolve, reject) => {
+    const t = database.transaction('books', 'readwrite');
+    const s = t.objectStore('books');
+    const req = s.add(rec);
+    let id = null;
+    req.onsuccess = () => { id = req.result; };
+    t.oncomplete = () => resolve(id);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error || new Error('aborted'));
+  }));
+}
+
+export async function getBook(id) {
+  const db = await open();
+  return reqToPromise(db.transaction('books').objectStore('books').get(id));
+}
+
+// Patches metadata (page position, openedAt, name) without touching the Blob.
+// Reads the record, merges, writes it back — the Blob rides along untouched.
+export function updateBookMeta(id, patch) {
+  return tx('books', 'readwrite', s => {
+    s.get(id).onsuccess = function () {
+      const b = this.result;
+      if (b) { Object.assign(b, patch); s.put(b); }
+    };
+  });
+}
+
+export function deleteBook(id) {
+  return tx('books', 'readwrite', s => s.delete(id));
+}
+
 // --- key/value (settings, puzzle progress) ---
 export async function kvGet(key, def = null) {
   const db = await open();
@@ -267,7 +343,7 @@ export async function kvSet(key, value) {
 // once the cloud account and its data are gone.
 export async function clearAllLocalData() {
   const database = await open();
-  await Promise.all(['bases', 'games', 'kv', 'playHistory'].map(store => new Promise((resolve, reject) => {
+  await Promise.all(['bases', 'games', 'kv', 'playHistory', 'books'].map(store => new Promise((resolve, reject) => {
     const t = database.transaction(store, 'readwrite');
     t.objectStore(store).clear();
     t.oncomplete = resolve;

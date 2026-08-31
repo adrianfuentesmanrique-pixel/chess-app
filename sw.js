@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v82';
+const CACHE = 'chess-training-center-v83';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -24,6 +24,7 @@ const ASSETS = [
   'js/friends.js',
   'js/masterclass.js',
   'js/chapter-order.js',
+  'js/read.js',
   // Only the band a new account starts in (ELO 1200). The other nine are
   // fetched on demand and cached by the network-first handler below — bundling
   // all 5 MB into install would be slow and mostly unused.
@@ -34,6 +35,12 @@ const ASSETS = [
   'vendor/chess.js',
   'vendor/chart.umd.js',
   'vendor/stockfish-17.1-lite-single-03e3232.js',
+  // PDF.js main library for the Read tab (~500 KB). The separate ~1.3 MB
+  // pdf.worker.min.mjs is deliberately NOT precached — same reasoning as the
+  // Stockfish .wasm below: it is fetched on first use (the first time a book is
+  // opened or added) and cached by the cache-first handler, since vendor/ is
+  // CACHE_FIRST. So a first launch by someone who never opens Read stays light.
+  'vendor/pdf.min.mjs',
   // NOTE: the 7 MB Stockfish .wasm is deliberately NOT precached here. Pulling
   // it during install put a 7 MB download in front of first launch, and since
   // install is all-or-nothing, a phone that dropped it got NOTHING cached.

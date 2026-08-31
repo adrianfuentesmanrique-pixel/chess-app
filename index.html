@@ -354,6 +354,47 @@ if (window.Sentry && window.Sentry.onLoad) {
     </div>
   </section>
 
+  <!-- ══════════ READ (PDF chess books, device-only) ══════════ -->
+  <section id="screen-read" class="screen hidden">
+    <!-- Shelf: the user's books as cards, most recently opened first. -->
+    <div id="read-shelf">
+      <div class="screen-head">
+        <h2 data-i18n="read_title"></h2>
+        <button id="read-add" class="btn primary small" data-i18n="read_add"></button>
+      </div>
+      <p id="read-storage" class="hint read-storage"></p>
+      <p id="read-persist-warn" class="hint read-persist-warn hidden" data-i18n="read_persist_warn"></p>
+      <div id="read-grid" class="read-grid"></div>
+      <div id="read-empty" class="empty-note hidden">
+        <img src="icons/logo-mark.png" class="watermark" alt="">
+        <p class="hint" data-i18n="read_empty"></p>
+      </div>
+    </div>
+    <!-- Reader: one PDF page at a time. Its own left/right page-turn and pinch
+         gestures live in js/read.js; #read-stage is in SWIPE_SAFE so a page
+         turn never triggers the app's tab swipe. -->
+    <div id="read-reader" class="hidden">
+      <div class="read-bar">
+        <button id="read-back" class="nav-back" data-i18n-aria="read_close_book">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span data-i18n="read_books"></span>
+        </button>
+        <span id="read-book-title" class="read-book-title ellipsis"></span>
+        <span id="read-page-ind" class="read-page-ind"></span>
+      </div>
+      <div id="read-stage" class="read-stage">
+        <canvas id="read-canvas"></canvas>
+        <div id="read-loading" class="read-loading hidden"></div>
+      </div>
+      <div class="read-nav">
+        <button id="read-prev" class="tool-btn read-navbtn" data-i18n-aria="read_prev">◀</button>
+        <button id="read-next" class="tool-btn read-navbtn" data-i18n-aria="read_next">▶</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ══════════ OPENING TRAINER ══════════ -->
   <section id="screen-trainer" class="screen hidden">
     <div id="trainer-setup">
@@ -953,6 +994,7 @@ if (window.Sentry && window.Sentry.onLoad) {
   <button data-screen="trainer"><span class="tab-ico">📖</span><span data-i18n="tab_trainer"></span></button>
   <button data-screen="puzzles"><span class="tab-ico">🧩</span><span data-i18n="tab_puzzles"></span></button>
   <button data-screen="play"><span class="tab-ico">🤖</span><span data-i18n="tab_play"></span></button>
+  <button data-screen="read"><span class="tab-ico">🔖</span><span data-i18n="tab_read"></span></button>
   <button data-screen="profile"><span class="tab-ico">👤</span><span data-i18n="tab_profile"></span></button>
   <!-- Not a destination and deliberately NOT a <button>: every '#tabbar button'
        selector (TAB_ORDER, swipe nav, the .on highlight, the click handler, the

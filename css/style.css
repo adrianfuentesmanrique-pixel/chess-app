@@ -1499,3 +1499,95 @@ body.tour-on #kael-corner { opacity: 0; pointer-events: none; }
 
 .kael-empty { text-align: center; padding: 32px 16px; }
 .kael-empty .kael-portrait { width: 96px; height: auto; opacity: .9; margin-bottom: 12px; }
+
+/* ══════════ READ (PDF books) ══════════ */
+/* Shelf: the user's books as cover cards, most-recently-opened first. */
+.read-storage { margin: 2px 0 4px; font-variant-numeric: tabular-nums; }
+.read-persist-warn {
+  margin: 0 0 8px; padding: 8px 10px;
+  background: var(--gold-bg); border-radius: 8px;
+  color: var(--text); font-size: 12.5px;
+}
+.read-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px; margin: 10px 0;
+}
+.read-card {
+  position: relative; background: var(--panel); border-radius: var(--radius);
+  overflow: hidden; cursor: pointer; box-shadow: 0 1px 6px var(--shadow);
+  display: flex; flex-direction: column;
+}
+.read-card:active { transform: scale(.98); }
+.read-cover {
+  aspect-ratio: 3 / 4; background: var(--panel2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; overflow: hidden;
+  border-bottom: 1px solid var(--input-border);
+}
+.read-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.read-meta { padding: 8px 10px 10px; }
+.read-card-title {
+  font-weight: 600; font-size: 14px; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.read-card-sub { color: var(--muted); font-size: 12px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.read-card-menu {
+  position: absolute; top: 4px; right: 4px;
+  width: 30px; height: 30px; border: none; border-radius: 50%;
+  background: rgba(14, 19, 26, .55); color: #fff; font-size: 18px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.read-card-menu:active { transform: scale(.9); }
+
+/* Reader: fills the visible area between the top bar and the bottom menu; the
+   stage flexes to take whatever is left after the bar and page controls. */
+#read-reader {
+  display: flex; flex-direction: column;
+  height: calc(100dvh - 120px - env(safe-area-inset-top));
+  min-height: 320px;
+}
+body.reading main { overflow: hidden; }
+.read-bar { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-bottom: 6px; }
+.read-bar .nav-back { flex: 0 0 auto; }
+.read-book-title { flex: 1 1 auto; font-weight: 600; font-size: 15px; min-width: 0; }
+.read-page-ind { flex: 0 0 auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.read-stage {
+  position: relative; flex: 1 1 auto; min-height: 0;
+  overflow: hidden; background: var(--panel2); border-radius: var(--radius);
+  touch-action: none;   /* the reader owns every touch: page turn, pan, pinch */
+  -webkit-user-select: none; user-select: none;
+}
+#read-canvas {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0; will-change: transform;
+  background: #fff;   /* a PDF page is white paper in either app theme */
+  box-shadow: 0 0 0 1px var(--input-border);
+}
+.read-loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+}
+.read-loading::after {
+  content: ''; width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--input-border); border-top-color: var(--accent);
+  animation: read-spin .8s linear infinite;
+}
+.read-nav { display: flex; gap: 8px; flex: 0 0 auto; margin-top: 8px; }
+.read-navbtn { font-size: 20px; }
+
+/* Brief "adding the book" overlay shown while its cover renders. */
+.read-busy {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(14, 19, 26, .55);
+}
+.read-busy-card {
+  background: var(--panel); border-radius: var(--radius); padding: 22px 26px;
+  text-align: center; box-shadow: 0 6px 24px var(--shadow);
+}
+.read-busy-card p { margin: 12px 0 0; color: var(--text); }
+.read-spinner {
+  width: 34px; height: 34px; border-radius: 50%; margin: 0 auto;
+  border: 3px solid var(--input-border); border-top-color: var(--accent);
+  animation: read-spin .8s linear infinite;
+}
+@keyframes read-spin { to { transform: rotate(360deg); } }

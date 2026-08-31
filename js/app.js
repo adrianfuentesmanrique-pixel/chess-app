@@ -16,6 +16,7 @@ import { Auth, authErrorMessage, fetchLeaderboard,
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
+import * as Read from './read.js';
 import { Sound } from './sound.js';
 import { Themes, ColorMode } from './appearance.js';
 import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
@@ -1157,7 +1158,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'blind'];
+const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'blind'];
 export let activeScreen = 'analysis';
 
 export function showScreen(name) {
@@ -1169,6 +1170,9 @@ export function showScreen(name) {
   if (name !== 'analysis') Analysis.pauseEngine();
   if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
   if (name === 'base') Base.refresh();
+  // Leaving Read closes the open book — a rendered PDF page holds real memory.
+  // Entering it draws the shelf fresh.
+  if (name === 'read') Read.refresh(); else Read.closeBook();
   if (name === 'trainer') Trainer.refreshBases();
   if (name === 'puzzles') Puzzles.ensureLoaded();
   if (name === 'endgame') Endgame.ensureLoaded();
@@ -1248,6 +1252,7 @@ const MENU_AREA = {
   trainer: 'trainer',
   puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles',
   play: 'play',
+  read: 'read',
   profile: 'profile', leaderboard: 'profile', 'public-profile': 'profile',
   friends: 'profile', 'friends-leaderboard': 'profile', 'friends-blocked': 'profile',
 };
@@ -1336,7 +1341,7 @@ function slideScreenIn(name, dir) {
 // and not the next is worse than one that never fires there. The walk below
 // then catches any other real horizontal scroller.
 const SWIPE_SAFE = '.board, .modal-back, .drag-ghost, input, textarea, select, ' +
-  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .movelist';
+  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .movelist, #read-stage';
 
 function swipeBlocked(el) {
   if (!el || !el.closest) return true;
@@ -2668,6 +2673,10 @@ function capRows() {
     [t('cap_engine_lines'), String(MAX_ENGINE_LINES)],
     [t('cap_radar'), String(MAX_RADAR_THEMES)],
     [t('cap_rush'), String(Rush.MAX_STRIKES)],
+    // Books (Read tab) have no fixed count cap — the only limit is the device's
+    // own storage, which the Read shelf shows live. This row keeps that fact in
+    // the one place every other limit is named.
+    [t('cap_books'), t('cap_books_val')],
   ];
 }
 
@@ -5963,6 +5972,7 @@ function relabel() {
   Puzzles.updateProgress?.();
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.refreshLists();
+  if (activeScreen === 'read') Read.refresh();
 }
 
 function openEloHistoryModal(historyKey, titleKey) {
@@ -6422,6 +6432,7 @@ async function main() {
   Base.init();
   Play.init();
   History.init();
+  Read.init();
   Trainer.init();
   Puzzles.init();
   Rush.init();
