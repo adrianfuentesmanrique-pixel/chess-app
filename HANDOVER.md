@@ -2,6 +2,72 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — LINE-ONLY WHITE BOARD VERIFIED, NO CODE CHANGE NEEDED (2026-08-31).**
+  Doc-only commit; `js/diagram.js` and `sw.js` are UNCHANGED (still v86). This
+  closes the last untested board style: thin black grid lines on pure white, NO
+  shading and NO hatching.
+  - **No real line-only book exists on this device to test on.** Of Adrian's five
+    endgame PDFs only two render at all in the app's pdf.js (v6.3.289): Dvoretsky
+    (hatched scan) and Hellsten (shaded vector) — both already verified, neither
+    line-only. The three that *would* show line-only diagrams — Silman, Lamprecht
+    (`2. Fundamental…`), and the `00.` encyclopedia — are **JBIG2-scanned and
+    render BLANK** (see the separate defect entry below). So a REAL line-only test
+    stays theoretical; this was verified on a **faithful synthetic** line-only
+    board instead (pure-white squares + 1–2px black grid lines + the app's own
+    figurine SVGs + surrounding book text), which exercises the exact CV paths in
+    question. Throwaway CDP probes, deleted after (pattern per the scanned-book
+    entry below).
+  - **Result: line-only is one of the EASIEST styles, not a weak one.** Detected at
+    the right cell size with a pixel-aligned 9×9 overlay (eyeballed), taught from
+    the start, and read back to the **exact** start AND a midgame FEN,
+    `confident=true`, `maxD1=0`. Text on the page → NO board. Verified clean (1px),
+    thick (2px), and scan-noisy (±10 luminance) variants.
+  - **The three flagged failure points were each checked and none is a bug:**
+    1. *Empty `lumStd` / grid-line bleed via INSET=0.07.* With 1px lines empties
+       have `lumStd≈0` (no bleed); with 2px lines some bleed lifts the worst empty
+       to ~28.6, but the learned `emptyThresh` rises with it (27→44) and still sits
+       well below the flattest piece (~54–60), so occupancy stays correct. Real,
+       but self-correcting — not a defect.
+    2. *Thin-line teeth / `lineContrast`.* A black-on-white line is a FULL-contrast
+       edge — taller and sharper than a shade flip — so `findGrid`'s comb locks
+       hard and `lineContrast` clears 1.35 easily. Thin lines are not weak here.
+    3. *`validateCheckerboard`'s flat branch.* Confirmed it is exactly what admits
+       this style: empty-square brightness spread was 0–0.3 (< 26) in every
+       variant → `return true`. The parity test is never reached (correctly — a
+       line-only board has no parity to separate).
+  - **Honest degradation holds:** the scan-noisy midgame classified with clean
+    templates came back `confident=false` (1 uncertain), never a confident wrong
+    board — the Setup-plus-flip fallback covers it. **Recommendation was: do NOT
+    add any tweak.** Detection already reads line-only correctly or flags itself;
+    a threshold change would only risk the two real styles for a case that already
+    passes. Left as-is by design.
+  - **Both committed CDP harnesses re-run green** (`tools/cdp-verify.mjs` Stage 1;
+    `tools/cdp-verify-stage2.mjs` Stage 2 — every check true; the only `false`s are
+    the intended `confident:false` honest-degradation check and `cardOverflow:false`).
+    No source changed, so the reader/i18n/375px/light/dark surface is identical to
+    v86.
+
+- **READ TAB — 3 OF 5 ENDGAME PDFs RENDER BLANK (JBIG2), FOUND NOT FIXED (2026-08-31).**
+  Discovered while hunting for a line-only book; **not yet fixed** — it is the next
+  session's task (prompt at the bottom of this file). NOT a diagram-detection bug:
+  the pages never draw at all.
+  - **Symptom:** Silman, `2. Fundamental Chess Endings - Frank Lamprecht.pdf`, and
+    `00. Fundamental_chess_endings…encyclopaedia….pdf` open in the Read tab and
+    show **pure white pages** (measured 0 non-white pixels on content pages;
+    Dvoretsky and Hellsten render fine). Each blank page is a single full-page
+    scanned image (`paintImageXObject`).
+  - **Cause (from the pdf.js console warning):** these scans are **JBIG2-encoded**,
+    and app's vendored **pdf.js v6** needs a WASM decoder it was never given —
+    `"#instantiateWasm: … Ensure that the wasmUrl API parameter is provided"`,
+    `"Failed to resolve module specifier 'null…jbig2_nowasm_fallback.js'"`,
+    `"Unable to decode image …: Jbig2Error: JBig2 failed to initialize"`. JPEG2000
+    (OpenJPEG) scans will fail the same way. `loadPdfjs()` in `js/read.js` (~L35–44)
+    sets only `GlobalWorkerOptions.workerSrc`; it never sets `wasmUrl`, and no wasm
+    is vendored under `vendor/`.
+  - **Fix shape (offline-first):** vendor pdf.js's `openjpeg`/`jbig2` wasm (and any
+    `*_nowasm_fallback.js`) locally, point `wasmUrl` at the self-hosted folder in
+    `loadPdfjs()`, add the new files to `sw.js` ASSETS + bump the cache. No CDN.
+
 - **READ TAB — DIAGRAM DETECTION ON A GENUINELY SCANNED BOOK (2026-08-31).**
   Committed on `main` (`7d4a8ba`), NOT pushed/deployed yet. `sw.js` cache bumped
   v85 → **v86**. ONE-LINE change in `js/diagram.js` (already in sw ASSETS); no new
