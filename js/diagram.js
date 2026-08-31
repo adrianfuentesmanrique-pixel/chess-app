@@ -107,9 +107,18 @@ function findGrid(prof, lo, hi, tap, minGap, maxGap) {
     }
   }
   if (!best) return null;
-  // Gate out non-boards: every tooth must clear the local background by a margin,
-  // so a block of text or a table never passes as a grid.
-  if (best.mn < mean * 1.3 || best.sum < 9 * mean * 1.8) return null;
+  // Coarse completeness gate: every tooth must clear the local background by a
+  // margin, so the comb has not merely landed on near-uniform noise. This is NOT
+  // the board-vs-text discriminator — that job is done downstream by lineContrast
+  // (boundaries must dominate cell centres) AND by the requirement that BOTH axes
+  // form a grid (a text column has no periodic vertical lines). So this margin is
+  // kept deliberately low: on a REAL scanned book the dark squares are hatched,
+  // not solid, so the internal white↔hatch boundaries are systematically weaker
+  // than a solid board's — measured across a shelf of endgame diagrams the weakest
+  // HORIZONTAL tooth ran 1.16–1.27× the mean (vertical ~1.4×). A 1.3× gate rejected
+  // the correct grid on almost every real page; 1.15× passes them and still leans
+  // on the two strong downstream filters to keep text out.
+  if (best.mn < mean * 1.15 || best.sum < 9 * mean * 1.8) return null;
   const lines = [];
   for (let k = 0; k <= 8; k++) lines.push(best.o + k * best.s);
   return { lines, s: best.s };
