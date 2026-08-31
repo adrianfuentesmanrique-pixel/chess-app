@@ -5734,6 +5734,7 @@ export const Setup = {
     this.buildPalette();
     segInit($('setup-turn'));
     $('setup-start').onclick = () => this.load(START_FEN);
+    $('setup-flip').onclick = () => this.flip();
     $('setup-clear').onclick = () => { this.grid = {}; this.sync(); };
     $('setup-cancel').onclick = () => showScreen('analysis');
     $('setup-analyze').onclick = () => this.done('analyze');
@@ -5795,6 +5796,21 @@ export const Setup = {
         this.grid[sq] = { color: p.color, type: p.type };
       }
     }
+    this.sync();
+  },
+
+  // Rotate the placement 180° (mirror files and ranks). A diagram read from a
+  // book printed with Black at the bottom lands here upside-down; one tap turns
+  // it the right way up instead of re-placing every piece by hand. Castling
+  // rights and side-to-move are unaffected, so they are left as they are.
+  flip() {
+    const FILES = 'abcdefgh';
+    const next = {};
+    for (const [sq, p] of Object.entries(this.grid)) {
+      const f = FILES.indexOf(sq[0]), r = +sq.slice(1);
+      next[FILES[7 - f] + (9 - r)] = p;
+    }
+    this.grid = next;
     this.sync();
   },
 

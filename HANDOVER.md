@@ -1,6 +1,78 @@
-# Chess app — where things stand (updated 2026-08-30)
+# Chess app — where things stand (updated 2026-08-31)
 
 ## Already done and pushed — do NOT redo these
+
+- **READ TAB — STAGE 2 HARDENED ON A REAL BOOK + TAP-TO-TEACH + SETUP FLIP
+  (2026-08-31).** Committed on `main`, NOT pushed/deployed yet. `sw.js` cache
+  bumped to `chess-training-center-v85`. No new files — all changes live in
+  `js/diagram.js`, `js/read.js`, `js/app.js`, `js/i18n.js`, `css/style.css`,
+  `index.html`, already in the sw ASSETS. This closes the two open gaps from the
+  first Stage-2 entry below (never run on a real scan; tap-to-teach not built).
+  - **Verified against a REAL printed book** (Adrian's endgame library,
+    `ChessPuzzleImport\3. Hellsten … Mastering endgame strategy.pdf`, 484 pp,
+    wood-texture shaded boards with a-h/1-8 coordinate labels on all four sides).
+    Done over CDP with throwaway probes that were DELETED after (per the standing
+    instruction) — the committed harness `tools/cdp-verify-stage2.mjs` stays
+    synthetic (no copyrighted book ships), and it was extended with the
+    tap-to-teach and flip checks (13 checks, all green). Stage 1
+    `tools/cdp-verify.mjs` still green. **The real end-to-end was proven live:
+    open the real book → render p20 → long-press the real diagram → detection on
+    the live reader canvas → calibration modal → "No" → tap-to-teach modal showing
+    the real cropped board.**
+  - **Detector fixes in `js/diagram.js` (`detectBoard`), all because a real page is
+    two dense text columns, not one clean diagram:**
+    1. **Tap-centred, COARSE-TO-FINE window** (`detectInWindow`, fractions
+       `[0.16..0.48]` of the short side, smallest first). The old single 0.46
+       window spanned the whole page, so the edge profiles were dominated by text
+       and the column gutter and the comb never locked. A small window around the
+       tap excludes the neighbouring column; it grows only if nothing validates.
+    2. **Clip rejection**: a board touching the window edge is discarded (it was
+       truncated → wrong period/origin), forcing the search to grow.
+    3. **99th-percentile cap** in `findGrid`: flattens one lone off-board spike (a
+       gutter / table rule) so periodicity, not a single tall edge, sets the fit.
+       Was 0.96 first — too low, it clipped the board's OWN lines when a diagram
+       fills the window and broke detection; 0.99 only tames extreme outliers.
+    4. **`lineContrast` gate**: grid lines must carry ≥1.35× the edge energy of the
+       cell centres. A real board's boundaries dominate; a coincidental grid in
+       text is as busy between its lines as on them. This is what kills text false
+       positives (a bare squareness/parity test let them through).
+  - **Classifier fix — the big one for real books:** occupancy (empty vs a piece)
+    was decided by mean gradient ENERGY, which on wood grain gives an empty square
+    almost as much energy as a sparse piece → a real board read as ALL EMPTY. Now
+    `cellFeature` also returns `lumStd` (luminance std over the cell core) and
+    occupancy uses THAT — texture is low-amplitude in luminance, a piece is a big
+    blob far from the square shade, so lumStd separates them cleanly. The
+    threshold is still learned at calibration (`buildTemplatesFromGrid`, robust
+    95th-empty / 5th-piece percentiles), `templates.ver` bumped 1→2. Piece-vs-piece
+    matching is unchanged (still the edge-map `feat`). **Result on real pages:
+    templates taught from one diagram read OTHER diagrams in the same book to the
+    exact FEN** (proven: p30-top taught → p30-bottom and p20 both read correct),
+    honestly flagged `confident:false` when the cross-page match loosens.
+  - **Tap-to-teach fallback (`js/read.js` `teachPieces`)** — the "No, not the
+    start" branch no longer opens an empty board. It shows the detected board
+    cropped tight (`cropBoardCanvas(…, 0)`, new `padFrac` arg) under an 8×8 tap
+    overlay + a 12-piece palette (+ eraser). The user taps each piece; "Aprender y
+    abrir" calls `buildTemplatesFromGrid(img, board, userGrid)` (same features,
+    user layout instead of `START_GRID`), saves the templates on the book, and
+    opens that exact position in Setup. Won't submit without both kings; Cancel
+    falls back to the old blank-editor escape hatch. New CSS `.read-teach-*`, new
+    strings `read_teach_*` (both languages). Verified in light AND dark at 375px.
+  - **Orientation answer = flip in Setup (NOT label OCR).** New "Girar tablero"
+    button (`#setup-flip`, `Setup.flip()` in js/app.js) rotates the placement 180°
+    so a Black-at-bottom read is one tap to fix instead of a full re-entry; helps
+    every Setup user. `.setup-tools` is now a 3-column grid; string `flip_board`.
+    Verified: correct rotation (K/Q swap, colours change ends) and self-inverse.
+    Coordinate-label OCR was deliberately rejected — fragile, and against the
+    no-ML design, for a rare case a one-tap flip already covers.
+  - **Known limits (unchanged, honest fallback covers them):** turn defaults to
+    White and castling to `-` (a scan can't prove either — set in Setup); a
+    flipped board still reads upside-down and is fixed with the new flip button;
+    tap-to-teach only learns the piece types the user actually taps (a later
+    diagram with an untaught type reads uncertain, not confidently wrong). Tested
+    on ONE real book (Hellsten, vector-rendered wood boards); a genuinely SCANNED
+    (raster/JPEG-noise) book or a line-only white board is plausible but untested —
+    if one misreads, the lumStd threshold and the parity/flat branch of
+    `validateCheckerboard` are the first places to look.
 
 - **READ TAB — STAGE 2: DIAGRAM → BOARD (2026-08-30).** Committed on `main`, NOT
   pushed/deployed yet. `sw.js` cache bumped to `chess-training-center-v84`.

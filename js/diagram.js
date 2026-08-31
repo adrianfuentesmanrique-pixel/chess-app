@@ -76,14 +76,25 @@ function smooth(a) {
 // coincidence.
 function findGrid(prof, lo, hi, tap, minGap, maxGap) {
   const sp = smooth(prof);
+  // Cap the profile at the 99th percentile. A printed page has strong edges that
+  // are NOT board lines — the gutter between text columns, a table rule, a heavy
+  // heading — and just one such spike, several times taller than a board boundary,
+  // can drag the comb's origin off. Clamping only the extreme top ~1% flattens
+  // such a lone spike to near board-line level without touching the board's own
+  // nine boundaries (which, when a diagram fills the window, are themselves a few
+  // percent of positions — a lower percentile would clip them and break detection).
+  const win = []; for (let i = lo; i <= hi; i++) win.push(sp[i]);
+  win.sort((a, b) => a - b);
+  const cap = win[Math.floor(win.length * 0.99)] || Infinity;
+
   // support at position p = the strongest profile value within ±2 px (forgives
-  // sub-pixel line placement)
+  // sub-pixel line placement), clamped to the cap above.
   const sup = p => {
     let m = 0; const a = Math.max(lo, p - 2), b = Math.min(hi, p + 2);
     for (let q = a; q <= b; q++) if (sp[q] > m) m = sp[q];
-    return m;
+    return m < cap ? m : cap;
   };
-  let mean = 0; for (let i = lo; i <= hi; i++) mean += sp[i]; mean /= (hi - lo + 1);
+  let mean = 0; for (let i = lo; i <= hi; i++) mean += (sp[i] < cap ? sp[i] : cap); mean /= (hi - lo + 1);
 
   let best = null;
   for (let s = minGap; s <= maxGap; s++) {
@@ -104,16 +115,56 @@ function findGrid(prof, lo, hi, tap, minGap, maxGap) {
   return { lines, s: best.s };
 }
 
+// Ratio of edge energy ON the grid lines to edge energy at the cell CENTRES
+// (midway between consecutive lines). >1 means the boundaries dominate — the mark
+// of a real board; ~1 means the "grid" is just as busy between its lines as on
+// them — the mark of text. Each sample takes the strongest profile value within
+// ±2 px so a slightly displaced boundary still counts.
+function lineContrast(prof, lines, s) {
+  const at = p => {
+    let m = 0; const a = Math.max(0, Math.round(p) - 2), b = Math.min(prof.length - 1, Math.round(p) + 2);
+    for (let q = a; q <= b; q++) if (prof[q] > m) m = prof[q];
+    return m;
+  };
+  let lineMean = 0; for (const L of lines) lineMean += at(L); lineMean /= lines.length;
+  let midMean = 0; for (let k = 0; k < 8; k++) midMean += at(lines[k] + s / 2); midMean /= 8;
+  return midMean > 0 ? lineMean / midMean : 999;
+}
+
 // ── board detection ─────────────────────────────────────────────────────────
 // Returns { x0, y0, cw, ch } (top-left of the a8 square + cell size) or null.
+//
+// The single biggest thing that broke this on a REAL book page (vs a synthetic
+// one-diagram test page) was the search window. A printed page is two dense
+// columns of text; a window sized to the whole page fills the edge profiles with
+// text and column-gutter edges that dwarf the board's nine grid lines, so the
+// comb never locks on. The user, though, long-presses ON the diagram, so the
+// board is centred near the tap. We therefore search a TAP-CENTRED window and go
+// COARSE-TO-FINE: a small window first, which for a compact diagram already
+// excludes the surrounding text, growing only if nothing validates — so a large
+// diagram (or a whole-page one, like the synthetic test) is still found.
 export function detectBoard(imageData, tapX, tapY) {
   const { g, W, H } = toGray(imageData);
   tapX = Math.round(tapX); tapY = Math.round(tapY);
   if (tapX < 1 || tapY < 1 || tapX >= W - 1 || tapY >= H - 1) return null;
 
-  // Focus a window on the tap so distant page structure (text columns, other
-  // diagrams) does not swamp the profiles.
-  const S = Math.round(0.46 * Math.min(W, H));
+  const minDim = Math.min(W, H);
+  // Half-window sizes to try, smallest first (fractions of the shorter side).
+  // ~0.16 covers a typical one-third-of-the-page book diagram while shutting out
+  // the neighbouring column; the larger sizes catch big or full-page diagrams.
+  for (const frac of [0.16, 0.22, 0.30, 0.40, 0.48]) {
+    const S = Math.round(frac * minDim);
+    if (S < 40) continue;
+    const board = detectInWindow(g, W, H, tapX, tapY, S);
+    if (board) return board;
+  }
+  return null;
+}
+
+// One coarse-to-fine attempt: build the edge profiles inside a tap-centred window
+// of half-size S, find the grid on each axis, and validate squareness + a
+// checkerboard/flat-paper parity. Returns the board or null.
+function detectInWindow(g, W, H, tapX, tapY, S) {
   const xLo = Math.max(1, tapX - S), xHi = Math.min(W - 2, tapX + S);
   const yLo = Math.max(1, tapY - S), yHi = Math.min(H - 2, tapY + S);
 
@@ -135,9 +186,28 @@ export function detectBoard(imageData, tapX, tapY) {
 
   // Squares must be square: the two spacings agree, or it is not a chess board.
   const ratio = vx.s / hy.s;
-  if (ratio < 0.8 || ratio > 1.25) return null;
+  if (ratio < 0.85 || ratio > 1.18) return null;
+
+  // Grid lines must stand out from cell interiors. On a real board the square
+  // BOUNDARIES (where shades flip, or the printed lines) carry far more edge
+  // energy than the cell CENTRES (flat shade, or a sparse centred glyph). In a
+  // block of text a coincidental "grid" has as much energy between its lines as
+  // on them, so this contrast is the strong, size-independent filter that a bare
+  // squareness/parity test lacks — it kills the text false positives.
+  if (lineContrast(vcol, vx.lines, vx.s) < 1.35) return null;
+  if (lineContrast(hrow, hy.lines, hy.s) < 1.35) return null;
 
   const board = { x0: vx.lines[0], y0: hy.lines[0], cw: vx.s, ch: hy.s };
+
+  // Reject a board that reaches the window edge: the window then almost certainly
+  // CLIPPED it, and the comb locked onto a truncated span with the wrong period
+  // and origin (this is what made a real board read one file inward). A board
+  // that touches the edge is discarded so the coarse-to-fine search grows the
+  // window until the whole board fits with a margin — only then is it trusted.
+  const mx = board.cw * 0.2, my = board.ch * 0.2;
+  if (board.x0 < xLo + mx || board.x0 + 8 * board.cw > xHi - mx ||
+      board.y0 < yLo + my || board.y0 + 8 * board.ch > yHi - my) return null;
+
   if (!validateCheckerboard(g, W, H, board)) return null;
   return board;
 }
@@ -190,8 +260,15 @@ function cellStats(g, W, H, board, r, c) {
 }
 
 // N×N average-gradient map of one cell, box-blurred a touch and L2-normalized.
-// Returns { feat: Float32Array(N*N), energy } — energy separates empty from
-// occupied before the (noise-amplifying) normalization.
+// Returns { feat: Float32Array(N*N), energy, lumStd }. `feat` matches piece to
+// piece. Occupancy (empty vs a piece) is decided by `lumStd`, the standard
+// deviation of luminance across the cell core — NOT by `energy` (mean gradient).
+// On a REAL printed board every square carries a wood-grain / paper texture whose
+// scattered edges give an empty square almost as much gradient energy as a sparse
+// piece, so the old energy test read a whole board as empty. Texture is low in
+// amplitude though: its luminance barely strays from the square's shade, while a
+// piece is a large blob far from it, so lumStd separates them cleanly. `energy`
+// is still returned for the checkerboard/parity gate.
 function cellFeature(g, W, H, board, r, c) {
   const R = cellRect(board, r, c);
   const grid = new Float32Array(N * N);
@@ -211,6 +288,14 @@ function cellFeature(g, W, H, board, r, c) {
     }
   }
   energy /= (N * N);
+  // Luminance spread across the cell core — the texture-robust occupancy signal.
+  let sL = 0, sL2 = 0, nL = 0;
+  const lx1 = Math.max(1, Math.round(R.x0)), lx2 = Math.min(W - 2, Math.round(R.x0 + R.w));
+  const ly1 = Math.max(1, Math.round(R.y0)), ly2 = Math.min(H - 2, Math.round(R.y0 + R.h));
+  for (let y = ly1; y < ly2; y++) for (let x = lx1; x < lx2; x++) { const L = g[y * W + x]; sL += L; sL2 += L * L; nL++; }
+  nL = nL || 1;
+  const lumMean = sL / nL;
+  const lumStd = Math.sqrt(Math.max(0, sL2 / nL - lumMean * lumMean));
   // 3×3 blur to forgive sub-cell misalignment between two diagrams.
   const blur = new Float32Array(N * N);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
@@ -224,7 +309,7 @@ function cellFeature(g, W, H, board, r, c) {
   let norm = 0; for (let i = 0; i < blur.length; i++) norm += blur[i] * blur[i];
   norm = Math.sqrt(norm) || 1;
   for (let i = 0; i < blur.length; i++) blur[i] /= norm;
-  return { feat: blur, energy };
+  return { feat: blur, energy, lumStd };
 }
 
 function cosDist(a, b) {   // a,b already L2-normalized → 1 - dot ∈ [0,2]
@@ -234,15 +319,29 @@ function cosDist(a, b) {   // a,b already L2-normalized → 1 - dot ∈ [0,2]
 
 // ── calibration: templates from a confirmed starting position ───────────────
 // Returns a JSON/structured-clone-safe object stored on the book record.
+// The starting position is the common case (most books open on one), so this is
+// a thin wrapper over buildTemplatesFromGrid with the known START_GRID layout.
 export function buildTemplates(imageData, board) {
+  return buildTemplatesFromGrid(imageData, board, START_GRID);
+}
+
+// Same edge-map features, but the ground-truth layout is supplied by the caller
+// instead of assumed to be the start. read.js's tap-to-teach fallback uses this
+// for a book that opens on a NON-start diagram: the user taps each occupied
+// square, names the piece, and that hand-built 8×8 grid teaches this book's own
+// figurine style exactly as a confirmed start would. Only the piece codes that
+// actually appear in `grid` get templates — a later diagram containing a piece
+// type the user never taught can't match, so it reads as uncertain (honest
+// degradation) rather than a confident wrong guess.
+export function buildTemplatesFromGrid(imageData, board, grid) {
   const { g, W, H } = toGray(imageData);
   const acc = {}, cnt = {};
-  const emptyEnergies = [], pieceEnergies = [];
+  const emptyStd = [], pieceStd = [];
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-    const code = START_GRID[r][c];
-    const { feat, energy } = cellFeature(g, W, H, board, r, c);
-    if (!code) { emptyEnergies.push(energy); continue; }
-    pieceEnergies.push(energy);
+    const code = grid[r][c];
+    const { feat, lumStd } = cellFeature(g, W, H, board, r, c);
+    if (!code) { emptyStd.push(lumStd); continue; }
+    pieceStd.push(lumStd);
     if (!acc[code]) { acc[code] = new Float32Array(N * N); cnt[code] = 0; }
     for (let i = 0; i < feat.length; i++) acc[code][i] += feat[i];
     cnt[code]++;
@@ -257,12 +356,18 @@ export function buildTemplates(imageData, board) {
     for (let i = 0; i < f.length; i++) f[i] /= norm;
     pieces[code] = Array.from(f);
   }
-  // Empty threshold sits between the noisiest empty and the quietest piece.
-  emptyEnergies.sort((a, b) => a - b); pieceEnergies.sort((a, b) => a - b);
-  const maxEmpty = emptyEnergies[emptyEnergies.length - 1] || 0;
-  const minPiece = pieceEnergies[0] || (maxEmpty * 3 + 1);
-  const emptyThresh = minPiece > maxEmpty ? (maxEmpty + minPiece) / 2 : maxEmpty * 1.6 + 0.5;
-  return { n: N, ver: 1, pieces, emptyThresh };
+  // Occupancy threshold on luminance spread, learned from the labelled cells: it
+  // sits between the most-textured empty and the flattest piece. Robust ends
+  // (95th empty / 5th piece percentile) shrug off one odd square. A comfortable
+  // fallback covers the degenerate all-empty or all-piece calibration.
+  emptyStd.sort((a, b) => a - b); pieceStd.sort((a, b) => a - b);
+  const pct = (arr, p) => arr.length ? arr[Math.min(arr.length - 1, Math.max(0, Math.round((arr.length - 1) * p)))] : null;
+  const emptyHi = pct(emptyStd, 0.95), pieceLo = pct(pieceStd, 0.05);
+  let emptyThresh;
+  if (emptyHi == null) emptyThresh = (pieceLo ?? 20) * 0.5;
+  else if (pieceLo == null) emptyThresh = emptyHi * 1.5 + 4;
+  else emptyThresh = pieceLo > emptyHi ? (emptyHi + pieceLo) / 2 : (emptyHi + pieceLo) / 2 + 2;
+  return { n: N, ver: 2, pieces, emptyThresh };
 }
 
 // ── classification ──────────────────────────────────────────────────────────
@@ -278,8 +383,8 @@ export function classifyBoard(imageData, board, templates, turn = 'w') {
   for (let r = 0; r < 8; r++) {
     const row = [];
     for (let c = 0; c < 8; c++) {
-      const { feat, energy } = cellFeature(g, W, H, board, r, c);
-      if (energy < templates.emptyThresh) { row.push(''); continue; }
+      const { feat, lumStd } = cellFeature(g, W, H, board, r, c);
+      if (lumStd < templates.emptyThresh) { row.push(''); continue; }
       let d1 = Infinity, d2 = Infinity, best = '';
       for (const code of codes) {
         const d = cosDist(feat, tmpl[code]);
@@ -323,9 +428,12 @@ export function gridToFen(grid, turn = 'w') {
 }
 
 // Crops the detected board to its own small canvas for the calibration preview.
-// Adds a thin margin so the outermost squares are not clipped.
-export function cropBoardCanvas(sourceCanvas, board) {
-  const pad = board.cw * 0.05;
+// padFrac adds a margin (as a fraction of a cell) so the outermost squares are
+// not clipped — the default 0.05 suits the "is this the start?" preview. The
+// tap-to-teach overlay passes 0 so the crop is EXACTLY the 8×8 board and its
+// square grid maps to clean eighths of the image with no offset maths.
+export function cropBoardCanvas(sourceCanvas, board, padFrac = 0.05) {
+  const pad = board.cw * padFrac;
   const x = Math.max(0, board.x0 - pad), y = Math.max(0, board.y0 - pad);
   const w = Math.min(sourceCanvas.width - x, board.cw * 8 + 2 * pad);
   const h = Math.min(sourceCanvas.height - y, board.ch * 8 + 2 * pad);

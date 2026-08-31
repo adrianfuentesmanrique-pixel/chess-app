@@ -19,8 +19,10 @@
 import * as db from './db.js';
 import { t, tn } from './i18n.js';
 import { $, esc, toast, modal, askConfirm, askText, sheet, Setup } from './app.js';
+import { getPieceSet } from './board.js';
 import { START_FEN } from './tree.js';
-import { detectBoard, buildTemplates, classifyBoard, cropBoardCanvas } from './diagram.js';
+import { detectBoard, buildTemplates, buildTemplatesFromGrid, classifyBoard,
+         cropBoardCanvas, gridToFen } from './diagram.js';
 
 const MAX_ZOOM = 4;
 const SWIPE_TURN = 60;      // px of horizontal travel that counts as a page turn
@@ -605,11 +607,121 @@ async function calibrate(img, board, canvas) {
     // This confirmed board IS the starting position, so its FEN is known exactly.
     openInSetup(START_FEN, true);
   } else {
-    // Not the start → nothing to learn from here. Open an empty editor so the
-    // user can place the position by hand; the next diagram re-offers calibration.
+    // Not the start → teach the pieces from THIS diagram instead. The user taps
+    // each occupied square and names the piece; that hand-built layout calibrates
+    // the book's style just as a confirmed start would, and doubles as the exact
+    // position to open. If they back out, fall through to a blank editor (the old
+    // behaviour) so they can still place it by hand.
+    await teachPieces(img, board, canvas);
+  }
+}
+
+// The 12 piece codes, grouped White then black, for the teach palette.
+const TEACH_CODES = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p'];
+const CODE_TO_IMG = { K: 'wK', Q: 'wQ', R: 'wR', B: 'wB', N: 'wN', P: 'wP',
+                      k: 'bK', q: 'bQ', r: 'bR', b: 'bB', n: 'bN', p: 'bP' };
+
+// Tap-to-teach fallback. Shows the detected board (cropped tight) with an 8×8
+// tap overlay and a piece palette. Tapping a square with a piece selected places
+// it; tapping it again clears it; the eraser (or no selection) clears. "Teach"
+// builds this book's templates from whatever was placed and opens the position;
+// "Cancel" opens a blank editor so the user is never stuck.
+async function teachPieces(img, board, canvas) {
+  const grid = Array.from({ length: 8 }, () => Array(8).fill(''));
+  const result = await modal((box, close) => {
+    box.innerHTML = `<h3>${esc(t('read_teach_title'))}</h3>` +
+                    `<p class="hint">${esc(t('read_teach_body'))}</p>`;
+
+    // Tight crop (no pad) so the overlay's eighths line up with the squares.
+    const crop = cropBoardCanvas(canvas, board, 0);
+    crop.className = '';
+    const boardWrap = document.createElement('div');
+    boardWrap.className = 'read-teach-board';
+    const overlay = document.createElement('div');
+    overlay.className = 'read-teach-grid';
+    boardWrap.append(crop, overlay);
+
+    let selected = 'P';   // start on white pawn — the most-tapped piece
+    const cells = [];
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.setAttribute('aria-label', `${'abcdefgh'[c]}${8 - r}`);
+      cell.onclick = () => {
+        if (!selected || grid[r][c] === selected) grid[r][c] = '';   // eraser or toggle-off
+        else grid[r][c] = selected;
+        paintCell(r, c);
+      };
+      cells.push(cell);
+      overlay.appendChild(cell);
+    }
+    function paintCell(r, c) {
+      const cell = cells[r * 8 + c];
+      cell.innerHTML = '';
+      const code = grid[r][c];
+      if (code) {
+        const im = document.createElement('img');
+        im.src = `${getPieceSet()}/${CODE_TO_IMG[code]}.svg`; im.alt = '';
+        cell.appendChild(im);
+      }
+    }
+
+    const pal = document.createElement('div');
+    pal.className = 'read-teach-pal';
+    const palBtns = [];
+    const setSel = (code, btn) => {
+      selected = code;
+      palBtns.forEach(b => b.classList.toggle('on', b === btn));
+    };
+    for (const code of TEACH_CODES) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'pal-btn'; b.dataset.piece = code;
+      b.innerHTML = `<img src="${getPieceSet()}/${CODE_TO_IMG[code]}.svg" alt="${code}">`;
+      b.onclick = () => setSel(code, b);
+      palBtns.push(b); pal.appendChild(b);
+    }
+    // Eraser — clears a square. Deselecting is also erase, but a visible button
+    // keeps it monkey-proof.
+    const eraser = document.createElement('button');
+    eraser.type = 'button'; eraser.className = 'pal-btn';
+    eraser.textContent = '🗑'; eraser.setAttribute('aria-label', t('read_teach_erase'));
+    eraser.onclick = () => setSel('', eraser);
+    palBtns.push(eraser); pal.appendChild(eraser);
+    palBtns[TEACH_CODES.indexOf('P')].classList.add('on');   // reflect the default
+
+    box.append(boardWrap, pal);
+
+    const row = document.createElement('div'); row.className = 'row';
+    const done = document.createElement('button');
+    done.className = 'btn primary'; done.textContent = t('read_teach_done');
+    done.onclick = () => {
+      // Need one king a side for a legal, useful position and to anchor the
+      // templates. Warn without closing so the taps so far are not lost.
+      const flat = grid.flat();
+      if (!flat.includes('K') || !flat.includes('k')) { toast(t('read_teach_need_kings')); return; }
+      close(true);
+    };
+    const cancel = document.createElement('button');
+    cancel.className = 'btn'; cancel.textContent = t('cancel');
+    cancel.onclick = () => close(false);
+    row.append(done, cancel);
+    box.appendChild(row);
+  });
+
+  if (!result) {
+    // Backed out: keep the old escape hatch — a blank editor to place by hand.
     toast(t('read_diagram_manual'));
     openInSetup(EMPTY_FEN, false);
+    return;
   }
+
+  let templates;
+  try { templates = buildTemplatesFromGrid(img, board, grid); }
+  catch (e) { console.error('[read] teach failed', e); toast(t('read_diagram_none')); return; }
+  await db.updateBookMeta(R.id, { templates });
+  R.templates = templates;
+  // The user just told us this exact position, so open it directly — confident.
+  openInSetup(gridToFen(grid), true);
 }
 
 // Modal: the board image + "Is this the starting position?" Yes / No / Cancel.

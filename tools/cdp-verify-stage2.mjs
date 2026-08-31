@@ -314,6 +314,132 @@ async function main() {
   `);
   await shot('setup-after-calib');
 
+  // TAP-TO-TEACH, CV level: a book that opens on a NON-start diagram is taught by
+  // tapping its pieces. buildTemplatesFromGrid must learn from that midgame layout
+  // and then read a LATER (start) diagram in the same style to the exact FEN.
+  report.teachCV = await step('teachCV', `
+    const diag=await import('/js/diagram.js');
+    const m=await window.__makePageCanvas(window.__mid,'pieces');
+    const mimg=m.cv.getContext('2d').getImageData(0,0,m.cv.width,m.cv.height);
+    const bm=diag.detectBoard(mimg,m.cx,m.cy);
+    const tpl=bm?diag.buildTemplatesFromGrid(mimg,bm,window.__mid):null;
+    const s=await window.__makePageCanvas(diag.START_GRID,'pieces');
+    const simg=s.cv.getContext('2d').getImageData(0,0,s.cv.width,s.cv.height);
+    const bs=diag.detectBoard(simg,s.cx,s.cy);
+    const res=(bs&&tpl)?diag.classifyBoard(simg,bs,tpl):null;
+    const expectStart='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
+    return { taught:!!tpl, codesLearned: tpl?Object.keys(tpl.pieces).sort().join(''):null,
+             allTwelve: tpl?Object.keys(tpl.pieces).length===12:false,
+             startFromTaught: res&&res.fen, laterDiagramOk: !!res&&res.fen===expectStart,
+             confident: res&&res.confident };
+  `);
+
+  // TAP-TO-TEACH, integration: reopen a FRESH (no-templates) book, paint a midgame
+  // on the live reader canvas, long-press, answer "No" → the teach modal appears.
+  report.teachOpen = await step('teachOpen', `
+    const app=await import('/js/app.js');
+    const db=await import('/js/db.js');
+    await db.updateBookMeta(window.__bookId,{templates:null});   // forget the calib → re-asks
+    document.querySelector('#tabbar button[data-screen="read"]').click();
+    // wait for the shelf (showScreen refreshes it) before touching the card
+    for(let i=0;i<60 && !document.querySelector('#read-grid .read-card');i++) await new Promise(r=>setTimeout(r,100));
+    document.querySelector('#read-grid .read-card').click();
+    // wait until the reader is actually visible, sized, and the page is drawn —
+    // a refresh race can otherwise leave the stage collapsed to 0 width.
+    const stage=document.getElementById('read-stage'), canvas=document.getElementById('read-canvas');
+    const rx=/translate\\(([-0-9.]+)px,\\s*([-0-9.]+)px\\)\\s*scale\\(([-0-9.]+)\\)/;
+    let mm=null;
+    for(let i=0;i<80;i++){
+      const shown=!document.getElementById('read-reader').classList.contains('hidden');
+      mm=canvas.style.transform.match(rx);
+      if(shown && stage.clientWidth>10 && mm) break; else mm=null;
+      await new Promise(r=>setTimeout(r,100));
+    }
+    if(!mm) return { teachModalShown:false, err:'reader not ready', transform:canvas.style.transform,
+                     stageW:stage.clientWidth, hidden:document.getElementById('read-reader').classList.contains('hidden') };
+    // paint a MIDGAME board centred on the tap point
+    const rect=stage.getBoundingClientRect();
+    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+    const tx=+mm[1], ty=+mm[2], z=+mm[3];
+    const baseW=parseFloat(canvas.style.width), baseH=parseFloat(canvas.style.height);
+    const px=((cx-rect.left-tx)/z)*(canvas.width/baseW), py=((cy-rect.top-ty)/z)*(canvas.height/baseH);
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    const size=Math.floor(Math.min(canvas.width,canvas.height)*0.62), cell=Math.floor(size/8);
+    const ox=Math.round(px-cell*4), oy=Math.round(py-cell*4);
+    const diag=await import('/js/diagram.js');
+    await window.__drawBoardInto(ctx, window.__mid, ox, oy, cell);
+    const dImg=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const dBoard=diag.detectBoard(dImg, px, py);
+    document.querySelectorAll('.modal-back').forEach(b=>b.remove());
+    const pe=t=>new PointerEvent(t,{pointerType:'touch',isPrimary:true,pointerId:14,clientX:cx,clientY:cy,bubbles:true,cancelable:true});
+    canvas.dispatchEvent(pe('pointerdown'));
+    await new Promise(r=>setTimeout(r,700));                 // hold → calibration modal
+    const app2=await import('/js/app.js');
+    let calib=[...document.querySelectorAll('.modal-box')].pop();
+    const toastEl=document.getElementById('toast');
+    if(!calib){ return { teachModalShown:false, err:'no calib modal after long-press',
+                         screen:app2.activeScreen, toast:toastEl?toastEl.textContent.slice(0,60):null,
+                         cw:canvas.width, ch:canvas.height, cell, px:Math.round(px), py:Math.round(py),
+                         directDetect:!!dBoard, z, baseW }; }
+    // answer "No" → teachPieces opens its own modal
+    const no=[...calib.querySelectorAll('.row button')].find(b=>!b.classList.contains('primary'));
+    no.click();
+    await new Promise(r=>setTimeout(r,250));
+    const box=[...document.querySelectorAll('.modal-box')].pop();
+    return { teachModalShown: !!box && !!box.querySelector('.read-teach-grid'),
+             cells: box?box.querySelectorAll('.read-teach-grid button').length:0,
+             palBtns: box?box.querySelectorAll('.read-teach-pal .pal-btn').length:0 };
+  `);
+
+  await shot('teach-dark');
+  await evalP(`const a=await import('/js/appearance.js'); a.ColorMode.set('light'); await new Promise(r=>setTimeout(r,120)); return true;`);
+  await shot('teach-light');
+  await evalP(`const a=await import('/js/appearance.js'); a.ColorMode.set('dark'); return true;`);
+
+  // Fill the teach grid from the midgame layout, submit, and confirm it lands in
+  // Setup with that exact position AND that the templates were saved to the book.
+  report.teachFill = await step('teachFill', `
+    const app=await import('/js/app.js');
+    const box=[...document.querySelectorAll('.modal-box')].pop();
+    const pal=box.querySelector('.read-teach-pal');
+    const cells=box.querySelectorAll('.read-teach-grid button');
+    for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+      const code=window.__mid[r][c]; if(!code) continue;
+      pal.querySelector('.pal-btn[data-piece="'+code+'"]').click();
+      cells[r*8+c].click();
+    }
+    const done=[...box.querySelectorAll('.row button')].find(b=>b.classList.contains('primary'));
+    done.click();
+    const canvas=document.getElementById('read-canvas');
+    canvas.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',pointerId:14,bubbles:true}));
+    await new Promise(r=>setTimeout(r,300));
+    const db=await import('/js/db.js');
+    const rec=await db.getBook(window.__bookId);
+    const fen=app.Setup.buildFen ? app.Setup.buildFen() : null;
+    const expect='r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R';
+    return { screen:app.activeScreen, placement: fen?fen.split(' ')[0]:null, expected:expect,
+             placementOk: !!fen && fen.split(' ')[0]===expect,
+             templatesSaved: !!(rec && rec.templates && rec.templates.pieces) };
+  `);
+  await shot('setup-after-teach');
+
+  // BOARD FLIP (the orientation answer): flipping the start position rotates it
+  // 180°, so the back rank's king and queen swap files and colours change ends.
+  report.flip = await step('flip', `
+    const app=await import('/js/app.js');
+    app.Setup.open('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
+    await new Promise(r=>setTimeout(r,80));
+    const before=app.Setup.buildFen().split(' ')[0];
+    app.Setup.flip();
+    const after=app.Setup.buildFen().split(' ')[0];
+    const expect='RNBKQBNR/PPPPPPPP/8/8/8/8/pppppppp/rnbkqbnr';
+    // flip is its own inverse: flipping twice returns the original
+    app.Setup.flip();
+    const back=app.Setup.buildFen().split(' ')[0];
+    return { before, after, expect, flipOk: after===expect, involution: back===before };
+  `);
+
   console.log(JSON.stringify(report, null, 2));
 }
 

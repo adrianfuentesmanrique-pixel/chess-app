@@ -1182,7 +1182,7 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 /* Edit-board actions. Utilities that only reshape the board get the gold
    tint; the three ways out of the screen stack in one column with a clear
    primary → secondary → quiet ranking. */
-.setup-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0 10px; }
+.setup-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 10px; }
 .setup-actions { display: grid; gap: 8px; margin: 0 0 4px; }
 .setup-tools .btn, .setup-actions .btn {
   width: 100%; padding: 12px 14px; font-size: 15px; font-weight: 600;
@@ -1604,4 +1604,30 @@ body.reading main { overflow: hidden; }
 .read-calib-img canvas {
   max-width: 100%; height: auto; image-rendering: auto;
   border-radius: 4px;
+}
+/* Tap-to-teach: when a book does NOT open on the starting position, the user
+   teaches its piece style by tapping each occupied square. The board is cropped
+   tight (cropBoardCanvas padFrac 0) so this 8×8 overlay maps to clean eighths
+   with no offset maths; the white mat keeps a light-square board readable in
+   dark mode, same reasoning as .read-calib-img. */
+.read-teach-board {
+  position: relative; width: min(78vw, 300px); margin: 10px auto 4px;
+  background: #fff; padding: 6px; border-radius: var(--radius);
+  box-shadow: 0 0 0 1px var(--input-border);
+}
+.read-teach-board canvas { display: block; width: 100%; height: auto; border-radius: 4px; }
+.read-teach-grid {
+  position: absolute; inset: 6px; display: grid;
+  grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+}
+.read-teach-grid button {
+  border: 0; background: transparent; padding: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.read-teach-grid button:active { background: rgba(0, 0, 0, .12); }
+.read-teach-grid img { width: 92%; height: 92%; pointer-events: none; }
+.read-teach-pal {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  margin: 10px 0 4px; justify-content: center;
 }
