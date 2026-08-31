@@ -347,6 +347,7 @@ async function renderPage(n) {
   // marks the newest request, and any awaited step from a stale one bails out.
   const token = ++R.renderToken;
   if (R.renderTask) { try { R.renderTask.cancel(); } catch {} R.renderTask = null; }
+  $('read-blank').classList.add('hidden');   // clear any prior undecodable notice
 
   const page = await R.doc.getPage(n);
   if (token !== R.renderToken) return;
@@ -383,6 +384,58 @@ async function renderPage(n) {
   clampAndApply();
   updatePageInd();
   saveProgress();
+  maybeFlagUndecodable(page, canvas, token);
+}
+
+// A page can render cleanly yet paint nothing when its only content is a
+// full-page scanned image whose encoding pdf.js can't decode (a JBIG2/JPEG2000
+// class we haven't vendored a wasm for — see PDF_WASM_URL). That looks identical
+// to a legitimately blank page (a chapter break), so we distinguish the two:
+// show the "can't display" notice ONLY when the page came out white AND it
+// actually contained an image op that was supposed to paint. A blank page with
+// no image stays silently blank. Because the check runs only on a white canvas,
+// it can never cover text the reader could otherwise have shown. Not awaited by
+// renderPage — the page is already on screen; this just adds a notice if needed.
+async function maybeFlagUndecodable(page, canvas, token) {
+  let blank;
+  try { blank = isCanvasBlank(canvas); } catch { return; }  // getImageData can throw
+  if (!blank) return;                                        // real content painted
+  let hasImage;
+  try { hasImage = await pagePaintsImage(page); } catch { return; }
+  if (token !== R.renderToken) return;                       // superseded by a newer turn
+  if (hasImage) $('read-blank').classList.remove('hidden');
+}
+
+// True if the rendered page is essentially all white. Downscales the (oversized)
+// canvas to a 64px-wide thumbnail first, so a page number or a line of text still
+// leaves several dark thumbnail pixels — only a truly empty page reads as blank.
+function isCanvasBlank(canvas) {
+  const w = 64, h = Math.max(1, Math.round(64 * canvas.height / canvas.width));
+  const off = document.createElement('canvas');
+  off.width = w; off.height = h;
+  const ctx = off.getContext('2d');
+  ctx.drawImage(canvas, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  let ink = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i] < 245 || d[i + 1] < 245 || d[i + 2] < 245) ink++;
+  }
+  return ink <= 2;   // tolerate a couple of downscaled specks (JPEG ring, dust)
+}
+
+// True if the page's operator list contains any image-paint op. On a blank
+// canvas that means the image was supposed to paint but didn't decode. Called
+// only for blank pages, so its cost is never paid on a normal page.
+async function pagePaintsImage(page) {
+  const OPS = pdfjsLib && pdfjsLib.OPS;
+  if (!OPS) return false;
+  const imgOps = new Set([OPS.paintImageXObject, OPS.paintImageXObjectRepeat,
+                          OPS.paintInlineImageXObject, OPS.paintJpegXObject].filter(v => v != null));
+  const ol = await page.getOperatorList();
+  for (let i = 0; i < ol.fnArray.length; i++) {
+    if (imgOps.has(ol.fnArray[i])) return true;
+  }
+  return false;
 }
 
 function clampAndApply() {

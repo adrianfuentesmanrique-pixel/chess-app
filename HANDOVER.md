@@ -2,6 +2,47 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — "THIS PAGE CAN'T BE DISPLAYED" FALLBACK + TWO JBIG2 BOOKS CONFIRMED
+  (2026-08-31).** Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped
+  v87 → **v88**. Changed `js/read.js`, `js/i18n.js`, `index.html`, `css/style.css`
+  — all already in sw ASSETS, no new files, no wasm touched (the v87 JBIG2 wiring
+  is left exactly as-is).
+  - **What it does:** a content page that renders blank because its scanned image
+    uses an encoding pdf.js still can't decode (a *future* JBIG2/JPEG2000-class
+    book we haven't vendored a wasm for) now shows a clear bilingual in-reader
+    message instead of a silent white page. New i18n keys `read_blank_title` /
+    `read_blank_body` (ES + EN), new overlay `#read-blank` inside `#read-stage`,
+    styled with the reader's own tokens (`--panel2` / `--text` / `.hint`) — NOT a
+    new visual style.
+  - **The heuristic (Adrian chose "blank + any failed image"):** after a page
+    renders, `maybeFlagUndecodable()` shows the notice ONLY when BOTH hold: (1)
+    `isCanvasBlank()` — the canvas downscaled to 64px wide has ≤2 non-white
+    thumbnail pixels, so a page number or a line of text keeps a page off the
+    "blank" list; AND (2) `pagePaintsImage()` — the page's operator list contains
+    an image-paint op (`paintImageXObject`/`…Repeat`/`paintInlineImageXObject`/
+    `paintJpegXObject`) that was supposed to paint but didn't decode. A genuinely
+    blank page (a chapter break) has NO image op → stays silently blank, no
+    message. Because the check runs only on an all-white canvas, it can NEVER
+    cover text the reader could otherwise have shown. `getOperatorList()` is
+    fetched only for blank pages, so a normal page pays nothing. The notice is
+    hidden at the top of every `renderPage` so a page turn clears it.
+  - **Verified over headless Chrome (CDP), 375px, throwaway probe since deleted,
+    no book copied into the repo** — real PDFs streamed from `ChessPuzzleImport\`
+    by a scratchpad server only for the run. The two previously-untested JBIG2
+    books now render: **"00. Fundamental_chess_endings…encyclopaedia…" →
+    173,278 non-white px** and **"2. Fundamental Chess Endings - Frank Lamprecht"
+    → 173,278 px** (identical size + page count + pixel count — they are the same
+    FCE scan under two filenames; both render, no message). Controls unregressed:
+    Silman 80,532 px, Dvoretsky 703,258, Hellsten 389,151 — all draw, none show
+    the message. Fallback discriminator proven on a synthetic 3-page PDF: a
+    full-page undecodable image (garbage DCTDecode) → blank + **message shown**
+    (ES default AND EN after toggle); a truly blank page with no image → blank
+    but **no message**; a text page → not blank, no message. Theme check: overlay
+    background follows `--panel2` in light (`rgb(237,240,246)`) and dark
+    (`rgb(33,43,57)`), message shown in both. Both committed harnesses re-run
+    **green** (`tools/cdp-verify.mjs` Stage 1; `tools/cdp-verify-stage2.mjs` Stage
+    2 — the change is inert for Stage 2, whose test book has only text pages).
+
 - **READ TAB — LINE-ONLY WHITE BOARD VERIFIED, NO CODE CHANGE NEEDED (2026-08-31).**
   Doc-only commit; `js/diagram.js` and `sw.js` are UNCHANGED (still v86). This
   closes the last untested board style: thin black grid lines on pure white, NO

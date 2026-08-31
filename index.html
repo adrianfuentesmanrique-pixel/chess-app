@@ -387,6 +387,15 @@ if (window.Sentry && window.Sentry.onLoad) {
       <div id="read-stage" class="read-stage">
         <canvas id="read-canvas"></canvas>
         <div id="read-loading" class="read-loading hidden"></div>
+        <!-- Shown only when a page rendered blank because its scanned image uses
+             an encoding pdf.js still can't decode (js/read.js). Covers the white
+             canvas; never appears over a page that painted real content. -->
+        <div id="read-blank" class="read-blank hidden">
+          <div class="read-blank-inner">
+            <p class="read-blank-title" data-i18n="read_blank_title"></p>
+            <p class="hint" data-i18n="read_blank_body"></p>
+          </div>
+        </div>
       </div>
       <div class="read-nav">
         <button id="read-prev" class="tool-btn read-navbtn" data-i18n-aria="read_prev">◀</button>

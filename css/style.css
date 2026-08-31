@@ -1566,6 +1566,16 @@ body.reading main { overflow: hidden; }
 .read-loading {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
 }
+/* Undecodable-page notice: sits over the (blank white) canvas, using the same
+   reader panel colour so it reads as part of the page, not a popup. */
+.read-blank {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; text-align: center;
+  background: var(--panel2); border-radius: var(--radius);
+}
+.read-blank-inner { max-width: 22rem; }
+.read-blank-title { color: var(--text); font-weight: 600; margin-bottom: 6px; }
 .read-loading::after {
   content: ''; width: 34px; height: 34px; border-radius: 50%;
   border: 3px solid var(--input-border); border-top-color: var(--accent);

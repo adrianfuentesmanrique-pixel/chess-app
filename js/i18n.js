@@ -166,6 +166,10 @@ const DICT = {
   read_full_mid: { es: 'El teléfono se quedó sin espacio a mitad de guardar. No se guardó el libro; los demás no se tocaron.', en: 'The phone ran out of space partway through saving. The book was not saved; your other books were untouched.' },
   read_open_failed: { es: 'No se pudo abrir el libro.', en: "Couldn't open the book." },
   read_missing: { es: 'Ese libro ya no está.', en: 'That book is no longer here.' },
+  // Shown in place of a page that came out blank because its scanned image is
+  // stored in an encoding this device's PDF engine still can't open.
+  read_blank_title: { es: 'No se puede mostrar esta página', en: "This page can't be displayed" },
+  read_blank_body: { es: 'Está guardada con una codificación de imagen que la app todavía no sabe abrir. El resto del libro se lee con normalidad.', en: "It's saved in an image format the app can't open yet. The rest of the book reads normally." },
   // Stage 2 — long-press a diagram → board
   read_diagram_none: { es: 'No encontré un tablero ahí. Mantén pulsado justo encima del diagrama.', en: "Couldn't find a board there. Long-press right on the diagram." },
   read_calib_title: { es: '¿Es la posición inicial?', en: 'Is this the starting position?' },
