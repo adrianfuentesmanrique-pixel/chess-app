@@ -2,6 +2,48 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — DIAGRAM DETECTION ON A GENUINELY SCANNED BOOK (2026-08-31).**
+  Committed on `main` (`7d4a8ba`), NOT pushed/deployed yet. `sw.js` cache bumped
+  v85 → **v86**. ONE-LINE change in `js/diagram.js` (already in sw ASSETS); no new
+  files. Closes the last open gap from the entry below (scanned raster/JPEG book
+  was untested).
+  - **Tested on a real SCAN** — `ChessPuzzleImport\1. Dvoretsky's Endgame Manual
+    - 5th Edition.pdf` (JPEG pages, **0 embedded fonts** — a true scan, unlike the
+    vector-rendered Hellsten). Its dark squares are **diagonally hatched**, not
+    solid-shaded, which is what exposed the bug.
+  - **The fix (one gate):** `findGrid`'s weakest-tooth gate was `mn < mean * 1.3`.
+    A hatched board's internal white↔hatch HORIZONTAL boundaries are systematically
+    lower-contrast than a solid board's, so across a shelf of endgame diagrams the
+    weakest horizontal tooth ran only **1.16–1.27× the mean** (vertical ~1.4×). The
+    1.3× gate rejected the CORRECT grid on nearly every real page — pages 1-8/1-10
+    never detected at any window; 1-6 detected only by luck at a larger window.
+    **Relaxed to `mean * 1.15`.** Text is still excluded by the two strong
+    downstream filters — `lineContrast ≥ 1.35` AND needing a grid on BOTH axes (a
+    text column has no periodic vertical lines). Re-verified: real scanned body
+    text on the same pages → NO board. Do NOT raise the gate back toward 1.3.
+  - **Occupancy needed NO change.** `cellFeature`'s `lumStd` cleanly separated the
+    hatched empty squares (lumStd ~47) from pieces (~60–116) on real pixels;
+    learned `emptyThresh` came out 53–57, comfortably between. The flagged lumStd
+    risk did not materialise.
+  - **Verified over CDP on real scanned pixels** (throwaway probes, since deleted):
+    three diagrams — 1-6 `8/8/5pk1/5r2/R7/5K2/8/8`, 1-8 `8/8/8/4p1p1/8/5P2/6K1/3k4`,
+    1-10 `8/4k3/3p4/3P4/2P5/8/8/5K2` — each detected with a **pixel-aligned grid
+    overlay**, taught from the true position and read back to the **EXACT FEN,
+    confident=true**. Cross-diagram (teach a set missing a piece type → read one
+    that has it) → confident=false (honest). Real body-text taps → null.
+  - **Skew/noise: recommendation is DON'T add a rotation search.** Stress on a real
+    diagram: ≤0.5° skew reads correct/confident; **1–2° is still found but flagged
+    `confident:false`** (high maxD1 ~0.5–0.6) — never a confident wrong board;
+    heavy per-pixel noise → no board (honest null). Real scans have no meaningful
+    skew anyway (Dvoretsky is axis-aligned). The honest-degradation path (Setup +
+    the flip button) already covers skew cheaply; a rotation search would add cost
+    to the hot path for a case that already fails safe. Left as-is by design.
+  - **Both committed CDP harnesses stay green** (`tools/cdp-verify.mjs` Stage 1;
+    `tools/cdp-verify-stage2.mjs` Stage 2, all checks). The synthetic harnesses are
+    unchanged — no new file. The change is pure CV (thresholds), no UI/i18n, so the
+    375px / light / dark / both-language reader surface is identical to v85 (which
+    was verified in both themes); the calibration/teach modals are untouched.
+
 - **READ TAB — STAGE 2 HARDENED ON A REAL BOOK + TAP-TO-TEACH + SETUP FLIP
   (2026-08-31).** Committed on `main`, NOT pushed/deployed yet. `sw.js` cache
   bumped to `chess-training-center-v85`. No new files — all changes live in
