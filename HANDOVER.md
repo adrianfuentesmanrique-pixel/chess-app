@@ -2,6 +2,72 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — STAGE 2: DIAGRAM → BOARD (2026-08-30).** Committed on `main`, NOT
+  pushed/deployed yet. `sw.js` cache bumped to `chess-training-center-v84`.
+  Verified in headless Chrome over CDP with a NEW harness,
+  `tools/cdp-verify-stage2.mjs` (the in-app pane never composites — same reason
+  Stage 1 uses CDP). Long-press a chess diagram on a PDF page → read the position
+  → open it on the real board. **All 12 automated checks pass.**
+  - **New module `js/read.js`'s companion `js/diagram.js`** — pure image work, NO
+    DOM and NO import from app.js, so it is unit-testable with a plain ImageData.
+    Exports `detectBoard`, `buildTemplates`, `classifyBoard`, `gridToFen`,
+    `cropBoardCanvas`, `START_GRID`. **Do NOT fold it into read.js or app.js.**
+    Added to `sw.js` ASSETS.
+  - **How it reads a board, NO ML and nothing leaves the phone:**
+    1. `detectBoard()` finds the 8×8 grid by a **joint comb-correlation search**
+       over (square-size, origin) on the vertical/horizontal edge profiles around
+       the tap — it slides a 9-tooth comb and keeps the period+phase whose teeth
+       all land on profile support. **This replaced a first attempt at "longest
+       run of evenly-spaced peaks", which locked onto piece-internal strokes
+       (found spacing 15 instead of 44). Do not go back to peak-picking.**
+       A checkerboard/flat-paper parity test rejects tables and text blocks.
+    2. Classification compares **edge maps** (per-square gradient-magnitude,
+       blurred + L2-normalized), NOT raw pixels — an edge map is flat over the
+       single-shade square background, so a piece reads the same on a light or a
+       dark square. Empty = low edge energy (`emptyThresh`, learned at calibration).
+    3. **Calibration is once per book**: the first long-press shows the cropped
+       board and asks "¿Es la posición inicial?" One "yes" captures all 12 piece
+       templates from `START_GRID` and stores them via
+       `db.updateBookMeta(id, {templates})` — a NEW field on the book record, NO
+       `DB_VER` bump (still 4), device-only like the Blob.
+  - **Where it opens: the existing Setup screen (`Setup.open(fen)` in app.js),
+    always — never straight to Analysis.** Setup is the editable board with
+    Análisis/Jugar buttons, so a confident read and an unsure read take the SAME
+    honest path: the user eyeballs and can fix any square before playing. This is
+    the honest-degradation requirement met structurally. `Setup` is now imported
+    into read.js; leaving Read for Setup runs `showScreen()`'s leave hook, which
+    closes the book. **Verified end-to-end: calibrate → lands in Setup with the
+    start position, templates persisted.**
+  - **When unsure it says so:** `classifyBoard` returns `confident` = (no square
+    with a weak/ambiguous match AND exactly one king each side). `confident=false`
+    fires a "check the board" toast but STILL opens Setup with the best guess.
+    **Proved live:** templates from one figurine set classifying a diagram drawn
+    in the app's OTHER piece set → board still found, `confident=false`,
+    `maxD1` 0.112 vs 0.005 for a matching book, FEN still returned. A start and a
+    real Ruy-Lopez midgame in the SAME style both read to the **exact** FEN and
+    `confident=true`.
+  - **Long-press without breaking Stage 1's gestures:** a stationary single
+    pointer held 500 ms (`LONGPRESS_MS`) fires, armed only while the gesture is
+    still `undecided`; the first swipe/pan movement, a second finger (pinch), or a
+    lift disarms it, and `longFired` swallows the trailing tap/​page-turn.
+    **Verified the Stage 1 harness still green: page turn, swipe-suppression
+    (turns page, tab unchanged), page memory all pass.** Double-tap and pinch
+    are untouched (they cancel the timer).
+  - **Escape hatch:** the book's ⋯ menu gains "Volver a aprender las piezas" once
+    calibrated (`read_recalib`) — clears `templates`, so the next long-press
+    re-asks. The right fix when the first "yes" was wrong or the style was misread.
+  - **9 new bilingual `read_diagram_*` / `read_calib_*` / `read_recalib*` strings**
+    (js/i18n.js), one CSS block `.read-calib-img` (white mat so a light-square
+    board stays readable in dark mode — verified in both themes over CDP
+    screenshots).
+  - **Known limits (do not chase, honest fallback covers them):** turn defaults to
+    White and castling to `-` (a scan can't prove either — user sets them in
+    Setup); board orientation assumes White-at-bottom (a flipped diagram reads
+    upside-down → user fixes in Setup). Detection tuned/verified on synthetic
+    diagrams drawn with the app's own figurine SVGs on a shaded board — a faithful
+    per-book template scenario, but NOT yet run against a scan of a real printed
+    book. Stage 1 still owes its real-finger pinch check on the phone.
+
 - **READ TAB — STAGE 1: PDF READER (2026-08-30).** Committed on `main`, NOT
   pushed/deployed yet. `sw.js` cache bumped to `chess-training-center-v83`.
   Verified in headless Chrome over CDP (the in-app pane never composites, so

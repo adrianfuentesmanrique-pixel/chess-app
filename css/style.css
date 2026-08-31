@@ -1591,3 +1591,17 @@ body.reading main { overflow: hidden; }
   animation: read-spin .8s linear infinite;
 }
 @keyframes read-spin { to { transform: rotate(360deg); } }
+
+/* Calibration preview: the cropped diagram shown while asking "is this the
+   starting position?" A white mat keeps a light-square board readable in dark
+   mode, where a PDF page is always white paper. */
+.read-calib-img {
+  display: flex; justify-content: center;
+  margin: 12px 0; padding: 8px;
+  background: #fff; border-radius: var(--radius);
+  box-shadow: 0 0 0 1px var(--input-border);
+}
+.read-calib-img canvas {
+  max-width: 100%; height: auto; image-rendering: auto;
+  border-radius: 4px;
+}

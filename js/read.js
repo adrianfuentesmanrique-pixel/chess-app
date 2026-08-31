@@ -18,12 +18,16 @@
 // figurine fonts; add them only if a real book renders wrong.
 import * as db from './db.js';
 import { t, tn } from './i18n.js';
-import { $, esc, toast, modal, askConfirm, askText, sheet } from './app.js';
+import { $, esc, toast, modal, askConfirm, askText, sheet, Setup } from './app.js';
+import { START_FEN } from './tree.js';
+import { detectBoard, buildTemplates, classifyBoard, cropBoardCanvas } from './diagram.js';
 
 const MAX_ZOOM = 4;
 const SWIPE_TURN = 60;      // px of horizontal travel that counts as a page turn
 const TAP_SLOP = 10;        // px a "tap" may move before it stops being a tap
 const DBLTAP_MS = 300;
+const LONGPRESS_MS = 500;   // stationary hold that opens a diagram (Stage 2)
+const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 // ── PDF.js, loaded on demand ────────────────────────────────────────────────
 let pdfjsLib = null;
@@ -140,7 +144,7 @@ function bookCard(b) {
 }
 
 function bookMenu(b) {
-  sheet([
+  const items = [
     {
       label: '✏️ ' + t('rename'),
       action: async () => {
@@ -148,15 +152,29 @@ function bookMenu(b) {
         if (name) { await db.updateBookMeta(b.id, { name }); refresh(); }
       },
     },
-    {
-      label: '🗑 ' + t('delete'),
-      danger: true,
+  ];
+  // Only shown once this book has been calibrated. Clearing the templates makes
+  // the next long-press re-ask "is this the starting position?" — the escape
+  // hatch when the first answer was wrong, or the book's style was misread.
+  if (b.templates) {
+    items.push({
+      label: '♟ ' + t('read_recalib'),
       action: async () => {
-        const ok = await askConfirm(t('read_delete_confirm').replace('{name}', esc(b.name)));
-        if (ok) { await db.deleteBook(b.id); toast(t('read_deleted')); refresh(); }
+        await db.updateBookMeta(b.id, { templates: null });
+        if (R.id === b.id) R.templates = null;
+        toast(t('read_recalib_done'));
       },
+    });
+  }
+  items.push({
+    label: '🗑 ' + t('delete'),
+    danger: true,
+    action: async () => {
+      const ok = await askConfirm(t('read_delete_confirm').replace('{name}', esc(b.name)));
+      if (ok) { await db.deleteBook(b.id); toast(t('read_deleted')); refresh(); }
     },
-  ]);
+  });
+  sheet(items);
 }
 
 // ── import ──────────────────────────────────────────────────────────────────
@@ -276,6 +294,7 @@ const R = {
   baseW: 0, baseH: 0,     // canvas CSS size at zoom 1 (fit to stage width)
   zoom: 1, tx: 0, ty: 0,
   saveTimer: null,
+  templates: null,        // per-book piece templates, calibrated on first use
 };
 
 async function openBook(id) {
@@ -297,6 +316,7 @@ async function openBook(id) {
     const buf = await book.blob.arrayBuffer();
     const doc = await pdfjs.getDocument({ data: buf }).promise;
     R.id = id; R.doc = doc; R.pageCount = doc.numPages;
+    R.templates = book.templates || null;   // Stage 2: piece templates ride on the book record
     R.page = Math.min(Math.max(1, book.page || 1), R.pageCount);
     await renderPage(R.page);
   } catch (err) {
@@ -395,7 +415,7 @@ export function closeBook() {
   if (R.id) db.updateBookMeta(R.id, { page: R.page });   // flush final position
   if (R.renderTask) { try { R.renderTask.cancel(); } catch {} R.renderTask = null; }
   if (R.doc) { try { R.doc.destroy(); } catch {} R.doc = null; }
-  R.id = null;
+  R.id = null; R.templates = null;
   const canvas = $('read-canvas');
   if (canvas) { canvas.width = 0; canvas.height = 0; canvas.style.transform = ''; }
   document.body.classList.remove('reading');
@@ -424,8 +444,22 @@ function onDown(e) {
     startPinch();
   } else if (pointers.size === 1) {
     gesture = { mode: 'undecided', startX: e.clientX, startY: e.clientY,
-                lastX: e.clientX, lastY: e.clientY, t: Date.now() };
+                lastX: e.clientX, lastY: e.clientY, t: Date.now(), longFired: false };
+    // A stationary single finger held past the threshold opens the diagram under
+    // it. It is armed only while the gesture is still 'undecided' and one finger
+    // is down; the first sign of a swipe, pan or a second finger disarms it, so
+    // page turn / pinch / double-tap are all untouched.
+    gesture.longTimer = setTimeout(() => {
+      if (gesture && gesture.mode === 'undecided' && pointers.size === 1) {
+        gesture.longFired = true;
+        onLongPress(gesture.lastX, gesture.lastY);
+      }
+    }, LONGPRESS_MS);
   }
+}
+
+function cancelLong() {
+  if (gesture && gesture.longTimer) { clearTimeout(gesture.longTimer); gesture.longTimer = null; }
 }
 
 function onMove(e) {
@@ -440,6 +474,7 @@ function onMove(e) {
 
   if (gesture.mode === 'undecided') {
     if (Math.abs(totX) < 8 && Math.abs(totY) < 8) return;
+    cancelLong();                                        // moved → not a long-press
     if (R.zoom > 1) gesture.mode = 'pan';               // zoomed: drag pans
     else if (Math.abs(totX) > Math.abs(totY)) gesture.mode = 'swipe';  // page turn
     else gesture.mode = 'pan';                           // vertical scroll of a tall page
@@ -454,6 +489,10 @@ function onUp(e) {
 
   if (pointers.size === 0) {
     if (gesture) {
+      cancelLong();
+      // The long-press already fired and opened the diagram — swallow the lift so
+      // it is not also read as a tap or a page turn.
+      if (gesture.longFired) { gesture = null; return; }
       const moved = Math.hypot(e.clientX - gesture.startX, e.clientY - gesture.startY);
       if (gesture.mode === 'swipe') {
         const tot = e.clientX - gesture.startX;
@@ -496,6 +535,7 @@ function zoomTo(newZoom, px, py) {
 }
 
 function startPinch() {
+  cancelLong();
   const [a, b] = [...pointers.values()];
   pinch = { d0: dist(a, b) || 1, z0: R.zoom,
             mx0: (a.x + b.x) / 2, my0: (a.y + b.y) / 2, tx0: R.tx, ty0: R.ty };
@@ -518,6 +558,91 @@ function doPinch() {
 const onResize = debounce(() => {
   if (R.doc && !$('read-reader').classList.contains('hidden')) renderPage(R.page);
 }, 200);
+
+// ── diagram → board (Stage 2) ────────────────────────────────────────────────
+// A long-press lands here with the finger's client coordinates. The rendered
+// page canvas is exactly what we sample — the same pixels the reader draws.
+async function onLongPress(clientX, clientY) {
+  if (!R.doc) return;
+  const canvas = $('read-canvas');
+  const rect = $('read-stage').getBoundingClientRect();
+  // stage px → canvas CSS px (undo the pan/zoom transform) → canvas device px
+  // (the canvas is oversampled, so canvas.width is larger than its CSS width).
+  const cssX = (clientX - rect.left - R.tx) / R.zoom;
+  const cssY = (clientY - rect.top - R.ty) / R.zoom;
+  if (cssX < 0 || cssY < 0 || cssX > R.baseW || cssY > R.baseH) return;  // off the page
+  const px = cssX * (canvas.width / R.baseW);
+  const py = cssY * (canvas.height / R.baseH);
+
+  let img;
+  try { img = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height); }
+  catch { toast(t('read_diagram_none')); return; }
+
+  const board = detectBoard(img, px, py);
+  if (!board) { toast(t('read_diagram_none')); return; }
+
+  if (!R.templates) { await calibrate(img, board, canvas); return; }
+
+  // Templates in hand: read the position and hand it to Setup for review.
+  let res;
+  try { res = classifyBoard(img, board, R.templates); }
+  catch (e) { console.error('[read] classify failed', e); toast(t('read_diagram_none')); return; }
+  openInSetup(res.fen, res.confident);
+}
+
+// First diagram in a book teaches its piece style. We show the cropped board and
+// ask the one question that captures all 12 pieces at once: is this the start?
+async function calibrate(img, board, canvas) {
+  const crop = cropBoardCanvas(canvas, board);
+  const answer = await askStartPosition(crop);
+  if (answer === null) return;                 // cancelled — ask again next time
+  if (answer === true) {
+    let templates;
+    try { templates = buildTemplates(img, board); }
+    catch (e) { console.error('[read] calibrate failed', e); toast(t('read_diagram_none')); return; }
+    await db.updateBookMeta(R.id, { templates });
+    R.templates = templates;
+    // This confirmed board IS the starting position, so its FEN is known exactly.
+    openInSetup(START_FEN, true);
+  } else {
+    // Not the start → nothing to learn from here. Open an empty editor so the
+    // user can place the position by hand; the next diagram re-offers calibration.
+    toast(t('read_diagram_manual'));
+    openInSetup(EMPTY_FEN, false);
+  }
+}
+
+// Modal: the board image + "Is this the starting position?" Yes / No / Cancel.
+// Resolves true / false / null.
+function askStartPosition(cropCanvas) {
+  return modal((box, close) => {
+    box.innerHTML = `<h3>${esc(t('read_calib_title'))}</h3>` +
+                    `<p class="hint">${esc(t('read_calib_body'))}</p>`;
+    const wrap = document.createElement('div');
+    wrap.className = 'read-calib-img';
+    cropCanvas.className = '';
+    wrap.appendChild(cropCanvas);
+    box.appendChild(wrap);
+    const row = document.createElement('div'); row.className = 'row';
+    const yes = document.createElement('button');
+    yes.className = 'btn primary'; yes.textContent = t('read_calib_yes');
+    yes.onclick = () => close(true);
+    const no = document.createElement('button');
+    no.className = 'btn'; no.textContent = t('read_calib_no');
+    no.onclick = () => close(false);
+    row.append(yes, no);
+    box.appendChild(row);
+  });
+}
+
+// Every read — confident or not — lands in the editable Setup screen, never
+// straight onto an Analysis board. A wrong square is one tap to fix there, and
+// the user always eyeballs the position before playing from it. Leaving the Read
+// screen for Setup runs showScreen()'s leave hook, which closes the book for us.
+function openInSetup(fen, confident) {
+  if (!confident) toast(t('read_diagram_check'));
+  Setup.open(fen);
+}
 
 // ── init ────────────────────────────────────────────────────────────────────
 export function init() {
