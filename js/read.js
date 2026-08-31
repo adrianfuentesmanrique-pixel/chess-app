@@ -326,7 +326,12 @@ async function openBook(id) {
     const buf = await book.blob.arrayBuffer();
     const doc = await pdfjs.getDocument({ data: buf, wasmUrl: PDF_WASM_URL }).promise;
     R.id = id; R.doc = doc; R.pageCount = doc.numPages;
-    R.templates = book.templates || null;   // Stage 2: piece templates ride on the book record
+    // Piece templates ride on the book record. Drop anything older than ver 3:
+    // ver-2 templates carry no empty-square patterns, so classifyBoard would fall
+    // back to the luminance-spread occupancy test that misreads hatched boards
+    // (a shelf of phantom queens). Discarding them makes the next long-press
+    // re-learn the book with the current method instead of reusing a broken read.
+    R.templates = (book.templates && book.templates.ver >= 3) ? book.templates : null;
     R.page = Math.min(Math.max(1, book.page || 1), R.pageCount);
     await renderPage(R.page);
   } catch (err) {

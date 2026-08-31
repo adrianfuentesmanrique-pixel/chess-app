@@ -2,6 +2,58 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — DIAGRAM READER FIXED ON BOLDLY-HATCHED BOARDS (was a shelf of
+  phantom queens) (2026-08-31).** Committed on `main`, NOT pushed/deployed yet.
+  `sw.js` bumped v88 → **v89**. Changed `js/diagram.js` and `js/read.js` (both
+  already in sw ASSETS); no new files. This is the fix for Adrian's report that
+  long-pressing a diagram in "Excelling at Chess Calculation" (Aagaard, a
+  194-page JBIG2 scan in `ChessPuzzleImport\`, and the WA0033 copy) gave a
+  completely wrong board — a black queen on almost every square.
+  - **Root cause (found by CDP probe, not guessed):** detection was CORRECT (the
+    grid overlay sat dead on the board). The bug was OCCUPANCY. `cellFeature`'s
+    `lumStd` (luminance spread) decided empty-vs-piece, and a **boldly diagonally
+    hatched empty square** spreads luminance ~100 — as wide as a real piece — so
+    every hatched empty read as occupied, then its busy texture matched the
+    busiest template (queen). The learned `emptyThresh` (~100) couldn't separate
+    them. Proven the OLD code ALSO exploded on Dvoretsky p30 (a `k` on every
+    hatched square), so `lumStd` occupancy was fragile, not Aagaard-specific — it
+    only ever worked when calibration happened to learn a lucky threshold.
+  - **The fix (`js/diagram.js`):** `buildTemplatesFromGrid` now also builds a
+    **per-colour empty-square template** (`empties[0]`/`empties[1]`, the averaged
+    edge-feature of the labelled empty squares of each colour) and bumps the
+    template record to **ver 3**. `classifyBoard` decides occupancy by
+    `d1 >= cosDist(feat, emptyTemplate[parity])` — a cell is empty unless it sits
+    strictly closer to some piece template than to its colour's empty pattern.
+    This reads a hatched EMPTY as empty (it hugs the empty pattern) AND keeps a
+    dark piece on a dark hatched square (nearly uniform → `lumStd` would miss it,
+    but `d1≈0 ≪ dEmpty`). `lumStd`/`emptyThresh` are RETAINED as the ver-2
+    fallback for legacy templates or a colour with < 2 empties. **Do NOT
+    reintroduce a margin or a lumStd-OR:** a margin toward "occupied" brings the
+    queens back; a lumStd-OR floor silently drops dark-pieces-on-hatch; a learned
+    absolute `occThresh` was tried and was worse — all three were measured and
+    rejected. Plain `d1 >= dEmpty` is the one that never silently drops a real
+    piece.
+  - **`js/read.js`:** `openBook` now DISCARDS `book.templates` when `ver < 3`
+    (one line), so a book calibrated before this fix re-learns with the new method
+    on the next long-press instead of reusing its broken ver-2 read. New
+    calibrations (`buildTemplates` start-position, or tap-to-teach) are ver 3.
+  - **Verified over headless Chrome (CDP), 375px, throwaway probes since deleted,
+    no book copied into the repo** (streamed from `ChessPuzzleImport\`): Aagaard
+    p13 left diagram now reads a structurally correct position — **2 queens (the
+    real d7/g3 queens), was ~21** — `confident:false` so the app shows its
+    "check the board" warning. Dvoretsky p30 (hatched): garbage → the 5 real
+    pieces correct. Hellsten p20 (wood): unregressed. Synthetic Stage-2 still
+    reads a clean board EXACTLY and `confident:true`. Both committed harnesses
+    green (`tools/cdp-verify.mjs`, `tools/cdp-verify-stage2.mjs`).
+  - **KNOWN RESIDUAL (not chased, honest-degradation covers it):** on some
+    diagrams a few PHANTOM pieces still appear, clustered on the board's edge
+    columns — a pre-existing DETECTION-ALIGNMENT quantisation (cell rounded to an
+    int px drifts a few px across 8 cells, so edge cells catch the board border).
+    This is NOT the occupancy rule and must not be patched there. It reads
+    `confident:false`, so the user reviews/edits in Setup or re-teaches. A proper
+    fix is sub-pixel grid refinement in `findGrid`/`detectInWindow` — a separate
+    task (see the two OTHER open reader tasks Adrian raised this session, below).
+
 - **READ TAB — "THIS PAGE CAN'T BE DISPLAYED" FALLBACK + TWO JBIG2 BOOKS CONFIRMED
   (2026-08-31).** Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped
   v87 → **v88**. Changed `js/read.js`, `js/i18n.js`, `index.html`, `css/style.css`

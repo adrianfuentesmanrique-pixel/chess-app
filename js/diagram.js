@@ -345,38 +345,58 @@ export function buildTemplates(imageData, board) {
 export function buildTemplatesFromGrid(imageData, board, grid) {
   const { g, W, H } = toGray(imageData);
   const acc = {}, cnt = {};
+  // Empty-square templates, kept separate per square colour (parity 0 = the
+  // a8-coloured squares, 1 = the other). An empty square's own edge texture —
+  // the diagonal hatching many books shade dark squares with, or flat paper —
+  // is a signature the classifier can match against, which lumStd alone cannot
+  // do when the hatching is bold enough to spread luminance as much as a piece.
+  const empAcc = { 0: new Float32Array(N * N), 1: new Float32Array(N * N) };
+  const empCnt = { 0: 0, 1: 0 };
   const emptyStd = [], pieceStd = [];
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
     const code = grid[r][c];
     const { feat, lumStd } = cellFeature(g, W, H, board, r, c);
-    if (!code) { emptyStd.push(lumStd); continue; }
+    const par = (r + c) % 2;
+    if (!code) {
+      emptyStd.push(lumStd);
+      for (let i = 0; i < feat.length; i++) empAcc[par][i] += feat[i];
+      empCnt[par]++;
+      continue;
+    }
     pieceStd.push(lumStd);
     if (!acc[code]) { acc[code] = new Float32Array(N * N); cnt[code] = 0; }
     for (let i = 0; i < feat.length; i++) acc[code][i] += feat[i];
     cnt[code]++;
   }
+  const normalize = f => { let n = 0; for (let i = 0; i < f.length; i++) n += f[i] * f[i]; n = Math.sqrt(n) || 1; for (let i = 0; i < f.length; i++) f[i] /= n; };
   const pieces = {};
   for (const code of Object.keys(acc)) {
     const f = acc[code];
     for (let i = 0; i < f.length; i++) f[i] /= cnt[code];
-    // re-normalize the average so distances stay comparable
-    let norm = 0; for (let i = 0; i < f.length; i++) norm += f[i] * f[i];
-    norm = Math.sqrt(norm) || 1;
-    for (let i = 0; i < f.length; i++) f[i] /= norm;
+    normalize(f);   // re-normalize the average so distances stay comparable
     pieces[code] = Array.from(f);
   }
-  // Occupancy threshold on luminance spread, learned from the labelled cells: it
-  // sits between the most-textured empty and the flattest piece. Robust ends
-  // (95th empty / 5th piece percentile) shrug off one odd square. A comfortable
-  // fallback covers the degenerate all-empty or all-piece calibration.
-  emptyStd.sort((a, b) => a - b); pieceStd.sort((a, b) => a - b);
+  // Per-colour empty templates need at least two samples to average out a stray
+  // square; a colour with too few empties simply gets none (classification then
+  // falls back to the lumStd threshold for that colour).
+  const empties = {};
+  for (const par of [0, 1]) {
+    if (empCnt[par] < 2) continue;
+    const f = empAcc[par];
+    for (let i = 0; i < f.length; i++) f[i] /= empCnt[par];
+    normalize(f);
+    empties[par] = Array.from(f);
+  }
+  // lumStd threshold retained as the ver-2 fallback for classification (legacy
+  // templates, or a colour with too few empties to build an empty pattern).
   const pct = (arr, p) => arr.length ? arr[Math.min(arr.length - 1, Math.max(0, Math.round((arr.length - 1) * p)))] : null;
+  emptyStd.sort((a, b) => a - b); pieceStd.sort((a, b) => a - b);
   const emptyHi = pct(emptyStd, 0.95), pieceLo = pct(pieceStd, 0.05);
   let emptyThresh;
   if (emptyHi == null) emptyThresh = (pieceLo ?? 20) * 0.5;
   else if (pieceLo == null) emptyThresh = emptyHi * 1.5 + 4;
   else emptyThresh = pieceLo > emptyHi ? (emptyHi + pieceLo) / 2 : (emptyHi + pieceLo) / 2 + 2;
-  return { n: N, ver: 2, pieces, emptyThresh };
+  return { n: N, ver: 3, pieces, emptyThresh, empties };
 }
 
 // ── classification ──────────────────────────────────────────────────────────
@@ -386,6 +406,12 @@ export function classifyBoard(imageData, board, templates, turn = 'w') {
   const codes = Object.keys(templates.pieces);
   const tmpl = {};
   for (const c of codes) tmpl[c] = Float32Array.from(templates.pieces[c]);
+  // Per-colour empty templates (ver ≥ 3) drive the occupancy test below —
+  // robust to bold hatching, which the lumStd threshold (the ver-2 fallback,
+  // still used for legacy templates or a colour with too few empties) reads as
+  // a piece.
+  const empVec = {};
+  if (templates.empties) for (const p of Object.keys(templates.empties)) empVec[p] = Float32Array.from(templates.empties[p]);
 
   const grid = [];
   let uncertain = 0, wk = 0, bk = 0, maxD1 = 0, minMargin = Infinity;
@@ -393,13 +419,24 @@ export function classifyBoard(imageData, board, templates, turn = 'w') {
     const row = [];
     for (let c = 0; c < 8; c++) {
       const { feat, lumStd } = cellFeature(g, W, H, board, r, c);
-      if (lumStd < templates.emptyThresh) { row.push(''); continue; }
       let d1 = Infinity, d2 = Infinity, best = '';
       for (const code of codes) {
         const d = cosDist(feat, tmpl[code]);
         if (d < d1) { d2 = d1; d1 = d; best = code; }
         else if (d < d2) { d2 = d; }
       }
+      // Occupied only when the cell sits closer to some piece template than to
+      // its colour's empty pattern. A real piece hugs its own template (d1≈0)
+      // while standing well clear of the empty pattern — including a dark piece
+      // on a dark hatched square, which is nearly uniform and so fools the
+      // luminance-spread test. An empty square, hatched or not, sits at least as
+      // close to the empty pattern as to any piece, so it stays empty instead of
+      // turning into a spurious queen. Legacy templates and colours with no empty
+      // pattern fall back to the lumStd threshold.
+      const empP = empVec[(r + c) % 2];
+      const isEmpty = empP ? d1 >= cosDist(feat, empP)
+                           : lumStd < templates.emptyThresh;
+      if (isEmpty) { row.push(''); continue; }
       row.push(best);
       if (best === 'K') wk++; else if (best === 'k') bk++;
       if (d1 > maxD1) maxD1 = d1;
