@@ -47,26 +47,37 @@
     No source changed, so the reader/i18n/375px/light/dark surface is identical to
     v86.
 
-- **READ TAB — 3 OF 5 ENDGAME PDFs RENDER BLANK (JBIG2), FOUND NOT FIXED (2026-08-31).**
-  Discovered while hunting for a line-only book; **not yet fixed** — it is the next
-  session's task (prompt at the bottom of this file). NOT a diagram-detection bug:
-  the pages never draw at all.
-  - **Symptom:** Silman, `2. Fundamental Chess Endings - Frank Lamprecht.pdf`, and
-    `00. Fundamental_chess_endings…encyclopaedia….pdf` open in the Read tab and
-    show **pure white pages** (measured 0 non-white pixels on content pages;
-    Dvoretsky and Hellsten render fine). Each blank page is a single full-page
-    scanned image (`paintImageXObject`).
-  - **Cause (from the pdf.js console warning):** these scans are **JBIG2-encoded**,
-    and app's vendored **pdf.js v6** needs a WASM decoder it was never given —
-    `"#instantiateWasm: … Ensure that the wasmUrl API parameter is provided"`,
-    `"Failed to resolve module specifier 'null…jbig2_nowasm_fallback.js'"`,
-    `"Unable to decode image …: Jbig2Error: JBig2 failed to initialize"`. JPEG2000
-    (OpenJPEG) scans will fail the same way. `loadPdfjs()` in `js/read.js` (~L35–44)
-    sets only `GlobalWorkerOptions.workerSrc`; it never sets `wasmUrl`, and no wasm
-    is vendored under `vendor/`.
-  - **Fix shape (offline-first):** vendor pdf.js's `openjpeg`/`jbig2` wasm (and any
-    `*_nowasm_fallback.js`) locally, point `wasmUrl` at the self-hosted folder in
-    `loadPdfjs()`, add the new files to `sw.js` ASSETS + bump the cache. No CDN.
+- **READ TAB — JBIG2 / JPEG2000 SCANNED PDFs NOW RENDER (WAS BLANK), FIXED (2026-08-31).**
+  `sw.js` cache bumped v86 → **v87**. Changed `js/read.js`; added two vendored
+  wasm files. NOT a diagram-detection bug — the pages simply never drew.
+  - **Symptom (before):** Silman, `2. Fundamental Chess Endings - Frank Lamprecht.pdf`,
+    and `00. Fundamental_chess_endings…encyclopaedia….pdf` opened in the Read tab
+    and showed **pure white pages** (0 non-white pixels on content pages). Each is a
+    single full-page JBIG2-encoded scan. Cause: pdf.js v6 fetches an image-decoder
+    wasm from inside its worker (`${wasmUrl}jbig2.wasm`) and `loadPdfjs()` never set
+    `wasmUrl`, so decode failed (`Jbig2Error: JBig2 failed to initialize`). JPEG2000
+    scans fail the same way via `openjpeg.wasm`.
+  - **The fix:** vendored **`vendor/jbig2.wasm` (~102 KB)** and **`vendor/openjpeg.wasm`
+    (~246 KB)** — the exact v6.3.289 decoder wasm, extracted from the `pdfjs-dist-6.3.289.tgz`
+    already in the local npm cache (no download). Added a module const
+    `PDF_WASM_URL = new URL('../vendor/', import.meta.url).href` in `js/read.js` and
+    pass `wasmUrl: PDF_WASM_URL` in **both** `getDocument()` calls (open + add-cover).
+    The worker fetches the wasm itself; `vendor/` is CACHE_FIRST so it is stored on
+    first book-open and then works offline — **deliberately NOT in `sw.js` ASSETS**,
+    same pattern as the 1.3 MB pdf worker (keeps first launch light for non-Read
+    users). sw.js got only a documenting comment + the v87 bump.
+  - **Chose wasm over the two `*_nowasm_fallback.js` (~583 KB) and `qcms_bg.wasm`
+    (ICC, 94 KB):** the JS fallbacks only fire if WebAssembly itself fails (never in
+    the TWA) — dead weight; qcms is a *separate* console warning, not the blank-page
+    cause. Adrian confirmed "two wasm only".
+  - **Verified over headless Chrome (CDP), throwaway probe since deleted, no book
+    copied into the repo** — the real PDFs were streamed from `ChessPuzzleImport\`
+    by a scratchpad server only for the run. Page 30, 375px:
+    **Silman JBIG2 → 79,129 non-white px (was 0), Jbig2Error gone**; Dvoretsky
+    (692,774 px) and Hellsten (386,511 px) **still render — no regression**. Both
+    committed harnesses re-run green (`tools/cdp-verify.mjs` Stage 1 — painted, page
+    turns, offline boot, theme light+dark, swipe; `tools/cdp-verify-stage2.mjs`
+    Stage 2 — every check true bar the intended honest-degradation `confident:false`).
 
 - **READ TAB — DIAGRAM DETECTION ON A GENUINELY SCANNED BOOK (2026-08-31).**
   Committed on `main` (`7d4a8ba`), NOT pushed/deployed yet. `sw.js` cache bumped

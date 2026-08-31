@@ -32,6 +32,14 @@ const LONGPRESS_MS = 500;   // stationary hold that opens a diagram (Stage 2)
 const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 
 // ── PDF.js, loaded on demand ────────────────────────────────────────────────
+// Folder that holds the image-decoder wasm (jbig2.wasm, openjpeg.wasm). pdf.js
+// v6 fetches `${wasmUrl}<name>.wasm` from inside its worker to decode scanned
+// pages; without it a JBIG2- or JPEG2000-encoded scan (many endgame books are
+// full-page scans of exactly that kind) decodes to nothing and the reader shows
+// a pure-white page. Must end in '/'. Passed per getDocument() call below —
+// unlike workerSrc there is no global setter for it. Like the worker, the wasm
+// is NOT precached; vendor/ is cache-first, so it is stored on first use.
+const PDF_WASM_URL = new URL('../vendor/', import.meta.url).href;
 let pdfjsLib = null;
 async function loadPdfjs() {
   if (pdfjsLib) return pdfjsLib;
@@ -240,7 +248,7 @@ export async function importFile(file) {
     const buf = await file.arrayBuffer();
     const pdfjs = await loadPdfjs();
     // A genuinely broken / non-PDF file rejects here — caught below.
-    const doc = await pdfjs.getDocument({ data: buf }).promise;
+    const doc = await pdfjs.getDocument({ data: buf, wasmUrl: PDF_WASM_URL }).promise;
     const pageCount = doc.numPages;
     const cover = await renderCover(doc);
     try { doc.destroy(); } catch {}
@@ -316,7 +324,7 @@ async function openBook(id) {
   try {
     const pdfjs = await loadPdfjs();
     const buf = await book.blob.arrayBuffer();
-    const doc = await pdfjs.getDocument({ data: buf }).promise;
+    const doc = await pdfjs.getDocument({ data: buf, wasmUrl: PDF_WASM_URL }).promise;
     R.id = id; R.doc = doc; R.pageCount = doc.numPages;
     R.templates = book.templates || null;   // Stage 2: piece templates ride on the book record
     R.page = Math.min(Math.max(1, book.page || 1), R.pageCount);

@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v86';
+const CACHE = 'chess-training-center-v87';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -41,6 +41,9 @@ const ASSETS = [
   // Stockfish .wasm below: it is fetched on first use (the first time a book is
   // opened or added) and cached by the cache-first handler, since vendor/ is
   // CACHE_FIRST. So a first launch by someone who never opens Read stays light.
+  // The image-decoder wasm (vendor/jbig2.wasm ~102 KB, vendor/openjpeg.wasm
+  // ~246 KB) that pdf.js uses to render JBIG2/JPEG2000 scanned pages is likewise
+  // NOT precached — same cache-first-on-first-use path as the worker above.
   'vendor/pdf.min.mjs',
   // NOTE: the 7 MB Stockfish .wasm is deliberately NOT precached here. Pulling
   // it during install put a 7 MB download in front of first launch, and since
