@@ -26,6 +26,8 @@ import { detectBoard, buildTemplates, buildTemplatesFromGrid, classifyBoard,
 
 const MAX_ZOOM = 4;
 const TAP_SLOP = 10;        // px a "tap" may move before it stops being a tap
+const LONG_SLOP = 16;       // a finger held for the long-press drifts more than a tap; be
+                            // forgiving so natural jitter doesn't cancel the diagram open
 const DBLTAP_MS = 300;
 const LONGPRESS_MS = 500;   // stationary hold that opens a diagram (Stage 2)
 const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
@@ -634,7 +636,7 @@ function onMove(e) {
   if (pinch && pointers.size >= 2) { e.preventDefault(); doPinch(); return; }
   if (longState) {
     const moved = Math.hypot(e.clientX - longState.x, e.clientY - longState.y);
-    if (moved > TAP_SLOP) cancelLong();   // moving → it's a scroll, not a hold
+    if (moved > LONG_SLOP) cancelLong();   // moving for real → it's a scroll, not a hold
   }
 }
 
@@ -718,8 +720,15 @@ function scheduleReRender() {
   }, 180);
 }
 
+// A mobile browser fires `resize` every time its address bar slides in or out
+// during a scroll — a HEIGHT-only change. Re-laying-out and resetting the zoom on
+// that made the page zoom and jump on its own while you scrolled. Only a real
+// WIDTH change (rotation, window resize) needs the re-layout, so ignore the rest.
+let lastInnerW = window.innerWidth;
 const onResize = debounce(() => {
   if (!R.doc || $('read-reader').classList.contains('hidden')) return;
+  if (window.innerWidth === lastInnerW) return;   // height-only (address bar) → leave zoom/scroll alone
+  lastInnerW = window.innerWidth;
   const keep = R.page;
   R.zoom = 1;
   $('read-stage').style.touchAction = 'pan-y';

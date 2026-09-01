@@ -2,6 +2,48 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — AUTO-ZOOM FIXED + LONG-PRESS MADE MORE FORGIVING; SENTRY NO LONGER
+  FIRES ON LOCALHOST/HEADLESS (2026-09-01).** Committed on `main`. `sw.js` bumped
+  v93 → **v94**. Changed `js/read.js` and `index.html`. Context: the continuous-
+  scroll reader rebuild (`b28357e`) introduced reader regressions the user hit on
+  the DEPLOYED phone app; and headless test runs were polluting the real Sentry
+  project (HeadlessChrome events tagged `production`, e.g. an old `kvGet`
+  NotFoundError).
+  - **Auto-zoom / self-zoom (CONFIRMED + FIXED):** `onResize` reset `R.zoom = 1`
+    and re-laid-out on EVERY window resize. Mobile browsers fire `resize` on every
+    address-bar show/hide during a scroll (a HEIGHT-only change), so the reader
+    kept zooming and jumping on its own. Fixed: `onResize` now tracks
+    `lastInnerW` and returns early unless the WIDTH actually changed (rotation /
+    real resize). Reproduced over CDP: a same-width `resize` reset a 2× zoom to 1×
+    before, and preserves it after (`zoomResetByResize: false`). This reflow was
+    also firing mid-long-press, which likely contributed to "can't select".
+  - **Long-press "can't select":** the rebuilt reader scrolls with the phone's
+    NATIVE `touch-action: pan-y`, which competes with the stationary hold (native
+    scroll steals the touch / drift cancels it) — the old reader owned all touches
+    with `touch-action: none`, so long-press was reliable there. Couldn't fully
+    reproduce headlessly (synthetic pointers don't trigger native scroll — clean
+    and jittered holds both fire in the harness). Made it more forgiving:
+    `LONG_SLOP = 16` (was reusing `TAP_SLOP = 10`) so natural hold drift doesn't
+    cancel, plus the onResize fix removes the mid-hold reflow. **This may not fully
+    fix it on a real finger** — if it persists, the proper fix is a gesture rework
+    (e.g. own the touch during a pending hold and hand-roll scroll for that drag,
+    trading some native momentum) and MUST be tested on Adrian's device. Do NOT
+    claim it fixed without device confirmation.
+  - **Sentry gate:** `index.html` no longer uses a static `<script src>` for the
+    Sentry loader. An inline gate injects it ONLY when NOT on localhost /
+    127.0.0.1 / a private LAN IP / `.local` / a Headless UA. Verified headless:
+    `window.Sentry` is undefined, no sentry script, zero sentry network requests.
+    The DSN/config are unchanged for the real deployed site.
+  - Both committed harnesses still green (`tools/cdp-verify.mjs` Stage 1 —
+    painted/offline/tab-unchanged; its `turn`/`swipe` fields read `undefined`
+    because the scroll rebuild changed page-turning and those checks are now stale,
+    NOT from this change; `tools/cdp-verify-stage2.mjs` Stage 2 all true).
+  - NOTE for the next session: the old `kvGet`-at-`db.js:251` Sentry error was
+    from an OLDER build (line numbers don't match current `db.js`, where 251 is
+    inside the playHistory cursor) and a transient headless DB state — not a
+    current live crash. The reader's `turn`/`swipe` harness checks are stale vs
+    the scroll reader and should be updated.
+
 - **BOTTOM MENU BAR TIGHTENED TO ONE ROW — ☰ LEFT, SCREEN NAME CENTRED, KAEL
   RIGHT, DIVIDER GONE (2026-09-01).** Committed on `main`, NOT pushed/deployed
   yet (Cloudflare Pages; commits not pushed). **Pure CSS** — only `css/style.css`

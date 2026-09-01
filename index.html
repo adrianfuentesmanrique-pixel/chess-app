@@ -6,28 +6,42 @@
 <meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e131a" media="(prefers-color-scheme: dark)">
 <title>Chess Training Center</title>
-<script
-  src="https://js.sentry-cdn.com/d5b3828a5ad8e73a6bce07d39c9de4ac.min.js"
-  crossorigin="anonymous"
-></script>
 <script>
-// Same reasoning as the crash guard below: extension and cross-origin errors
-// are not this app's bugs. Reporting them buries the real ones -- a dashboard
-// nobody trusts is a dashboard nobody reads.
-if (window.Sentry && window.Sentry.onLoad) {
-  window.Sentry.onLoad(function () {
-    Sentry.init({
-      denyUrls: [/^chrome-extension:\/\//, /^moz-extension:\/\//,
-                 /^safari-extension:\/\//, /^webkit-masked-url:/, /^chrome:\/\//],
-      ignoreErrors: [
-        'Script error.',
-        // Benign browser noise, not a fault in anything we ship.
-        'ResizeObserver loop limit exceeded',
-        'ResizeObserver loop completed with undelivered notifications',
-      ],
-    });
-  });
-}
+// Load Sentry ONLY on the real deployed site. On localhost / 127.0.0.1 / a
+// private LAN IP / a headless browser (i.e. local dev and the automated CDP test
+// runs used to verify changes), the loader is never injected, so those runs
+// cannot pour fake "production" events into the Sentry project. The loader is
+// added dynamically instead of a static <script src> so this gate runs first.
+(function () {
+  var h = location.hostname || '';
+  var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '' ||
+                /^192\.168\./.test(h) || /^10\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+                h.endsWith('.local');
+  var isHeadless = /HeadlessChrome|Headless/.test(navigator.userAgent || '');
+  if (isLocal || isHeadless) return;
+  var s = document.createElement('script');
+  s.src = 'https://js.sentry-cdn.com/d5b3828a5ad8e73a6bce07d39c9de4ac.min.js';
+  s.crossOrigin = 'anonymous';
+  s.onload = function () {
+    // Extension and cross-origin errors are not this app's bugs. Reporting them
+    // buries the real ones -- a dashboard nobody trusts is one nobody reads.
+    if (window.Sentry && window.Sentry.onLoad) {
+      window.Sentry.onLoad(function () {
+        Sentry.init({
+          denyUrls: [/^chrome-extension:\/\//, /^moz-extension:\/\//,
+                     /^safari-extension:\/\//, /^webkit-masked-url:/, /^chrome:\/\//],
+          ignoreErrors: [
+            'Script error.',
+            // Benign browser noise, not a fault in anything we ship.
+            'ResizeObserver loop limit exceeded',
+            'ResizeObserver loop completed with undelivered notifications',
+          ],
+        });
+      });
+    }
+  };
+  document.head.appendChild(s);
+})();
 </script>
 <script>
 // Standalone crash guard — deliberately has zero dependency on the app's own
