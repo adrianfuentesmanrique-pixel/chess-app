@@ -1170,9 +1170,10 @@ export function showScreen(name) {
   if (name !== 'analysis') Analysis.pauseEngine();
   if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
   if (name === 'base') Base.refresh();
-  // Leaving Read closes the open book — a rendered PDF page holds real memory.
-  // Entering it draws the shelf fresh.
-  if (name === 'read') Read.refresh(); else Read.closeBook();
+  // Leaving Read closes the open book — rendered PDF pages hold real memory — but
+  // REMEMBERS it (closeBook(true)) so re-entering reopens it at its page instead
+  // of dumping the user on the shelf (e.g. after long-press → Setup → back).
+  if (name === 'read') Read.onEnter(); else Read.closeBook(true);
   if (name === 'trainer') Trainer.refreshBases();
   if (name === 'puzzles') Puzzles.ensureLoaded();
   if (name === 'endgame') Endgame.ensureLoaded();

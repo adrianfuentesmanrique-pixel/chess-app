@@ -298,13 +298,25 @@ function cellFeature(g, W, H, board, r, c) {
   }
   energy /= (N * N);
   // Luminance spread across the cell core — the texture-robust occupancy signal.
-  let sL = 0, sL2 = 0, nL = 0;
+  // Also gather a square-INDEPENDENT colour cue: where the centre of the cell (a
+  // piece's body) sits within the cell's own dark→light range. A solid black
+  // piece has a dark centre (near the cell minimum); a hollow white piece has a
+  // light centre (near the maximum). Using the cell's OWN range as the reference
+  // cancels the square shade, which a raw luminance can't.
+  let sL = 0, sL2 = 0, nL = 0, cMin = 255, cMax = 0, cenS = 0, cenN = 0;
   const lx1 = Math.max(1, Math.round(R.x0)), lx2 = Math.min(W - 2, Math.round(R.x0 + R.w));
   const ly1 = Math.max(1, Math.round(R.y0)), ly2 = Math.min(H - 2, Math.round(R.y0 + R.h));
-  for (let y = ly1; y < ly2; y++) for (let x = lx1; x < lx2; x++) { const L = g[y * W + x]; sL += L; sL2 += L * L; nL++; }
+  const cx0 = R.x0 + R.w * 0.28, cx1 = R.x0 + R.w * 0.72, cy0 = R.y0 + R.h * 0.28, cy1 = R.y0 + R.h * 0.72;
+  for (let y = ly1; y < ly2; y++) for (let x = lx1; x < lx2; x++) {
+    const L = g[y * W + x]; sL += L; sL2 += L * L; nL++;
+    if (L < cMin) cMin = L; if (L > cMax) cMax = L;
+    if (x >= cx0 && x < cx1 && y >= cy0 && y < cy1) { cenS += L; cenN++; }
+  }
   nL = nL || 1;
   const lumMean = sL / nL;
   const lumStd = Math.sqrt(Math.max(0, sL2 / nL - lumMean * lumMean));
+  const centerLum = cenN ? cenS / cenN : lumMean;
+  const colorScore = cMax > cMin ? (centerLum - cMin) / (cMax - cMin) : 0.5;  // 0 = dark centre, 1 = light
   // 3×3 blur to forgive sub-cell misalignment between two diagrams.
   const blur = new Float32Array(N * N);
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
@@ -318,7 +330,7 @@ function cellFeature(g, W, H, board, r, c) {
   let norm = 0; for (let i = 0; i < blur.length; i++) norm += blur[i] * blur[i];
   norm = Math.sqrt(norm) || 1;
   for (let i = 0; i < blur.length; i++) blur[i] /= norm;
-  return { feat: blur, energy, lumStd };
+  return { feat: blur, energy, lumStd, colorScore };
 }
 
 function cosDist(a, b) {   // a,b already L2-normalized → 1 - dot ∈ [0,2]
@@ -352,10 +364,10 @@ export function buildTemplatesFromGrid(imageData, board, grid) {
   // do when the hatching is bold enough to spread luminance as much as a piece.
   const empAcc = { 0: new Float32Array(N * N), 1: new Float32Array(N * N) };
   const empCnt = { 0: 0, 1: 0 };
-  const emptyStd = [], pieceStd = [];
+  const emptyStd = [], pieceStd = [], pieceCol = [];
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
     const code = grid[r][c];
-    const { feat, lumStd } = cellFeature(g, W, H, board, r, c);
+    const { feat, lumStd, colorScore } = cellFeature(g, W, H, board, r, c);
     const par = (r + c) % 2;
     if (!code) {
       emptyStd.push(lumStd);
@@ -364,6 +376,7 @@ export function buildTemplatesFromGrid(imageData, board, grid) {
       continue;
     }
     pieceStd.push(lumStd);
+    pieceCol.push({ code, colorScore });
     if (!acc[code]) { acc[code] = new Float32Array(N * N); cnt[code] = 0; }
     for (let i = 0; i < feat.length; i++) acc[code][i] += feat[i];
     cnt[code]++;
@@ -396,7 +409,21 @@ export function buildTemplatesFromGrid(imageData, board, grid) {
   if (emptyHi == null) emptyThresh = (pieceLo ?? 20) * 0.5;
   else if (pieceLo == null) emptyThresh = emptyHi * 1.5 + 4;
   else emptyThresh = pieceLo > emptyHi ? (emptyHi + pieceLo) / 2 : (emptyHi + pieceLo) / 2 + 2;
-  return { n: N, ver: 3, pieces, emptyThresh, empties };
+  // Piece COLOUR from fill. Edge shape alone can't tell a hollow white piece from
+  // a solid black one of the same type, so classification kept swapping colours.
+  // colorScore (0 = dark centre, 1 = light centre, measured against the cell's own
+  // range so the square shade cancels) separates them: learn each colour's average
+  // so classification takes the TYPE from the shape and the COLOUR from the fill —
+  // but only when the two colours clearly separate in this book.
+  const wC = [], bC = [];
+  for (const p of pieceCol) (p.code === p.code.toUpperCase() ? wC : bC).push(p.colorScore);
+  const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+  let colorRef = null;
+  if (wC.length && bC.length) {
+    const white = mean(wC), black = mean(bC);
+    if (white - black > 0.15) colorRef = { white, black };  // clearly separable
+  }
+  return { n: N, ver: 3, pieces, emptyThresh, empties, colorRef };
 }
 
 // ── classification ──────────────────────────────────────────────────────────
@@ -418,12 +445,23 @@ export function classifyBoard(imageData, board, templates, turn = 'w') {
   for (let r = 0; r < 8; r++) {
     const row = [];
     for (let c = 0; c < 8; c++) {
-      const { feat, lumStd } = cellFeature(g, W, H, board, r, c);
+      const { feat, lumStd, colorScore } = cellFeature(g, W, H, board, r, c);
       let d1 = Infinity, d2 = Infinity, best = '';
       for (const code of codes) {
         const d = cosDist(feat, tmpl[code]);
         if (d < d1) { d2 = d1; d1 = d; best = code; }
         else if (d < d2) { d2 = d; }
+      }
+      // Shape gives the TYPE but can't tell a hollow white piece from a solid
+      // black one. Use fill (colorScore) as a tie-breaker for the COLOUR — but
+      // only when it lands DECISIVELY on the light or dark side of the two learned
+      // averages. A fill near the midpoint is ambiguous, so trust the shape rather
+      // than risk flipping a colour the shape already had right.
+      const cr = templates.colorRef;
+      if (best && cr) {
+        const mid = (cr.white + cr.black) / 2, band = (cr.white - cr.black) * 0.25;
+        if (colorScore > mid + band) best = best.toUpperCase();
+        else if (colorScore < mid - band) best = best.toLowerCase();
       }
       // Occupied only when the cell sits closer to some piece template than to
       // its colour's empty pattern. A real piece hugs its own template (d1≈0)

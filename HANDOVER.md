@@ -2,6 +2,47 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — PIECE COLOUR FIX + CONFIRM-AND-CORRECT REVIEW STEP + REOPEN BOOK
+  AT PAGE (2026-09-01).** Committed on `main`. `sw.js` bumped v96 → **v97**.
+  Changed `js/diagram.js`, `js/read.js`, `js/i18n.js`, `js/app.js`. Adrian
+  confirmed the queens fix works (teach 1st → later diagrams auto-read); the
+  remaining complaints were wrong piece COLOURS/types in Setup, having to bounce
+  back to Read to compare/correct, and Read reopening on the shelf.
+  - **(A) Piece colour (`js/diagram.js`):** edge/shape matching can't tell a
+    hollow white piece from a solid black one of the same type, so colours got
+    swapped. Added a square-INDEPENDENT `colorScore` in `cellFeature` = where the
+    cell CENTRE (the piece body) sits within the cell's own min→max luminance
+    (0 = dark centre/black, 1 = light centre/white); using the cell's own range
+    cancels the square shade. `buildTemplatesFromGrid` learns each colour's
+    average `colorScore` → `colorRef` (only when the two separate by > 0.15).
+    `classifyBoard` takes the TYPE from the shape and re-cases the COLOUR from
+    `colorScore` — but CONSERVATIVELY: only when the fill is decisively past the
+    midpoint (`band = (white-black)*0.25`), else it trusts the shape. A first,
+    non-conservative version + a square-relative luminance version both REGRESSED
+    Stage-2 (`calibConfirm`/`laterDiagramOk`) — the conservative center-vs-range
+    signal is the one that passed. Do NOT revert to a raw or square-relative
+    luminance colour signal.
+  - **(B) Confirm-and-correct review step (`js/read.js`):** `teachPieces` now
+    takes `opts = { review, initialGrid }`. In review mode it PRE-FILLS the board
+    with the classified position, shows it beside the source crop, and "Open"
+    (`read_review_open`) hands the corrected position to Setup WITHOUT rebuilding
+    templates; Cancel just returns to the reader. `onLongPress`'s classify path
+    now always goes through this instead of `openInSetup(res.fen)` — so any
+    misread (colour/type/edge phantom) is fixed in place against the image rather
+    than by bouncing back to Read. New i18n `read_review_title/body/open`.
+  - **(C) Reopen book at page (`js/read.js` + `js/app.js`):** `showScreen` used to
+    `Read.closeBook()` on leaving Read and `Read.refresh()` (shelf) on entering.
+    Now leaving calls `closeBook(true)` which remembers `lastBookId`, and entering
+    calls new `Read.onEnter()` which reopens that book at its saved page (the
+    reader's Back button still clears it → shelf). Verified over CDP:
+    leave→return reopens at the same page (`REOPENED_AT_PAGE: true`).
+  - **Verified over CDP:** both harnesses green; the review modal renders
+    pre-filled with the read position + source image + palette + Open/Cancel;
+    reopen-at-page works. **STILL owed (device):** Adrian to confirm colours are
+    right now and the review flow feels good. The edge-phantom over-detection on
+    some diagrams remains (the review step is how the user removes the extras);
+    a real detection-precision pass (sub-pixel grid) is still a separate follow-up.
+
 - **READ TAB — LONG-PRESS NO LONGER DIES AFTER A FEW USES + FIXES THE "CRAZY
   ZOOM" (leaked phantom pointer) (2026-09-01).** Committed on `main`. `sw.js`
   bumped v95 → **v96**. One-spot change in `js/read.js` (`onDown`'s long-press

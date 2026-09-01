@@ -571,7 +571,14 @@ function setLoading(on) {
 // Closes the open book and frees its memory. Rendered PDF pages and the
 // PDFDocument hold real memory, so this runs both from the Back button and from
 // showScreen() when the user leaves the Read screen entirely.
-export function closeBook() {
+// Remembers the book open when the Read tab was last left, so re-entering the tab
+// can reopen it at its page instead of dumping the user back on the shelf. Set by
+// closeBook(remember=true) (leaving the tab) and cleared by closeBook(false) (the
+// reader's own Back button — there the user DID ask for the shelf).
+let lastBookId = null;
+
+export function closeBook(remember = false) {
+  lastBookId = (remember && R.id) ? R.id : null;
   clearTimeout(R.saveTimer);
   clearTimeout(R.reRenderTimer);
   if (R.scrollRaf) { cancelAnimationFrame(R.scrollRaf); R.scrollRaf = 0; }
@@ -587,6 +594,18 @@ export function closeBook() {
   const reader = $('read-reader'), shelf = $('read-shelf');
   if (reader) reader.classList.add('hidden');
   if (shelf) shelf.classList.remove('hidden');
+}
+
+// Called whenever the Read tab is shown. If the user was reading a book when they
+// left (e.g. long-pressed a diagram → Setup), reopen it at its page instead of
+// dropping them on the shelf; the reader's Back button (closeBook(false)) is how
+// they get back to the shelf. The shelf still refreshes underneath either way.
+export async function onEnter() {
+  await refresh();
+  if (lastBookId != null) {
+    const id = lastBookId; lastBookId = null;
+    await openBook(id);   // opens at the saved page; falls back to the shelf if gone
+  }
 }
 
 // ── gestures ────────────────────────────────────────────────────────────────
@@ -770,11 +789,14 @@ async function onLongPress(clientX, clientY) {
 
   if (!R.templates) { await calibrate(img, board, canvas); return; }
 
-  // Templates in hand: read the position and hand it to Setup for review.
+  // Templates in hand: read the position, then show it PRE-FILLED on the
+  // correction board next to the diagram image so the user can fix any misread
+  // square (colour/type) before it opens in Setup — much faster than opening
+  // Setup blind and bouncing back to the reader to compare.
   let res;
   try { res = classifyBoard(img, board, R.templates); }
   catch (e) { console.error('[read] classify failed', e); toast(t('read_diagram_none')); return; }
-  openInSetup(res.fen, res.confident);
+  await teachPieces(img, board, canvas, { review: true, initialGrid: res.grid });
 }
 
 // The page slot whose on-screen box contains the client point.
@@ -836,11 +858,18 @@ const CODE_TO_IMG = { K: 'wK', Q: 'wQ', R: 'wR', B: 'wB', N: 'wN', P: 'wP',
 // it; tapping it again clears it; the eraser (or no selection) clears. "Teach"
 // builds this book's templates from whatever was placed and opens the position;
 // "Cancel" opens a blank editor so the user is never stuck.
-async function teachPieces(img, board, canvas) {
-  const grid = Array.from({ length: 8 }, () => Array(8).fill(''));
+// `opts.review` reuses this same board as a confirm-and-correct step: it starts
+// PRE-FILLED with a position the classifier already read (opts.initialGrid), the
+// user fixes any wrong squares against the image, and "Open" hands the corrected
+// position to Setup WITHOUT rebuilding the book's templates. Without `review` it
+// is the from-scratch tap-to-teach that also (re)builds the templates.
+async function teachPieces(img, board, canvas, opts = {}) {
+  const review = !!opts.review;
+  const grid = opts.initialGrid ? opts.initialGrid.map(row => row.slice())
+                                : Array.from({ length: 8 }, () => Array(8).fill(''));
   const result = await modal((box, close) => {
-    box.innerHTML = `<h3>${esc(t('read_teach_title'))}</h3>` +
-                    `<p class="hint">${esc(t('read_teach_body'))}</p>`;
+    box.innerHTML = `<h3>${esc(t(review ? 'read_review_title' : 'read_teach_title'))}</h3>` +
+                    `<p class="hint">${esc(t(review ? 'read_review_body' : 'read_teach_body'))}</p>`;
 
     // Tight crop (no pad) so the overlay's eighths line up with the squares.
     const crop = cropBoardCanvas(canvas, board, 0);
@@ -876,6 +905,10 @@ async function teachPieces(img, board, canvas) {
       }
     }
 
+    // Show what the classifier already read (review mode) so the user only fixes
+    // the wrong squares instead of placing everything.
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (grid[r][c]) paintCell(r, c);
+
     const pal = document.createElement('div');
     pal.className = 'read-teach-pal';
     const palBtns = [];
@@ -903,10 +936,10 @@ async function teachPieces(img, board, canvas) {
 
     const row = document.createElement('div'); row.className = 'row';
     const done = document.createElement('button');
-    done.className = 'btn primary'; done.textContent = t('read_teach_done');
+    done.className = 'btn primary'; done.textContent = t(review ? 'read_review_open' : 'read_teach_done');
     done.onclick = () => {
       // Need one king a side for a legal, useful position and to anchor the
-      // templates. Warn without closing so the taps so far are not lost.
+      // templates. Warn without closing so the work so far is not lost.
       const flat = grid.flat();
       if (!flat.includes('K') || !flat.includes('k')) { toast(t('read_teach_need_kings')); return; }
       close(true);
@@ -919,11 +952,17 @@ async function teachPieces(img, board, canvas) {
   });
 
   if (!result) {
-    // Backed out: keep the old escape hatch — a blank editor to place by hand.
+    // Review: backing out just returns to the reader (no navigation). Teach:
+    // keep the old escape hatch — a blank editor to place by hand.
+    if (review) return;
     toast(t('read_diagram_manual'));
     openInSetup(EMPTY_FEN, false);
     return;
   }
+
+  // Review mode already has the book's templates — just open the corrected
+  // position. Teach mode (re)builds this book's templates from what was placed.
+  if (review) { openInSetup(gridToFen(grid), true); return; }
 
   let templates;
   try { templates = buildTemplatesFromGrid(img, board, grid); }
