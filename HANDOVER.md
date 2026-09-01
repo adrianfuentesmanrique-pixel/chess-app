@@ -1,6 +1,45 @@
-# Chess app — where things stand (updated 2026-08-31)
+# Chess app — where things stand (updated 2026-09-01)
 
 ## Already done and pushed — do NOT redo these
+
+- **BOTTOM MENU BAR TIGHTENED TO ONE ROW — ☰ LEFT, SCREEN NAME CENTRED, KAEL
+  RIGHT, DIVIDER GONE (2026-09-01).** Committed on `main`, NOT pushed/deployed
+  yet (Cloudflare Pages; commits not pushed). **Pure CSS** — only `css/style.css`
+  changed among precached files, so `sw.js` bumped v92 → **v93** (v92 was the
+  concurrent "Move Delete account…" commit `6dbb881`; the v93 bump is what covers
+  THIS css change). NO html/js touched, so tap-to-open and every `#tabmenu` /
+  `#kael` behaviour is byte-identical in logic (verified: menu still opens).
+  - **What changed (all in `css/style.css`):** `#tabmenu` was a centred gold pill
+    (`☰ Análisis`) with a `border-top` divider above it, and Kael floated as a
+    separate FAB *above* the bar. Now `#tabmenu` is one slim row: `#tabmenu-btn`
+    is a full-width transparent grid (`grid-template-columns:1fr auto 1fr`) with
+    the ☰ pinned left and `#tabmenu-label` centred, `margin-right:44px` reserving
+    Kael's spot. The `border-top` divider is REMOVED. The row rests at
+    `opacity:.58` ("faded while you use a tab so the screen feels fuller") and
+    returns to `opacity:1` on `body.menu-open` / `:focus-within`. `#kael-corner`
+    `bottom` moved 62px → `calc(2px + safe)` so Kael sits ON the row's right, and
+    its idle `transform` changed `translateX(34px)` → `translateX(0)` so Kael
+    rests fully in place but faded (own `opacity:.55`) instead of parking as a
+    sliver off the edge — he's in the chrome strip below the board now, so the old
+    "keep him off the board" park was no longer needed. `.speaking` (slide-in +
+    full opacity + quote bubble) is unchanged.
+  - **The label centre sits ~20px left of dead-centre on purpose** — the
+    `margin-right:44px` Kael reserve. It reads centred between the ☰ and Kael
+    in-app; do NOT "fix" it by dropping the reserve or Kael and the label collide.
+  - **Verified over headless Chrome (CDP), throwaway probes since deleted** (scratch
+    server + `_shot_tmp.mjs`/`_check_tmp.mjs`, removed, NOT committed). 375px, **ES
+    and EN, light and dark** — before/after screenshots shown to Adrian. Functional
+    check: `#tabmenu` height **42px** (was ~53px incl. the 1px divider → ~11px /
+    ~20% shorter), `documentElement.scrollWidth == 375` (**no horizontal
+    overflow**), resting opacity `.58` → `1` on menu open, tapping `#tabmenu-btn`
+    still opens the slide-up sheet, geometry ☰(cx 24)·label(cx 165)·Kael(cx 339)
+    on one vertical band.
+  - **Reader NOT touched** (no `js/read.js` / `js/diagram.js` / reader DOM change),
+    so the two CDP reader harnesses were **not re-run** per the standing rule —
+    this is global bottom-chrome CSS that does not exercise reader logic.
+  - **Only `css/style.css` + `sw.js` (v93) were staged here.** The concurrent
+    session's `HANDOFFS.md`, `docs/superpowers/plans/2026-08-14-friends-system.md`
+    and `tools/stage2-shots/` were left untouched.
 
 - **DELETE ACCOUNT MOVED FROM THE PROFILE TAB INTO SETTINGS (2026-09-01).**
   Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped v91 → **v92**.
