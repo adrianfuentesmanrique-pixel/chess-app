@@ -1,4 +1,8 @@
-const CACHE = 'chess-training-center-v97';
+const CACHE = 'chess-training-center-v98';
+// Transient hand-off for the Web Share Target: the POST below stashes the shared
+// file here and the app reads it on the next load. Kept OUT of the version wipe in
+// `activate` so an update mid-share doesn't drop it.
+const SHARE_CACHE = 'ctc-shared-inbox';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -83,12 +87,33 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== SHARE_CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', e => {
+  // Web Share Target endpoint. A file shared to the app (WhatsApp → Share → CTC)
+  // arrives here as a POST — there is no server, so the SW IS the endpoint: pull
+  // the file out, stash it, and redirect into the app, which imports it on load.
+  if (e.request.method === 'POST' && new URL(e.request.url).pathname.endsWith('/share-target')) {
+    e.respondWith((async () => {
+      try {
+        const form = await e.request.formData();
+        const file = form.get('file');
+        if (file && file.size) {
+          const c = await caches.open(SHARE_CACHE);
+          await c.put('/__ctc-shared', new Response(file, {
+            headers: { 'content-type': file.type || 'application/octet-stream',
+                       'x-file-name': encodeURIComponent(file.name || 'shared') },
+          }));
+        }
+      } catch (err) { /* fall through — the app just won't find a file */ }
+      return Response.redirect('./?shared=1', 303);
+    })());
+    return;
+  }
+
   if (e.request.method !== 'GET') return;
 
   // Only ever cache our own files. Cross-origin GETs (Firebase auth/data, the

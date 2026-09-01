@@ -6452,6 +6452,40 @@ function openRadarPicker() {
 
 // ═════════════════════ init ═════════════════════
 
+// Web Share Target follow-through. The service worker stashed a shared file and
+// reloaded us with ?shared=1 — pick it up and route it: a PDF joins the Read
+// shelf, a PGN becomes a new games collection. Runs once on boot.
+async function handleSharedFile() {
+  if (!new URLSearchParams(location.search).has('shared')) return;
+  // Clear the flag so a refresh doesn't re-import the same file.
+  history.replaceState(null, '', location.pathname + location.hash);
+  let res;
+  try {
+    const c = await caches.open('ctc-shared-inbox');
+    res = await c.match('/__ctc-shared');
+    if (res) await c.delete('/__ctc-shared');
+  } catch { return; }
+  if (!res) return;
+  const name = decodeURIComponent(res.headers.get('x-file-name') || 'shared');
+  const type = res.headers.get('content-type') || '';
+  const file = new File([await res.blob()], name, { type });
+  const isPdf = /\.pdf$/i.test(name) || type === 'application/pdf';
+  const isPgn = /\.pgn$/i.test(name) || /chess-pgn/i.test(type);
+  try {
+    if (isPdf) {
+      showScreen('read');
+      await Read.importFile(file);
+    } else if (isPgn) {
+      showScreen('base');
+      const id = await db.createBase(name.replace(/\.[^.]+$/, '') || t('my_games'));
+      await Base.openBase(id);
+      await Base.importFile(file);
+    } else {
+      toast(t('share_unsupported'));
+    }
+  } catch (e) { console.error('[share] import failed', e); toast(t('import_failed')); }
+}
+
 async function main() {
   const splashStart = Date.now();
   await ColorMode.init();
@@ -6514,6 +6548,7 @@ async function main() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => { });
   }
+  handleSharedFile().catch(e => console.error('[share]', e));
   const elapsed = Date.now() - splashStart;
   setTimeout(async () => {
     $('splash').classList.add('hide');

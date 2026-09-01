@@ -2,6 +2,42 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **SHARE TARGET — "Share → CTC" opens PDF/PGN from other apps (WhatsApp etc.)
+  (2026-09-01).** Committed on `main`. `sw.js` bumped v97 → **v98**. Changed
+  `manifest.webmanifest`, `sw.js`, `js/app.js`, `js/i18n.js`. This is LAYER 1
+  (share sheet) of Adrian's "set CTC as an option to open PDF/PGN" request; the
+  Play-Store "Open with" is layer 2, noted below.
+  - **How it works:** `manifest.webmanifest` gains a `share_target` (POST,
+    multipart, `params.files` name `file`, accept `application/pdf`/`.pdf` +
+    `application/x-chess-pgn`/`application/vnd.chess-pgn`/`.pgn`). There is no
+    server, so `sw.js` IS the endpoint: a POST whose path ends `/share-target` is
+    intercepted, the file stashed in a separate cache `ctc-shared-inbox` (kept out
+    of the `activate` version-wipe), then it redirects to `./?shared=1`.
+    `handleSharedFile()` in `js/app.js` (run at the end of `main()`) reads the
+    stash, clears the URL flag, and routes: **PDF → `Read.importFile` (Read
+    shelf); PGN → `db.createBase(<filename>)` + `Base.openBase` + `Base.importFile`
+    (a new collection named after the file).** New i18n `share_unsupported`.
+  - **Verified over CDP** (POST a file to the SW endpoint, then load `?shared=1`):
+    a shared PDF lands in the Read shelf; a shared PGN creates a base "Opening
+    Lines" with its games. Both harnesses still green (offline boot + caching
+    unaffected by the POST handler).
+  - **REQUIRES the app be INSTALLED** (Add to Home Screen, or the Play Store TWA)
+    — a share target can't attach to a plain browser tab. Android/Chrome only
+    (iOS Safari doesn't support Web Share Target). PGN via the SHARE sheet only
+    appears if the sender labels it `.pgn`/a chess-pgn MIME; some senders send
+    octet-stream and won't match — layer 2 fixes that.
+  - **LAYER 2 — true "Open with → CTC" for the Play Store (TWA), NOT done, do when
+    building the store app:** in the Bubblewrap/Android project add intent filters
+    to the TWA activity:
+    `<intent-filter><action VIEW/><category DEFAULT/BROWSABLE/><data mimeType="application/pdf"/></intent-filter>`
+    and for PGN a filter matching the extension (no reliable MIME):
+    `<data android:scheme="content"/><data android:host="*"/><data android:pathPattern=".*\\.pgn"/>` (also a `file` scheme variant). Bubblewrap
+    exposes this via the `shareTarget`/`fileHandlers` fields in `twa-manifest.json`
+    (or hand-edit `AndroidManifest.xml` post-`bubblewrap init`). The TWA forwards
+    the opened file to the web app as a launch/share; the same `handleSharedFile`
+    path consumes it. Also add `"file_handlers"` to the web manifest for
+    installed-PWA "Open with" where the browser supports it. Test on a real device.
+
 - **READ TAB — PIECE COLOUR FIX + CONFIRM-AND-CORRECT REVIEW STEP + REOPEN BOOK
   AT PAGE (2026-09-01).** Committed on `main`. `sw.js` bumped v96 → **v97**.
   Changed `js/diagram.js`, `js/read.js`, `js/i18n.js`, `js/app.js`. Adrian
