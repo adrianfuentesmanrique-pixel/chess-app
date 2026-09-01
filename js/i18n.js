@@ -152,6 +152,8 @@ const DICT = {
   read_close_book: { es: 'Volver a los libros', en: 'Back to books' },
   read_prev: { es: 'Página anterior', en: 'Previous page' },
   read_next: { es: 'Página siguiente', en: 'Next page' },
+  read_jump: { es: 'Ir a una página', en: 'Go to a page' },
+  read_jump_title: { es: '¿A qué página?', en: 'Which page?' },
   read_rename_title: { es: 'Nuevo nombre del libro', en: 'New name for the book' },
   read_delete_confirm: { es: '¿Borrar «{name}»? El PDF se quitará de este dispositivo.', en: 'Delete "{name}"? The PDF will be removed from this device.' },
   read_deleted: { es: 'Libro borrado', en: 'Book deleted' },

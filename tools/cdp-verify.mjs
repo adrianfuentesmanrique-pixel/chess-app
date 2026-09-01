@@ -113,46 +113,58 @@ async function main() {
              emptyHidden:document.getElementById('read-empty').classList.contains('hidden') };
   `);
 
-  // open + render page 1 (wait until the page indicator actually populates)
+  // open: the continuous scroller renders page 1 into the column (wait until the
+  // page indicator populates and the first page's canvas has painted)
   report.open = await step("open", `
     document.querySelector('#read-grid .read-card').click();
     const ind=()=>document.getElementById('read-page-ind').textContent;
     for(let i=0;i<120 && ind().indexOf('/')<0;i++) await new Promise(r=>setTimeout(r,100));
-    const c=document.getElementById('read-canvas'); const x=c.getContext('2d');
-    let painted=false; try{ const d=x.getImageData(c.width>>1,c.height>>1,4,4).data; painted=[...d].some(v=>v!==0);}catch(e){painted='err:'+e.message;}
-    const stage=document.getElementById('read-stage');
+    const c=document.querySelector('#read-col .read-page canvas');
+    let painted=false;
+    if(c){ try{ const d=c.getContext('2d').getImageData(c.width>>1,c.height>>1,4,4).data; painted=[...d].some(v=>v!==0);}catch(e){painted='err:'+e.message;} }
+    const stage=document.getElementById('read-stage'), col=document.getElementById('read-col');
     return { readerVisible:!document.getElementById('read-reader').classList.contains('hidden'),
              pageInd:ind(), painted,
-             transform:c.style.transform, loadingHidden:document.getElementById('read-loading').classList.contains('hidden'),
-             stageW:stage.clientWidth, stageH:stage.clientHeight, cssW:c.style.width };
+             canvases:document.querySelectorAll('#read-col .read-page canvas').length,
+             colTallerThanStage: col.clientHeight>stage.clientHeight,
+             loadingHidden:document.getElementById('read-loading').classList.contains('hidden'),
+             stageW:stage.clientWidth, stageH:stage.clientHeight, scrollTop:stage.scrollTop };
   `);
 
-  // page turn forward
+  // scrolling forward advances the page indicator (and never changes tab)
   report.turn = await step("turn", `
-    const ind=()=>document.getElementById('read-page-ind').textContent;
-    const before=ind();
-    document.getElementById('read-next').click();
-    for(let i=0;i<40 && ind()===before;i++) await new Promise(r=>setTimeout(r,100));
-    const afterNext=ind();
-    document.getElementById('read-next').click();
-    await new Promise(r=>setTimeout(r,600));
-    const after2=ind();
-    // active screen must NOT have changed (page turn != tab swipe)
+    const num=()=>parseInt(document.getElementById('read-page-ind').textContent)||0;
+    const stage=document.getElementById('read-stage'), col=document.getElementById('read-col');
     const app=await import('/js/app.js');
-    return { before, afterNext, after2, activeScreen: app.activeScreen };
+    const before=num();
+    stage.scrollTop=Math.round(stage.clientHeight*1.2); stage.dispatchEvent(new Event('scroll'));
+    for(let i=0;i<40 && num()===before;i++) await new Promise(r=>setTimeout(r,80));
+    const afterOne=num();
+    stage.scrollTop=col.clientHeight; stage.dispatchEvent(new Event('scroll'));   // to the end
+    await new Promise(r=>setTimeout(r,400));
+    const afterEnd=num();
+    return { before, afterOne, afterEnd, advanced: afterOne>before && afterEnd>=afterOne,
+             activeScreen: app.activeScreen };
   `);
 
-  // page memory: note page, close, reopen
+  // page memory: scroll to a known page (2), close, reopen → resumes there
   report.memory = await step("memory", `
-    const ind=()=>document.getElementById('read-page-ind').textContent;
-    const noted=ind();
+    const num=()=>parseInt(document.getElementById('read-page-ind').textContent)||0;
+    const stage=document.getElementById('read-stage');
+    const pageEl=document.querySelector('#read-col .read-page');
+    const slotH=pageEl.getBoundingClientRect().height + 8;   // page height + gap
+    stage.scrollTop=Math.round(slotH*1.2); stage.dispatchEvent(new Event('scroll'));   // lands on page 2
+    await new Promise(r=>setTimeout(r,200));
+    const noted=num();
     await new Promise(r=>setTimeout(r,500)); // let saveProgress flush
     document.getElementById('read-back').click();
     await new Promise(r=>setTimeout(r,300));
     const shelfBack=!document.getElementById('read-shelf').classList.contains('hidden');
     document.querySelector('#read-grid .read-card').click();
     for(let i=0;i<80 && !document.getElementById('read-loading').classList.contains('hidden');i++) await new Promise(r=>setTimeout(r,100));
-    return { notedBeforeClose:noted, shelfBack, reopenedAt:document.getElementById('read-page-ind').textContent };
+    for(let i=0;i<40 && num()===0;i++) await new Promise(r=>setTimeout(r,80));
+    const reopened=num();
+    return { notedBeforeClose:noted, shelfBack, reopenedAt:reopened, resumed: reopened===noted };
   `);
 
   // delete frees space (use a big dummy book so estimate actually moves)
@@ -280,8 +292,10 @@ async function main() {
   `);
   await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
 
-  // Gesture swipe suppression (HARD requirement): a horizontal touch-swipe on
-  // the open book must turn the page and must NOT change tabs.
+  // Gesture swipe suppression (HARD requirement): a horizontal touch-swipe on the
+  // open book must NOT change tabs. (#read-stage is in SWIPE_SAFE; continuous
+  // scroll means the horizontal drag no longer turns pages, but the tab-swipe
+  // guarantee is the point of this check.)
   report.swipe = await step("swipe", `
     const app=await import('/js/app.js');
     // make sure a book is open
@@ -292,17 +306,16 @@ async function main() {
     }
     const ind=()=>document.getElementById('read-page-ind').textContent;
     for(let i=0;i<120 && ind().indexOf('/')<0;i++) await new Promise(r=>setTimeout(r,100));
-    const screenBefore=app.activeScreen, pageBefore=ind();
-    const canvas=document.getElementById('read-canvas');
-    const r=document.getElementById('read-stage').getBoundingClientRect();
+    const screenBefore=app.activeScreen;
+    const stage=document.getElementById('read-stage');
+    const r=stage.getBoundingClientRect();
     const y=r.top+r.height/2, x0=r.left+r.width*0.8, x1=r.left+r.width*0.2;
     const pe=(type,x)=>new PointerEvent(type,{pointerType:'touch',isPrimary:true,pointerId:7,clientX:x,clientY:y,bubbles:true,cancelable:true});
-    canvas.dispatchEvent(pe('pointerdown',x0));
-    for(let x=x0;x>=x1;x-=20){ canvas.dispatchEvent(pe('pointermove',x)); await new Promise(r=>setTimeout(r,8)); }
-    canvas.dispatchEvent(pe('pointerup',x1));
+    stage.dispatchEvent(pe('pointerdown',x0));
+    for(let x=x0;x>=x1;x-=20){ stage.dispatchEvent(pe('pointermove',x)); await new Promise(r=>setTimeout(r,8)); }
+    stage.dispatchEvent(pe('pointerup',x1));
     await new Promise(r=>setTimeout(r,600));
-    return { screenBefore, screenAfter:app.activeScreen, pageBefore, pageAfter:ind(),
-             tabUnchanged: screenBefore===app.activeScreen, pageTurned: pageBefore!==ind() };
+    return { screenBefore, screenAfter:app.activeScreen, tabUnchanged: screenBefore===app.activeScreen };
   `);
 
   console.log(JSON.stringify(report, null, 2));

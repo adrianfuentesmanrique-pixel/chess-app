@@ -108,6 +108,19 @@ window.__makePageCanvas = async (placement, set) => {
   await window.__drawBoardInto(x, placement, ox, oy, cell, set);
   return { cv, cx: ox+4*cell, cy: oy+4*cell };
 };
+// Continuous-scroll reader helpers: the centre of the stage, and the page canvas
+// currently under a client point (falls back to the first page canvas).
+window.__stageCenter = () => {
+  const s=document.getElementById('read-stage'); const r=s.getBoundingClientRect();
+  return { cx:r.left+r.width/2, cy:r.top+r.height/2 };
+};
+window.__pageCanvasAt = (cx,cy) => {
+  for(const el of document.querySelectorAll('#read-col .read-page')){
+    const r=el.getBoundingClientRect();
+    if(cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom) return el.querySelector('canvas');
+  }
+  return document.querySelector('#read-col .read-page canvas');
+};
 true;
 `;
 
@@ -226,18 +239,21 @@ async function main() {
     return { pageInd:ind(), readerVisible:!document.getElementById('read-reader').classList.contains('hidden') };
   `);
 
-  // HONEST no-diagram: long-press on the plain PDF page → toast, no modal, stay in Read.
+  // HONEST no-diagram: long-press on the plain PDF page's TEXT → toast, no modal,
+  // stay in Read. (Target the heading text on page 1, a region that is clearly
+  // not a chessboard.)
   report.lpNoBoard = await step('lpNoBoard', `
     const app=await import('/js/app.js');
-    const canvas=document.getElementById('read-canvas'), stage=document.getElementById('read-stage');
-    const rect=stage.getBoundingClientRect();
-    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+    const stage=document.getElementById('read-stage');
+    const pageEl=document.querySelector('#read-col .read-page');
+    const r=pageEl.getBoundingClientRect();
+    const cx=r.left+r.width*0.45, cy=r.top+r.height*0.37;   // over the "Page 1 of 5" heading
     const pe=t=>new PointerEvent(t,{pointerType:'touch',isPrimary:true,pointerId:11,clientX:cx,clientY:cy,bubbles:true,cancelable:true});
     const modalsBefore=document.querySelectorAll('.modal-box').length;
-    canvas.dispatchEvent(pe('pointerdown'));
+    stage.dispatchEvent(pe('pointerdown'));
     await new Promise(r=>setTimeout(r,700));            // hold past the 500ms threshold
     const modalsAfter=document.querySelectorAll('.modal-box').length;
-    canvas.dispatchEvent(pe('pointerup'));
+    stage.dispatchEvent(pe('pointerup'));
     await new Promise(r=>setTimeout(r,100));
     const toastEl=document.getElementById('toast');
     return { screen:app.activeScreen, noModal:modalsAfter===modalsBefore,
@@ -246,14 +262,13 @@ async function main() {
 
   // A quick tap must NOT open a diagram.
   report.quickTap = await step('quickTap', `
-    const canvas=document.getElementById('read-canvas'), stage=document.getElementById('read-stage');
-    const rect=stage.getBoundingClientRect();
-    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+    const stage=document.getElementById('read-stage');
+    const {cx,cy}=window.__stageCenter();
     const pe=t=>new PointerEvent(t,{pointerType:'touch',isPrimary:true,pointerId:12,clientX:cx,clientY:cy,bubbles:true,cancelable:true});
     const before=document.querySelectorAll('.modal-box').length;
-    canvas.dispatchEvent(pe('pointerdown'));
+    stage.dispatchEvent(pe('pointerdown'));
     await new Promise(r=>setTimeout(r,120));
-    canvas.dispatchEvent(pe('pointerup'));
+    stage.dispatchEvent(pe('pointerup'));
     await new Promise(r=>setTimeout(r,200));
     return { noModal:document.querySelectorAll('.modal-box').length===before };
   `);
@@ -262,17 +277,14 @@ async function main() {
   // confirm the calibration modal, then confirm it lands in Setup with the start.
   report.lpCalibrate = await step('lpCalibrate', `
     const app=await import('/js/app.js');
-    const canvas=document.getElementById('read-canvas'), stage=document.getElementById('read-stage');
-    const rect=stage.getBoundingClientRect();
-    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
-    // map the stage-centre client point to a canvas pixel, then centre a board there
-    const tr=canvas.style.transform;
-    const mm=tr.match(/translate\\(([-0-9.]+)px,\\s*([-0-9.]+)px\\)\\s*scale\\(([-0-9.]+)\\)/);
-    const tx=+mm[1], ty=+mm[2], z=+mm[3];
-    const baseW=parseFloat(canvas.style.width), baseH=parseFloat(canvas.style.height);
-    const cssX=(cx-rect.left-tx)/z, cssY=(cy-rect.top-ty)/z;
-    const px=cssX*(canvas.width/baseW), py=cssY*(canvas.height/baseH);
-    const ctx=canvas.getContext('2d');
+    const stage=document.getElementById('read-stage');
+    const {cx,cy}=window.__stageCenter();
+    // paint a START board onto the page canvas under the stage centre, centred on
+    // the tap point. rect-based mapping matches the reader's own long-press math.
+    const canvas=window.__pageCanvasAt(cx,cy);
+    const rect=canvas.getBoundingClientRect();
+    const px=(cx-rect.left)*(canvas.width/rect.width), py=(cy-rect.top)*(canvas.height/rect.height);
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
     const size=Math.floor(Math.min(canvas.width,canvas.height)*0.62);
     const cell=Math.floor(size/8);
@@ -281,7 +293,7 @@ async function main() {
     await window.__drawBoardInto(ctx, diag.START_GRID, ox, oy, cell);
     const pe=t=>new PointerEvent(t,{pointerType:'touch',isPrimary:true,pointerId:13,clientX:cx,clientY:cy,bubbles:true,cancelable:true});
     document.querySelectorAll('.modal-back').forEach(b=>b.remove());  // clear any stray modal
-    canvas.dispatchEvent(pe('pointerdown'));
+    stage.dispatchEvent(pe('pointerdown'));
     await new Promise(r=>setTimeout(r,700));
     const modal=[...document.querySelectorAll('.modal-box')].pop();
     const modalText=modal?modal.textContent.slice(0,90):'';
@@ -301,8 +313,7 @@ async function main() {
     const yes=[...box.querySelectorAll('button')].find(b=>b.classList.contains('primary'));
     yes.click();
     // finish the swallowed long-press pointer
-    const canvas=document.getElementById('read-canvas');
-    canvas.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',pointerId:13,bubbles:true}));
+    document.getElementById('read-stage').dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',pointerId:13,bubbles:true}));
     await new Promise(r=>setTimeout(r,300));
     const db=await import('/js/db.js');
     const rec=await db.getBook(window.__bookId);
@@ -344,25 +355,23 @@ async function main() {
     // wait for the shelf (showScreen refreshes it) before touching the card
     for(let i=0;i<60 && !document.querySelector('#read-grid .read-card');i++) await new Promise(r=>setTimeout(r,100));
     document.querySelector('#read-grid .read-card').click();
-    // wait until the reader is actually visible, sized, and the page is drawn —
+    // wait until the reader is actually visible, sized, and page 1 has painted —
     // a refresh race can otherwise leave the stage collapsed to 0 width.
-    const stage=document.getElementById('read-stage'), canvas=document.getElementById('read-canvas');
-    const rx=/translate\\(([-0-9.]+)px,\\s*([-0-9.]+)px\\)\\s*scale\\(([-0-9.]+)\\)/;
-    let mm=null;
+    const stage=document.getElementById('read-stage');
+    let canvas=null;
     for(let i=0;i<80;i++){
       const shown=!document.getElementById('read-reader').classList.contains('hidden');
-      mm=canvas.style.transform.match(rx);
-      if(shown && stage.clientWidth>10 && mm) break; else mm=null;
+      canvas=document.querySelector('#read-col .read-page canvas');
+      if(shown && stage.clientWidth>10 && canvas && canvas.width>0) break; else canvas=null;
       await new Promise(r=>setTimeout(r,100));
     }
-    if(!mm) return { teachModalShown:false, err:'reader not ready', transform:canvas.style.transform,
+    if(!canvas) return { teachModalShown:false, err:'reader not ready',
                      stageW:stage.clientWidth, hidden:document.getElementById('read-reader').classList.contains('hidden') };
-    // paint a MIDGAME board centred on the tap point
-    const rect=stage.getBoundingClientRect();
-    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
-    const tx=+mm[1], ty=+mm[2], z=+mm[3];
-    const baseW=parseFloat(canvas.style.width), baseH=parseFloat(canvas.style.height);
-    const px=((cx-rect.left-tx)/z)*(canvas.width/baseW), py=((cy-rect.top-ty)/z)*(canvas.height/baseH);
+    // paint a MIDGAME board centred on the tap point (page canvas under centre)
+    const {cx,cy}=window.__stageCenter();
+    canvas=window.__pageCanvasAt(cx,cy);
+    const rect=canvas.getBoundingClientRect();
+    const px=(cx-rect.left)*(canvas.width/rect.width), py=(cy-rect.top)*(canvas.height/rect.height);
     const ctx=canvas.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
     const size=Math.floor(Math.min(canvas.width,canvas.height)*0.62), cell=Math.floor(size/8);
@@ -373,7 +382,7 @@ async function main() {
     const dBoard=diag.detectBoard(dImg, px, py);
     document.querySelectorAll('.modal-back').forEach(b=>b.remove());
     const pe=t=>new PointerEvent(t,{pointerType:'touch',isPrimary:true,pointerId:14,clientX:cx,clientY:cy,bubbles:true,cancelable:true});
-    canvas.dispatchEvent(pe('pointerdown'));
+    stage.dispatchEvent(pe('pointerdown'));
     await new Promise(r=>setTimeout(r,700));                 // hold → calibration modal
     const app2=await import('/js/app.js');
     let calib=[...document.querySelectorAll('.modal-box')].pop();
@@ -381,7 +390,7 @@ async function main() {
     if(!calib){ return { teachModalShown:false, err:'no calib modal after long-press',
                          screen:app2.activeScreen, toast:toastEl?toastEl.textContent.slice(0,60):null,
                          cw:canvas.width, ch:canvas.height, cell, px:Math.round(px), py:Math.round(py),
-                         directDetect:!!dBoard, z, baseW }; }
+                         directDetect:!!dBoard }; }
     // answer "No" → teachPieces opens its own modal
     const no=[...calib.querySelectorAll('.row button')].find(b=>!b.classList.contains('primary'));
     no.click();
@@ -411,8 +420,7 @@ async function main() {
     }
     const done=[...box.querySelectorAll('.row button')].find(b=>b.classList.contains('primary'));
     done.click();
-    const canvas=document.getElementById('read-canvas');
-    canvas.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',pointerId:14,bubbles:true}));
+    document.getElementById('read-stage').dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',pointerId:14,bubbles:true}));
     await new Promise(r=>setTimeout(r,300));
     const db=await import('/js/db.js');
     const rec=await db.getBook(window.__bookId);

@@ -370,9 +370,11 @@ if (window.Sentry && window.Sentry.onLoad) {
         <p class="hint" data-i18n="read_empty"></p>
       </div>
     </div>
-    <!-- Reader: one PDF page at a time. Its own left/right page-turn and pinch
-         gestures live in js/read.js; #read-stage is in SWIPE_SAFE so a page
-         turn never triggers the app's tab swipe. -->
+    <!-- Reader: continuous vertical scroll. #read-stage is a native scroller
+         holding a column (#read-col) of lazily-rendered, recycled page canvases;
+         pinch-zoom and long-press-to-read-a-diagram live in js/read.js.
+         #read-stage is in SWIPE_SAFE so scrolling never triggers the app's tab
+         swipe. The page indicator doubles as a tap-to-jump control. -->
     <div id="read-reader" class="hidden">
       <div class="read-bar">
         <button id="read-back" class="nav-back" data-i18n-aria="read_close_book">
@@ -382,24 +384,11 @@ if (window.Sentry && window.Sentry.onLoad) {
           <span data-i18n="read_books"></span>
         </button>
         <span id="read-book-title" class="read-book-title ellipsis"></span>
-        <span id="read-page-ind" class="read-page-ind"></span>
+        <button id="read-page-ind" class="read-page-ind" type="button" data-i18n-aria="read_jump"></button>
       </div>
       <div id="read-stage" class="read-stage">
-        <canvas id="read-canvas"></canvas>
+        <div id="read-col" class="read-col"></div>
         <div id="read-loading" class="read-loading hidden"></div>
-        <!-- Shown only when a page rendered blank because its scanned image uses
-             an encoding pdf.js still can't decode (js/read.js). Covers the white
-             canvas; never appears over a page that painted real content. -->
-        <div id="read-blank" class="read-blank hidden">
-          <div class="read-blank-inner">
-            <p class="read-blank-title" data-i18n="read_blank_title"></p>
-            <p class="hint" data-i18n="read_blank_body"></p>
-          </div>
-        </div>
-      </div>
-      <div class="read-nav">
-        <button id="read-prev" class="tool-btn read-navbtn" data-i18n-aria="read_prev">◀</button>
-        <button id="read-next" class="tool-btn read-navbtn" data-i18n-aria="read_next">▶</button>
       </div>
     </div>
   </section>

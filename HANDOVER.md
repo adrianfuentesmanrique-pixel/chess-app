@@ -2,6 +2,44 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — CONTINUOUS VERTICAL SCROLL (replaced one-page-at-a-time)
+  (2026-08-31).** Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped
+  v89 → **v90** (index.html/css/js/read.js/i18n.js all precached). Design doc:
+  `docs/superpowers/specs/2026-08-31-reader-continuous-scroll-design.md`.
+  - **What changed:** the reader is now a native vertical scroller. `#read-stage`
+    (still in `SWIPE_SAFE`) is `overflow:auto` and holds `#read-col`, a column
+    sized to the whole book so the scrollbar is honest; only the pages near the
+    viewport (+1 buffer each side) get a `<canvas>`, recycled from a small pool as
+    you scroll (`R.slots` Map + `R.pool`). Memory stays flat on a 194-page book.
+    Layout is in base (zoom-1) units × `R.zoom`: `layout()`, `colW/slotH/pageH/
+    pageTop/totalH`, `syncSlots()`, `ensureSlot/releaseSlot/renderSlot`. Slot
+    height comes from **page 1's aspect ratio** (uniform; odd pages letterbox).
+  - **Kept working (all proven by the harnesses + a CDP pinch/visual probe):**
+    pinch-zoom is now whole-column (`setZoomAbout` resizes the column and adjusts
+    scrollLeft/Top about the pinch midpoint; `touch-action` flips to `pan-x pan-y`
+    when zoomed so a finger pans horizontally; pages re-render crisp after the
+    zoom settles — `scheduleReRender`). `renderSlot` keeps the old **OVERSAMPLE
+    1.5** (capped at 2400 device px) so diagram detection sees the resolution it
+    was tuned for. Long-press → diagram now finds the page slot under the finger
+    (`slotAtClient`) and samples THAT canvas via `getBoundingClientRect` (maps
+    correctly at any zoom). Progress: the top-most visible page is saved; reopen
+    scrolls the saved page to the top.
+  - **Nav bar:** the ◀ ▶ arrows and horizontal-swipe page-turn are GONE (scroll
+    replaces them). The page indicator `#read-page-ind` is now a **tap-to-jump**
+    button (`jumpToPage` → `askText` → `scrollToPage`). New i18n keys `read_jump`,
+    `read_jump_title`. `read_prev`/`read_next` strings are now unused (harmless).
+  - **Removed from the old single-canvas model:** `#read-canvas`, the global
+    `#read-blank` (now per page slot), `renderPage`, `clampAndApply`, `R.tx/ty/
+    baseW/baseH/renderTask/renderToken`, `nextPage/prevPage`, `SWIPE_TURN`.
+  - **Harnesses updated** (they asserted the old single-canvas + transform + ◀▶
+    model): `tools/cdp-verify.mjs` (open/turn/memory/swipe now drive the scroller)
+    and `tools/cdp-verify-stage2.mjs` (long-press steps use `__pageCanvasAt` +
+    rect mapping; `lpNoBoard` long-presses the page's TEXT, a real "not a board"
+    region — dead-centre white space can trip a min-gap noise grid in
+    `detectBoard`, unchanged pre-existing CV behaviour, out of scope here). BOTH
+    green. Run: serve the repo + `/__test-book.pdf`, then
+    `node tools/cdp-verify.mjs <url>` / `...stage2.mjs <url>`.
+
 - **READ TAB — DIAGRAM READER FIXED ON BOLDLY-HATCHED BOARDS (was a shelf of
   phantom queens) (2026-08-31).** Committed on `main`, NOT pushed/deployed yet.
   `sw.js` bumped v88 → **v89**. Changed `js/diagram.js` and `js/read.js` (both

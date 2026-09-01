@@ -25,7 +25,6 @@ import { detectBoard, buildTemplates, buildTemplatesFromGrid, classifyBoard,
          cropBoardCanvas, gridToFen } from './diagram.js';
 
 const MAX_ZOOM = 4;
-const SWIPE_TURN = 60;      // px of horizontal travel that counts as a page turn
 const TAP_SLOP = 10;        // px a "tap" may move before it stops being a tap
 const DBLTAP_MS = 300;
 const LONGPRESS_MS = 500;   // stationary hold that opens a diagram (Stage 2)
@@ -298,13 +297,18 @@ async function renderCover(doc) {
 }
 
 // ── reader ──────────────────────────────────────────────────────────────────
+const GAP = 8;            // px between pages at zoom 1
+const BUFFER = 1;         // extra pages rendered above and below the viewport
 const R = {
   id: null, doc: null, page: 1, pageCount: 1,
-  renderTask: null, renderToken: 0,
-  baseW: 0, baseH: 0,     // canvas CSS size at zoom 1 (fit to stage width)
-  zoom: 1, tx: 0, ty: 0,
+  zoom: 1,
+  p1ratio: 1.3,                 // page-1 height/width, drives every slot's height
+  basePageW: 0, basePageH: 0,   // one page's CSS size at zoom 1 (fit to stage)
+  slots: new Map(),             // page number -> slot object (see makeSlotEl)
+  pool: [],                     // detached .read-page elements for reuse
+  scrollRaf: 0, reRenderTimer: null,
   saveTimer: null,
-  templates: null,        // per-book piece templates, calibrated on first use
+  templates: null,              // per-book piece templates, calibrated on first use
 };
 
 async function openBook(id) {
@@ -332,8 +336,22 @@ async function openBook(id) {
     // (a shelf of phantom queens). Discarding them makes the next long-press
     // re-learn the book with the current method instead of reusing a broken read.
     R.templates = (book.templates && book.templates.ver >= 3) ? book.templates : null;
-    R.page = Math.min(Math.max(1, book.page || 1), R.pageCount);
-    await renderPage(R.page);
+    R.zoom = 1;
+    // Page-1 aspect ratio sets every slot's height so the column (and scrollbar)
+    // is the whole book's height without pre-measuring all pages. Chess books are
+    // uniform; an odd-sized page is letterboxed in its slot — see the design doc.
+    const p1 = await doc.getPage(1);
+    const vp1 = p1.getViewport({ scale: 1 });
+    R.p1ratio = vp1.height / vp1.width || 1.3;
+    R.page = clampPage(book.page || 1);
+    $('read-stage').style.touchAction = 'pan-y';
+    layout();
+    // Resume: put the saved page at the top of the view, then render what shows.
+    $('read-stage').scrollTop = pageTop(R.page);
+    syncSlots();
+    updatePageInd();
+    // Wait for the first page to paint before dropping the spinner.
+    await (R.slots.get(R.page)?.render);
   } catch (err) {
     console.error('[read] open failed', err);
     toast(t('read_open_failed'));
@@ -343,53 +361,127 @@ async function openBook(id) {
   }
 }
 
-async function renderPage(n) {
-  if (!R.doc) return;
-  n = Math.min(Math.max(1, n), R.pageCount);
-  R.page = n;
+// ── layout: base = zoom-1 units, multiplied by R.zoom for what's on screen ────
+function layout() {
+  const stage = $('read-stage'), col = $('read-col');
+  if (!stage || !col) return;
+  R.basePageW = stage.clientWidth || 320;
+  R.basePageH = R.basePageW * R.p1ratio;
+  col.style.width = colW() + 'px';
+  col.style.height = totalH() + 'px';
+}
+function colW()      { return R.basePageW * R.zoom; }
+function slotH()     { return (R.basePageH + GAP) * R.zoom; }
+function pageH()     { return R.basePageH * R.zoom; }
+function pageTop(n)  { return (n - 1) * slotH(); }
+function totalH()    { return pageTop(R.pageCount) + pageH(); }
+function clampPage(n) { return Math.min(Math.max(1, n | 0), R.pageCount); }
 
-  // Rapid page turns must not paint an earlier page over a later one: a token
-  // marks the newest request, and any awaited step from a stale one bails out.
-  const token = ++R.renderToken;
-  if (R.renderTask) { try { R.renderTask.cancel(); } catch {} R.renderTask = null; }
-  $('read-blank').classList.add('hidden');   // clear any prior undecodable notice
+// The top-most page under the viewport's top edge — the "current" page.
+function topVisiblePage() {
+  return clampPage(Math.floor(($('read-stage').scrollTop + 1) / slotH()) + 1);
+}
 
-  const page = await R.doc.getPage(n);
-  if (token !== R.renderToken) return;
-
+// Ensure a canvas exists for every page near the viewport, recycle the rest, and
+// keep the current-page indicator/progress in step with the scroll position.
+function syncSlots() {
   const stage = $('read-stage');
-  const stageW = stage.clientWidth || 320;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const OVERSAMPLE = 1.5;    // headroom so pinch-zoom stays crisp without re-render
-  const vp0 = page.getViewport({ scale: 1 });
-  const renderScale = (stageW / vp0.width) * dpr * OVERSAMPLE;
-  const vp = page.getViewport({ scale: renderScale });
+  if (!R.doc || !stage) return;
+  const sh = stage.clientHeight || 1, sh2 = slotH();
+  const first = clampPage(Math.floor(stage.scrollTop / sh2) + 1 - BUFFER);
+  const last  = clampPage(Math.floor((stage.scrollTop + sh) / sh2) + 1 + BUFFER);
 
-  const canvas = $('read-canvas');
+  for (const n of [...R.slots.keys()]) if (n < first || n > last) releaseSlot(n);
+  for (let n = first; n <= last; n++) ensureSlot(n);
+  // Reposition/resize all live slots to the current zoom (covers a zoom change).
+  for (const [n, slot] of R.slots) {
+    slot.el.style.top = pageTop(n) + 'px';
+    slot.el.style.width = colW() + 'px';
+    slot.el.style.height = pageH() + 'px';
+  }
+  const top = topVisiblePage();
+  if (top !== R.page) { R.page = top; updatePageInd(); saveProgress(); }
+}
+
+function makeSlotEl() {
+  const el = document.createElement('div');
+  el.className = 'read-page';
+  const canvas = document.createElement('canvas');
+  const blank = document.createElement('div');
+  blank.className = 'read-blank hidden';
+  blank.innerHTML =
+    `<div class="read-blank-inner">` +
+      `<p class="read-blank-title">${esc(t('read_blank_title'))}</p>` +
+      `<p class="hint">${esc(t('read_blank_body'))}</p>` +
+    `</div>`;
+  el.append(canvas, blank);
+  return el;
+}
+
+function ensureSlot(n) {
+  let slot = R.slots.get(n);
+  if (slot) return slot;
+  const el = R.pool.pop() || makeSlotEl();
+  el.dataset.page = n;
+  el.style.top = pageTop(n) + 'px';
+  el.style.width = colW() + 'px';
+  el.style.height = pageH() + 'px';
+  el.querySelector('.read-blank').classList.add('hidden');
+  $('read-col').appendChild(el);
+  slot = { n, el, canvas: el.querySelector('canvas'), token: 0, scale: 0,
+           task: null, rendered: false, render: null };
+  R.slots.set(n, slot);
+  slot.render = renderSlot(n);
+  return slot;
+}
+
+function releaseSlot(n) {
+  const slot = R.slots.get(n);
+  if (!slot) return;
+  if (slot.task) { try { slot.task.cancel(); } catch {} slot.task = null; }
+  slot.token++;                                   // invalidate any in-flight render
+  slot.el.remove();
+  slot.canvas.width = 0; slot.canvas.height = 0;  // free the bitmap
+  R.slots.delete(n);
+  if (R.pool.length < 8) R.pool.push(slot.el);
+}
+
+// Render page n into its slot's canvas, sized to the page's on-screen width so it
+// stays crisp at the current zoom. Guarded so a recycled or superseded slot never
+// paints a stale page.
+async function renderSlot(n) {
+  const slot = R.slots.get(n);
+  if (!slot || !R.doc) return;
+  const targetW = colW();
+  if (slot.rendered && Math.abs(slot.scale - targetW) < 1) return;   // already crisp
+  const token = ++slot.token;
+  if (slot.task) { try { slot.task.cancel(); } catch {} slot.task = null; }
+
+  let page;
+  try { page = await R.doc.getPage(n); } catch { return; }
+  if (R.slots.get(n) !== slot || token !== slot.token) return;
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const vp0 = page.getViewport({ scale: 1 });
+  // OVERSAMPLE gives pinch headroom before a re-render and keeps the pixels at the
+  // resolution diagram detection (js/diagram.js) is tuned for; capped so a deep
+  // zoom can't blow up a canvas.
+  const OVERSAMPLE = 1.5, MAX_DEV_W = 2400;
+  let scale = (targetW / vp0.width) * dpr * OVERSAMPLE;
+  if (vp0.width * scale > MAX_DEV_W) scale = MAX_DEV_W / vp0.width;
+  const vp = page.getViewport({ scale });
+  const canvas = slot.canvas;
   canvas.width = Math.ceil(vp.width);
   canvas.height = Math.ceil(vp.height);
-  // At zoom 1 the page fits the stage width exactly; height follows the ratio.
-  R.baseW = stageW;
-  R.baseH = stageW * (vp0.height / vp0.width);
-  canvas.style.width = R.baseW + 'px';
-  canvas.style.height = R.baseH + 'px';
 
   const task = page.render({ canvasContext: canvas.getContext('2d'), viewport: vp });
-  R.renderTask = task;
-  try {
-    await task.promise;
-  } catch (e) {
-    if (e && e.name !== 'RenderingCancelledException') console.warn('[read] render', e);
-    return;
-  }
-  if (token !== R.renderToken) return;
-  R.renderTask = null;
-
-  R.zoom = 1; R.tx = 0; R.ty = 0;
-  clampAndApply();
-  updatePageInd();
-  saveProgress();
-  maybeFlagUndecodable(page, canvas, token);
+  slot.task = task;
+  try { await task.promise; }
+  catch (e) { if (e && e.name !== 'RenderingCancelledException') console.warn('[read] render', e); return; }
+  if (R.slots.get(n) !== slot || token !== slot.token) return;
+  slot.task = null; slot.rendered = true; slot.scale = targetW;
+  slot.el.querySelector('.read-blank').classList.add('hidden');
+  maybeFlagUndecodable(page, slot, token);
 }
 
 // A page can render cleanly yet paint nothing when its only content is a
@@ -400,15 +492,15 @@ async function renderPage(n) {
 // actually contained an image op that was supposed to paint. A blank page with
 // no image stays silently blank. Because the check runs only on a white canvas,
 // it can never cover text the reader could otherwise have shown. Not awaited by
-// renderPage — the page is already on screen; this just adds a notice if needed.
-async function maybeFlagUndecodable(page, canvas, token) {
+// renderSlot — the page is already on screen; this just adds a notice if needed.
+async function maybeFlagUndecodable(page, slot, token) {
   let blank;
-  try { blank = isCanvasBlank(canvas); } catch { return; }  // getImageData can throw
-  if (!blank) return;                                        // real content painted
+  try { blank = isCanvasBlank(slot.canvas); } catch { return; }  // getImageData can throw
+  if (!blank) return;                                             // real content painted
   let hasImage;
   try { hasImage = await pagePaintsImage(page); } catch { return; }
-  if (token !== R.renderToken) return;                       // superseded by a newer turn
-  if (hasImage) $('read-blank').classList.remove('hidden');
+  if (R.slots.get(slot.n) !== slot || token !== slot.token) return;   // slot recycled/superseded
+  if (hasImage) slot.el.querySelector('.read-blank').classList.remove('hidden');
 }
 
 // True if the rendered page is essentially all white. Downscales the (oversized)
@@ -443,23 +535,11 @@ async function pagePaintsImage(page) {
   return false;
 }
 
-function clampAndApply() {
-  const stage = $('read-stage');
-  const canvas = $('read-canvas');
-  if (!stage || !canvas) return;
-  const sw = stage.clientWidth, sh = stage.clientHeight;
-  const cw = R.baseW * R.zoom, ch = R.baseH * R.zoom;
-  R.tx = cw <= sw ? (sw - cw) / 2 : Math.min(0, Math.max(sw - cw, R.tx));
-  R.ty = ch <= sh ? (sh - ch) / 2 : Math.min(0, Math.max(sh - ch, R.ty));
-  canvas.style.transformOrigin = '0 0';
-  canvas.style.transform = `translate(${R.tx}px, ${R.ty}px) scale(${R.zoom})`;
-}
-
 function updatePageInd() {
   $('read-page-ind').textContent = R.page + ' / ' + R.pageCount;
 }
 
-// Throttled so a fast walk through the book doesn't hammer IndexedDB; the exact
+// Throttled so a fast scroll through the book doesn't hammer IndexedDB; the exact
 // page is flushed synchronously on close.
 function saveProgress() {
   clearTimeout(R.saveTimer);
@@ -468,24 +548,39 @@ function saveProgress() {
   }, 400);
 }
 
-function nextPage() { if (R.page < R.pageCount) renderPage(R.page + 1); }
-function prevPage() { if (R.page > 1) renderPage(R.page - 1); }
+// Tap the page indicator to jump anywhere in the book.
+async function jumpToPage() {
+  if (!R.doc) return;
+  const ans = await askText(t('read_jump_title'), String(R.page));
+  if (ans == null) return;
+  const n = parseInt(String(ans).replace(/[^0-9]/g, ''), 10);
+  if (n) scrollToPage(clampPage(n));
+}
+
+function scrollToPage(n) {
+  $('read-stage').scrollTop = pageTop(n);
+  syncSlots();
+}
 
 function setLoading(on) {
   $('read-loading').classList.toggle('hidden', !on);
 }
 
-// Closes the open book and frees its memory. A rendered PDF page and the
+// Closes the open book and frees its memory. Rendered PDF pages and the
 // PDFDocument hold real memory, so this runs both from the Back button and from
 // showScreen() when the user leaves the Read screen entirely.
 export function closeBook() {
   clearTimeout(R.saveTimer);
+  clearTimeout(R.reRenderTimer);
+  if (R.scrollRaf) { cancelAnimationFrame(R.scrollRaf); R.scrollRaf = 0; }
   if (R.id) db.updateBookMeta(R.id, { page: R.page });   // flush final position
-  if (R.renderTask) { try { R.renderTask.cancel(); } catch {} R.renderTask = null; }
+  for (const n of [...R.slots.keys()]) releaseSlot(n);
+  R.slots.clear(); R.pool = [];
+  const col = $('read-col'); if (col) { col.innerHTML = ''; col.style.height = '0px'; }
   if (R.doc) { try { R.doc.destroy(); } catch {} R.doc = null; }
-  R.id = null; R.templates = null;
-  const canvas = $('read-canvas');
-  if (canvas) { canvas.width = 0; canvas.height = 0; canvas.style.transform = ''; }
+  R.id = null; R.templates = null; R.zoom = 1;
+  const stage = $('read-stage');
+  if (stage) { stage.scrollTop = 0; stage.style.touchAction = 'pan-y'; }
   document.body.classList.remove('reading');
   const reader = $('read-reader'), shelf = $('read-shelf');
   if (reader) reader.classList.add('hidden');
@@ -493,90 +588,78 @@ export function closeBook() {
 }
 
 // ── gestures ────────────────────────────────────────────────────────────────
-// The stage owns every touch (CSS touch-action:none): one finger turns pages or
-// pans a zoomed/tall page, two fingers pinch-zoom, a double-tap toggles zoom.
-// #read-stage is in the app's SWIPE_SAFE list, so none of this ever reaches the
-// tab-swipe navigation — turning a page can't jump to another tab.
+// The stage scrolls natively (one finger, giving free inertia — the "smooth"
+// bar). We layer three things on top with pointer events: pinch-zoom (two
+// fingers), double-tap zoom, and long-press to read a diagram. Native scrolling
+// fires pointercancel when it takes over a finger, which conveniently disarms the
+// long-press. #read-stage is in the app's SWIPE_SAFE list, so none of this ever
+// reaches the tab-swipe navigation — scrolling can't jump to another tab.
 const pointers = new Map();
-let gesture = null;     // single-finger gesture in progress
+let longState = null;   // one-finger stationary hold (arms the diagram long-press)
 let pinch = null;       // two-finger gesture in progress
 let lastTap = 0, lastTapX = 0, lastTapY = 0;
 
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
+// rAF-throttled: recompute which pages need canvases and update the indicator.
+function onScroll() {
+  if (R.scrollRaf) return;
+  R.scrollRaf = requestAnimationFrame(() => { R.scrollRaf = 0; syncSlots(); });
+}
+
 function onDown(e) {
   if (!R.doc) return;
-  try { $('read-stage').setPointerCapture(e.pointerId); } catch {}
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pointers.size === 2) {
-    startPinch();
-  } else if (pointers.size === 1) {
-    gesture = { mode: 'undecided', startX: e.clientX, startY: e.clientY,
-                lastX: e.clientX, lastY: e.clientY, t: Date.now(), longFired: false };
+  if (pointers.size === 2) { cancelLong(); startPinch(); return; }
+  if (pointers.size === 1) {
+    longState = { x: e.clientX, y: e.clientY, fired: false, timer: 0 };
     // A stationary single finger held past the threshold opens the diagram under
-    // it. It is armed only while the gesture is still 'undecided' and one finger
-    // is down; the first sign of a swipe, pan or a second finger disarms it, so
-    // page turn / pinch / double-tap are all untouched.
-    gesture.longTimer = setTimeout(() => {
-      if (gesture && gesture.mode === 'undecided' && pointers.size === 1) {
-        gesture.longFired = true;
-        onLongPress(gesture.lastX, gesture.lastY);
+    // it. Any real movement (a scroll) or a second finger disarms it first.
+    longState.timer = setTimeout(() => {
+      if (longState && pointers.size === 1 && !pinch) {
+        longState.fired = true;
+        onLongPress(longState.x, longState.y);
       }
     }, LONGPRESS_MS);
   }
 }
 
 function cancelLong() {
-  if (gesture && gesture.longTimer) { clearTimeout(gesture.longTimer); gesture.longTimer = null; }
+  if (longState && longState.timer) { clearTimeout(longState.timer); longState.timer = 0; }
 }
 
 function onMove(e) {
   if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pointers.size >= 2) { doPinch(); return; }
-  if (!gesture) return;
-
-  const dx = e.clientX - gesture.lastX, dy = e.clientY - gesture.lastY;
-  gesture.lastX = e.clientX; gesture.lastY = e.clientY;
-  const totX = e.clientX - gesture.startX, totY = e.clientY - gesture.startY;
-
-  if (gesture.mode === 'undecided') {
-    if (Math.abs(totX) < 8 && Math.abs(totY) < 8) return;
-    cancelLong();                                        // moved → not a long-press
-    if (R.zoom > 1) gesture.mode = 'pan';               // zoomed: drag pans
-    else if (Math.abs(totX) > Math.abs(totY)) gesture.mode = 'swipe';  // page turn
-    else gesture.mode = 'pan';                           // vertical scroll of a tall page
+  if (pinch && pointers.size >= 2) { e.preventDefault(); doPinch(); return; }
+  if (longState) {
+    const moved = Math.hypot(e.clientX - longState.x, e.clientY - longState.y);
+    if (moved > TAP_SLOP) cancelLong();   // moving → it's a scroll, not a hold
   }
-  if (gesture.mode === 'pan') { R.tx += dx; R.ty += dy; clampAndApply(); }
 }
 
 function onUp(e) {
-  if (!pointers.has(e.pointerId)) return;
+  const had = pointers.has(e.pointerId);
   pointers.delete(e.pointerId);
-  if (pointers.size < 2) pinch = null;
-
+  if (pinch && pointers.size < 2) endPinch();
+  if (!had) return;
   if (pointers.size === 0) {
-    if (gesture) {
-      cancelLong();
-      // The long-press already fired and opened the diagram — swallow the lift so
-      // it is not also read as a tap or a page turn.
-      if (gesture.longFired) { gesture = null; return; }
-      const moved = Math.hypot(e.clientX - gesture.startX, e.clientY - gesture.startY);
-      if (gesture.mode === 'swipe') {
-        const tot = e.clientX - gesture.startX;
-        if (Math.abs(tot) > SWIPE_TURN && Date.now() - gesture.t < 800) {
-          if (tot < 0) nextPage(); else prevPage();
-        }
-      }
+    cancelLong();
+    // If the long-press already fired, swallow this lift so it isn't also a tap.
+    if (longState && !longState.fired) {
+      const moved = Math.hypot(e.clientX - longState.x, e.clientY - longState.y);
       if (moved < TAP_SLOP) handleTap(e);
     }
-    gesture = null;
-  } else if (pointers.size === 1) {
-    // A finger lifted after a pinch — keep reading the remaining one as a pan.
-    const [only] = pointers.values();
-    gesture = { mode: 'pan', startX: only.x, startY: only.y,
-                lastX: only.x, lastY: only.y, t: Date.now() };
+    longState = null;
   }
+}
+
+// Native scroll (and other take-overs) cancel the finger: clear state, no tap.
+function onCancel(e) {
+  pointers.delete(e.pointerId);
+  if (pinch && pointers.size < 2) endPinch();
+  cancelLong();
+  if (pointers.size === 0) longState = null;
 }
 
 function handleTap(e) {
@@ -590,57 +673,77 @@ function handleTap(e) {
 }
 
 function toggleZoom(clientX, clientY) {
-  const r = $('read-stage').getBoundingClientRect();
-  zoomTo(R.zoom > 1 ? 1 : 2, clientX - r.left, clientY - r.top);
+  setZoomAbout(R.zoom > 1 ? 1 : 2, clientX, clientY);
 }
 
-function zoomTo(newZoom, px, py) {
+// Set a new zoom while keeping the content point under (clientX, clientY) fixed.
+// The column is a native scroller, so we resize it and adjust scrollLeft/Top.
+function setZoomAbout(newZoom, clientX, clientY) {
   newZoom = Math.min(MAX_ZOOM, Math.max(1, newZoom));
-  const cx = (px - R.tx) / R.zoom, cy = (py - R.ty) / R.zoom;
+  const stage = $('read-stage');
+  const rect = stage.getBoundingClientRect();
+  const vx = clientX - rect.left, vy = clientY - rect.top;      // point within the viewport
+  const baseX = (stage.scrollLeft + vx) / R.zoom;               // same point in base units
+  const baseY = (stage.scrollTop + vy) / R.zoom;
   R.zoom = newZoom;
-  R.tx = px - cx * newZoom; R.ty = py - cy * newZoom;
-  clampAndApply();
+  layout();                                                     // resize the column
+  stage.scrollLeft = baseX * newZoom - vx;
+  stage.scrollTop  = baseY * newZoom - vy;
+  stage.style.touchAction = newZoom > 1 ? 'pan-x pan-y' : 'pan-y';
+  syncSlots();
+  scheduleReRender();
 }
 
 function startPinch() {
-  cancelLong();
   const [a, b] = [...pointers.values()];
-  pinch = { d0: dist(a, b) || 1, z0: R.zoom,
-            mx0: (a.x + b.x) / 2, my0: (a.y + b.y) / 2, tx0: R.tx, ty0: R.ty };
-  gesture = null;
+  pinch = { d0: dist(a, b) || 1, z0: R.zoom };
 }
 
 function doPinch() {
-  if (!pinch) return;
-  const [a, b] = [...pointers.values()];
-  const r = $('read-stage').getBoundingClientRect();
-  const mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
-  const mx0 = pinch.mx0 - r.left, my0 = pinch.my0 - r.top;
-  const z = Math.min(MAX_ZOOM, Math.max(1, pinch.z0 * (dist(a, b) / pinch.d0)));
-  // The content point under the initial midpoint stays under the fingers.
-  const cx = (mx0 - pinch.tx0) / pinch.z0, cy = (my0 - pinch.ty0) / pinch.z0;
-  R.zoom = z; R.tx = mx - cx * z; R.ty = my - cy * z;
-  clampAndApply();
+  const pts = [...pointers.values()];
+  if (pts.length < 2) return;
+  const [a, b] = pts;
+  const z = pinch.z0 * (dist(a, b) / pinch.d0);
+  setZoomAbout(z, (a.x + b.x) / 2, (a.y + b.y) / 2);
+}
+
+function endPinch() { pinch = null; scheduleReRender(); }
+
+// After a zoom settles, re-render the visible pages at the new on-screen width so
+// they are crisp again (during the pinch they were just CSS-scaled bitmaps).
+function scheduleReRender() {
+  clearTimeout(R.reRenderTimer);
+  R.reRenderTimer = setTimeout(() => {
+    for (const n of R.slots.keys()) renderSlot(n);
+  }, 180);
 }
 
 const onResize = debounce(() => {
-  if (R.doc && !$('read-reader').classList.contains('hidden')) renderPage(R.page);
+  if (!R.doc || $('read-reader').classList.contains('hidden')) return;
+  const keep = R.page;
+  R.zoom = 1;
+  $('read-stage').style.touchAction = 'pan-y';
+  layout();
+  scrollToPage(keep);
+  for (const n of R.slots.keys()) renderSlot(n);   // width changed → re-render crisp
 }, 200);
 
 // ── diagram → board (Stage 2) ────────────────────────────────────────────────
-// A long-press lands here with the finger's client coordinates. The rendered
-// page canvas is exactly what we sample — the same pixels the reader draws.
+// A long-press lands here with the finger's client coordinates. We find the page
+// slot under the finger and sample THAT page's canvas — the same pixels the
+// reader draws — so the board math maps to whichever page was pressed.
 async function onLongPress(clientX, clientY) {
   if (!R.doc) return;
-  const canvas = $('read-canvas');
-  const rect = $('read-stage').getBoundingClientRect();
-  // stage px → canvas CSS px (undo the pan/zoom transform) → canvas device px
-  // (the canvas is oversampled, so canvas.width is larger than its CSS width).
-  const cssX = (clientX - rect.left - R.tx) / R.zoom;
-  const cssY = (clientY - rect.top - R.ty) / R.zoom;
-  if (cssX < 0 || cssY < 0 || cssX > R.baseW || cssY > R.baseH) return;  // off the page
-  const px = cssX * (canvas.width / R.baseW);
-  const py = cssY * (canvas.height / R.baseH);
+  const slot = slotAtClient(clientX, clientY);
+  if (!slot || !slot.rendered) { toast(t('read_diagram_none')); return; }
+  const canvas = slot.canvas;
+  const rect = canvas.getBoundingClientRect();
+  if (clientX < rect.left || clientX > rect.right ||
+      clientY < rect.top  || clientY > rect.bottom) { toast(t('read_diagram_none')); return; }
+  // client px → canvas device px. getBoundingClientRect already reflects the
+  // current zoom and scroll, so the ratio maps correctly at any zoom.
+  const px = (clientX - rect.left) * (canvas.width / rect.width);
+  const py = (clientY - rect.top)  * (canvas.height / rect.height);
 
   let img;
   try { img = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height); }
@@ -656,6 +759,15 @@ async function onLongPress(clientX, clientY) {
   try { res = classifyBoard(img, board, R.templates); }
   catch (e) { console.error('[read] classify failed', e); toast(t('read_diagram_none')); return; }
   openInSetup(res.fen, res.confident);
+}
+
+// The page slot whose on-screen box contains the client point.
+function slotAtClient(clientX, clientY) {
+  for (const slot of R.slots.values()) {
+    const r = slot.el.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) return slot;
+  }
+  return null;
 }
 
 // First diagram in a book teaches its piece style. We show the cropped board and
@@ -826,14 +938,14 @@ function openInSetup(fen, confident) {
 export function init() {
   $('read-add').onclick = importBook;
   $('read-back').onclick = () => { closeBook(); refresh(); };
-  $('read-prev').onclick = prevPage;
-  $('read-next').onclick = nextPage;
+  $('read-page-ind').onclick = jumpToPage;
 
   const stage = $('read-stage');
+  stage.addEventListener('scroll', onScroll, { passive: true });
   stage.addEventListener('pointerdown', onDown);
-  stage.addEventListener('pointermove', onMove);
+  stage.addEventListener('pointermove', onMove, { passive: false });
   stage.addEventListener('pointerup', onUp);
-  stage.addEventListener('pointercancel', onUp);
+  stage.addEventListener('pointercancel', onCancel);
   stage.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('resize', onResize);
 }
