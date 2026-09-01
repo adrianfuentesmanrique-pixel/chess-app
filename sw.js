@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v90';
+const CACHE = 'chess-training-center-v91';
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.

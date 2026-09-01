@@ -418,7 +418,9 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 }
 .sq.light { background: var(--sq-light); }
 .sq.dark { background: var(--sq-dark); }
-.sq img { width: 100%; height: 100%; display: block; pointer-events: none; }
+/* Piece sits ABOVE the full-square tint overlays (.lastmove / .selected below),
+   so a move/selection highlight tints the square only, not the figurine on it. */
+.sq img { width: 100%; height: 100%; display: block; pointer-events: none; position: relative; z-index: 1; }
 .sq.lastmove::before {
   content: ''; position: absolute; inset: 0; background: var(--hl);
 }
@@ -428,13 +430,15 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .sq.selected::before {
   content: ''; position: absolute; inset: 0; background: var(--sq-selected);
 }
+/* Move-target dot and capture ring stay ABOVE the raised piece (z-index:1), so a
+   capture ring still frames the enemy piece on the target square. */
 .sq.dest::after {
   content: ''; position: absolute; left: 36%; top: 36%; width: 28%; height: 28%;
-  border-radius: 50%; background: rgba(0,0,0,.25);
+  border-radius: 50%; background: rgba(0,0,0,.25); z-index: 2;
 }
 .sq.capture-dest::after {
   content: ''; position: absolute; inset: 0;
-  border: 4px solid rgba(0,0,0,.3); border-radius: 50%;
+  border: 4px solid rgba(0,0,0,.3); border-radius: 50%; z-index: 2;
 }
 .sq.check { background: radial-gradient(circle, var(--sq-check) 30%, transparent 75%); }
 .sq.check.light { background-color: var(--sq-light); }

@@ -2,6 +2,20 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **BOARD — MOVE/SELECT HIGHLIGHT TINTS THE SQUARE, NOT THE PIECE (2026-08-31).**
+  Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped v90 → **v91**.
+  CSS-only, `css/style.css` (precached). The last-move / selected highlight is a
+  full-square `::before` tint (`.sq.lastmove::before` = `var(--hl)`,
+  `.sq.lastmove-outbook::before` = gold, `.sq.selected::before`); because the
+  piece `<img>` was non-positioned it painted BELOW the positioned pseudo-element,
+  so the tint sat over the figurine. Fix: `.sq img` gets `position: relative;
+  z-index: 1` (piece above the tint); the move-target dot/ring
+  (`.sq.dest::after`, `.sq.capture-dest::after`) get `z-index: 2` so a capture
+  ring still frames the enemy piece on the target square. Verified over headless
+  Chrome, 375px, light + dark: highlighted squares tint the square only, pieces
+  render clean on top. Shared board component, so this applies in every tab.
+  `.sq.check` (a background gradient) was already under the piece — untouched.
+
 - **READ TAB — CONTINUOUS VERTICAL SCROLL (replaced one-page-at-a-time)
   (2026-08-31).** Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped
   v89 → **v90** (index.html/css/js/read.js/i18n.js all precached). Design doc:
