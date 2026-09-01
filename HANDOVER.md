@@ -2,6 +2,43 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — "IS THIS THE STARTING POSITION? → YES" NO LONGER POISONS
+  CALIBRATION (the real cause of the board-full-of-queens) (2026-09-01).**
+  Committed on `main`. `sw.js` bumped v94 → **v95**. Changed `js/read.js` and
+  `js/i18n.js`. THIS is the actual root cause of Adrian's "completely wrong
+  suggestion", not the CV occupancy (that fix stands): the first long-press in a
+  book calls `calibrate()`, which asks "Is this the starting position?". Tapping
+  **Yes** built the piece-font by assuming the 32 opening pieces on their start
+  squares. On an ENDGAME diagram (where the answer is always No) that maps piece
+  labels onto empty/other squares → garbage templates saved on the book → every
+  later diagram classifies to a shelf of queens. Adrian kept tapping Yes (the
+  question read like "confirm this position"), and it also dumped him into Setup
+  with the plain start position ("no pieces placed").
+  - **Fix (`calibrate()` in `js/read.js`):** the Yes branch now VERIFIES before
+    trusting the answer — it builds the start-templates, classifies the same board
+    with them, and only accepts if it reads back as EXACTLY the start
+    (`chk.confident && chk.fen.split(' ')[0] === START_FEN.split(' ')[0]`).
+    Otherwise it toasts `read_calib_not_start` and falls through to `teachPieces`
+    (tap-to-teach) instead of saving garbage. Verified over CDP: a wrong Yes on
+    Hellsten p20 → `looksLikeStart:false`, guard fires; Stage-2 `calibConfirm`
+    (a real synthetic start) still saves templates and `placementOk`.
+  - **UX (`js/i18n.js`):** reworded `read_calib_title`/`read_calib_body` to say
+    explicitly "only if the diagram is the standard opening with all 32 pieces —
+    almost no endgame diagram is"; the "No" button is now **"Place by hand" /
+    "Colocar a mano"**; added `read_calib_not_start`.
+  - **IMPORTANT for existing books:** a book Adrian already mis-calibrated has the
+    GARBAGE templates SAVED (ver 3, so not auto-discarded). It must be re-learned:
+    the book card's ⋯ menu → "Re-learn the pieces" (`read_recalib`, clears
+    templates), or delete + re-add the book. Then the next long-press re-runs the
+    guarded calibrate. This is a per-book manual step; there is no auto-heal.
+  - **Still open / next:** the first long-press per endgame book now correctly
+    routes to tap-to-teach, which means placing the first diagram's pieces by hand
+    (fine for a simple K+P study, tedious for a 30-piece middlegame). If Adrian
+    wants to skip that, the follow-up is auto-detecting the start (drop the
+    question entirely) or a universal font. Also STILL unverified on a real
+    phone: whether the long-press even fires reliably on the native-scroll reader
+    (see the entry below) — Adrian must confirm on-device.
+
 - **READ TAB — AUTO-ZOOM FIXED + LONG-PRESS MADE MORE FORGIVING; SENTRY NO LONGER
   FIRES ON LOCALHOST/HEADLESS (2026-09-01).** Committed on `main`. `sw.js` bumped
   v93 → **v94**. Changed `js/read.js` and `index.html`. Context: the continuous-

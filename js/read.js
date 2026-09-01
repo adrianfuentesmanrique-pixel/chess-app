@@ -789,6 +789,22 @@ async function calibrate(img, board, canvas) {
     let templates;
     try { templates = buildTemplates(img, board); }
     catch (e) { console.error('[read] calibrate failed', e); toast(t('read_diagram_none')); return; }
+    // Trust "Yes" only if the board really reads back as the opening. Building the
+    // piece-font assumes the 32 starting pieces sit on their start squares; on an
+    // endgame diagram (where the honest answer is "No") that assumption maps piece
+    // labels onto empty/other squares, poisoning the templates so every later
+    // diagram comes out as a board full of queens. If it doesn't verify as the
+    // start, fall back to teaching the pieces by hand instead of saving garbage.
+    let looksLikeStart = false;
+    try {
+      const chk = classifyBoard(img, board, templates);
+      looksLikeStart = chk.confident && chk.fen.split(' ')[0] === START_FEN.split(' ')[0];
+    } catch (e) { console.error('[read] start-check failed', e); }
+    if (!looksLikeStart) {
+      toast(t('read_calib_not_start'));
+      await teachPieces(img, board, canvas);
+      return;
+    }
     await db.updateBookMeta(R.id, { templates });
     R.templates = templates;
     // This confirmed board IS the starting position, so its FEN is known exactly.
