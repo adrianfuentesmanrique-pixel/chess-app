@@ -85,7 +85,7 @@ export const LEGAL_TERMS = {
       },
       {
         h: '18. Cierre de cuenta',
-        p: `Puedes dejar de usar la App y solicitar la eliminación de tu cuenta y tus datos en cualquier momento desde Perfil.`,
+        p: `Puedes dejar de usar la App y solicitar la eliminación de tu cuenta y tus datos en cualquier momento desde Ajustes.`,
       },
       {
         h: '19. Contacto',
@@ -167,7 +167,7 @@ export const LEGAL_TERMS = {
       },
       {
         h: '18. Closing your account',
-        p: `You can stop using the App and request deletion of your account and data at any time from Profile.`,
+        p: `You can stop using the App and request deletion of your account and data at any time from Settings.`,
       },
       {
         h: '19. Contact',

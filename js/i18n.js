@@ -390,6 +390,7 @@ const DICT = {
   sign_in_google: { es: 'Iniciar sesión con Google', en: 'Sign in with Google' },
   sign_in_or_up: { es: 'Iniciar sesión / Crear cuenta', en: 'Sign in / Sign up' },
   sign_out: { es: 'Cerrar sesión', en: 'Sign out' },
+  account_section: { es: 'Cuenta', en: 'Account' },
   delete_account_btn: { es: 'Eliminar cuenta', en: 'Delete account' },
   delete_account_confirm: { es: '¿Seguro que quieres eliminar tu cuenta? Se borrarán tu perfil, tu progreso en la nube y tu entrada en el leaderboard de forma permanente. Esto no se puede deshacer.', en: 'Are you sure you want to delete your account? Your profile, cloud progress, and leaderboard entry will be permanently deleted. This cannot be undone.' },
   delete_account_reauth_password: { es: 'Por seguridad, escribe tu contraseña de nuevo', en: 'For security, type your password again' },

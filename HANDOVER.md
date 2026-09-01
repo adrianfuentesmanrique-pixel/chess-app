@@ -2,6 +2,30 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **DELETE ACCOUNT MOVED FROM THE PROFILE TAB INTO SETTINGS (2026-09-01).**
+  Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped v91 → **v92**.
+  Changed `index.html`, `js/app.js`, `js/i18n.js`, `js/legal-data.js`.
+  - The destructive "Delete account" control no longer shows on the Profile tab.
+    Removed `#profile-delete-account-btn` from `index.html` and its two wirings in
+    `Profile` (the `init()` onclick and the `renderAccount()` show/hide toggle) —
+    both had to go or `$('profile-delete-account-btn')` would be null and throw.
+  - It now lives in the Settings sheet (`openSettings()` in `js/app.js`), appended
+    after the Legal section under a new `account_section` label ("Cuenta"/"Account")
+    as a full-width `.btn.danger`, and ONLY when `Auth.user` (nothing to delete when
+    signed out). It calls `close(null)` first, THEN `Profile.deleteAccountFlow()`
+    after 120ms, so the flow's confirm + reauth dialogs don't stack on the modal —
+    same pattern as the tour button. The flow itself (`Profile.deleteAccountFlow`,
+    `Auth.deleteAccount`) is unchanged.
+  - Terms §18 wording updated in BOTH languages (`js/legal-data.js`): "desde
+    Perfil"/"from Profile" → "desde Ajustes"/"from Settings", so the legal text
+    still names where deletion lives. (Privacy policy already said "…and from
+    Settings", left as-is.)
+  - Verified over headless Chrome, 375px: Profile tab has no delete button; the
+    Settings sheet builds with zero console errors and shows no delete entry when
+    signed out; with a faked `Auth.user` it shows the red "Eliminar cuenta" button
+    under a "Cuenta" label. No harness run — this is Profile/Settings UI, outside
+    the reader harnesses.
+
 - **BOARD — MOVE/SELECT HIGHLIGHT TINTS THE SQUARE, NOT THE PIECE (2026-08-31).**
   Committed on `main`, NOT pushed/deployed yet. `sw.js` bumped v90 → **v91**.
   CSS-only, `css/style.css` (precached). The last-move / selected highlight is a
