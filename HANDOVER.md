@@ -2,6 +2,33 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — LONG-PRESS NO LONGER DIES AFTER A FEW USES + FIXES THE "CRAZY
+  ZOOM" (leaked phantom pointer) (2026-09-01).** Committed on `main`. `sw.js`
+  bumped v95 → **v96**. One-spot change in `js/read.js` (`onDown`'s long-press
+  timer). Adrian confirmed the queens fix works (first diagram teaches, later
+  diagrams auto-read correctly); the remaining reader breakage was this:
+  - **Root cause:** a long-press fires `onLongPress`, which opens a modal
+    (calibrate / tap-to-teach) or navigates to Setup WHILE THE FINGER IS STILL
+    DOWN. The eventual `pointerup`/`pointercancel` then lands off `#read-stage`,
+    so `onUp` never runs and the pointer entry is never removed from the
+    `pointers` Map. The leaked phantom pointer means the NEXT `onDown` sees
+    `pointers.size === 2` → `startPinch()` and returns → the long-press never
+    arms, and any move runs `doPinch()` → the reader zooms in/out on its own.
+  - **Fix:** the moment the long-press fires, reset the gesture state
+    (`pointers.clear(); longState = null; pinch = null;`) before calling
+    `onLongPress(x, y)` with the captured coords. The current gesture is
+    consumed anyway, so this is safe.
+  - **Proven over CDP** (repeated long-press with NO pointerup between, i.e. the
+    finger lifts off-stage): BEFORE the fix attempt 1 opened the modal and
+    attempts 2/3/4 did NOT (matches "after the 3rd time it does nothing"); AFTER,
+    all four open. Both harnesses still green.
+  - **Adrian's other question — "why decode the whole PDF?":** the continuous-
+    scroll reader renders a BUFFER of pages around the view as you scroll (not the
+    whole book, and long-press samples only the pressed page). It is still heavier
+    than the old one-page reader. Not changed here; if it feels heavy on device, a
+    follow-up is to shrink the buffer / throttle `renderSlot`. STILL owed: confirm
+    on a real phone that long-press now survives repeated use and the zoom is calm.
+
 - **READ TAB — "IS THIS THE STARTING POSITION? → YES" NO LONGER POISONS
   CALIBRATION (the real cause of the board-full-of-queens) (2026-09-01).**
   Committed on `main`. `sw.js` bumped v94 → **v95**. Changed `js/read.js` and

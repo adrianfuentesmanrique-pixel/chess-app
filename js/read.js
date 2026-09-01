@@ -619,8 +619,15 @@ function onDown(e) {
     // it. Any real movement (a scroll) or a second finger disarms it first.
     longState.timer = setTimeout(() => {
       if (longState && pointers.size === 1 && !pinch) {
-        longState.fired = true;
-        onLongPress(longState.x, longState.y);
+        const { x, y } = longState;
+        // onLongPress opens a modal (calibrate / tap-to-teach) or navigates to
+        // Setup while the finger is STILL down, so the eventual pointerup/cancel
+        // lands off this stage and onUp never runs. Reset the gesture state right
+        // now, before that happens — otherwise the leaked phantom pointer makes
+        // the NEXT press look like a two-finger pinch: the long-press won't arm
+        // and the reader zooms in and out on its own.
+        pointers.clear(); longState = null; pinch = null;
+        onLongPress(x, y);
       }
     }, LONGPRESS_MS);
   }
