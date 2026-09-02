@@ -2,6 +2,28 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — FULL-SCREEN (IMMERSIVE) READING + OPEN-WITH ROUTING (2026-09-01).**
+  `sw.js` bumped v99 → **v100**. Web-only (index.html, css/style.css, js/read.js,
+  js/app.js, js/i18n.js) — the TWA loads the live site, so this needs only a
+  `git push`, NO Android rebuild. Context: the TWA rebuild (1.0.4/code 6) got the
+  share + file intent filters working (CTC now shows in WhatsApp Share and
+  "Open with"), but tapping "Open with CTC" opened the app on Analysis with no
+  book, and Adrian wanted a full-screen reading mode.
+  - **Full-screen:** new ⛶ button in the reader bar (`#read-fullscreen`) toggles
+    `body.read-immersive`, whose CSS hides `#topbar` + `#tabbar` so the page fills
+    the screen; the reader's own bar stays (so the same button + Back always exit).
+    `closeBook()` clears the class. Verified over CDP (toggle on → both hidden,
+    off → restored, leaving the book clears it).
+  - **Open-with routing (`handleIncomingFiles`):** now, when launched via the file
+    handler (`?open-file=1`), it switches to the Read shelf immediately and, if the
+    File Handling API delivers the file through `launchQueue`, routes it (PDF →
+    Read shelf, PGN → new collection). If no file arrives within 2.5s (some
+    phone/Chrome builds open the app but don't pass the file), it toasts
+    `share_open_failed` pointing the user to Share instead. **UNVERIFIED on
+    device** whether the TWA actually passes the file via launchQueue — if it
+    doesn't, "Open with" lands on the Read shelf + shows that toast, and Share →
+    CTC (which POSTs the file and DOES work) is the reliable path.
+
 - **SHARE TARGET — "Share → CTC" opens PDF/PGN from other apps (WhatsApp etc.)
   (2026-09-01).** Committed on `main`. `sw.js` bumped v97 → **v98**. Changed
   `manifest.webmanifest`, `sw.js`, `js/app.js`, `js/i18n.js`. This is LAYER 1

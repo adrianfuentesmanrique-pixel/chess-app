@@ -591,6 +591,7 @@ export function closeBook(remember = false) {
   const stage = $('read-stage');
   if (stage) { stage.scrollTop = 0; stage.style.touchAction = 'pan-y'; }
   document.body.classList.remove('reading');
+  document.body.classList.remove('read-immersive');   // never leave the chrome hidden
   const reader = $('read-reader'), shelf = $('read-shelf');
   if (reader) reader.classList.add('hidden');
   if (shelf) shelf.classList.remove('hidden');
@@ -1010,6 +1011,9 @@ export function init() {
   $('read-add').onclick = importBook;
   $('read-back').onclick = () => { closeBook(); refresh(); };
   $('read-page-ind').onclick = jumpToPage;
+  // Immersive reading: hide the app header + tab bar so the page fills the screen.
+  // The reader's own bar stays, so this same button (and Back) always gets you out.
+  $('read-fullscreen').onclick = () => document.body.classList.toggle('read-immersive');
 
   const stage = $('read-stage');
   stage.addEventListener('scroll', onScroll, { passive: true });

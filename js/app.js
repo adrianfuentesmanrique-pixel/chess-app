@@ -6480,16 +6480,33 @@ async function routeIncomingFile(file) {
 // ?shared=1. Open with / Set as default: the File Handling API hands us the file
 // through launchQueue instead. Both feed routeIncomingFile. Run once on boot.
 async function handleIncomingFiles() {
-  // "Open with" (installed PWA where supported, and the TWA once rebuilt with
-  // file_handlers) — delivered via launchQueue.
-  if ('launchQueue' in window && 'setConsumer' in window.launchQueue) {
-    window.launchQueue.setConsumer(async (params) => {
-      if (!params || !params.files || !params.files.length) return;
-      try { await routeIncomingFile(await params.files[0].getFile()); } catch (e) { console.error('[share] launch', e); }
+  const params = new URLSearchParams(location.search);
+  const openWith = params.has('open-file');   // launched via the file handler (?open-file=1)
+  let gotFile = false;
+
+  // "Open with" / Set as default → the File Handling API delivers the file via
+  // launchQueue. Route it (PDF → Read shelf, PGN → new collection).
+  if ('launchQueue' in window && window.launchQueue && 'setConsumer' in window.launchQueue) {
+    window.launchQueue.setConsumer(async (lp) => {
+      if (!lp || !lp.files || !lp.files.length) return;
+      gotFile = true;
+      try { await routeIncomingFile(await lp.files[0].getFile()); }
+      catch (e) { console.error('[share] launch', e); toast(t('import_failed')); }
     });
   }
-  // Share sheet — via the service-worker stash.
-  if (new URLSearchParams(location.search).has('shared')) {
+
+  // If we were launched as a file handler, land on the Read shelf straight away
+  // (not the default Analysis tab). If the file never arrives via launchQueue —
+  // some phone/Chrome combinations open the app but don't pass the file — tell
+  // the user to use Share instead rather than leaving them on an empty shelf.
+  if (openWith) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    showScreen('read');
+    setTimeout(() => { if (!gotFile) toast(t('share_open_failed')); }, 2500);
+  }
+
+  // Share sheet — the service worker stashed the file and reloaded us.
+  if (params.has('shared')) {
     history.replaceState(null, '', location.pathname + location.hash);
     try {
       const c = await caches.open('ctc-shared-inbox');

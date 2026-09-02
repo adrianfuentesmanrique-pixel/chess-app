@@ -190,6 +190,8 @@ const DICT = {
   read_review_body: { es: 'Esto es lo que leí del diagrama. Compáralo con la imagen y corrige las casillas mal (toca una pieza y luego la casilla; la papelera borra). Cuando esté bien, pulsa «Abrir».', en: 'This is what I read from the diagram. Compare it with the image and fix any wrong squares (tap a piece, then the square; the trash erases). When it looks right, tap “Open”.' },
   read_review_open: { es: 'Abrir', en: 'Open' },
   share_unsupported: { es: 'Solo puedo abrir archivos PDF o PGN.', en: 'I can only open PDF or PGN files.' },
+  share_open_failed: { es: 'No pude recibir el archivo al abrirlo. Prueba a usar «Compartir → CTC».', en: "Couldn't receive the file on open. Try “Share → CTC” instead." },
+  read_fullscreen: { es: 'Pantalla completa', en: 'Full screen' },
   read_teach_erase: { es: 'Borrar casilla', en: 'Erase square' },
   read_teach_need_kings: { es: 'Coloca los dos reyes (♔ y ♚) antes de continuar.', en: 'Place both kings (♔ and ♚) before continuing.' },
   import_pgn: { es: 'Importar PGN', en: 'Import PGN' },

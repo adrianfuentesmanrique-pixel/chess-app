@@ -1574,6 +1574,17 @@ body.reading main { overflow: hidden; }
   padding: 3px 10px; cursor: pointer; line-height: 1.2;
 }
 .read-page-ind:active { background: var(--input-border); }
+.read-fs-btn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; border: 0; background: transparent;
+  color: var(--muted); cursor: pointer; border-radius: 999px;
+}
+.read-fs-btn:active { background: var(--panel2); }
+/* Immersive reading — hide the app header + tab bar so the page fills the screen.
+   The reader's own bar (with this button and Back) stays, so exit is always one tap. */
+body.read-immersive #topbar,
+body.read-immersive #tabbar { display: none; }
+body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
 /* Native vertical scroller holding the page column. touch-action starts at
    pan-y (one finger scrolls); js/read.js switches it to pan-x pan-y once zoomed
    so a finger can also pan a widened page horizontally. */
