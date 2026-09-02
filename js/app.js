@@ -6452,23 +6452,13 @@ function openRadarPicker() {
 
 // ═════════════════════ init ═════════════════════
 
-// Web Share Target follow-through. The service worker stashed a shared file and
-// reloaded us with ?shared=1 — pick it up and route it: a PDF joins the Read
-// shelf, a PGN becomes a new games collection. Runs once on boot.
-async function handleSharedFile() {
-  if (!new URLSearchParams(location.search).has('shared')) return;
-  // Clear the flag so a refresh doesn't re-import the same file.
-  history.replaceState(null, '', location.pathname + location.hash);
-  let res;
-  try {
-    const c = await caches.open('ctc-shared-inbox');
-    res = await c.match('/__ctc-shared');
-    if (res) await c.delete('/__ctc-shared');
-  } catch { return; }
-  if (!res) return;
-  const name = decodeURIComponent(res.headers.get('x-file-name') || 'shared');
-  const type = res.headers.get('content-type') || '';
-  const file = new File([await res.blob()], name, { type });
+// A PDF or PGN arrived from another app — route it: a PDF joins the Read shelf, a
+// PGN becomes a new games collection named after the file. Shared by both the
+// share-sheet path (handleSharedFile) and the "open with" path (launchQueue).
+async function routeIncomingFile(file) {
+  if (!file) return;
+  const name = file.name || 'shared';
+  const type = file.type || '';
   const isPdf = /\.pdf$/i.test(name) || type === 'application/pdf';
   const isPgn = /\.pgn$/i.test(name) || /chess-pgn/i.test(type);
   try {
@@ -6484,6 +6474,34 @@ async function handleSharedFile() {
       toast(t('share_unsupported'));
     }
   } catch (e) { console.error('[share] import failed', e); toast(t('import_failed')); }
+}
+
+// Share Target: the service worker stashed a shared file and reloaded us with
+// ?shared=1. Open with / Set as default: the File Handling API hands us the file
+// through launchQueue instead. Both feed routeIncomingFile. Run once on boot.
+async function handleIncomingFiles() {
+  // "Open with" (installed PWA where supported, and the TWA once rebuilt with
+  // file_handlers) — delivered via launchQueue.
+  if ('launchQueue' in window && 'setConsumer' in window.launchQueue) {
+    window.launchQueue.setConsumer(async (params) => {
+      if (!params || !params.files || !params.files.length) return;
+      try { await routeIncomingFile(await params.files[0].getFile()); } catch (e) { console.error('[share] launch', e); }
+    });
+  }
+  // Share sheet — via the service-worker stash.
+  if (new URLSearchParams(location.search).has('shared')) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    try {
+      const c = await caches.open('ctc-shared-inbox');
+      const res = await c.match('/__ctc-shared');
+      if (res) {
+        await c.delete('/__ctc-shared');
+        const name = decodeURIComponent(res.headers.get('x-file-name') || 'shared');
+        const type = res.headers.get('content-type') || '';
+        await routeIncomingFile(new File([await res.blob()], name, { type }));
+      }
+    } catch (e) { console.error('[share] stash', e); }
+  }
 }
 
 async function main() {
@@ -6548,7 +6566,7 @@ async function main() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => { });
   }
-  handleSharedFile().catch(e => console.error('[share]', e));
+  handleIncomingFiles().catch(e => console.error('[share]', e));
   const elapsed = Date.now() - splashStart;
   setTimeout(async () => {
     $('splash').classList.add('hide');

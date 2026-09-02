@@ -26,8 +26,25 @@
     (iOS Safari doesn't support Web Share Target). PGN via the SHARE sheet only
     appears if the sender labels it `.pgn`/a chess-pgn MIME; some senders send
     octet-stream and won't match — layer 2 fixes that.
-  - **LAYER 2 — true "Open with → CTC" for the Play Store (TWA), NOT done, do when
-    building the store app:** in the Bubblewrap/Android project add intent filters
+  - **LAYER 2 web-side DONE (2026-09-01, follow-up):** `manifest.webmanifest` now
+    also has `file_handlers` (PDF + PGN → action `./?open-file=1`), and `js/app.js`
+    handles the File Handling API: `handleIncomingFiles()` (renamed from
+    handleSharedFile, still called at the end of `main()`) sets a
+    `window.launchQueue` consumer that reads an opened file and feeds the SAME
+    `routeIncomingFile()` the share sheet uses. `sw.js` bumped to **v99**. This is
+    what makes CTC eligible for "Open with" / "Set as default". launchQueue can't
+    be exercised headlessly (no OS file-open), so it's UNVERIFIED on device.
+    **KEY CLARIFICATION for Adrian:** this does NOT need a *published/approved*
+    Play Store app — it needs the **TWA rebuilt** (so its Android manifest carries
+    the share + file intent filters) and reinstalled; an internal-testing build or
+    a sideloaded signed APK is enough. The plain web Share Target does not reach
+    the TWA; the TWA is a separate Android app.
+  - **LAYER 2 Android-side — still to do in the TWA/Bubblewrap project (NOT in this
+    repo; only `.well-known/assetlinks.json` lives here):** run `bubblewrap update`
+    to pull the new web manifest (Bubblewrap translates `share_target` +
+    `file_handlers` into the Android intent filters), then `bubblewrap build`, then
+    install the new APK/AAB on the phone (internal test or sideload). If
+    Bubblewrap's auto-translation is incomplete, hand-add to the TWA activity's in the Bubblewrap/Android project add intent filters
     to the TWA activity:
     `<intent-filter><action VIEW/><category DEFAULT/BROWSABLE/><data mimeType="application/pdf"/></intent-filter>`
     and for PGN a filter matching the extension (no reliable MIME):
