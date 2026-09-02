@@ -6505,9 +6505,12 @@ async function handleIncomingFiles() {
     setTimeout(() => { if (!gotFile) toast(t('share_open_failed')); }, 2500);
   }
 
-  // Share sheet — the service worker stashed the file and reloaded us.
+  // Share sheet — the service worker stashed the file and reloaded us. Reaching
+  // here at all proves the SW intercepted the share POST (so it's the current
+  // version); a visible toast makes that observable on a device we can't inspect.
   if (params.has('shared')) {
     history.replaceState(null, '', location.pathname + location.hash);
+    toast(t('share_receiving'));
     try {
       const c = await caches.open('ctc-shared-inbox');
       const res = await c.match('/__ctc-shared');
@@ -6516,8 +6519,10 @@ async function handleIncomingFiles() {
         const name = decodeURIComponent(res.headers.get('x-file-name') || 'shared');
         const type = res.headers.get('content-type') || '';
         await routeIncomingFile(new File([await res.blob()], name, { type }));
+      } else {
+        toast(t('share_open_failed'));   // SW redirected but no file was stashed
       }
-    } catch (e) { console.error('[share] stash', e); }
+    } catch (e) { console.error('[share] stash', e); toast(t('import_failed')); }
   }
 }
 

@@ -191,6 +191,7 @@ const DICT = {
   read_review_open: { es: 'Abrir', en: 'Open' },
   share_unsupported: { es: 'Solo puedo abrir archivos PDF o PGN.', en: 'I can only open PDF or PGN files.' },
   share_open_failed: { es: 'No pude recibir el archivo al abrirlo. Prueba a usar «Compartir → CTC».', en: "Couldn't receive the file on open. Try “Share → CTC” instead." },
+  share_receiving: { es: 'Recibiendo el archivo…', en: 'Receiving the file…' },
   read_fullscreen: { es: 'Pantalla completa', en: 'Full screen' },
   read_teach_erase: { es: 'Borrar casilla', en: 'Erase square' },
   read_teach_need_kings: { es: 'Coloca los dos reyes (♔ y ♚) antes de continuar.', en: 'Place both kings (♔ and ♚) before continuing.' },
