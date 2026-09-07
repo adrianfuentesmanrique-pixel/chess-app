@@ -104,9 +104,20 @@ const STEPS = [
   },
   { key: 'playAna', screen: 'play', t: 'tour_play_ana_t', b: 'tour_play_ana_b', target: null },
 
+  // ── Read ──────────────────────────────────────────────────────────────
+  // A brand-new account has no books, so the reader, pinch-zoom and the
+  // long-press-a-diagram trick do not exist yet (rule 2 at the top of this
+  // file). The only thing always on screen here is the Add button, so that is
+  // what gets the ring and the rest is described in the body text.
+  {
+    key: 'readTab', screen: 'play', t: 'tour_read_tab_t', b: 'tour_read_tab_b',
+    target: '#tabbar button[data-screen="read"]', action: 'tap', waitFor: '#screen-read',
+  },
+  { key: 'readAdd', screen: 'read', t: 'tour_read_add_t', b: 'tour_read_add_b', target: '#read-add', enter: resetRead },
+
   // ── Profile ───────────────────────────────────────────────────────────
   {
-    key: 'profTab', screen: 'play', t: 'tour_prof_tab_t', b: 'tour_prof_tab_b',
+    key: 'profTab', screen: 'read', t: 'tour_prof_tab_t', b: 'tour_prof_tab_b',
     target: '#tabbar button[data-screen="profile"]', action: 'tap', waitFor: '#screen-profile',
   },
   { key: 'profMiss', screen: 'profile', t: 'tour_prof_miss_t', b: 'tour_prof_miss_b', target: '#daily-missions-list', wrap: '.profile-card' },
@@ -135,6 +146,19 @@ function resetLearn() {
 }
 function resetBase() {
   clickIfVisible('base-back');
+}
+// Read is the one screen that puts itself back where it was: onEnter() reopens
+// the book the user was last reading. The tour needs the shelf (that is where
+// #read-add lives), so press the reader's own Back button. onEnter() is async,
+// so the reopen can land just after this ran — hence the second, deferred press,
+// which needs the internal flag or the blocker below swallows its click.
+function resetRead() {
+  clickIfVisible('read-back');
+  setTimeout(() => {
+    if (!Tour.running) return;
+    Tour.internal = true;
+    try { clickIfVisible('read-back'); } finally { Tour.internal = false; }
+  }, 500);
 }
 
 function isVisible(el) {

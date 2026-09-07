@@ -1,6 +1,50 @@
-# Chess app — where things stand (updated 2026-09-01)
+# Chess app — where things stand (updated 2026-09-07)
 
 ## Already done and pushed — do NOT redo these
+
+- **GUIDED TOUR — READ TAB STEPS (2026-09-07).** `sw.js` bumped v101 → **v102**
+  (both changed files are precached). Changed `js/tour.js`, `js/i18n.js`,
+  `.gitignore`. Web-only, no Android rebuild — `git push` deploys it.
+  - Two new steps in the `STEPS` array, **between Play and Profile**, so the tour
+    keeps walking the tab bar in its real left-to-right order: `readTab` (a tap
+    step on `#tabbar button[data-screen="read"]`, `waitFor: '#screen-read'`) and
+    `readAdd` (rings `#read-add` on the shelf). The `profTab` step's `screen`
+    moved from `'play'` to `'read'` to match. The tour is now 33 steps.
+  - **The Read step deliberately demos nothing.** A brand-new account has no
+    books, so the reader, pinch-zoom and long-press-a-diagram do not exist during
+    the tour (rule 2 in tour.js's header). `#read-add` is the only always-present
+    control, so it gets the ring and everything else is described in the body
+    text — `tour_read_add_b`, ES + EN, next to the other `tour_*` keys in i18n.js.
+  - **`resetRead()`** (new helper next to `resetBase`) presses the reader's own
+    `#read-back`, because `Read.onEnter()` reopens the last-read book and would
+    otherwise hide the shelf. `onEnter()` is async, so it presses twice — once
+    inline and once on a 500 ms timer with `Tour.internal` set, or the tour's own
+    click blocker swallows the second press.
+  - Verified over CDP at 375×812 in light **and** dark, ES **and** EN: the full
+    tour walks end to end (33/33), the ring lands on `#read-add` every time, the
+    card is not clipped in either language (ES 328 px, EN 307 px tall, Back/Next
+    and Skip all on screen), Back/Next round-trips through the two Read steps, and
+    the tour still finishes with `tourDone: 'completed'`. Also verified in the
+    awkward state the plain walk never reaches — a book left OPEN when the user
+    last left the Read tab — where `resetRead()` puts the shelf back.
+  - **Existing users do not get this automatically:** `tourDone` is already set
+    for them, so they only see it via ⚙️ Settings → Replay the guided tour. A
+    one-time Read intro behind a new kv flag was considered and rejected as not
+    worth a new persistent flag.
+  - **Harness fixture trap (cost this session ~15 min):** both
+    `tools/cdp-verify.mjs` and `tools/cdp-verify-stage2.mjs` fetch
+    `/__test-book.pdf` from the dev server. That file is generated, not
+    committed, and without it BOTH harnesses fail at the "open" step
+    (`readerVisible: false`) in a way that looks exactly like an app regression.
+    It is now in `.gitignore` with the regeneration command. Run this first:
+    `node tools/make-test-pdf.mjs 5 > __test-book.pdf`. With it present, both
+    harnesses are fully green on this change.
+  - Cosmetic, **pre-existing, not caused by this change**: in headless CDP
+    screenshots the tour card renders at `opacity: 0` (its entry animation never
+    plays without a compositor) and the "Keep scrolling" hint paints even though
+    `hint.hidden === true` in the DOM. Both appear identically on untouched steps
+    (e.g. step 14, Import PGN). Judge the card from the measured rects, not the
+    pixels.
 
 - **READ TAB — FULL-SCREEN (IMMERSIVE) READING + OPEN-WITH ROUTING (2026-09-01).**
   `sw.js` bumped v99 → **v100**. Web-only (index.html, css/style.css, js/read.js,

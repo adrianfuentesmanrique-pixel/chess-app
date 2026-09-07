@@ -787,6 +787,11 @@ const DICT = {
   tour_play_ana_t: { es: 'Al terminar', en: 'When it ends' },
   tour_play_ana_b: { es: 'Cuando acabe la partida, el botón 🔬 la manda directa al tablero de análisis para ver qué pasó.', en: 'When the game is over, the 🔬 button sends it straight to Analysis so you can see what happened.' },
 
+  tour_read_tab_t: { es: 'Leer', en: 'Read' },
+  tour_read_tab_b: { es: 'Toca Leer. Aquí guardas tus propios libros de ajedrez en PDF.', en: 'Tap Read. This is where you keep your own chess books in PDF.' },
+  tour_read_add_t: { es: 'Tus libros, en el móvil', en: 'Your books, on your phone' },
+  tour_read_add_b: { es: 'Añade un PDF desde el teléfono y léelo página a página, con zoom. Y lo mejor: mantén pulsado un diagrama del libro y esa posición se abre en el tablero para que juegues con ella. Los libros se guardan solo en este dispositivo; no se suben a ningún sitio.', en: 'Add a PDF from your phone and read it page by page, with zoom. Best of all: long-press a diagram in the book and that position opens on the board for you to play with. Books are saved on this device only — they are never uploaded anywhere.' },
+
   tour_prof_tab_t: { es: 'Perfil', en: 'Profile' },
   tour_prof_tab_b: { es: 'Toca Perfil. Aquí se ve tu progreso.', en: 'Tap Profile. Your progress shows up here.' },
   tour_prof_miss_t: { es: 'Misiones diarias', en: 'Daily missions' },

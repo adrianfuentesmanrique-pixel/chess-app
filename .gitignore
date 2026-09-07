@@ -38,3 +38,9 @@ __pycache__/
 # large source images that the app does not reference yet. The downscaled PNGs
 # that ship live in icons/notif/ and are committed.
 Notification/
+
+# Fixture the Read-tab verification harnesses fetch from the dev server. Both
+# tools/cdp-verify*.mjs fail at the "open" step without it, in a way that looks
+# like an app regression. Regenerate before running them:
+#   node tools/make-test-pdf.mjs 5 > __test-book.pdf
+__test-book.pdf
