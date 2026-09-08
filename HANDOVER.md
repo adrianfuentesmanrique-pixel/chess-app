@@ -2,6 +2,52 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PRE-MOVE — THE OTHER FOUR BOARDS MEASURED, NOT ASSUMED (2026-09-07).**
+  **No code changed.** No `sw.js` bump, nothing new to deploy. This was a
+  verification pass over the four pre-move boards commit `b3e9295` also touches
+  but never re-checked: `play-board`, `puzzle-board`, `rush-board`,
+  `endgame-board`. They were believed fixed because they share Trainer's code
+  shape. They are now measured, and the fix holds on all four.
+  - **Why the earlier "drag works" evidence was worthless.** The pre-move
+    commit's own run drove drags over CDP, and a CDP-dispatched pointer event
+    ignores `touch-action` entirely. A scripted drag therefore succeeds on a
+    board where a real finger would be handed to page scrolling. Every claim
+    about these four boards rested on that probe.
+  - **What was asserted instead — an invariant, not a drag.** For each board:
+    the set of `.sq.grabbable` squares, the set of pieces whose computed
+    `touchAction === 'none'`, and the set of `.sq` elements with the same, must
+    all equal exactly the squares the FEN says are occupied by the side the user
+    may move right now. The expected set is read straight off `board.fen` and
+    shares no code with `_movableColor()` or `render()` — the things under test.
+  - **Sampled at three moments per board**: (a) opponent/engine thinking with
+    the pre-move armed — expect the user's own side, not the side to move;
+    (b) the instant the opponent's move lands and the board goes live — expect
+    the side to move; (c) with a pre-move actually queued through the real
+    `_tap()` funnel. **84 assertions, 0 failures**, at 375 px in EN and ES ×
+    light and dark. Every board reached all three moments in all four combos.
+  - **The harness was proved able to fail before the result was believed.**
+    With the re-render branch inside `_syncPremoveClass()` temporarily removed,
+    the same run failed 9 of 17 assertions — grabbable and `touch-action` stuck
+    on the *opponent's* 16 pieces on Play, on the wrong side in Rush and
+    Endgame. `js/board.js` was restored from a byte copy afterwards; `git diff`
+    is clean.
+  - **Harness facts worth not rediscovering** (the script was a scratchpad
+    throwaway and is deliberately not committed — do not build a reusable one):
+    the screen objects are not exported, so live `Board` instances are collected
+    by wrapping `Board.prototype.render` to record `this` and keying by
+    `el.id` — wrap it *permanently and early*, because these boards are built
+    lazily on first visit, so the one-shot `setPieceSet(getPieceSet())` trick
+    only catches boards that already exist. `board.onMove(mv)` is the way into a
+    screen's real `userMove()` without the screen object. Rush allows only three
+    strikes, so brute-forcing a puzzle's answer ends the run — identify the
+    puzzle instead by matching `board.fen` against `PUZZLES` from
+    `/js/puzzles.js` with `moves[0]` applied, then play `moves[1]`. A puzzle
+    whose answer is the mate never re-arms, so each pass needs its own puzzle
+    with `moves.length >= 4`. `path.join()` on Windows returns backslashes, so a
+    static server's `startsWith(ROOT)` guard 404s everything and Chrome shows a
+    chrome-error page that looks exactly like the app failing to boot — use
+    `path.relative()`.
+
 - **PRE-MOVE — TRAINER + BLIND DRIVEN IN A BROWSER, TWO BUGS FIXED (2026-09-07).**
   `sw.js` bumped v103 → **v104**. Changed `js/board.js`, `js/app.js`. Web-only,
   `git push` deploys it. The pre-move commit below shipped `Trainer` **reasoned
