@@ -2,6 +2,80 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PRE-MOVE (2026-09-07).** `sw.js` bumped v102 → **v103**. Changed
+  `js/board.js`, `js/app.js`, `css/style.css`. Web-only, no Android rebuild —
+  `git push` deploys it. No new i18n strings and no new setting: a pre-move is
+  self-selecting, you only get one by deliberately moving out of turn.
+  - **All of it lives in `Board`**, because one `Board` class serves every tab.
+    New state next to `_dragStart`: `premoveAllowed` (opt-in via
+    `new Board(el, { premove: true })`), `premoveArmed`, and `premove`
+    (`{from,to,promotion}`), kept **separate from `selected`** — `setPosition()`
+    nulls `selected`, and outliving the opponent's move is the whole point.
+  - New Board API, four methods: `armPremove()` (a screen calls it when it hands
+    the turn over), `clearPremove()`, `firePremove()` (called the moment the
+    opponent's move has landed and control is back), and the internals
+    `_premoveActive()`, `_syncPremoveClass()`, `_movableColor(turn)`,
+    `_flippedChess()`.
+  - `firePremove()` routes the queued move through the **normal `onMove`
+    funnel**, so it is graded, sounded and drawn exactly like a move made by
+    hand. Nothing downstream knows it was a pre-move.
+  - `_tap()` is still the single funnel for tap **and** drag. In pre-move mode it
+    reads the movable side as flipped and generates targets from
+    `_flippedChess()` — the FEN with the side-to-move field swapped and the ep
+    square dropped. **That position can be genuinely illegal** (the side not to
+    move may be giving check) and chess.js throws; the fallback is "no
+    destination dots, but the pre-move is still accepted", because
+    `firePremove()` re-checks it against the real position anyway.
+  - **`.board.premoving` was the trap.** `.sq.grabbable`'s `touch-action: none`
+    was scoped to `.board.live`, and a board waiting for the opponent is not
+    live — so on a **phone** the drag gesture went to page scrolling and
+    pre-move by drag silently did nothing while looking perfect on a desktop.
+    `css/style.css:415` now lists `.board.premoving` alongside `.board.live`.
+  - **`classList.toggle(name, undefined)` toggles, it does not clear.** The
+    constructor sets `interactive` (which calls `_syncPremoveClass()`) *before*
+    `premoveAllowed` exists, so an unforced `_premoveActive()` returned
+    `undefined` and left `.premoving` stuck on every board. `_premoveActive()`
+    is wrapped in `!!` for exactly this. Do not remove it.
+  - Promotion is asked **at queue time** (`_askPromotion` inside `_tap`), like
+    every other site. The dialog is awaited, so `_tap` re-checks
+    `_premoveActive()` after it closes and drops the queue if the opponent moved
+    meanwhile.
+  - **Wired into five screens, all in `js/app.js`:** `Play` (arm in
+    `engineMove`, fire in its `finally` — every success path returns from inside
+    the `try`, so after the block is unreachable), `Endgame` practice (arm+fire
+    in `playBookReply`, arm in `engineReply` and fire in its `finally`),
+    `Puzzles` (arm before the 400 ms `sleep`, fire after
+    `setLiveInteractive(true)`), `Rush` (arm before the 300 ms `setTimeout`,
+    fire inside it) and `Trainer` (arm in `computerMove`, fire in its
+    `finally`). `clearPremove()` on: Play back/undo/`finish`/`begin`,
+    `Trainer.gotoHistory`/`finishMsg`, `Puzzles.loadPuzzle`/`gotoHistory`/solve,
+    `Rush.loadNext`/`finish`, `Endgame.undo`/`finishPractice`.
+  - **Deliberately NOT wired:** `Analysis`, `Setup`, the Masterclass/`learn`
+    board, the PuzzleLog mini-boards, and **`Blind`** (blindfold puzzles) — you
+    would be aiming at a square you cannot see, in a rated mode.
+  - **Decision Adrian made: a wrong pre-move is graded exactly like a real
+    move** — puzzle ELO, a Rush strike, a practice mistake. A pre-move that has
+    become *illegal* is discarded and graded as nothing, because it never
+    happened. The alternative (never penalise) would make pre-move a free extra
+    guess and inflate every rating. Measured in the verification run: a legal
+    but wrong pre-move took puzzle ELO 1312.4 → 1205.6.
+  - **How it was verified.** No committed harness covers Play or Puzzles, so a
+    throwaway CDP driver (headless Chrome, own static server, deleted after) ran
+    at 375×812 with touch emulation, in light **and** dark, EN **and** ES:
+    tap-tap and **drag** pre-moves in Play at level 8 (2 s think time) firing the
+    instant the engine's move landed, with the sound counter proving it went
+    through the normal path; a pre-move promotion (dialog at queue time, `wQ.svg`
+    on g8, `g8=Q+` in the move list); a pre-move that becomes illegal being
+    discarded in silence with the board still playable; Puzzles (solution queued
+    and fired, wrong one graded, `puzzle-nav-prev` cancelling a queued
+    pre-move); Learn practice (study `p1`); Rush (score up, no strike); and
+    normal moves still working on the Analysis board, which does not opt in.
+    Zero console errors beyond the usual App Check 403.
+  - **Test trap worth knowing:** a drag ends in `document.elementFromPoint()`, so
+    any open overlay (the first-run onboarding modal) swallows the drop and the
+    drag looks broken when it is not. Direct `dispatchEvent` taps are unaffected,
+    which makes it look like a drag-only bug. Clear `.modal-back` first.
+
 - **GUIDED TOUR — READ TAB STEPS (2026-09-07).** `sw.js` bumped v101 → **v102**
   (both changed files are precached). Changed `js/tour.js`, `js/i18n.js`,
   `.gitignore`. Web-only, no Android rebuild — `git push` deploys it.
