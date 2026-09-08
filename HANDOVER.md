@@ -2,6 +2,80 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PRE-MOVE — TRAINER + BLIND DRIVEN IN A BROWSER, TWO BUGS FIXED (2026-09-07).**
+  `sw.js` bumped v103 → **v104**. Changed `js/board.js`, `js/app.js`. Web-only,
+  `git push` deploys it. The pre-move commit below shipped `Trainer` **reasoned
+  about but never run**, and left `Blind` opted out but sharing the edited
+  `Board`. Driving both over CDP turned up two real defects.
+  - **BUG 1 — `.sq.grabbable` was left on the OPPONENT's pieces (`js/board.js`).**
+    `.grabbable` is derived from `_movableColor()`, which flips while a pre-move
+    is armed. `armPremove()` / `firePremove()` / the `interactive` setter all
+    went through `_syncPremoveClass()`, which toggled the board class **and
+    nothing else** — no re-render — so the squares kept whatever side the last
+    position change had drawn. Measured on `trainer-board` while it was White's
+    move and the board was `.live`, the pieces carrying `touch-action: none`
+    were `a7,a8,b7,b8,c7,c8,d7,d8,e5,e8,f7,f8,g7,g8,h7,h8` — every one of them
+    Black's. **Consequence is phone-only:** `.board.live .sq.grabbable img` is
+    what claims the touch gesture, so with it on the wrong pieces the browser
+    read a drag of your own piece as a page scroll — both during the pre-move
+    window and on your own turn after every computer move. Tap-tap always
+    worked, which is what hid it.
+    - **This was not Trainer-specific.** Same code shape in `Play`, `Puzzles`,
+      `Rush` and `Endgame` practice — one shared cause, fixed once in `Board`.
+    - **Why the previous session's run missed it:** CDP-dispatched pointer
+      events ignore `touch-action` entirely, so a scripted drag succeeds on a
+      board where a real finger would fail. The class list is the only honest
+      probe. If you ever verify drag again, assert on
+      `getComputedStyle(img).touchAction`, not on whether the drag worked.
+    - **Fix:** `_syncPremoveClass()` now re-renders when the pre-move state
+      actually flips, tracked in a new field `_premoveWasActive`. Guarded on
+      `this.squares` because the constructor sets `interactive` — and so reaches
+      `_syncPremoveClass()` — before `_buildSquares()` has run. Do not remove
+      that guard, and do not "simplify" it into an unconditional render: the
+      setter is called several times per move.
+  - **BUG 2 — a pre-move outlived the game it was queued in (`js/app.js`).**
+    `$('trainer-back')` did not `clearPremove()`, though `Play`'s back button
+    does. Queue a pre-move, press Back, press Start: the abandoned
+    `computerMove()` still runs its `finally`, and a guess that happens to be
+    legal in the fresh position plays itself as move 1. Reproduced exactly —
+    a queued `b1c3` came back as **`1. Nc3 d5` in a brand-new game**. One line
+    added to the Back handler; after it, `leftPremove: null` and the new game
+    starts empty.
+  - **Trainer, all four scenarios green** (375×812, touch emulation, EN **and**
+    ES, light **and** dark): a pre-move queued inside the 450 ms **book** reply
+    fires (`1. e4 e5 2. Nf3`); one queued during the **engine** reply fires, and
+    **by drag** (`3. Bc4`); `gotoHistory` back cancels a queued pre-move
+    (`armed`, `premove` and `.premoving` all cleared, engine then replies
+    normally); and branching a **variation** from an earlier position fires no
+    stale pre-move (`1. d4 d5`). Trainer's two `return`-from-inside-the-`try`
+    success paths and its `setLiveInteractive`/`posHistory`/`atLive` machinery
+    all behave — no change was needed there.
+  - **Blind is untouched and still correctly opted out**: `premoveAllowed`
+    false, `.premoving` never appears on `blind-board`, `piecesHidden` holds
+    (0 visible pieces before *and* after a move), **no destination dots leak**
+    while a hidden piece is selected, and the puzzle's real solution move lands
+    through the normal funnel → `"Correct! Keep going."`. Drag on a hidden
+    board also still works and leaves no `.drag-ghost` behind.
+  - **`learn-board` and `setup-board` re-checked** for the same shared-`Board`
+    reason: the lesson practice move grades correctly (`"Correct! 🎉"`,
+    grabbable on the side to move), and the Setup **editor** still places a
+    piece (`8/8/8/8/3Q4/8/8/8`). Both have `premoveAllowed` false, so the new
+    re-render branch is a strict no-op for them — `_premoveActive()` is always
+    false, so the state never flips.
+  - **No committed harness was added** — a throwaway CDP driver (own static
+    server, headless Chrome, `Runtime.evaluate`) did the work and was deleted.
+    Two things it needs that are easy to lose: the screen objects are **not**
+    exported from `app.js`, so live `Board`s are collected by wrapping
+    `Board.prototype.render`, calling `setPieceSet(getPieceSet())` to force
+    every board to draw, then unwrapping and keying by `el.id`; and a drag ends
+    in `document.elementFromPoint()`, so `.modal-back` must be removed first or
+    the onboarding modal swallows the drop.
+  - Language is `localStorage['lang']`; colour mode is the IndexedDB kv key
+    **`colorMode`** (`'system'|'light'|'dark'`), not `'theme'`. `Blind` is
+    reached by the Puzzles tab then `.puzzle-modes button[data-v="blind"]`, and
+    it makes you sit through a **10-second memorise countdown** before the board
+    goes interactive — budget for it.
+
 - **PRE-MOVE (2026-09-07).** `sw.js` bumped v102 → **v103**. Changed
   `js/board.js`, `js/app.js`, `css/style.css`. Web-only, no Android rebuild —
   `git push` deploys it. No new i18n strings and no new setting: a pre-move is

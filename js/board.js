@@ -48,6 +48,7 @@ export class Board {
     this.premoveAllowed = !!opts.premove;
     this.premoveArmed = false;
     this.premove = null;       // {from,to,promotion}
+    this._premoveWasActive = false;  // last state _syncPremoveClass() drew for
     this._buildSquares();
     this._bindEvents();
     ALL_BOARDS.push(this);
@@ -112,8 +113,21 @@ export class Board {
   // gesture on `.board.live` — a board waiting for the opponent is not live, so
   // without this class the drag is handed to page scrolling and pre-move by
   // drag silently does nothing on a phone while looking fine on a desktop.
+  //
+  // The re-render is the other half of the same rule and just as load-bearing:
+  // `.sq.grabbable` is derived from _movableColor(), which flips with this
+  // state, so flipping the state without redrawing leaves touch-action:none
+  // sitting on the OPPONENT's pieces. Arming and firing a pre-move both change
+  // it without any position change to trigger a draw of their own.
+  // Guarded on `squares` because the constructor sets `interactive` — and so
+  // reaches here — before _buildSquares() has run.
   _syncPremoveClass() {
-    this.el.classList.toggle('premoving', this._premoveActive());
+    const on = this._premoveActive();
+    this.el.classList.toggle('premoving', on);
+    if (this.squares && on !== this._premoveWasActive) {
+      this._premoveWasActive = on;
+      this.render();
+    }
   }
 
   // The side the user may pick up right now: normally the side to move, but

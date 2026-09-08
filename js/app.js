@@ -3276,7 +3276,11 @@ const Trainer = {
     this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('trainer-base').addEventListener('change', () => this.previewBook());
     $('trainer-start').onclick = () => this.start();
-    $('trainer-back').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
+    // Leaving mid-game must drop a queued pre-move, or it outlives the game:
+    // the abandoned computerMove() still runs its finally, and a guess that
+    // happens to be legal in the NEXT game plays itself as its first move.
+    // Play.back does the same.
+    $('trainer-back').onclick = () => { engine.stop(); this.board.clearPremove(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
     $('trainer-analyze').onclick = () => this.toAnalysis();
     $('trainer-first').onclick = () => this.gotoHistory(0);
     $('trainer-prev').onclick = () => this.gotoHistory(this.viewIdx - 1);
