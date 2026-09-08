@@ -2856,7 +2856,7 @@ const Play = {
     buildLevelSeg($('play-level'), 2, true);
     segInit($('play-color'));
     segInit($('play-level'));
-    this.board = new Board($('play-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    this.board = new Board($('play-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('play-start').onclick = () => {
       this.level = +segValue($('play-level'));
       let c = segValue($('play-color'));
@@ -2871,6 +2871,7 @@ const Play = {
     $('play-back').onclick = () => {
       engine.stop();
       if (!this.over) this.saveToHistory({ abandoned: true });
+      this.board.clearPremove();
       $('play-game').classList.add('hidden');
       $('play-setup').classList.remove('hidden');
     };
@@ -2885,6 +2886,7 @@ const Play = {
     this.chess.undo();
     this.chess.undo();
     this.over = false;
+    this.board.clearPremove();
     this.board.interactive = true;
     this.board.setPosition(this.chess.fen());
     this.renderMoves();
@@ -2910,6 +2912,7 @@ const Play = {
     $('play-setup').classList.add('hidden');
     $('play-game').classList.remove('hidden');
     this.board.setOrientation(color);
+    this.board.clearPremove();
     this.board.setPosition(fen);
     this.renderMoves();
     this.setStatus(t('your_turn'));
@@ -2938,6 +2941,7 @@ const Play = {
   async engineMove() {
     this.thinking = true;
     this.board.interactive = false;
+    this.board.armPremove();
     this.setStatus(t('thinking'));
     const lv = LEVELS[this.level];
     try {
@@ -2953,6 +2957,10 @@ const Play = {
     } finally {
       this.thinking = false;
       this.board.interactive = true;
+      // In the finally, not after the try: every success path above returns
+      // from inside it. A queued pre-move that is no longer legal is discarded
+      // by firePremove() itself, so the error path needs no guard of its own.
+      if (!this.over) this.board.firePremove();
     }
   },
 
@@ -2980,6 +2988,7 @@ const Play = {
 
   finish(msg) {
     this.over = true;
+    this.board.clearPremove();
     this.setStatus(msg);
     const hist = this.chess.history();
     if (hist.length >= 2) DailyMissions.complete('play');
@@ -3264,7 +3273,7 @@ const Trainer = {
     buildLevelSeg($('trainer-level'));
     segInit($('trainer-color'));
     segInit($('trainer-level'));
-    this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('trainer-base').addEventListener('change', () => this.previewBook());
     $('trainer-start').onclick = () => this.start();
     $('trainer-back').onclick = () => { engine.stop(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
@@ -3326,6 +3335,7 @@ const Trainer = {
     idx = Math.max(0, Math.min(idx, this.posHistory.length - 1));
     this.viewIdx = idx;
     const snap = this.posHistory[idx];
+    this.board.clearPremove();
     this.board.setPosition(snap.fen, snap.lastMove);
     this.applyInteractive();
     this.updateBadgeForView();
@@ -3525,6 +3535,7 @@ const Trainer = {
   async computerMove() {
     this.thinking = true;
     this.setLiveInteractive(false);
+    this.board.armPremove();
     const bookSan = this.pickBookMove();
     try {
       if (bookSan) {
@@ -3558,6 +3569,7 @@ const Trainer = {
     } finally {
       this.thinking = false;
       this.setLiveInteractive(true);
+      if (!this.over) this.board.firePremove();
     }
   },
 
@@ -3575,6 +3587,7 @@ const Trainer = {
 
   finishMsg(msg, result) {
     this.over = true;
+    this.board.clearPremove();
     this.setStatus(msg);
     if (result) this.recordOpeningResult(result);
   },
@@ -3766,7 +3779,7 @@ const Puzzles = {
   timerStart: 0,
 
   async init() {
-    this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('puzzle-theme-btn').onclick = () => this.openThemePicker();
     $('puzzle-options').onclick = () => this.openOptions();
     $('puzzle-next').onclick = () => this.nextPuzzle();
@@ -4034,6 +4047,9 @@ const Puzzles = {
     idx = Math.max(0, Math.min(idx, this.posHistory.length - 1));
     this.viewIdx = idx;
     const snap = this.posHistory[idx];
+    // Stepping back through the solution abandons the position the pre-move
+    // was aimed at, so the queue goes with it.
+    this.board.clearPremove();
     this.board.setPosition(snap.fen, snap.lastMove);
     const live = idx === this.posHistory.length - 1;
     this.board.interactive = live && this.liveInteractive;
@@ -4067,6 +4083,7 @@ const Puzzles = {
 
   loadPuzzle(puzzle) {
     $('puzzle-analyze').classList.add('hidden');
+    this.board.clearPremove();
     this.current = puzzle;
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
@@ -4128,6 +4145,7 @@ const Puzzles = {
         this.updateProgress();
         $('puzzle-analyze').classList.remove('hidden');
         this.setLiveInteractive(false);
+        this.board.clearPremove();
         // Long enough to see the final move land and hear the sound, short
         // enough that a session keeps its rhythm. The identity check stops a
         // queued jump from firing after the player already moved on by hand.
@@ -4142,11 +4160,15 @@ const Puzzles = {
       this.setStatus(t('correct'));
       // opponent reply
       this.setLiveInteractive(false);
+      this.board.armPremove();
       await sleep(400);
       const r = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
       this.place(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
       this.setLiveInteractive(true);
+      // Straight back through userMove, so a pre-move that turns out to be the
+      // wrong answer costs a mistake exactly like a move made by hand.
+      this.board.firePremove();
     } else {
       // wrong — undo, shake
       const firstMistake = !this.failedThis;
@@ -4246,7 +4268,7 @@ const Rush = {
   COUNTDOWN: 5,
 
   init() {
-    this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     segInit($('rush-duration'), () => this.showBest());
     $('rush-start').onclick = () => this.start();
     $('rush-again').onclick = () => this.openIntro();
@@ -4384,6 +4406,7 @@ const Rush = {
   },
 
   loadNext() {
+    this.board.clearPremove();
     this.current = this.pickNext();
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
@@ -4426,12 +4449,14 @@ const Rush = {
         return;
       }
       this.board.interactive = false;
+      this.board.armPremove();
       setTimeout(() => {
         if (!this.running) return;
         const r = this.applyUci(this.current.moves[this.moveIdx]);
         this.moveIdx++;
         this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
         this.board.interactive = true;
+        this.board.firePremove();
       }, 300);
     } else {
       this.chess.undo();
@@ -4456,6 +4481,7 @@ const Rush = {
     if (!this.running) return;
     this.running = false;
     clearInterval(this.timer);
+    this.board.clearPremove();
     this.board.interactive = false;
     // Score the run against its own clock, not the combined best — a 3-minute
     // record must not be beaten by a 5-minute one.
@@ -4991,7 +5017,7 @@ const Endgame = {
   elo: {},               // per-category rating
 
   init() {
-    this.board = new Board($('endgame-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    this.board = new Board($('endgame-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('endgame-back-sections').onclick = () => this.showSections();
     $('endgame-back-cat').onclick = () => this.showCategories();
     $('endgame-back-pos').onclick = () => this.openCategory(this.category);
@@ -5298,6 +5324,7 @@ const Endgame = {
 
   async playBookReply() {
     this.board.interactive = false;
+    this.board.armPremove();
     this.setStatus(t('correct'));
     await sleep(400);
     const bookUci = this.current.moves[this.moveIdx];
@@ -5314,11 +5341,13 @@ const Endgame = {
     if (this.checkEnd()) return;
     this.board.interactive = true;
     this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
+    this.board.firePremove();
   },
 
   async engineReply() {
     this.thinking = true;
     this.board.interactive = false;
+    this.board.armPremove();
     this.setStatus(t('thinking'));
     try {
       const uci = await engine.bestMove(this.chess.fen(), { movetime: 700 });
@@ -5330,6 +5359,7 @@ const Endgame = {
     } finally {
       this.thinking = false;
       this.board.interactive = true;
+      if (!this.over) this.board.firePremove();
     }
   },
 
@@ -5350,6 +5380,7 @@ const Endgame = {
     this.chess.undo();
     this.chess.undo();
     this.over = false;
+    this.board.clearPremove();
     this.board.interactive = true;
     this.board.setPosition(this.chess.fen());
     this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
@@ -5360,6 +5391,7 @@ const Endgame = {
   // or false (resigned, or lost after leaving the book line).
   finishPractice(success) {
     this.over = true;
+    this.board.clearPremove();
     Sound.play(success ? 'game-win' : 'game-lose');
     this.setStatus(success ? t('practice_win') : t('practice_fail'));
     $('endgame-share').classList.toggle('hidden', !success);

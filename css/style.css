@@ -18,6 +18,7 @@
   --sq-selected: rgba(20, 85, 30, .5);
   --sq-check: #e05a4d;
   --sq-hint: rgba(70, 130, 220, .55);
+  --sq-premove: rgba(176, 62, 52, .45);
   --hl: rgba(91, 140, 255, .45);
   --tab-active-bg: rgba(91, 140, 255, .18);
   --gold-bg: rgba(244, 193, 93, .18);
@@ -49,6 +50,7 @@ body.mode-light {
   --sq-selected: rgba(20, 85, 30, .5);
   --sq-check: #e05a4d;
   --sq-hint: rgba(70, 130, 220, .55);
+  --sq-premove: rgba(196, 78, 66, .42);
   --hl: rgba(54, 89, 217, .35);
   --tab-active-bg: rgba(16, 42, 67, .12);
   --gold-bg: rgba(245, 185, 66, .16);
@@ -413,7 +415,9 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
    on, so this does not depend on how the browser combines touch-action with
    the square behind it. */
 .board.live .sq.grabbable,
-.board.live .sq.grabbable img { touch-action: none; }
+.board.live .sq.grabbable img,
+.board.premoving .sq.grabbable,
+.board.premoving .sq.grabbable img { touch-action: none; }
 /* While a colour is picked, every square is a drag handle for an arrow — including
    straight up or down the board, which the browser would otherwise read as a
    scroll and cancel. The whole board claims the gesture until the colour is
@@ -439,6 +443,11 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 }
 .sq.selected::before {
   content: ''; position: absolute; inset: 0; background: var(--sq-selected);
+}
+/* A queued pre-move. Same full-square tint as the highlights above, in its own
+   colour so it never reads as a move that has actually been played. */
+.sq.premove::before {
+  content: ''; position: absolute; inset: 0; background: var(--sq-premove);
 }
 /* Move-target dot and capture ring stay ABOVE the raised piece (z-index:1), so a
    capture ring still frames the enemy piece on the target square. */

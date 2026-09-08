@@ -40,6 +40,14 @@ export class Board {
     this.onShapesChange = opts.onShapesChange || (() => {});
     this.onSound = opts.onSound || null; // (kind: 'move'|'capture') — Board detects captures by piece count, callers stay ignorant of sound
     this._dragStart = null;
+    // Pre-move: a move queued for the side that is NOT to move, played the
+    // instant the opponent's real move lands. Kept apart from `selected` on
+    // purpose — setPosition() clears the selection, and outliving that is the
+    // whole point of a pre-move. Opt-in per board: the screens that never wait
+    // on an opponent (Analysis, Setup, the Masterclass) must not get one.
+    this.premoveAllowed = !!opts.premove;
+    this.premoveArmed = false;
+    this.premove = null;       // {from,to,promotion}
     this._buildSquares();
     this._bindEvents();
     ALL_BOARDS.push(this);
@@ -53,6 +61,7 @@ export class Board {
   set interactive(v) {
     this._interactive = !!v;
     this.el.classList.toggle('live', this._interactive);
+    this._syncPremoveClass();
   }
 
   _buildSquares() {
@@ -85,6 +94,73 @@ export class Board {
   flip() { this.setOrientation(this.orientation === 'w' ? 'b' : 'w'); }
 
   setPiecesHidden(hidden) { this.piecesHidden = hidden; this.render(); }
+
+  // --- Pre-move -------------------------------------------------------------
+  // A pre-move is only ever a guess, so every path below degrades quietly: an
+  // unusable position just means no destination dots, and a guess that does not
+  // survive the opponent's real move is discarded without a word.
+
+  // Always a real boolean: the constructor sets `interactive` before
+  // `premoveAllowed` exists, and classList.toggle(name, undefined) toggles
+  // rather than clearing — which left '.premoving' stuck on every board.
+  _premoveActive() {
+    return !!(this.premoveAllowed && this.premoveArmed && !this._interactive
+      && !this.editorMode && !this.freeMove);
+  }
+
+  // CSS cannot see a JS property, and `.sq.grabbable` only claims the touch
+  // gesture on `.board.live` — a board waiting for the opponent is not live, so
+  // without this class the drag is handed to page scrolling and pre-move by
+  // drag silently does nothing on a phone while looking fine on a desktop.
+  _syncPremoveClass() {
+    this.el.classList.toggle('premoving', this._premoveActive());
+  }
+
+  // The side the user may pick up right now: normally the side to move, but
+  // during a pre-move it is by definition the side that is NOT to move.
+  _movableColor(turn) {
+    return this._premoveActive() ? (turn === 'w' ? 'b' : 'w') : turn;
+  }
+
+  // The same position with the side to move flipped, so chess.js will generate
+  // targets for the pre-moving side. That position can be genuinely illegal
+  // (the side not to move may be giving check) and chess.js then throws — the
+  // caller falls back to accepting the pre-move blind, with no dots.
+  _flippedChess() {
+    const p = this.fen.split(' ');
+    p[1] = p[1] === 'w' ? 'b' : 'w';
+    p[3] = '-';   // the en-passant square belonged to the other side
+    try { return new Chess(p.join(' ')); } catch { return null; }
+  }
+
+  // Called by a screen the moment it hands the turn to the opponent.
+  armPremove() { this.premoveArmed = !!this.premoveAllowed; this._syncPremoveClass(); }
+
+  clearPremove() {
+    this.premoveArmed = false;
+    if (this.premove) { this.premove = null; this.render(); }
+    this._syncPremoveClass();
+  }
+
+  // Called by a screen the moment the opponent's move has landed and control is
+  // back with the user. The queued move goes out through the normal onMove
+  // funnel, so it is validated, graded and sounded exactly like a move made by
+  // hand — nothing about a pre-move is a special case downstream.
+  firePremove() {
+    const pm = this.premove;
+    this.premoveArmed = false;
+    this.premove = null;
+    this._syncPremoveClass();
+    if (!pm) return false;
+    this.render();
+    let legal = null;
+    try {
+      legal = new Chess(this.fen).moves({ square: pm.from, verbose: true }).find(m => m.to === pm.to);
+    } catch { }
+    if (!legal) return false;   // the guess did not survive — discard, in silence
+    this.onMove({ from: pm.from, to: pm.to, promotion: legal.promotion ? (pm.promotion || 'q') : undefined });
+    return true;
+  }
 
   setPosition(fen, lastMove = null, lastMoveColor = 'green') {
     if (lastMove && this.onSound) {
@@ -187,11 +263,13 @@ export class Board {
         // A piece the user could pick up right now needs the whole gesture,
         // not just the vertical half the board otherwise leaves to scrolling.
         sq.classList.toggle('grabbable',
-          !!piece && !this.editorMode && (this.freeMove || !ok || piece.color === chess.turn()));
+          !!piece && !this.editorMode && (this.freeMove || !ok || piece.color === this._movableColor(chess.turn())));
         const isLastMove = !!this.lastMove && (this.lastMove.from === name || this.lastMove.to === name);
         sq.classList.toggle('lastmove', isLastMove && this.lastMoveColor !== 'yellow');
         sq.classList.toggle('lastmove-outbook', isLastMove && this.lastMoveColor === 'yellow');
         sq.classList.toggle('selected', this.selected === name);
+        sq.classList.toggle('premove',
+          !!this.premove && (this.premove.from === name || this.premove.to === name));
         sq.classList.remove('dest', 'capture-dest', 'check');
       }
     }
@@ -208,8 +286,8 @@ export class Board {
     // since the dot pattern would give away what piece is selected
     if (this.selected && !this.editorMode && !this.piecesHidden) {
       try {
-        const c2 = new Chess(this.fen);
-        for (const mv of c2.moves({ square: this.selected, verbose: true })) {
+        const c2 = this._premoveActive() ? this._flippedChess() : new Chess(this.fen);
+        if (c2) for (const mv of c2.moves({ square: this.selected, verbose: true })) {
           this.squares[mv.to].classList.add(mv.captured ? 'capture-dest' : 'dest');
         }
       } catch { }
@@ -237,11 +315,11 @@ export class Board {
       const name = sqEl.dataset.sq;
       if (this.editorMode) { this.onEditorTap(name); return; }
       if (this.drawColor) { this._dragStart = name; return; }
-      if (!this.interactive) return;
+      if (!this.interactive && !this._premoveActive()) return;
       const chess = new Chess(this.fen);
       const grid = parsePlacement(this.fen.split(' ')[0]);
       const piece = grid[name];
-      const isOwnPiece = piece && piece.color === chess.turn();
+      const isOwnPiece = piece && piece.color === this._movableColor(chess.turn());
       this._tap(name);
       if (isOwnPiece && this.selected === name) this._beginDragVisual(name, sqEl, e);
     });
@@ -318,27 +396,50 @@ export class Board {
     const chess = new Chess(this.fen);
     const grid = parsePlacement(this.fen.split(' ')[0]);
     const piece = grid[name];
+    const pre = this._premoveActive();
+    const mine = this._movableColor(chess.turn());
+
+    // Any tap while a pre-move is queued replaces it, so tapping an empty
+    // square is how you cancel one.
+    if (pre && this.premove) { this.premove = null; this.render(); }
 
     if (this.selected) {
       if (this.selected === name) { this.selected = null; this.render(); return; }
+      const from = this.selected;
       // try the move
-      let legal = null;
+      let targets = null, legal = null;
       try {
-        legal = chess.moves({ square: this.selected, verbose: true }).find(m => m.to === name);
+        const c2 = pre ? this._flippedChess() : chess;
+        if (c2) targets = c2.moves({ square: from, verbose: true });
       } catch { }
-      if (legal) {
+      if (targets) legal = targets.find(m => m.to === name);
+      const ownDest = piece && piece.color === mine;
+      // With no target list at all — an illegal flipped position — a pre-move is
+      // still accepted blind. It is a guess either way, and firePremove() checks
+      // it against the real position before it is ever played.
+      if (legal || (pre && !targets && !ownDest)) {
+        const moving = grid[from];
+        const isPromo = legal ? !!legal.promotion
+          : !!moving && moving.type === 'p' && (name[1] === '8' || name[1] === '1');
         let promotion;
-        if (legal.promotion) promotion = await this._askPromotion(chess.turn());
+        // Asked now, at pre-move time, rather than after the opponent moves —
+        // simplest, and what every other site does.
+        if (isPromo) promotion = await this._askPromotion(mine);
+        // The dialog is awaited, so the opponent's move can land while it is
+        // open. Queueing then would leave a pre-move sitting on the board
+        // during the user's own turn.
+        if (pre && !this._premoveActive()) { this.selected = null; this.render(); return; }
         this.selected = null;
+        if (pre) { this.premove = { from, to: name, promotion }; this.render(); return; }
         this.render();
-        this.onMove({ from: legal.from, to: name, promotion });
+        this.onMove({ from, to: name, promotion });
         return;
       }
       // otherwise reselect if own piece
-      if (piece && piece.color === chess.turn()) { this.selected = name; this.render(); return; }
+      if (ownDest) { this.selected = name; this.render(); return; }
       this.selected = null; this.render(); return;
     }
-    if (piece && piece.color === chess.turn()) { this.selected = name; this.render(); }
+    if (piece && piece.color === mine) { this.selected = name; this.render(); }
   }
 
   _askPromotion(color) {
