@@ -2,6 +2,35 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **TAB SWIPE ALSO WORKS FROM ON TOP OF A BOARD (2026-09-11).** `sw.js` v107 →
+  **v108**. `js/app.js` swipe section only. Adrian reported he could not change
+  tab when the swipe started on a board: `.board` was in `SWIPE_SAFE`, so every
+  board (most of the screen on Analysis / Puzzles / Play) was a dead zone.
+  Committed, NOT pushed.
+  - **Rule now.** `.board` is out of `SWIPE_SAFE`; new `boardOwnsTouch(el)`
+    (called from `swipeBlocked`) keeps the touch for the board only when landing
+    there means something, because `board.js` acts on **pointerdown** (`_tap`):
+    a `.sq.grabbable` piece; any square while the board has a `.sq.selected`
+    (the touch would be a move/reselect) or a `.sq.premove` (any tap cancels
+    it); `.board.drawing` / `.board.dragging`; and `#setup-board` (editor taps).
+    Everything else — an empty square, a piece that is not yours to move — does
+    nothing on the board, so a sideways drag there swipes tabs.
+  - **Capture phase.** The swipe `pointerdown` listener is now registered with
+    `capture: true` so `boardOwnsTouch` reads `.selected` / `.premove` BEFORE
+    board.js's own pointerdown changes them (otherwise a tap-tap move onto an
+    empty square would both play the move and start a swipe).
+  - **Verified over CDP (`Input.dispatchTouchEvent`), 375px, EN/ES ×
+    light/dark, 13/13 each** (scratchpad script, deleted): Analysis empty e4 →
+    follows the finger (both sections visible, header unchanged) and lands on
+    Endgame with +1 history entry; opponent piece e7 → swipes; own e2 → ghost,
+    no swipe; e2 selected then drag from e4 → move `1.e4` played, no swipe;
+    `.drawing` → no swipe; a `.premove` square present → no swipe; vertical drag
+    from empty d5 (Analysis padded so `<main>` can scroll) → scrolled 417–518px,
+    no swipe; Puzzles own piece → ghost, no swipe; Puzzles empty square → Play;
+    Play (game started) empty square → Read; Setup editor board → no drag styles
+    at all; `scrollWidth` 375 on all tabs (Read 405, known). `.drawing` and
+    `.premove` were set by adding the classes by hand, not through the UI.
+
 - **KAEL PARKS IN THE LOWER-RIGHT CORNER AGAIN (2026-09-10).** `sw.js` v106 →
   **v107**. One CSS value: `#kael-corner`'s idle `transform` is back to
   `translateX(34px)` (was `translateX(0)` since `49d29f2` put him in the old

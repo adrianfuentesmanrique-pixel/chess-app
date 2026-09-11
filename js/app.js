@@ -1330,18 +1330,35 @@ function goAdjacentTab(dir) {
 }
 
 // A gesture must not be stolen from anything that legitimately wants a
-// horizontal drag: the board (piece dragging, which also takes pointer
-// capture) and the sideways strips. The strips are named explicitly rather
+// horizontal drag: the sideways strips, and a board when the touch could be a
+// move (boardOwnsTouch). The strips are named explicitly rather
 // than detected, because whether they overflow depends on the language and on
 // how many buttons the current state shows — a swipe that works on one phone
 // and not the next is worse than one that never fires there. The walk below
 // then catches any other real horizontal scroller.
-const SWIPE_SAFE = '.board, .modal-back, .drag-ghost, input, textarea, select, ' +
+const SWIPE_SAFE = '.modal-back, .drag-ghost, input, textarea, select, ' +
   '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .movelist, #read-stage';
+
+// The board acts the moment a finger lands (board.js _tap runs on pointerdown),
+// so it keeps the touch whenever that landing means something: a piece you can
+// pick up (.grabbable, which also claims touch-action), any square while a
+// piece is selected (it would be a move or a reselect), a queued pre-move (any
+// tap cancels it), arrow drawing, a drag already running, and the Setup
+// editor. Anywhere else — an empty square, a piece that is not yours to move —
+// the touch does nothing on the board, so a sideways drag there swipes tabs.
+// Read before the board handles the touch: see the capture flag on pointerdown.
+function boardOwnsTouch(el) {
+  const board = el.closest('.board');
+  if (!board) return false;
+  return board.id === 'setup-board' ||
+    board.matches('.drawing, .dragging') ||
+    !!el.closest('.sq.grabbable') ||
+    !!board.querySelector('.sq.selected, .sq.premove');
+}
 
 function swipeBlocked(el) {
   if (!el || !el.closest) return true;
-  if (el.closest(SWIPE_SAFE)) return true;
+  if (el.closest(SWIPE_SAFE) || boardOwnsTouch(el)) return true;
   // Stop at <main>: it is the page scroller and computes to overflow-x:auto
   // just because overflow-y is set, so any stray pixel of horizontal overflow
   // there would otherwise kill swiping across the whole app.
@@ -1393,7 +1410,7 @@ document.addEventListener('pointerdown', e => {
   const edge = e.clientX <= SWIPE_EDGE ? 1 : e.clientX >= window.innerWidth - SWIPE_EDGE ? -1 : 0;
   swipe = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, edge, from: activeScreen,
             axis: null, dx: 0, raf: 0, samples: [], cur: null, nb: null, nbName: null };
-});
+}, true); // capture: judge a board touch before board.js acts on it (boardOwnsTouch)
 
 document.addEventListener('pointermove', e => {
   const s = swipe;
