@@ -2,6 +2,70 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **SWIPE BETWEEN TABS FOLLOWS THE FINGER (2026-09-10).** `sw.js` v105 →
+  **v106**. Changed `js/app.js` (swipe section only) and `css/style.css`.
+  Web-only; **committed, NOT pushed** (nor are `c7c7c17`, `67cac4e`,
+  `b3e9295`) — `git push` deploys them all.
+  - **Behaviour.** Once a touch drag passes `SWIPE_LOCK` (10px) it picks an
+    axis: vertical → handed back to page scrolling; horizontal → the current
+    `section#screen-*` follows the finger (`translate3d` in rAF) and the
+    neighbouring tab (`neighbourTab(screen, dir)`, drawer order `TAB_ORDER`)
+    slides in beside it, one `<main>` width away. Dragging back past the start
+    swaps in the other neighbour. Release (`pointerup`): commits if
+    |dx| > `SWIPE_COMMIT` (35%) of the width unless flicked back, or on a flick
+    > `SWIPE_FLICK` (0.5 px/ms, velocity over the last 100ms only) of at least
+    `SWIPE_FLICK_MIN` (30px); otherwise springs back. Both ways animate
+    `SWIPE_MS` (250ms) ease-out; `pointercancel` springs back.
+  - **How the neighbour is shown without switching.** `paintDrag()` removes
+    `.hidden` from only that section and lifts it with inline
+    `position: fixed` + `overflow: hidden`, sized to the current section's
+    left/width and `<main>`'s visible box (top = main top + padding). Fixed, not
+    absolute: making `<main>` a containing block would have moved the Read /
+    Leaderboard `img.watermark` (the only ICB-positioned element in `<main>`,
+    measured). When `settleDrag()`'s timer ends, `endDrag()` strips the inline
+    props (`DRAG_PROPS`) and, on commit, `showScreen(next)` runs **once** and
+    `main.scrollTop = 0` in the same task, so the neighbour lands without a
+    jump and the history entry, side effects and title all happen as for a menu
+    tap. The title changes only then.
+  - **Kept.** Pointer events on document (not touch), `SWIPE_SAFE` /
+    `swipeBlocked`, the `menuOpen` guard, sub-screens have no neighbour. Edge
+    swipe (start ≤ 28px from an edge, moving inward) is still release-decided
+    back via `goBackTab()` with the old 60px / 2:1 / 700ms rule, not tracked.
+    `prefers-reduced-motion`: no tracked drag, same release rule, instant
+    `goAdjacentTab()` → `showScreen`. At the first/last tab and on sub-screens
+    the screen rubber-bands (`rubberBand()`, max a third of the width) and
+    springs back. New pointerdowns are ignored while `settling` (250ms).
+  - **Removed.** `slideScreenIn()` and the `screen-from-right/left` keyframes
+    + `.from-right/.from-left` CSS (the old 26px slide-in). The 700ms cut-off
+    no longer applies to the tracked drag.
+  - **Verified over CDP, 375px, EN/ES × light/dark, 29/29 checks each**
+    (scratchpad script, deleted). Input was `Input.dispatchTouchEvent` with touch
+    emulation, which goes through Chrome's gesture pipeline: a vertical drag
+    natively scrolled `<main>` (~1,350px) and produced a `pointercancel`, and
+    forced-overflow strips scrolled natively, so `touch-action` WAS in play here
+    (unlike page-synthesised PointerEvents). Still headless, not a phone.
+    Checked: mid-drag at 50% both sections visible, header + `history.length`
+    unchanged, `scrollWidth` 375; past threshold + release → Endgame/Learn
+    (Aprender) lands, title name + SVG = lit tab, +1 history entry, no inline
+    styles left; header unchanged while still settling; short drag → back, no
+    entry; drag out, across to the other neighbour and back → nothing changed;
+    fast 85px flick commits; far drag flicked back springs back; Analysis
+    (first), Profile (last), Rush both ways → one section, rubber band 77px,
+    springs back; drawer open → ignored; left-edge swipe → back; e2-e4 drag on
+    Analysis moves; sideways drag from a grabbable piece on Puzzles and Play
+    shows `.drag-ghost` and never swipes; `#hist-chips` / `#puzzle-actions`
+    (forced to overflow) scroll and never swipe; `#ana-moves` and
+    `#read-stage` (reader unhidden by hand, no book) never swipe; all 8 tabs
+    375 after, Read 405 (known watermark). Reduced motion (emulated): no drag
+    styles mid-drag, instant switch Endgame → Bases, +1 entry. Performance at
+    4× CPU throttle, warm app, dragging toward Analysis / Puzzles / Play:
+    frame max 14.6 / 20.9 / 16.8ms, no long animation frames, idle max 15.1ms.
+  - **Known, not chased.** While Read is dragged (or is the neighbour) its
+    ICB-positioned watermark is re-anchored to the moving section until the
+    switch ends — same pre-existing watermark bug. A neighbour never visited
+    this session shows whatever its DOM holds before `showScreen`'s loaders
+    run (e.g. Puzzles before `ensureLoaded`).
+
 - **MENU MOVED TO THE TOP — LEFT DRAWER + TAB ICON/NAME TITLE (2026-09-10).**
   `sw.js` v104 → **v105**. Changed `index.html`, `css/style.css`, `js/app.js`,
   `js/i18n.js`, `js/tour.js`. Web-only; **committed, NOT pushed** (neither are
@@ -69,7 +133,7 @@
     bugs; every other screen is 375.
   - **Stale elsewhere:** HANDOFFS.md task 2 (see above); CLAUDE.md still says
     `js/app.js` is 232 KB (it is ~281 KB). Finger-following swipe between tabs
-    is PART 2, a separate session — not started.
+    was PART 2 — done the same day, see the entry above.
 
 - **PRE-MOVE — THE OTHER FOUR BOARDS MEASURED, NOT ASSUMED (2026-09-07).**
   **No code changed.** No `sw.js` bump, nothing new to deploy. This was a

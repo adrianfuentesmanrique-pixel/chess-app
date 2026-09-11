@@ -1316,25 +1316,17 @@ function navigateFromMenu(name) {
 
 const TAB_ORDER = [...document.querySelectorAll('#tabbar button')].map(b => b.dataset.screen);
 
-function goAdjacentTab(dir) {
-  const i = TAB_ORDER.indexOf(activeScreen);
-  if (i === -1) return; // a sub-screen (Rush, Blind, a public profile) — no neighbours
-  const next = TAB_ORDER[i + dir];
-  if (!next) return;
-  showScreen(next);
-  slideScreenIn(next, dir);
+// The tab beside `screen` in the drawer's order (dir +1 = next, -1 = previous),
+// or null at either end and on a sub-screen (Rush, Blind, a public profile),
+// which has no neighbours.
+function neighbourTab(screen, dir) {
+  const i = TAB_ORDER.indexOf(screen);
+  return i === -1 ? null : TAB_ORDER[i + dir] || null;
 }
 
-// Slides the arriving screen in from the side the swipe came from. Swiping
-// left walks forward through the tab bar, so the new screen arrives from the
-// right, and the other way round. Called after showScreen so the section is
-// already visible when the animation starts.
-function slideScreenIn(name, dir) {
-  const el = $('screen-' + name);
-  if (!el) return;
-  el.classList.remove('from-right', 'from-left');
-  void el.offsetWidth;   // restarts the animation when the same screen is swiped back to
-  el.classList.add(dir > 0 ? 'from-right' : 'from-left');
+function goAdjacentTab(dir) {
+  const next = neighbourTab(activeScreen, dir);
+  if (next) showScreen(next);
 }
 
 // A gesture must not be stolen from anything that legitimately wants a
@@ -1362,10 +1354,28 @@ function swipeBlocked(el) {
   return false;
 }
 
-const SWIPE_EDGE = 28;   // px from a screen edge that counts as an edge swipe
-const SWIPE_MIN = 60;    // px of horizontal travel before it counts as a swipe
-let swipeStart = null;
+const SWIPE_EDGE = 28;     // px from a screen edge that counts as an edge swipe
+const SWIPE_MIN = 60;      // px of travel for a release-decided swipe (edge back, reduced motion)
+const SWIPE_LOCK = 10;     // px before a drag commits to an axis
+const SWIPE_COMMIT = 0.35; // share of the width past which letting go finishes the switch
+const SWIPE_FLICK = 0.5;   // px/ms — a flick this fast finishes it however short...
+const SWIPE_FLICK_MIN = 30; // ...once it has travelled this far, so a jittery tap never switches
+const SWIPE_MS = 250;      // the finish / spring-back animation
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let swipe = null;          // the gesture under the finger
+let settling = false;      // a released drag is still animating to rest
 
+// Instagram-style: once a drag locks horizontal, the current screen follows
+// the finger and the neighbouring tab slides in beside it, as far as the finger
+// has gone. Nothing is switched while dragging — the neighbour is only unhidden
+// and lifted out of the flow (position: fixed, clipped to <main>'s visible box,
+// top-aligned so it lands exactly where showScreen will put it once <main> is
+// scrolled to the top). On release it either finishes the switch or springs
+// back; only a finished switch calls showScreen, once, so the history entry,
+// the side effects (engines, Rush, Read…) and the title all happen exactly as
+// for a menu tap. At either end of the order and on a sub-screen there is no
+// neighbour, so the screen stretches with resistance and springs back.
+//
 // Deliberately pointer events, not touch events. A document-level touchstart /
 // touchmove listener changes how the browser routes touch gestures, and that
 // killed piece dragging on every board: the board sets `touch-action: none` on
@@ -1375,29 +1385,145 @@ let swipeStart = null;
 // that decision, and board.js is on pointer events already.
 // A non-primary pointer is a second finger — a pinch or a zoom, never a swipe.
 document.addEventListener('pointerdown', e => {
+  if (swipe?.axis === 'drag') settleDrag(swipe, false); // its release never arrived
+  swipe = null;
   // With the drawer open a horizontal drag must not change tabs behind it.
-  if (e.pointerType !== 'touch' || !e.isPrimary || menuOpen) { swipeStart = null; return; }
-  swipeStart = swipeBlocked(e.target) ? null : { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+  if (e.pointerType !== 'touch' || !e.isPrimary || menuOpen || settling || swipeBlocked(e.target)) return;
+  // edge: +1 on the left edge, -1 on the right — the inward direction there.
+  const edge = e.clientX <= SWIPE_EDGE ? 1 : e.clientX >= window.innerWidth - SWIPE_EDGE ? -1 : 0;
+  swipe = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, edge, from: activeScreen,
+            axis: null, dx: 0, raf: 0, samples: [], cur: null, nb: null, nbName: null };
+});
+
+document.addEventListener('pointermove', e => {
+  const s = swipe;
+  if (!s || e.pointerId !== s.id) return;
+  const dx = e.clientX - s.x, dy = e.clientY - s.y;
+  if (!s.axis) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_LOCK) return;
+    if (Math.abs(dy) >= Math.abs(dx)) { swipe = null; return; } // vertical — the page scrolls
+    // An inward swipe that starts at either edge is "back", decided at release
+    // as before; so is every swipe when the user asked for reduced motion.
+    s.axis = (s.edge && Math.sign(dx) === s.edge) || reduceMotion.matches ? 'release' : 'drag';
+    if (s.axis === 'drag') beginDrag(s);
+  }
+  if (s.axis !== 'drag') return;
+  if (activeScreen !== s.from) { endDrag(s); swipe = null; return; } // something else navigated
+  s.dx = dx;
+  s.samples.push([e.timeStamp, e.clientX]);
+  if (s.samples.length > 12) s.samples.shift();
+  if (!s.raf) s.raf = requestAnimationFrame(() => { s.raf = 0; paintDrag(s); });
 });
 
 // The browser took the gesture over (a scroll started, or the piece drag on the
 // board claimed it) — whatever it turned into, it is not a tab swipe.
-document.addEventListener('pointercancel', () => { swipeStart = null; });
+document.addEventListener('pointercancel', e => {
+  const s = swipe;
+  swipe = null;
+  if (s && s.axis === 'drag' && e.pointerId === s.id) settleDrag(s, false);
+});
 
 document.addEventListener('pointerup', e => {
-  const start = swipeStart;
-  swipeStart = null;
-  if (!start || e.pointerId !== start.id) return;
-  if (Date.now() - start.t > 700) return; // a slow drag is not a swipe
-  const dx = e.clientX - start.x, dy = e.clientY - start.y;
+  const s = swipe;
+  swipe = null;
+  if (!s || e.pointerId !== s.id) return;
+  const dx = e.clientX - s.x, dy = e.clientY - s.y;
+  if (s.axis === 'drag') {
+    s.dx = dx;
+    s.samples.push([e.timeStamp, e.clientX]);
+    // Velocity over the last 100ms only, so a drag that stopped and then let
+    // go is not mistaken for a flick by the motion before the pause.
+    const recent = s.samples.filter(([t]) => t >= e.timeStamp - 100);
+    const v = recent.length > 1
+      ? (recent[recent.length - 1][1] - recent[0][1]) / Math.max(1, recent[recent.length - 1][0] - recent[0][0])
+      : 0;
+    paintDrag(s); // the neighbour for the final position
+    const fast = Math.abs(v) > SWIPE_FLICK, sameWay = Math.sign(v) === Math.sign(dx);
+    const commit = !!s.nb && (Math.abs(dx) > s.w * SWIPE_COMMIT
+      ? !(fast && !sameWay)                                   // far enough, unless flicked back
+      : fast && sameWay && Math.abs(dx) >= SWIPE_FLICK_MIN);  // short, but flicked on
+    settleDrag(s, commit);
+    return;
+  }
+  if (Date.now() - s.t > 700) return; // a slow release-decided swipe is not a swipe
   if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 2) return;
-  // An inward swipe that starts at either edge is "back"; the same motion
-  // started anywhere else steps to the neighbouring tab.
-  const fromEdge = (start.x <= SWIPE_EDGE && dx > 0) ||
-                   (start.x >= window.innerWidth - SWIPE_EDGE && dx < 0);
-  if (fromEdge) goBackTab();
+  if (s.edge && Math.sign(dx) === s.edge) goBackTab();
   else goAdjacentTab(dx < 0 ? 1 : -1);
 });
+
+const DRAG_PROPS = ['position', 'top', 'left', 'width', 'height', 'overflow', 'transform', 'transition', 'willChange'];
+
+function beginDrag(s) {
+  const main = document.querySelector('main');
+  s.main = main;
+  s.cur = $('screen-' + s.from);
+  s.w = main.clientWidth;
+  const m = main.getBoundingClientRect(), c = s.cur.getBoundingClientRect();
+  const top = m.top + parseFloat(getComputedStyle(main).paddingTop);
+  s.box = { top: top + 'px', left: c.left + 'px', width: c.width + 'px', height: (m.bottom - top) + 'px' };
+  s.cur.style.willChange = 'transform';
+}
+
+// Past the ends there is nothing to reveal: the screen gives way less and less
+// the further it is pulled (never more than a third of the width).
+const rubberBand = (dx, w) => dx * w / (w + Math.abs(dx) * 3);
+
+function paintDrag(s) {
+  if (!s.cur) return;
+  const dir = s.dx < 0 ? 1 : -1; // dragging left walks forward: the next tab comes in from the right
+  const name = s.dx === 0 ? null : neighbourTab(s.from, dir);
+  // Dragged back past the start: swap which neighbour is showing.
+  if (name !== s.nbName) {
+    hideNeighbour(s);
+    if (name) {
+      const el = $('screen-' + name);
+      Object.assign(el.style, s.box, { position: 'fixed', overflow: 'hidden', willChange: 'transform' });
+      el.classList.remove('hidden');
+      s.nb = el; s.nbName = name;
+    }
+  }
+  const x = s.nb ? s.dx : rubberBand(s.dx, s.w);
+  s.cur.style.transform = `translate3d(${x}px,0,0)`;
+  if (s.nb) s.nb.style.transform = `translate3d(${x + dir * s.w}px,0,0)`;
+}
+
+function hideNeighbour(s) {
+  if (!s.nb) return;
+  for (const p of DRAG_PROPS) s.nb.style[p] = '';
+  s.nb.classList.toggle('hidden', s.nbName !== activeScreen);
+  s.nb = null; s.nbName = null;
+}
+
+function endDrag(s) {
+  cancelAnimationFrame(s.raf);
+  if (s.cur) for (const p of DRAG_PROPS) s.cur.style[p] = '';
+  hideNeighbour(s);
+}
+
+// Animates from wherever the finger left it to rest: the neighbour fully in
+// (commit) or both screens back where they started. The switch itself happens
+// only once the animation ends, in the same frame the neighbour drops back into
+// the flow, so it lands without a jump.
+function settleDrag(s, commit) {
+  cancelAnimationFrame(s.raf);
+  if (!s.cur) return;
+  const dir = s.dx < 0 ? 1 : -1;
+  const x = commit ? -dir * s.w : 0;
+  getComputedStyle(s.cur).transform; // flush the last drag position so the transition starts from it
+  for (const el of [s.cur, s.nb]) if (el) el.style.transition = `transform ${SWIPE_MS}ms ease-out`;
+  s.cur.style.transform = `translate3d(${x}px,0,0)`;
+  if (s.nb) s.nb.style.transform = `translate3d(${x + dir * s.w}px,0,0)`;
+  settling = true;
+  setTimeout(() => {
+    settling = false;
+    const next = s.nbName;
+    endDrag(s);
+    if (commit && activeScreen === s.from) {
+      showScreen(next);
+      s.main.scrollTop = 0;
+    }
+  }, SWIPE_MS);
+}
 
 // ── puzzle mode switcher ──
 // The same segmented control sits on all three puzzle screens, so any mode can
