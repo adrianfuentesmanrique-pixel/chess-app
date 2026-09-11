@@ -2,6 +2,20 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **KAEL PARKS IN THE LOWER-RIGHT CORNER AGAIN (2026-09-10).** `sw.js` v106 →
+  **v107**. One CSS value: `#kael-corner`'s idle `transform` is back to
+  `translateX(34px)` (was `translateX(0)` since `49d29f2` put him in the old
+  bottom bar and `c7c7c17` left him fully in place when the bar went). He keeps
+  `bottom: calc(12px + safe-area)`; `#kael-corner.speaking` (added/removed in
+  `js/app.js` around the quote bubble) still slides him to `translateX(0)` at
+  full opacity. No JS changed. Committed, NOT pushed. Verified over CDP, 375px,
+  EN/ES × light/dark (scratchpad script, deleted): idle `#kael-fab` spans
+  349→397, so a 26px sliver shows, 12px off the bottom, opacity .55, and
+  `elementFromPoint` on the sliver hits `#kael-fab`; tapping the sliver adds
+  `.speaking` → 315→363, all 48px visible, opacity 1. `scrollWidth` 375 idle
+  and on all 8 tabs (Read 405, the known watermark) — the parked FAB adds no
+  horizontal scroll.
+
 - **SWIPE BETWEEN TABS FOLLOWS THE FINGER (2026-09-10).** `sw.js` v105 →
   **v106**. Changed `js/app.js` (swipe section only) and `css/style.css`.
   Web-only; **committed, NOT pushed** (nor are `c7c7c17`, `67cac4e`,

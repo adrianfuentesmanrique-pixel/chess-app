@@ -1221,9 +1221,10 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 40; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
   pointer-events: none;
-  /* At rest he sits fully in place but faded, so he doesn't compete with the
-     screen; a quote brings him to full opacity. */
-  transform: translateX(0);
+  /* Idle, Kael parks off the right edge with only a faded sliver showing, so he
+     is never in the way of the screen but can still be tapped; a quote slides
+     him fully back in at full opacity (.speaking). */
+  transform: translateX(34px);
   transition: transform .35s cubic-bezier(.22, .8, .25, 1), opacity .35s ease;
   opacity: .55;
 }
