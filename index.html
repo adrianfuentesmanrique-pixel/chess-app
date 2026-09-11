@@ -117,9 +117,15 @@
   <div id="splash-title">Chess Training Center</div>
 </div>
 
+<!-- Top bar: ☰ opens the destinations drawer (#tabbar, below). The middle names
+     the screen you're on — icon + label copied from the lit #tabbar button by
+     updateTabMenu() in js/app.js, so the title and the drawer never disagree. -->
 <header id="topbar">
-  <span id="app-title"><img src="icons/logo-mark.png" class="brand-logo" alt="">Chess Training Center</span>
-  <div class="row" style="gap:10px; margin:0;">
+  <button id="tabmenu-btn" class="icon-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tabbar" data-i18n-aria="menu_open">
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <span id="app-title"><span id="app-title-ico" aria-hidden="true"></span><span id="app-title-name"></span></span>
+  <div class="row topbar-right" style="gap:10px; margin:0;">
     <span id="streak-badge" class="streak-badge" title="Racha diaria"></span>
     <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
   </div>
@@ -992,36 +998,33 @@
   </section>
 </main>
 
-<!-- Bottom menu. The always-visible control is #tabmenu-btn: it names the
-     screen you're on and opens the sheet, so you never lose track of where you
-     are. The seven destination buttons still live in #tabbar below (same
-     data-screen, same order) — that is what keeps TAB_ORDER, the .on highlight,
-     the click handlers and the guided-tour targets all working unchanged.
-     #tabbar is now styled as a sheet that slides up from the bottom. -->
-<div id="tabmenu">
-  <button id="tabmenu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tabbar">
-    <span class="tabmenu-ico" aria-hidden="true">☰</span>
-    <span id="tabmenu-label"></span>
-  </button>
-</div>
-
 <div id="tabsheet-backdrop"></div>
 
+<!-- Destinations drawer, opened by #tabmenu-btn in the top bar and sliding in
+     from the left. The eight destination buttons keep their data-screen and
+     their order, with Profile the last <button> — that is what keeps TAB_ORDER,
+     swipe nav, the .on highlight, the click handlers and the guided-tour
+     targets all working. The icons are monochrome currentColor strokes, so the
+     copy updateTabMenu() puts in the top bar takes the title's ink in either
+     colour mode (an emoji can't). -->
 <nav id="tabbar" data-i18n-aria="nav_destinations">
-  <button data-screen="analysis"><span class="tab-ico">🔍</span><span data-i18n="tab_analysis"></span></button>
-  <button data-screen="endgame"><span class="tab-ico">🎓</span><span data-i18n="tab_endgame"></span></button>
-  <button data-screen="base"><span class="tab-ico">📚</span><span data-i18n="tab_base"></span></button>
-  <button data-screen="trainer"><span class="tab-ico">📖</span><span data-i18n="tab_trainer"></span></button>
-  <button data-screen="puzzles"><span class="tab-ico">🧩</span><span data-i18n="tab_puzzles"></span></button>
-  <button data-screen="play"><span class="tab-ico">🤖</span><span data-i18n="tab_play"></span></button>
-  <button data-screen="read"><span class="tab-ico">🔖</span><span data-i18n="tab_read"></span></button>
-  <button data-screen="profile"><span class="tab-ico">👤</span><span data-i18n="tab_profile"></span></button>
-  <!-- Not a destination and deliberately NOT a <button>: every '#tabbar button'
-       selector (TAB_ORDER, swipe nav, the .on highlight, the click handler, the
-       tour targets) must keep matching exactly the seven data-screen buttons.
-       An <a> spans both grid columns as a footer row and opens the Limits &
-       storage sheet (js/app.js openLimitsSheet). -->
-  <a id="menu-limits" class="sheet-link" role="button" tabindex="0"><span class="tab-ico" aria-hidden="true">📦</span><span data-i18n="limits_menu"></span></a>
+  <button data-screen="analysis"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><span data-i18n="tab_analysis"></span></button>
+  <button data-screen="endgame"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11.2v4.3c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.3"/><path d="M21.5 9v5.5"/></svg><span data-i18n="tab_endgame"></span></button>
+  <button data-screen="base"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4.5" height="16" rx="1"/><rect x="9.5" y="4" width="4.5" height="16" rx="1"/><path d="m15.8 5.3 3.9-1 2.8 14.7-3.9 1z"/></svg><span data-i18n="tab_base"></span></button>
+  <button data-screen="trainer"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3 5v13c4-.5 7 0 9 1.5 2-1.5 5-2 9-1.5V5c-4-.5-7 0-9 1.5z"/><path d="M12 6.5v13"/></svg><span data-i18n="tab_trainer"></span></button>
+  <button data-screen="puzzles"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 7.5H9a2 2 0 1 1 4 0h3.5V11a2 2 0 1 1 0 4v3.5h-11z"/></svg><span data-i18n="tab_puzzles"></span></button>
+  <button data-screen="play"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 5v3M9.5 12.5v1.5M14.5 12.5v1.5M2.5 12v3M21.5 12v3"/><circle cx="12" cy="3.5" r="1"/></svg><span data-i18n="tab_play"></span></button>
+  <button data-screen="read"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5h10a1 1 0 0 1 1 1v16l-6-4-6 4v-16a1 1 0 0 1 1-1z"/></svg><span data-i18n="tab_read"></span></button>
+  <!-- The bottom group. The divider's margin-top:auto pins it and everything
+       after it to the foot of the drawer. Limits & storage is not a destination
+       and deliberately NOT a <button>: every '#tabbar button' selector
+       (TAB_ORDER, swipe nav, the .on highlight, the click handler, the tour
+       targets) must keep matching exactly the eight data-screen buttons, so it
+       can sit before Profile without disturbing their order. It opens the
+       Limits & storage sheet (js/app.js openLimitsSheet). -->
+  <hr class="drawer-sep">
+  <a id="menu-limits" class="sheet-link" role="button" tabindex="0"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5 12 3.5l8.5 4v9l-8.5 4-8.5-4z"/><path d="m3.5 7.5 8.5 4 8.5-4M12 11.5v9"/></svg><span data-i18n="limits_menu"></span></a>
+  <button data-screen="profile"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.8-4 3.8-6.5 7.5-6.5s6.7 2.5 7.5 6.5"/></svg><span data-i18n="tab_profile"></span></button>
 </nav>
 
 <div id="toast" class="hidden"></div>

@@ -1,6 +1,75 @@
-# Chess app — where things stand (updated 2026-09-07)
+# Chess app — where things stand (updated 2026-09-10)
 
 ## Already done and pushed — do NOT redo these
+
+- **MENU MOVED TO THE TOP — LEFT DRAWER + TAB ICON/NAME TITLE (2026-09-10).**
+  `sw.js` v104 → **v105**. Changed `index.html`, `css/style.css`, `js/app.js`,
+  `js/i18n.js`, `js/tour.js`. Web-only; **committed, NOT pushed** (neither are
+  `b3e9295` / `67cac4e` before it) — `git push` deploys all three.
+  **Reverses HANDOFFS.md task 2's "bottom sheet, NOT a left drawer — do not
+  re-open"**: Adrian changed his mind on 2026-09-10. That line is stale.
+  - **What changed.** The bottom bar `#tabmenu` is gone. `#tabmenu-btn` (☰, an
+    inline SVG) now sits in `#topbar`'s left corner, where the CTC logo and the
+    hard-coded "Chess Training Center" were. `#topbar` is a
+    `1fr minmax(0, max-content) 1fr` grid, so `#app-title` (`#app-title-ico` +
+    `#app-title-name`) is truly centred between ☰ and streak + ⚙️ and a long
+    name ellipsises. `nav#tabbar` is now a full-height drawer, `min(80vw,320px)`,
+    sliding in from the left (`translateX(calc(-100% - 48px))` closed, so the
+    shadow never peeks). It opens ONLY from the ☰ tap — no edge-drag, on
+    purpose (Android back / the app's edge swipe).
+  - **Kept exactly, and why it still works.** The eight `#tabbar
+    button[data-screen]` are unchanged in order with Profile the LAST button, so
+    `TAB_ORDER`, swipe nav, `.on`, the click handlers and the tour targets are
+    untouched. `openMenu`/`closeMenu`/`navigateFromMenu`/the `popstate`
+    handler were not edited. The bottom group is `hr.drawer-sep`
+    (`margin-top:auto`), then `a#menu-limits`, then Profile — Limits moved
+    *before* Profile in the DOM, which is safe because it is an `<a>`, not a
+    button.
+  - **Icons.** All nine `.tab-ico` (8 tabs + Limits) are now hand-drawn inline
+    SVG, `currentColor`, stroke 2, round caps/joins — no emoji left in the
+    drawer or the title. `updateTabMenu()` (same name, still exported, still
+    called by `relabel()`, `Analysis.updateBaseNav()`,
+    `Masterclass.lightBasesTab()`) takes the lit button — or the `MENU_AREA`
+    fallback button — and copies its label AND `cloneNode`s its SVG into the
+    title, so the icon inherits `--text`. Drawer: icon `--muted`, label
+    `--text`, lit row gold. New i18n key `menu_open` (Menu/Menú) is the ☰
+    button's accessible name.
+  - **Two small behaviour additions.** (1) The swipe `pointerdown` listener
+    ignores gestures while `menuOpen`, so a horizontal drag over the open
+    drawer can't change tabs behind it. (2) `Tour.handleScroll()` uses zero
+    safe margins for a target inside `#tabbar`: Profile sits at the drawer's
+    foot (bottom 786 of 800), inside the old 72px bottom margin, and the tour
+    drew a "Keep scrolling" arrow over the drawer. Seen in a screenshot, fixed,
+    re-measured.
+  - **Kael** now floats bottom-right over the screen
+    (`bottom: calc(12px + safe-area)`), faded .55 at rest; `main`'s
+    `padding-bottom` is 72px so the last row scrolls clear. Measured over all 8
+    tabs: he covers nothing tappable at scroll-bottom; on Play at scroll-top he
+    sits over the lower part of the level list and `#play-start`, which scroll
+    clear. `#read-reader`'s `height: calc(100dvh - 120px …)` was left alone —
+    it now ends ~62px above the bottom, exactly Kael's corner.
+  - **Verified over CDP, 375px, EN/ES × light/dark** (scratchpad script, deleted):
+    title name + SVG equal the lit tab on all 8 tabs plus a Base game (Bases),
+    a Masterclass chapter (Bases), the leaderboard (Profile/Perfil) and Rush
+    (Puzzles), and after a live language switch in Settings; title SVG
+    `color`, every shape's computed `stroke` and the name all equal a
+    `var(--text)` probe — rgb(245,247,250) dark, rgb(26,32,44) light; zero
+    emoji in title and drawer; icon + name group centred to 0px. Drawer sampled
+    sliding −348 → 0, 300px wide, lit row gold, visual order ends
+    read → divider → Limits → Profile, Profile 14px off the bottom; tap on the
+    backdrop closes without navigating. `history.back()` with the drawer open
+    closed only the drawer; a tapped destination left exactly one entry (one
+    more back returned to the previous tab, menu shut). Guided tour walked with
+    real taps: all 7 tab steps ring the button inside the fully open drawer and
+    advance. Swipe with drawer open: ignored; closed: Read → Profile.
+  - **Not caused by this, do not chase here:** `scrollWidth` is **405** on Read
+    and the Leaderboard — `img.watermark` (right edge 405). Measured identical
+    on a `git archive HEAD` copy of the pre-change code, so it is the
+    pre-existing watermark bug already listed under "Still to do" → layout
+    bugs; every other screen is 375.
+  - **Stale elsewhere:** HANDOFFS.md task 2 (see above); CLAUDE.md still says
+    `js/app.js` is 232 KB (it is ~281 KB). Finger-following swipe between tabs
+    is PART 2, a separate session — not started.
 
 - **PRE-MOVE — THE OTHER FOUR BOARDS MEASURED, NOT ASSUMED (2026-09-07).**
   **No code changed.** No `sw.js` bump, nothing new to deploy. This was a

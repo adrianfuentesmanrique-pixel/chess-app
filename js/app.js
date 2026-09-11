@@ -1227,9 +1227,10 @@ function goBackTab() {
   if (tabStack.length > 1) history.back(); // the popstate handler above does the work
 }
 
-// ── bottom menu sheet ───────────────────────────────────────────────────────
-// The seven destinations live in #tabbar, which slides up as a sheet; the
-// always-visible #tabmenu-btn just names the screen you're on. Opening the menu
+// ── menu drawer ─────────────────────────────────────────────────────────────
+// The eight destinations live in #tabbar, a drawer that slides in from the left
+// when #tabmenu-btn (☰, top-left) is tapped; the top bar's title names the
+// screen you're on (updateTabMenu). Opening the menu
 // pushes a history entry so the Android back gesture closes the menu — and only
 // the menu — instead of navigating; a programmatic close consumes that entry
 // itself (see the popstate handler above). A tapped destination carries a
@@ -1243,9 +1244,9 @@ let menuPushed = false;
 let closingMenu = false;
 let pendingNav = null;
 
-// Every screen resolves to one of the seven tab labels, so the button always
-// reads as a real destination even on a sub-screen (a friend's profile, Rush,
-// a leaderboard). Mirrors the tab the app lights via .on for those screens.
+// Every screen resolves to one of the eight tabs, so the title always reads as
+// a real destination even on a sub-screen (a friend's profile, Rush, a
+// leaderboard). Mirrors the tab the app lights via .on for those screens.
 const MENU_AREA = {
   analysis: 'analysis', setup: 'analysis',
   endgame: 'endgame',
@@ -1258,21 +1259,23 @@ const MENU_AREA = {
   friends: 'profile', 'friends-leaderboard': 'profile', 'friends-blocked': 'profile',
 };
 
+// Paints the top bar's title: the icon and name of the current tab.
 export function updateTabMenu() {
-  const label = $('tabmenu-label');
-  if (!label) return;
-  // Follow whichever tab is actually lit in the sheet, so the button can never
+  const name = $('app-title-name');
+  if (!name) return;
+  // Follow whichever tab is actually lit in the drawer, so the title can never
   // disagree with the highlight: updateBaseNav()/Masterclass override .on to
   // 'base'/'play' for a game opened from a base or from Play history while
-  // activeScreen stays 'analysis'. Reusing the tab's own already-translated
-  // label also follows a language switch for free and needs no strings here.
-  const lit = document.querySelector('#tabbar button.on [data-i18n]');
-  if (lit) { label.textContent = lit.textContent; return; }
-  // No tab is lit (rush/blind/leaderboard/friends/public-profile light none),
-  // so map the raw screen to its home tab instead.
-  const area = MENU_AREA[activeScreen] || 'analysis';
-  const src = document.querySelector(`#tabbar button[data-screen="${area}"] [data-i18n]`);
-  label.textContent = src ? src.textContent : '';
+  // activeScreen stays 'analysis'. When no tab is lit (rush/blind/leaderboard/
+  // friends/public-profile light none), map the raw screen to its home tab.
+  // Reusing the tab's own already-translated label follows a language switch
+  // for free, and copying its currentColor SVG gives a title icon in the
+  // title's ink.
+  const btn = document.querySelector('#tabbar button.on') ||
+    document.querySelector(`#tabbar button[data-screen="${MENU_AREA[activeScreen] || 'analysis'}"]`);
+  name.textContent = btn?.querySelector('[data-i18n]')?.textContent ?? '';
+  const ico = btn?.querySelector('.tab-ico');
+  $('app-title-ico')?.replaceChildren(...(ico ? [ico.cloneNode(true)] : []));
 }
 
 function openMenu(push = true) {
@@ -1372,7 +1375,8 @@ let swipeStart = null;
 // that decision, and board.js is on pointer events already.
 // A non-primary pointer is a second finger — a pinch or a zoom, never a swipe.
 document.addEventListener('pointerdown', e => {
-  if (e.pointerType !== 'touch' || !e.isPrimary) { swipeStart = null; return; }
+  // With the drawer open a horizontal drag must not change tabs behind it.
+  if (e.pointerType !== 'touch' || !e.isPrimary || menuOpen) { swipeStart = null; return; }
   swipeStart = swipeBlocked(e.target) ? null : { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
 });
 
@@ -1422,7 +1426,7 @@ document.querySelectorAll('#tabbar button').forEach(b =>
 $('tabmenu-btn')?.addEventListener('click', () => openMenu());
 $('tabsheet-backdrop')?.addEventListener('click', () => closeMenu(false));
 
-// The Limits & storage footer row in the sheet. Not a destination: it closes
+// The Limits & storage row in the drawer. Not a destination: it closes
 // the menu (consuming its history entry the same way a tap on a tab does) and
 // opens the info sheet, so Android back still just shuts the menu.
 {

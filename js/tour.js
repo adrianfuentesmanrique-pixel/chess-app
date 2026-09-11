@@ -313,7 +313,7 @@ const Tour = {
     // Back out of a Learn lesson.
     this.internal = true;
     try { step.enter?.(); } finally { this.internal = false; }
-    // The destination buttons now live in the slide-up menu, so a step that
+    // The destination buttons now live in the left-hand drawer, so a step that
     // rings one has to open it first; every other step closes it. openMenu here
     // never touches history (ctx passes push:false), so it can't disturb Back.
     this.ctx.closeMenu?.();
@@ -417,7 +417,13 @@ const Tour = {
   // page is not painting, and not every engine honours it), and only then the
   // big arrow. The user is never simply left staring at a dimmed screen.
   handleScroll(el, u, hint) {
-    const topSafe = 56, botSafe = 72;
+    // The margins keep a target clear of the top bar and the card's edge of the
+    // screen. A destination in the menu drawer sits in a full-height panel
+    // above all of that, so only the real screen edges count there — otherwise
+    // Profile, pinned to the drawer's foot, got a "keep scrolling" arrow drawn
+    // over the drawer with nothing to scroll.
+    const inDrawer = !!el.closest?.('#tabbar');
+    const topSafe = inDrawer ? 0 : 56, botSafe = inDrawer ? 0 : 72;
     const above = u.top < topSafe;
     const below = u.bottom > window.innerHeight - botSafe;
 

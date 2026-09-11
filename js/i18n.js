@@ -5,8 +5,10 @@ const DICT = {
   tab_base: { es: 'Bases', en: 'Bases' },
   tab_play: { es: 'Jugar', en: 'Play' },
   tab_read: { es: 'Leer', en: 'Read' },
-  // Accessible name for the destinations sheet (the old tab bar, now a menu).
+  // Accessible name for the destinations drawer (the old tab bar, now a menu).
   nav_destinations: { es: 'Destinos', en: 'Destinations' },
+  // Accessible name for the ☰ button in the top bar that opens it.
+  menu_open: { es: 'Menú', en: 'Menu' },
   tab_trainer: { es: 'Aperturas', en: 'Openings' },
   tab_puzzles: { es: 'Puzzles', en: 'Puzzles' },
   // The Learn tab hosts three sections: Rules, Basic Checkmates and Endings.
@@ -103,7 +105,7 @@ const DICT = {
   base_name: { es: 'Nombre de la base', en: 'Database name' },
   database_limit_toast: { es: 'Límite de {n} bases de partidas alcanzado.', en: 'Limit of {n} databases reached.' },
 
-  // ── Limits & storage page (reached from the bottom menu) ──
+  // ── Limits & storage page (reached from the menu drawer) ──
   limits_menu: { es: 'Límites y copias', en: 'Limits & storage' },
   limits_title: { es: 'Límites y almacenamiento', en: 'Limits & storage' },
   cap_databases: { es: 'Bases de datos', en: 'Databases' },
