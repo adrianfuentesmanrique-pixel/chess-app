@@ -477,6 +477,9 @@
     <div class="row screen-head">
       <h2 data-i18n="puzzles_title"></h2>
       <span id="puzzle-elo" class="elo-badge"></span>
+      <!-- The rating the last attempt moved (+10 / -10). Filled by
+           Puzzles.showEloDelta the moment the result is scored. -->
+      <span id="puzzle-elo-delta" class="elo-delta hidden" aria-live="polite"></span>
     </div>
     <div class="seg puzzle-modes scroll" data-mode="puzzles">
       <button data-v="puzzles" class="on" data-i18n="mode_puzzles"></button>

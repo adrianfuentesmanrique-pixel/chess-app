@@ -257,9 +257,12 @@ main { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; touch-action: pan-y
    currently in play. */
 .plog { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 10px; }
 .plog-dot {
-  width: 22px; height: 22px; border: none; border-radius: 50%;
+  /* Was a fixed 22px circle holding its index. It now holds the ELO the
+     attempt moved, so it grows into a pill when the number is wide (the first
+     ten rated attempts calibrate fast and can swing three digits). */
+  min-width: 22px; height: 22px; border: none; border-radius: 11px;
   font-size: 10px; font-weight: 700; color: #fff; cursor: pointer;
-  display: grid; place-items: center; padding: 0;
+  display: grid; place-items: center; padding: 0 5px;
 }
 .plog-dot.ok { background: var(--success); }
 .plog-dot.miss { background: var(--danger); }
@@ -504,6 +507,18 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
   background: var(--accent2); color: #fff; font-weight: 700;
   padding: 4px 12px; border-radius: 20px; font-size: 14px;
 }
+/* The rating an attempt moved, beside the ELO badge: green for a gain, red for
+   a loss. It appears the moment the result is scored -- for a mistake that is
+   the mistake itself, not the end of the puzzle -- and clears with the next
+   puzzle. */
+.elo-delta {
+  color: #fff; font-weight: 700;
+  padding: 4px 10px; border-radius: 20px; font-size: 13px;
+}
+.elo-delta.up { background: var(--success); }
+.elo-delta.down { background: var(--danger); }
+.elo-delta.flat { background: var(--muted); }
+
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-item .cat-count { color: var(--muted); font-size: 13px; }
 .badge-practice { display:inline-block; background:#3a5a2a; color:#c7e8a8; font-size:11px; padding:2px 7px; border-radius:10px; margin-left:6px; }

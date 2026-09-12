@@ -2,6 +2,45 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PUZZLE ELO IS CHARGED AT THE MISTAKE, AND THE CHANGE IS SHOWN (2026-09-11).**
+  `sw.js` v108 → **v109**. Changed `js/app.js`, `index.html`, `css/style.css`.
+  Committed, NOT pushed. A tester found it: the rating only moved when a puzzle
+  *ended*, so after a wrong move you could tap Next and walk away from the loss
+  — failing and skipping was the cheapest way to hold a rating.
+  - **The fix.** New `Puzzles.markFailed()` (and the same on `Blind`) sets
+    `failedThis` and calls `recordResult(false)` straight away. Every route that
+    means "no longer a clean solve" goes through it: the wrong-move branch of
+    `userMove`, `hint()`, and `showSolution()`. `recordResult` was already
+    guarded by `eloRecorded`, so the later `recordResult(!this.failedThis)` on a
+    solve is a no-op — a mistake is charged exactly once and solving afterwards
+    pays nothing back. `nextPuzzle()`'s `log(false)` is unchanged.
+  - **The number on screen.** `recordResult` now records `lastDelta`
+    (`Math.round(elo) - Math.round(before)`, so it always matches the badge's
+    own rounding). `Puzzles.showEloDelta()` paints new `#puzzle-elo-delta`
+    beside the ELO badge — `.elo-delta.up` green, `.down` red, `.flat` muted for
+    a 0 — with an `aria-label`; `clearEloDelta()` runs in `loadPuzzle`, so it
+    clears with the next puzzle. Shared helper `eloDeltaText(d)`.
+  - **The strip below the board.** `PuzzleLog.add(mode, puzzle, solved, delta)`
+    stores the delta and each `.plog-dot` shows it instead of its index; the
+    position is still in the `title`/`aria-label` (`Puzzle 3 — Missed — Puzzle
+    ELO -89`), and tapping still opens the same review. Rush passes no delta (a
+    run is scored as one), so those dots keep their numbers. `.plog-dot` went
+    from a fixed 22px circle to a `min-width` pill — the first ten rated
+    attempts use K=192 and really do produce three-digit swings.
+  - **Verified over CDP with real taps, 375px, EN/ES × light/dark, 11/11 each**
+    (scratchpad script, deleted). The script identifies the puzzle on the board
+    by matching the DOM placement against the live `PUZZLES` export, so it plays
+    the real solution: clean solve 1200 → 1280 with a green `+80` on the tab and
+    on the dot; wrong move 1280 → 1159 the moment it lands, red `-121`, and
+    tapping Next left it at 1159 (charged once) with a red `-121` dot; mistake
+    then full solve → no payback; hint → charged at once; solution button →
+    charged once, not twice; delta cleared on the next puzzle; `scrollWidth` 375
+    with the badge ending at x=365; Blindfold mistake 1200 → 1193 and Next kept
+    it. ES dark needed a re-run: the first pass registered no Blindfold move at
+    all (test flakiness around the 10s countdown, not app behaviour).
+  - **Not changed.** The K values, the theme ELO maths, `Streak.recordActivity()`
+    and `DailyMissions` (still win-only), and Rush.
+
 - **TAB SWIPE ALSO WORKS FROM ON TOP OF A BOARD (2026-09-11).** `sw.js` v107 →
   **v108**. `js/app.js` swipe section only. Adrian reported he could not change
   tab when the swipe started on a board: `.board` was in `SWIPE_SAFE`, so every

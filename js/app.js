@@ -3800,13 +3800,19 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // reopened and stepped through. Review happens on its own modal board so the
 // puzzle currently in play keeps its state untouched.
 
+// "+10" / "-10" — the ELO an attempt moved, for the badge and the strip.
+const eloDeltaText = d => (d > 0 ? '+' : '') + d;
+
 const PuzzleLog = {
   logs: { puzzles: [], blind: [], rush: [] },
   containers: { puzzles: 'puzzle-log', blind: 'blind-log', rush: 'rush-log' },
 
-  add(mode, puzzle, solved) {
+  // `delta` is the ELO that attempt moved. Null where a puzzle has no rating
+  // of its own (a Rush run is scored as one run), and those dots keep showing
+  // their position in the strip instead.
+  add(mode, puzzle, solved, delta = null) {
     if (!puzzle) return;
-    this.logs[mode].push({ puzzle, solved });
+    this.logs[mode].push({ puzzle, solved, delta });
     this.render(mode);
   },
 
@@ -3819,8 +3825,9 @@ const PuzzleLog = {
     this.logs[mode].forEach((entry, i) => {
       const b = document.createElement('button');
       b.className = 'plog-dot ' + (entry.solved ? 'ok' : 'miss');
-      b.textContent = i + 1;
-      const label = `${t('log_review_title').replace('{n}', i + 1)} — ${t(entry.solved ? 'log_solved' : 'log_missed')}`;
+      b.textContent = entry.delta == null ? String(i + 1) : eloDeltaText(entry.delta);
+      const label = `${t('log_review_title').replace('{n}', i + 1)} — ${t(entry.solved ? 'log_solved' : 'log_missed')}` +
+        (entry.delta == null ? '' : ` — ${t('puzzle_elo')} ${eloDeltaText(entry.delta)}`);
       b.title = label;
       b.setAttribute('aria-label', label);
       b.onclick = () => this.review(mode, i);
@@ -3914,6 +3921,7 @@ const Puzzles = {
   solved: {},          // id -> true
   failedThis: false,
   eloRecorded: false,
+  lastDelta: null,        // ELO the current puzzle has moved, for the badge and the strip
   loaded: false,
   elo: 1200,
   themeElo: {},
@@ -4108,6 +4116,37 @@ const Puzzles = {
     $('puzzle-elo').textContent = `${t('puzzle_elo')}: ${Math.round(this.elo)}`;
   },
 
+  // What the attempt just scored cost or earned, beside the badge. Stays up
+  // until the next puzzle loads, so it is still readable after a wrong move
+  // while the player keeps trying.
+  showEloDelta(d) {
+    const el = $('puzzle-elo-delta');
+    if (!el || d == null) return;
+    el.textContent = eloDeltaText(d);
+    el.classList.remove('hidden', 'up', 'down', 'flat');
+    el.classList.add(d > 0 ? 'up' : d < 0 ? 'down' : 'flat');
+    el.setAttribute('aria-label', `${t('puzzle_elo')} ${eloDeltaText(d)}`);
+  },
+
+  clearEloDelta() {
+    const el = $('puzzle-elo-delta');
+    if (!el) return;
+    el.textContent = '';
+    el.classList.add('hidden');
+  },
+
+  // A mistake costs the rating there and then. It used to be charged only when
+  // the puzzle ended, so tapping Next after a wrong move walked away from the
+  // loss — failing and skipping was the cheapest way to keep a rating. Every
+  // route that means "no longer a clean solve" comes through here: a wrong
+  // move, a hint, and the solution button. recordResult() is guarded by
+  // eloRecorded, so a later solve cannot pay it back.
+  markFailed() {
+    if (this.failedThis) return;
+    this.failedThis = true;
+    this.recordResult(false);
+  },
+
   recordResult(win) {
     if (this.eloRecorded || !this.current) return;
     this.eloRecorded = true;
@@ -4119,7 +4158,12 @@ const Puzzles = {
     db.kvSet('puzzleAttemptCount', this.attemptCount);
     const expected = 1 / (1 + Math.pow(10, (this.current.rating - this.elo) / 400));
     const score = win ? 1 : 0;
+    const before = this.elo;
     this.elo = Math.max(600, this.elo + K * (score - expected));
+    // Whole points, measured off the rounded rating, so the number always
+    // matches what the badge reads before and after (the stored rating keeps
+    // its fraction).
+    this.lastDelta = Math.round(this.elo) - Math.round(before);
     db.kvSet('puzzleElo', this.elo);
     for (const th of this.current.themes) {
       const cur = this.themeElo[th] ?? 1200;
@@ -4128,6 +4172,7 @@ const Puzzles = {
     }
     db.kvSet('puzzleThemeElo', this.themeElo);
     this.updateEloBadge();
+    this.showEloDelta(this.lastDelta);
     recordEloHistory('puzzleEloHistory', this.elo);
     // Solved only. A wrong answer used to keep the flame alive, which was the
     // cheapest way to "use the app" in the whole product.
@@ -4240,6 +4285,8 @@ const Puzzles = {
     this.moveIdx = 0;
     this.failedThis = false;
     this.eloRecorded = false;
+    this.lastDelta = null;
+    this.clearEloDelta();
     this.logged = false;
     this.posHistory = [];
     this.viewIdx = -1;
@@ -4324,7 +4371,7 @@ const Puzzles = {
       // wrong — undo, shake
       const firstMistake = !this.failedThis;
       this.chess.undo();
-      this.failedThis = true;
+      this.markFailed();
       Sound.play('puzzle-wrong');
       if (firstMistake) KaelQuotes.chatter(pickKael(KAEL_MISTAKE));
       this.board.setPosition(this.chess.fen());
@@ -4339,12 +4386,12 @@ const Puzzles = {
   log(solved) {
     if (this.logged || !this.current) return;
     this.logged = true;
-    PuzzleLog.add('puzzles', this.current, solved);
+    PuzzleLog.add('puzzles', this.current, solved, this.lastDelta);
   },
 
   hint() {
     if (!this.current || this.moveIdx >= this.current.moves.length) return;
-    this.failedThis = true;
+    this.markFailed();
     const u = this.current.moves[this.moveIdx];
     const sq = this.board.squares[u.slice(0, 2)];
     if (sq) { sq.classList.add('hintsq'); setTimeout(() => sq.classList.remove('hintsq'), 1500); }
@@ -4353,9 +4400,8 @@ const Puzzles = {
   async showSolution() {
     if (!this.current) return;
     this.disarmCheckin();
-    this.failedThis = true;
     this.stopTimer();
-    this.recordResult(false);
+    this.markFailed();
     this.log(false);
     this.setLiveInteractive(false);
     while (this.moveIdx < this.current.moves.length) {
@@ -4682,6 +4728,7 @@ const Blind = {
   peekedThis: false,
   failedThis: false,
   eloRecorded: false,
+  lastDelta: null,        // ELO the current puzzle has moved, for the badge and the strip
   countdownTimer: null,
   peekTimer: null,
   loaded: false,
@@ -4732,7 +4779,9 @@ const Blind = {
     const K = this.peekedThis ? 12 : 32;
     const expected = 1 / (1 + Math.pow(10, (this.current.rating - this.elo) / 400));
     const score = win ? 1 : 0;
+    const before = this.elo;
     this.elo = Math.max(600, this.elo + K * (score - expected));
+    this.lastDelta = Math.round(this.elo) - Math.round(before);
     db.kvSet('blindfoldElo', this.elo);
     this.updateEloBadge();
     recordEloHistory('blindfoldEloHistory', this.elo);
@@ -4767,6 +4816,7 @@ const Blind = {
     this.peekedThis = false;
     this.failedThis = false;
     this.eloRecorded = false;
+    this.lastDelta = null;
     this.logged = false;
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
@@ -4897,7 +4947,7 @@ const Blind = {
       this.updateTurnIndicator();
     } else {
       const firstMistake = !this.failedThis;
-      this.failedThis = true;
+      this.markFailed();
       this.chess.undo();
       this.board.setPosition(this.chess.fen());
       Sound.play('puzzle-wrong');
@@ -4908,16 +4958,24 @@ const Blind = {
     }
   },
 
+  // Same rule as the Puzzles tab: a wrong move is charged when it happens, not
+  // when the puzzle ends, so moving on cannot dodge it.
+  markFailed() {
+    if (this.failedThis) return;
+    this.failedThis = true;
+    this.recordResult(false);
+  },
+
   log(solved) {
     if (this.logged || !this.current) return;
     this.logged = true;
-    PuzzleLog.add('blind', this.current, solved);
+    PuzzleLog.add('blind', this.current, solved, this.lastDelta);
   },
 
   async showSolution() {
     if (!this.current) return;
     clearTimeout(this.peekTimer);
-    this.recordResult(false);
+    this.markFailed();
     this.log(false);
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
