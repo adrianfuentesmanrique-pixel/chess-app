@@ -1,6 +1,43 @@
-# Chess app — where things stand (updated 2026-09-10)
+# Chess app — where things stand (updated 2026-09-29)
 
 ## Already done and pushed — do NOT redo these
+
+- **IMPORTING A PGN FROM THE BASES LIST NO LONGER MAKES YOU INVENT A NAME
+  (2026-09-29).** `sw.js` v109 → **v110**. Changed `index.html`, `js/app.js`.
+  Committed, NOT pushed. Before this, the only way into the Bases list was
+  New → type a name → open the (empty) base → Import — even if all you had
+  was a file.
+  - **The fix.** New button `base-import-new` ("Import PGN") sits on the
+    Bases LIST view (`index.html` inside `#base-list-view`, next to
+    `base-new`), wired to its own hidden `<input type=file id=pgn-file-new>`.
+    Its `change` handler in `Base.init()` (`js/app.js`, right after the
+    existing `pgn-file` listener) enforces `MAX_DATABASES` with the same
+    `database_limit_toast`, then does
+    `db.createBase(file.name.replace(/\.[^.]+$/, '') || t('my_games'))` →
+    `this.openBase(id)` → `this.importFile(file)` — the exact naming/flow
+    `routeIncomingFile()` (~line 6699) already uses for a PGN arriving via
+    Share or "Open with", just reachable from inside the app too. Zero
+    prompts; a colliding name is allowed (base names were never unique;
+    Rename is one tap away). `base-new` (empty database, asks for a name)
+    and `base-import` (import into an already-open base) are untouched.
+  - **Layout.** The new button lives on its own `.row.wrap` line below the
+    `Bases N/10` / `New database` header row, not crammed into that row's
+    flex slot — two buttons sharing that slot wrapped awkwardly at 375px
+    (title floating between two stacked buttons). Matches the pattern the
+    open-base view already uses for its `base-actions` row.
+  - **Verified over CDP** (Browser pane doesn't composite on this machine —
+    see the CDP-fallback note lower in this file) **at 375px, EN/ES ×
+    light/dark**: plain import → base named after the file, game inside,
+    zero prompts; `My.Games v2.pgn` (dot + space) → base "My.Games v2";
+    `GAME.PGN` (capitals) → base "GAME"; seeded to 10 bases then imported →
+    same toast (`Limit of 10 databases reached.` / `Límite de 10 bases de
+    partidas alcanzado.`), base count unchanged at 10; Rename still renames;
+    opening a base and using the OLD `base-import`/`pgn-file` path still adds
+    into that same base (game count 1→2, not replaced). Script (a Python
+    `websockets` CDP driver + a path-guarded static server) was scratch,
+    deleted after the run — not part of this commit.
+  - **Not changed.** `base-new`, `base-rename`, `base-import` (open-base
+    path), the base-picker sheet's "＋ New base", `chooseBase()`.
 
 - **PUZZLE ELO IS CHARGED AT THE MISTAKE, AND THE CHANGE IS SHOWN (2026-09-11).**
   `sw.js` v108 → **v109**. Changed `js/app.js`, `index.html`, `css/style.css`.
