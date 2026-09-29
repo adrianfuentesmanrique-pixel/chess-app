@@ -1659,7 +1659,15 @@ export const Analysis = {
       // point of this tab is that you set a position up, push a few moves,
       // then set up another one. Ten moves in total is a day's use.
       onMove: (mv) => { if (this.tree.play(mv)) { noteStreakMove(this); this.refresh(); } },
-      onShapesChange: (shapes) => { this.pushUndo(); this.tree.current.shapes = shapes; },
+      onShapesChange: (shapes) => {
+        this.pushUndo();
+        this.tree.current.shapes = shapes;
+        // Drawing does not go through refresh(), so the live board needs its
+        // own nudge. A no-op unless I own this class and am broadcasting.
+        if (this.ctx && this.ctx.fromMasterclass) {
+          Masterclass.onBoardChange(this.ctx.fromMasterclass, this.tree);
+        }
+      },
       onSound: type => Sound.play(type),
     });
     $('ana-first').onclick = () => { this.tree.toStart(); this.refresh(); };
@@ -1879,6 +1887,9 @@ export const Analysis = {
     const last = cur.san ? { from: cur.from, to: cur.to } : null;
     this.board.setPosition(this.tree.fen(), last);
     this.board.setShapes(cur.shapes);
+    // A Masterclass teacher's arrows, drawn apart from mine; null everywhere else.
+    this.board.setLiveShapes(this.ctx && this.ctx.fromMasterclass
+      ? Masterclass.liveShapesFor(this.tree) : null);
     this.renderMoves();
     this.updateNagBar();
     if (this.engineOn) this.restartEngine();

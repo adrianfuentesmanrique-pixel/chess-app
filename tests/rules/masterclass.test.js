@@ -513,4 +513,54 @@ describe('/masterclasses/{id}/live — the followed board', () => {
     await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/live/state`),
       live({ path: '0.0.0' })));
   });
+
+  // The teacher's arrows ride in the same document. The regex in the rule is
+  // the cap: 32 arrows and 32 squares, three colours, real squares only.
+  const SHAPES = { a: 'Ge2e4Rd7d5', s: 'Yd4' };
+  const PATH = `masterclasses/${MC}/live/state`;
+
+  it('48. the owner CAN write live/state carrying shapes, empty or full to the cap', async () => {
+    await seedClass();
+    await assertSucceeds(setDoc(doc(asOwner(), PATH), live({ shapes: SHAPES })));
+    await assertSucceeds(setDoc(doc(asOwner(), PATH), live({ shapes: { a: '', s: '' } })));
+    await assertSucceeds(setDoc(doc(asOwner(), PATH),
+      live({ shapes: { a: 'Ga1h8'.repeat(32), s: 'Rh1'.repeat(32) } })));
+  });
+
+  it('49. a viewer CANNOT write live/state, shapes or not', async () => {
+    await seedClass();
+    await seedMember(VIEWER);
+    await assertFails(setDoc(doc(asViewer(), PATH), live({ shapes: SHAPES, drivenBy: VIEWER })));
+  });
+
+  it('50. over-cap shapes are denied — 33 arrows, or 33 squares', async () => {
+    await seedClass();
+    await assertFails(setDoc(doc(asOwner(), PATH),
+      live({ shapes: { a: 'Ga1h8'.repeat(33), s: '' } })));
+    await assertFails(setDoc(doc(asOwner(), PATH),
+      live({ shapes: { a: '', s: 'Rh1'.repeat(33) } })));
+  });
+
+  it('51. wrong-typed or malformed shapes are denied', async () => {
+    await seedClass();
+    for (const shapes of [
+      'Ge2e4',                               // a string, not a map
+      [{ from: 'e2', to: 'e4' }],            // a list
+      { a: 'Ge2e4' },                        // missing s
+      { a: 'Ge2e4', s: '', x: '' },          // an extra key
+      { a: 5, s: '' },                       // wrong type
+      { a: 'Be2e4', s: '' },                 // a colour the board does not draw
+      { a: 'Ge2e9', s: '' },                 // not a square
+      { a: 'Ge2e4 ', s: '' },                // a separator
+      { a: '', s: 'Gd4<script>' },           // junk after a valid square
+    ]) {
+      await assertFails(setDoc(doc(asOwner(), PATH), live({ shapes })));
+    }
+  });
+
+  it('52. the owner CAN still delete a live/state that carries shapes', async () => {
+    await seedClass();
+    await seed(PATH, { ...live({ shapes: SHAPES }), updatedAt: new Date() });
+    await assertSucceeds(deleteDoc(doc(asOwner(), PATH)));
+  });
 });

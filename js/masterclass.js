@@ -68,6 +68,44 @@ function liveKey(st) {
   return st ? `${st.chapterId}|${st.line}|${st.fen}` : '';
 }
 
+// The teacher's arrows and squares, packed for the live document: colour
+// letter + squares, no separators ("Ge2e4Rd7d5" / "Yd4"). firestore.rules
+// checks exactly this shape with a regex, and the regex is the cap — so the
+// client cuts at the same 32 of each rather than have a whole write refused.
+// Arrows are NOT part of liveKey(): a shapes-only change must repaint the
+// board without re-walking the line, so onLiveSnapshot() compares them apart.
+const SHAPE_CAP = 32;
+const COLOR_CODE = { green: 'G', yellow: 'Y', red: 'R' };
+const CODE_COLOR = { G: 'green', Y: 'yellow', R: 'red' };
+const SQ = /^[a-h][1-8]$/;
+
+export function packShapes(shapes) {
+  const a = ((shapes && shapes.arrows) || [])
+    .filter(x => COLOR_CODE[x.color] && SQ.test(x.from) && SQ.test(x.to))
+    .slice(0, SHAPE_CAP).map(x => COLOR_CODE[x.color] + x.from + x.to).join('');
+  const s = ((shapes && shapes.squares) || [])
+    .filter(x => COLOR_CODE[x.color] && SQ.test(x.sq))
+    .slice(0, SHAPE_CAP).map(x => COLOR_CODE[x.color] + x.sq).join('');
+  return { a, s };
+}
+
+// Anything the rule would have refused is dropped rather than drawn.
+export function unpackShapes(packed) {
+  const out = { squares: [], arrows: [] };
+  if (!packed) return out;
+  for (const m of String(packed.a || '').matchAll(/([GYR])([a-h][1-8])([a-h][1-8])/g)) {
+    out.arrows.push({ from: m[2], to: m[3], color: CODE_COLOR[m[1]] });
+  }
+  for (const m of String(packed.s || '').matchAll(/([GYR])([a-h][1-8])/g)) {
+    out.squares.push({ sq: m[2], color: CODE_COLOR[m[1]] });
+  }
+  return out;
+}
+
+function shapesKey(st) {
+  return st && st.shapes ? `${st.shapes.a}|${st.shapes.s}` : '';
+}
+
 export const Masterclass = {
   // The classes I own or have been added to, from one collection-group query.
   classes: [],
@@ -859,6 +897,7 @@ export const Masterclass = {
     if (!state && stale) { this.renderLive(); return; }
     const wasLive = !!this.liveState;
     const changed = liveKey(this.liveState) !== liveKey(state);
+    const shapesChanged = shapesKey(this.liveState) !== shapesKey(state);
     this.liveState = state;
     // Said once. Without it a follower's board simply freezes and there is
     // nothing on screen to explain why.
@@ -869,6 +908,29 @@ export const Masterclass = {
     // gotoLine() and Analysis.refresh() for nothing, so only a real move moves
     // the board.
     if (changed) this.applyLive();
+    // The trap in the task: an arrow drawn on a position the teacher is
+    // already on changes nothing in liveKey(), so it has to be painted here
+    // on its own. After applyLive(), because that may have moved the board.
+    if (changed || shapesChanged) this.paintLiveShapes();
+  },
+
+  // The teacher's shapes, but only for a follower whose board is on the
+  // teacher's position right now. Stopped following, browsing another move,
+  // or a line that could not be fully replayed → none: an arrow drawn for one
+  // position is nonsense on another. Called by Analysis.refresh() too.
+  liveShapesFor(tree) {
+    const mc = this.current;
+    const st = this.liveState;
+    if (!mc || mc.role === 'owner' || !st || !this.following || !tree) return null;
+    if (!Analysis.ctx || Analysis.ctx.fromMasterclass !== mc.id) return null;
+    if (tree.fen() !== st.fen) return null;
+    return unpackShapes(st.shapes);
+  },
+
+  paintLiveShapes() {
+    const mc = this.current;
+    if (!mc || !Analysis.board || !Analysis.ctx || Analysis.ctx.fromMasterclass !== mc.id) return;
+    Analysis.board.setLiveShapes(this.liveShapesFor(Analysis.tree));
   },
 
   // Ends the broadcast AND the listener, and forgets everything about the live
@@ -893,6 +955,7 @@ export const Masterclass = {
     // that class's own first snapshot had said anything.
     this.liveStale = false;
     this.renderLive();
+    this.paintLiveShapes();
   },
 
   // The bar is drawn in two places from one piece of state: on the Masterclass
@@ -1007,6 +1070,7 @@ export const Masterclass = {
     // Resuming snaps to where the teacher is NOW. The moves missed while
     // browsing are deliberately not replayed — this is a lesson, not a video.
     if (this.following) this.applyLive();
+    this.paintLiveShapes();
   },
 
   // Put my board where the teacher's is. Called on every snapshot, when the
@@ -1052,6 +1116,7 @@ export const Masterclass = {
       chapterId: this.liveChapterId,
       fen: tree.fen(),
       line: lineOf(tree),
+      shapes: packShapes(tree.current.shapes),
     });
   },
 

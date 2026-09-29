@@ -35,6 +35,10 @@ export class Board {
     this.onEditorTap = opts.onEditorTap || (() => {});
     this.freeMove = false;     // allow moving either color (setup/analysis root)
     this.shapes = { squares: [], arrows: [] };
+    // Someone else's shapes drawn under mine — a Masterclass teacher's, on a
+    // follower's board. Painted, never edited: the toggles below only ever
+    // touch this.shapes, so an incoming update cannot wipe what I drew.
+    this.liveShapes = null;
     this.piecesHidden = false; // Blindfold Puzzles: pieces invisible, but moves still work normally
     this.drawColor = null;     // 'green'|'yellow'|'red'|null — when set, taps/drags annotate instead of moving
     this.onShapesChange = opts.onShapesChange || (() => {});
@@ -193,6 +197,11 @@ export class Board {
     this._renderShapes();
   }
 
+  setLiveShapes(shapes) {
+    this.liveShapes = shapes || null;
+    this._renderShapes();
+  }
+
   // Drawing an arrow is a drag in any direction, straight up the board very
   // much included, so while a colour is picked the whole board has to claim
   // the gesture — the piece-only rule is not enough. See .board.drawing.
@@ -212,11 +221,12 @@ export class Board {
     const flipped = this.orientation === 'b';
     const colorMap = { green: '#3aa53a', yellow: '#e0b400', red: '#d0392b' };
     let html = '';
-    for (const s of this.shapes.squares) {
+    const live = this.liveShapes || { squares: [], arrows: [] };
+    for (const s of [...live.squares, ...this.shapes.squares]) {
       const c = sqCoords(s.sq, flipped);
       html += `<rect x="${c.left}" y="${c.top}" width="12.5" height="12.5" fill="${colorMap[s.color]}" opacity="0.55"/>`;
     }
-    for (const a of this.shapes.arrows) {
+    for (const a of [...live.arrows, ...this.shapes.arrows]) {
       const p1 = sqCoords(a.from, flipped);
       const p2 = sqCoords(a.to, flipped);
       html += arrowSvg(p1.cx, p1.cy, p2.cx, p2.cy, colorMap[a.color]);

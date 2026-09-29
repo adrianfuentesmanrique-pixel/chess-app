@@ -2,6 +2,59 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS SEE THE TEACHER'S ARROWS DURING A LIVE MASTERCLASS
+  (2026-09-29).** `sw.js` v111 → **v112**. Changed `firestore.rules`,
+  `js/masterclass.js`, `js/board.js`, `js/firebase.js`, `js/app.js`,
+  `tests/rules/masterclass.test.js`. Committed, NOT pushed. **The rules must
+  be deployed separately (`npm.cmd run rules:deploy`)** — until they are,
+  every broadcast write carries a field the live rule refuses, so the WHOLE
+  live board (moves too, not just arrows) stops reaching students.
+  - **Payload.** One new field on `masterclasses/{id}/live/state`:
+    `shapes: {a, s}`, two strings packed by `packShapes()` in
+    `js/masterclass.js` — `a` is colour letter + from + to per arrow
+    (`"Ge2e4Rd7d5"`), `s` colour letter + square (`"Yd4"`), no separators.
+    Colours G/Y/R = the board's green/yellow/red. `unpackShapes()` reverses it
+    and drops anything malformed. Rides the existing 1 write/s throttle in
+    `pushLiveState()`; no second writer, no second document.
+  - **Rules.** `shapes` added to the `hasOnly` list; optional (a client cached
+    from before this still writes without it); when present it must be a map
+    with exactly keys `a` and `s`, each matching
+    `([GYR][a-h][1-8][a-h][1-8]){0,32}` / `([GYR][a-h][1-8]){0,32}` — the regex
+    IS the 32 + 32 cap. Client cuts at the same 32 (`SHAPE_CAP`). Delete rule
+    untouched. Rules tests 48–52 added (owner writes empty/full-to-cap; viewer
+    refused; 33 arrows or 33 squares refused; 9 wrong-typed/malformed payloads
+    refused; delete still works) — full suite passes, 0 failures.
+  - **Teacher side.** `Masterclass.onBoardChange()` now sends
+    `packShapes(tree.current.shapes)`. Drawing does not pass through
+    `Analysis.refresh()`, so the board's `onShapesChange` (Analysis.init in
+    `js/app.js`) also calls `onBoardChange()` — which still returns at once
+    unless I own the class AND am broadcasting. Shapes are per-move, as
+    before, so moving on sends that move's shapes (usually none) and clears
+    the class's.
+  - **Student side — kept SEPARATE from the student's own drawing.** New
+    `board.liveShapes` + `setLiveShapes()` in `js/board.js`, painted by the
+    existing `_renderShapes()` under the student's own `this.shapes`; the
+    toggles never touch it, so an incoming update cannot wipe what the student
+    drew. `Masterclass.liveShapesFor(tree)` returns the teacher's shapes only
+    when following AND the board's FEN equals the teacher's `st.fen` (browse to
+    another move → hidden; come back → shown). `Analysis.refresh()` calls it;
+    `paintLiveShapes()` repaints on snapshot, Stop/Resume following and
+    `closeLive()`.
+  - **The liveKey trap.** `liveKey()` is unchanged (position only). A separate
+    `shapesKey()` comparison in `onLiveSnapshot()` repaints on a shapes-only
+    change WITHOUT re-running `applyLive()` / `gotoLine()` / the engine.
+  - **Verified over CDP (headless Chrome, own static server), 375px, EN/ES ×
+    light/dark, 60/60,** by calling `Masterclass.onLiveSnapshot()` directly —
+    the real Firestore listener cannot run from localhost (App Check). Seeded
+    a viewer class + one chapter. Checked: shapes paint; student's own arrow
+    coexists and survives a teacher update; shapes-only change applies with
+    zero `applyLive()` calls; a snapshot with no `shapes` clears; move +
+    shapes moves and paints; browsing away hides/back shows; Stop/Resume
+    following clears/restores; cached null keeps them, server null clears;
+    owner drawing while not broadcasting leaves the live state alone; pack cap
+    32 + bad colours/squares dropped; scrollWidth 375. **Not tried with a real
+    teacher and student over Firestore.** Script was scratch, not committed.
+
 - **YOU CAN CHOOSE THE PUZZLE-RADAR THEMES FROM SOMEONE ELSE'S PROFILE
   (2026-09-29).** `sw.js` v110 → **v111**. Changed `index.html`, `js/app.js`,
   `js/leaderboard.js`. Committed, NOT pushed.

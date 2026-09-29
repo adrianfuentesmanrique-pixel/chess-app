@@ -415,7 +415,7 @@ service cloud.firestore {
       // STAGE 2: this becomes `mcIsOwner(mcId) || mcRole(mcId) == 'editor'`.
       allow write: if docId == 'state'
         && mcIsOwner(mcId)
-        && after().keys().hasOnly(['chapterId', 'fen', 'line', 'drivenBy', 'updatedAt'])
+        && after().keys().hasOnly(['chapterId', 'fen', 'line', 'shapes', 'drivenBy', 'updatedAt'])
         && (after().chapterId == null || (after().chapterId is string && after().chapterId.size() <= 64))
         && after().fen is string && after().fen.size() <= 100
         // `line` is the teacher's moves in SAN, not a pointer into the stored
@@ -424,6 +424,20 @@ service cloud.firestore {
         // 4096 characters is roughly 800 half-moves — the cap bounds abuse, not
         // size; against the 1 MB document limit it is a rounding error.
         && after().line is string && after().line.size() <= 4096
+        // The teacher's arrows and highlighted squares on the current
+        // position, packed by packShapes() in js/masterclass.js: `a` is
+        // colour+from+to per arrow ("Ge2e4"), `s` colour+square ("Rd4"), no
+        // separators. The regex is the cap — at most 32 of each, only the three
+        // colours the board draws, only real squares. Optional, because a
+        // client cached from before arrows were broadcast still writes without
+        // it, and its followers simply see no arrows.
+        && (!('shapes' in after()) || (after().shapes is map
+          && after().shapes.keys().hasOnly(['a', 's'])
+          && after().shapes.keys().hasAll(['a', 's'])
+          && after().shapes.a is string
+          && after().shapes.a.matches('([GYR][a-h][1-8][a-h][1-8]){0,32}')
+          && after().shapes.s is string
+          && after().shapes.s.matches('([GYR][a-h][1-8]){0,32}')))
         && after().drivenBy == me()
         && after().updatedAt == request.time;
 

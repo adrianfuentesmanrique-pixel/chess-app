@@ -940,6 +940,9 @@ export function pushLiveState(mcId, next) {
       chapterId: state.chapterId ?? null,
       fen: String(state.fen || '').slice(0, 100),
       line,
+      // Already packed by packShapes() in js/masterclass.js and capped there;
+      // the rule refuses anything over 32 arrows or 32 squares.
+      shapes: state.shapes || { a: '', s: '' },
       drivenBy: user.uid,
       // serverTimestamp(), never Date.now(): the rule is
       // `updatedAt == request.time` and a client clock a few seconds out would
