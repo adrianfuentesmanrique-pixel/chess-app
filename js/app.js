@@ -2342,6 +2342,22 @@ const Base = {
     $('base-back').onclick = () => this.showList();
     $('base-import').onclick = () => $('pgn-file').click();
     $('pgn-file').addEventListener('change', e => this.importFile(e.target.files[0]));
+    // List-view import: take the file first and name the database after it,
+    // same as a shared/"open with" PGN (routeIncomingFile) — no name prompt.
+    $('base-import-new').onclick = () => $('pgn-file-new').click();
+    $('pgn-file-new').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const bases = await db.listBases();
+      if (bases.length >= MAX_DATABASES) {
+        toast(t('database_limit_toast').replace('{n}', MAX_DATABASES));
+        return;
+      }
+      const id = await db.createBase(file.name.replace(/\.[^.]+$/, '') || t('my_games'));
+      await this.openBase(id);
+      await this.importFile(file);
+    });
     $('base-newgame').onclick = () => {
       const tree = new GameTree();
       Analysis.loadTree(tree, { baseId: this.currentBaseId, gameId: null });
