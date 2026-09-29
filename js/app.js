@@ -6629,7 +6629,7 @@ export const Profile = {
 
 // Every tracked theme earns a rating, but a radar with 28 spokes is unreadable
 // on a phone, so the chart shows at most 13 at a time. Defaults to the original
-// thirteen; the picker (still to build) writes a different set here.
+// thirteen; openRadarPicker() writes a different set here.
 const MAX_RADAR_THEMES = 13;
 let radarSelection = null;
 export function radarThemes() {
@@ -6640,8 +6640,10 @@ export function radarThemes() {
 
 // Lets the player choose which of the 28 radar-eligible themes to plot.
 // Mating patterns are deliberately absent: they are shapes, not skills, and
-// they would crowd out the motifs the chart exists to compare.
-function openRadarPicker() {
+// they would crowd out the motifs the chart exists to compare. One selection
+// serves every puzzle radar — mine and anyone else's — so a caller that draws
+// its own chart (the public profile) passes onSave to redraw it in place.
+export function openRadarPicker(onSave) {
   modal((box, close) => {
     const chosen = new Set(radarThemes());
     box.innerHTML = `<h3>${t('radar_pick_title')}</h3>
@@ -6695,6 +6697,7 @@ function openRadarPicker() {
       await db.kvSet('radarThemes', list);
       close(null);
       Profile.refresh();
+      onSave?.();
     };
 
     const reset = document.createElement('button');

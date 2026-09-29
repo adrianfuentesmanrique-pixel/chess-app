@@ -8,7 +8,7 @@ import * as db from './db.js';
 import { ENDGAME_CATEGORIES } from './endgames-data.js';
 import { Auth, fetchLeaderboard } from './firebase.js';
 import { avatarHtml } from './avatars.js';
-import { $, esc, segInit, showScreen, monthStr, radarThemes, RADAR_MIN, Profile }
+import { $, esc, segInit, showScreen, monthStr, radarThemes, openRadarPicker, RADAR_MIN, Profile }
   from './app.js';
 
 // ═════════════════════ LEADERBOARD ═════════════════════
@@ -167,6 +167,16 @@ export const PublicProfile = {
 
   init() {
     $('pubprofile-back').onclick = () => showScreen(this.backTo);
+    $('pubprofile-radar-pick').onclick = () => openRadarPicker(() => this.drawPuzzleRadar());
+  },
+
+  // Kept from the last open() so the picker can redraw this chart in place.
+  themeElo: {},
+
+  drawPuzzleRadar() {
+    Profile.drawRadar('pub-puzzle',
+      radarThemes().map(th => t('theme_' + th)),
+      radarThemes().map(th => this.themeElo[th] ?? 1200));
   },
 
   async open(entry, backTo = 'leaderboard') {
@@ -220,9 +230,8 @@ export const PublicProfile = {
     $('chart-pub-opening').classList.toggle('hidden', openingNames.length === 0);
     if (openingNames.length) Profile.drawRadar('pub-opening', openingNames, openingNames.map(k => openingElo[k]));
 
-    Profile.drawRadar('pub-puzzle',
-      radarThemes().map(th => t('theme_' + th)),
-      radarThemes().map(th => themeElo[th] ?? 1200));
+    this.themeElo = themeElo;
+    this.drawPuzzleRadar();
 
     Profile.drawRadar('pub-endgame',
       ENDGAME_CATEGORIES.map(c => t('cat_' + c)),

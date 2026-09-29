@@ -2,6 +2,35 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **YOU CAN CHOOSE THE PUZZLE-RADAR THEMES FROM SOMEONE ELSE'S PROFILE
+  (2026-09-29).** `sw.js` v110 → **v111**. Changed `index.html`, `js/app.js`,
+  `js/leaderboard.js`. Committed, NOT pushed.
+  - **What.** New `#pubprofile-radar-pick` button ("⚙ Themes"/"⚙ Temas", key
+    `radar_choose`) beside the "Puzzles by theme" heading on the public
+    profile, same markup as `#radar-pick` on my own profile. It sits inside a
+    `.pubprofile-detail` card, so a charts-off (private) friend never shows it.
+  - **How.** `openRadarPicker(onSave)` in `js/app.js` is now **exported** and
+    takes an optional callback, called after `Profile.refresh()` on Apply.
+    `PublicProfile` (`js/leaderboard.js`) keeps the friend's `themeElo` from
+    the last `open()` and has `drawPuzzleRadar()`, which both `open()` and the
+    picker's callback use — the chart redraws in place, no screen change.
+  - **One shared selection** (`kv 'radarThemes'`) for my chart and everyone
+    else's, as before; the UI says nothing about it. Unrated theme → 1200.
+  - **Verified over CDP, 375px, EN/ES × light/dark, 36/36**, with a SEEDED
+    friend (fake entry passed to `PublicProfile.open()`; Firestore not
+    reachable from localhost): button visible for a public friend; cancel
+    (backdrop) stores nothing and leaves the chart alone; picker opens at
+    13/13 with every unchecked box disabled; Apply redraws the friend's chart
+    immediately with the friend's values (unrated = 1200); my own profile's
+    puzzle chart shows the same themes after `Profile.refresh()`; a
+    `profileVisibility:'private'` friend shows the private note and the
+    button is not rendered; scrollWidth 375. Not tried with a real friend
+    over Firestore.
+  - **Pre-existing, not changed:** at 13 spokes the longest radar labels clip
+    at 375px ("Discovered atta…") — same on my own profile. The first-run
+    Kael "Welcome" sheet is a modal too, so test scripts must target the
+    LAST `.modal-box`, not the first.
+
 - **IMPORTING A PGN FROM THE BASES LIST NO LONGER MAKES YOU INVENT A NAME
   (2026-09-29).** `sw.js` v109 → **v110**. Changed `index.html`, `js/app.js`.
   Committed, NOT pushed. Before this, the only way into the Bases list was
