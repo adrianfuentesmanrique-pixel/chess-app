@@ -39,6 +39,10 @@ import { avatarHtml } from './avatars.js';
 // reads Friends.friends, the list fetchFriendUids() already fills, rather than
 // running a second query of its own.
 import { Friends } from './friends.js';
+// Students stage 5: the chapter viewer reports "reached the end" of a chapter
+// homework. students.js imports this file too; both sides touch the other
+// inside functions only, so the cycle is safe (same rule as app.js).
+import { Students } from './students.js';
 import { parsePgn, lineOf, gotoLine } from './tree.js';
 import { planMove } from './chapter-order.js';
 import * as db from './db.js';
@@ -329,9 +333,37 @@ export const Masterclass = {
     showScreen('masterclass');
     this.lightBasesTab();
     this.render();
-    this.loadChapters();
+    const chapters = this.loadChapters();
     this.loadMembers();
     this.watch();
+    // Students stage 5 waits on it (openForHomework); nobody else does.
+    return chapters;
+  },
+
+  // Students stage 5: a chapter homework's Open. Resolves to 'ok', 'gone'
+  // (the class or the chapter was deleted, or I am no longer in it — plan
+  // 3.6), or 'failed' (network). Costs what opening the class by hand costs.
+  async openForHomework(mcId, chapterId) {
+    if (!Auth.user || !navigator.onLine) return 'failed';
+    if (!this.classes.some(c => c.id === mcId)) await this.load();
+    if (this.loadFailed) return 'failed';
+    if (!this.classes.some(c => c.id === mcId)) return 'gone';
+    await this.open(mcId);
+    if (this.chaptersFailed) return 'failed';
+    const ch = this.chapters.find(c => c.id === chapterId);
+    if (!ch) return 'gone';
+    this.openChapter(ch);
+    // openChapter() lands on the END of the game (Analysis.loadTree). A
+    // homework starts from the first move, so the student steps through it.
+    if (Analysis.tree) { Analysis.tree.toStart(); Analysis.refresh(); }
+    return 'ok';
+  },
+
+  // Which class chapter is on the Analysis board, or null.
+  chapterCtx() {
+    const c = Analysis.ctx;
+    return c && c.fromMasterclass && c.mcChapterId
+      ? { mcId: c.fromMasterclass, chapterId: c.mcChapterId } : null;
   },
 
   // Coming back from a chapter that was opened in Analysis. The class, its
@@ -1106,6 +1138,10 @@ export const Masterclass = {
   // that screen goes through, so a move, an arrow key, a variation and a jump
   // in the moves list all broadcast without four separate hooks.
   onBoardChange(mcId, tree) {
+    // Students stage 5: a chapter homework counts once this board reaches the
+    // last move of the main line. Cheap no-op unless one is running.
+    const ctx = this.chapterCtx();
+    if (ctx) Students.hwChapterStep(mcId, ctx.chapterId, tree);
     const mc = this.current;
     if (!this.live || !mc || mc.id !== mcId || mc.role !== 'owner') return;
     if (!tree) return;

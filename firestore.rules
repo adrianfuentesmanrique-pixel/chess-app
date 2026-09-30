@@ -677,9 +677,10 @@ service cloud.firestore {
     //                       writes it once; after that only the STUDENT's app
     //                       moves it, and only its progress fields.
     //
-    // Stage 4 allows the kinds 'puzzles' (N puzzles of a theme set and rating
-    // band) and 'text' (the student ticks it off). 'chapter' and 'list' arrive
-    // with their own clauses and tests in stage 5 — until then they are refused.
+    // Four kinds: 'puzzles' (N puzzles of a theme set and rating band) and
+    // 'text' (the student ticks it off) since stage 4; 'chapter' (one chapter of
+    // a Masterclass the teacher OWNS) and 'list' (≤ 20 hand-picked puzzles,
+    // stored whole so the student never has to find them) since stage 5.
     //
     // Progress is reported by the student's own phone (plan Part 1, point 2):
     // these clauses reject impossible values, they cannot prove the puzzles
@@ -703,19 +704,84 @@ service cloud.firestore {
             && d.params.minRating is int && d.params.maxRating is int
             && d.params.minRating >= 0 && d.params.maxRating <= 4000
             && d.params.minRating <= d.params.maxRating
-            && d.params.count is int && d.params.count >= 1 && d.params.count <= 100);
+            && d.params.count is int && d.params.count >= 1 && d.params.count <= 100)
+        || (d.kind == 'chapter' && d.params is map
+            && d.params.keys().hasOnly(['mcId', 'chapterId'])
+            && d.params.keys().hasAll(['mcId', 'chapterId'])
+            // Document-id characters only: both go into get()/exists() paths
+            // below, where a '/' would change which document is looked up.
+            && d.params.mcId is string && d.params.mcId.matches('[A-Za-z0-9_-]{1,128}')
+            && d.params.chapterId is string && d.params.chapterId.matches('[A-Za-z0-9_-]{1,128}'))
+        || (d.kind == 'list' && d.params is map
+            && d.params.keys().hasOnly(['puzzles'])
+            && hwListOk(d.params.puzzles));
     }
 
-    // What `done` counts up to: the puzzle count, or 1 for a text task.
+    // ≤ 20 packed puzzles (hwPzOk below), walked with fixed indexes because
+    // rules have no loops.
+    function hwListOk(ps) {
+      return ps is list && ps.size() >= 1 && ps.size() <= 20
+        && hwPzOk(ps, 0) && hwPzOk(ps, 1) && hwPzOk(ps, 2) && hwPzOk(ps, 3)
+        && hwPzOk(ps, 4) && hwPzOk(ps, 5) && hwPzOk(ps, 6) && hwPzOk(ps, 7)
+        && hwPzOk(ps, 8) && hwPzOk(ps, 9) && hwPzOk(ps, 10) && hwPzOk(ps, 11)
+        && hwPzOk(ps, 12) && hwPzOk(ps, 13) && hwPzOk(ps, 14) && hwPzOk(ps, 15)
+        && hwPzOk(ps, 16) && hwPzOk(ps, 17) && hwPzOk(ps, 18) && hwPzOk(ps, 19);
+    }
+
+    // One puzzle of a 'list', PACKED into one string the app builds and reads
+    // (js/firebase.js packPuzzle / unpackPuzzle):
+    //     id|fen|move move move|rating|theme theme
+    // Why not a map {id, fen, moves, rating, themes}: a write may evaluate at
+    // most 1,000 expressions, and every field read of a list element costs
+    // about a dozen — measured in the emulator, a map with its five fields
+    // checked broke the limit at FIVE puzzles. One regex is two reads per
+    // puzzle, so 20 fit, and it is stricter than the map ever could be: every
+    // move must be UCI and every theme a short word, which a map check could
+    // only have bounded by count.
+    function hwPzOk(list, i) {
+      return list.size() <= i || (list[i] is string && list[i].matches(
+        '[A-Za-z0-9_-]{1,40}[|]'
+        + '[1-8pnbrqkPNBRQK/]{15,71} [wb] [-KQkq]{1,4} [-a-h1-8]{1,2} [0-9]{1,3} [0-9]{1,4}[|]'
+        + '[a-h][1-8][a-h][1-8][qrbn]?( [a-h][1-8][a-h][1-8][qrbn]?){0,39}[|]'
+        + '(4000|[0-3]?[0-9]{1,3})[|]'
+        + '([A-Za-z0-9]{1,40}( [A-Za-z0-9]{1,40}){0,19})?'));
+    }
+
+    // A chapter task may only point at a chapter that exists, in a class the
+    // teacher OWNS — the class the app adds the student to (only an owner can
+    // add members). Other kinds cost no read here: `||` stops early.
+    function hwChapterOk(d) {
+      return d.kind != 'chapter'
+        || (get(mcPath(d.params.mcId)).data.ownerUid == me()
+            && exists(/databases/$(database)/documents/masterclasses/$(d.params.mcId)/chapters/$(d.params.chapterId)));
+    }
+
+    // Which puzzles of a 'list' are solved: ids only, ≤ 20, each a short string.
+    function hwIdOk(list, i) {
+      return list.size() <= i || (list[i] is string && list[i].size() >= 1 && list[i].size() <= 40);
+    }
+    function hwDoneIdsOk(ids) {
+      return ids is list && ids.size() <= 20
+        && hwIdOk(ids, 0) && hwIdOk(ids, 1) && hwIdOk(ids, 2) && hwIdOk(ids, 3)
+        && hwIdOk(ids, 4) && hwIdOk(ids, 5) && hwIdOk(ids, 6) && hwIdOk(ids, 7)
+        && hwIdOk(ids, 8) && hwIdOk(ids, 9) && hwIdOk(ids, 10) && hwIdOk(ids, 11)
+        && hwIdOk(ids, 12) && hwIdOk(ids, 13) && hwIdOk(ids, 14) && hwIdOk(ids, 15)
+        && hwIdOk(ids, 16) && hwIdOk(ids, 17) && hwIdOk(ids, 18) && hwIdOk(ids, 19);
+    }
+
+    // What `done` counts up to: the puzzle count, the length of a list, or 1
+    // for a text task or a chapter.
     function hwTargetOk(d, n) {
       return (d.kind == 'puzzles' && n <= d.params.count)
-        || (d.kind == 'text' && n <= 1);
+        || (d.kind == 'list' && n <= d.params.puzzles.size())
+        || (d.kind in ['text', 'chapter'] && n <= 1);
     }
     // …and 'done' only once it is reached exactly (the rules auditor's
     // finding: without this a text task could be 'done' with done == 0).
     function hwTargetReached(d, n) {
       return (d.kind == 'puzzles' && n == d.params.count)
-        || (d.kind == 'text' && n == 1);
+        || (d.kind == 'list' && n == d.params.puzzles.size())
+        || (d.kind in ['text', 'chapter'] && n == 1);
     }
 
     match /homework/{hwId} {
@@ -742,12 +808,13 @@ service cloud.firestore {
         && after().studentUid.size() > 0 && after().studentUid.size() <= 128
         && after().studentUid != me()
         && get(coachingPath(me() + '_' + after().studentUid)).data.status == 'active'
-        && after().kind in ['puzzles', 'text']
+        && after().kind in ['puzzles', 'text', 'chapter', 'list']
         && after().title is string && after().title.size() >= 1 && after().title.size() <= 80
         && (!('note' in after()) || (after().note is string && after().note.size() <= 500))
         && (!('dueDate' in after())
             || (after().dueDate is string && after().dueDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')))
         && hwParamsOk(after())
+        && hwChapterOk(after())
         && after().status == 'open'
         && after().done == 0
         && after().seconds == 0
@@ -760,11 +827,26 @@ service cloud.firestore {
       // increment(), so two phones add up instead of overwriting), `done` never
       // passes the target, and time is capped at 100 hours. 'done' is final:
       // it cannot be reopened, and a task can only be 'done' once its target
-      // is reached (count for puzzles, 1 for text). completedAt is stamped by the server exactly once,
-      // on the move to 'done'.
+      // is reached (count for puzzles, list length, 1 for text and chapter).
+      // completedAt is stamped by the server exactly once, on the move to 'done'.
+      //
+      // doneIds (stage 5) is which puzzles of a 'list' are solved. Only a list
+      // may carry it; it only grows (the app sends arrayUnion()), never past
+      // the list's length. It is deliberately NOT tied to `done` by an
+      // equality: two phones solving the same puzzle would make an honest
+      // bundle fail and lose its seconds, and a self-reported counter proves
+      // nothing either way (plan Part 1, point 2).
       allow update: if signedIn()
         && resource.data.studentUid == me()
-        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt'])
+        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt', 'doneIds'])
+        // Keyed on the DIFF, not on presence: deleting the field (deleteField())
+        // lands in the checks below and errors, so it cannot shrink that way
+        // either (rules auditor, stage 5).
+        && (!('doneIds' in after().diff(resource.data).affectedKeys())
+            || (resource.data.kind == 'list'
+                && hwDoneIdsOk(after().doneIds)
+                && after().doneIds.size() <= resource.data.params.puzzles.size()
+                && after().doneIds.hasAll(resource.data.get('doneIds', []))))
         && after().done is int && after().done >= resource.data.done
         && hwTargetOk(resource.data, after().done)
         && after().seconds is int && after().seconds >= resource.data.seconds

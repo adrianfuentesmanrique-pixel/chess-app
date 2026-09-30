@@ -3926,6 +3926,18 @@ const PuzzleLog = {
       bLast.onclick = () => { idx = frames.length - 1; draw(); };
       draw();
 
+      // Students stage 5: a teacher collects puzzles for one student's list
+      // (sent later, as ONE homework, from that student's page). Only shown
+      // with at least one student who has accepted me.
+      if (Students.hasStudents()) {
+        const give = document.createElement('button');
+        give.className = 'btn btn-wide';
+        give.style.marginTop = '8px';
+        give.textContent = '🎯 ' + t('hw_assign_puzzle');
+        give.onclick = () => Students.addToDraft(p);
+        box.appendChild(give);
+      }
+
       const closeBtn = document.createElement('button');
       closeBtn.className = 'btn primary big';
       closeBtn.style.marginTop = '8px';
@@ -4123,8 +4135,18 @@ export const Puzzles = {
     return Math.max(600, Math.min(3000, this.elo + this.difficulty));
   },
 
-  async ensureLoaded() {
-    if (this.loaded) { return; }
+  // One load at a time. Starting a homework from Students calls showScreen
+  // ('puzzles'), which starts a load, and then waits for one itself; two
+  // loads ran two nextPuzzle()s, and a hand-picked list skipped its first
+  // puzzle. The second caller now waits on the first load instead.
+  ensureLoaded() {
+    if (this.loaded) return Promise.resolve();
+    if (!this.loading) this.loading = this.loadOnce().finally(() => { this.loading = null; });
+    return this.loading;
+  },
+  loading: null,
+
+  async loadOnce() {
     this.solved = await db.kvGet('puzzlesSolved', {});
     this.elo = await db.kvGet('puzzleElo', 1200);
     this.themeElo = await db.kvGet('puzzleThemeElo', {});
@@ -4144,6 +4166,7 @@ export const Puzzles = {
   },
 
   pool() {
+    if (this.homework && this.homework.list) return this.homework.list;
     if (this.homework) return PUZZLES.filter(p => this.hwMatches(p));
     if (this.themeFilter === 'random') return PUZZLES;
     return PUZZLES.filter(p => p.themes.some(th => this.themeFilter.has(th)));
@@ -4152,8 +4175,11 @@ export const Puzzles = {
   // ── Students homework mode ──
   // In the band AND (no themes set, or any theme shared). Also the test for
   // "does this solve count", so the pool and the count cannot disagree.
+  // A hand-picked list (stage 5) matches its own puzzles that are not solved
+  // yet — by id, so a copy of the same puzzle from the rating bands counts too.
   hwMatches(p) {
     const hw = this.homework;
+    if (hw && hw.list) return !!p && hw.list.some(x => x.id === p.id) && !hw.doneIds.includes(p.id);
     if (!hw || !p || typeof p.rating !== 'number') return false;
     if (p.rating < hw.minRating || p.rating > hw.maxRating) return false;
     return !hw.themes.length || (p.themes || []).some(th => hw.themes.includes(th));
@@ -4164,6 +4190,12 @@ export const Puzzles = {
     this.paintHomework();
     if (activeScreen !== 'puzzles') showScreen('puzzles');
     window.scrollTo(0, 0);
+    // A hand-picked list carries its own puzzles: nothing to load.
+    if (hw.list) {
+      if (!this.loaded) { await this.ensureLoaded(); return; }
+      this.nextPuzzle();
+      return;
+    }
     // Every band the homework spans, so the pool is not just "what happened to
     // be loaded near my own rating".
     const lo = bandOf(hw.minRating), hi = bandOf(hw.maxRating);
@@ -4349,6 +4381,17 @@ export const Puzzles = {
     if (this.current && !this.logged && this.failedThis) this.log(false);
     // In homework mode, aim at the player's own level clamped into the band.
     const hw = this.homework;
+    // A hand-picked list goes in the teacher's order: the next unsolved one
+    // after this puzzle, wrapping round, so one missed first try comes back.
+    if (hw && hw.list) {
+      const left = hw.list.filter(p => !hw.doneIds.includes(p.id));
+      if (!left.length) return;
+      const at = hw.list.findIndex(p => p.id === this.current?.id);
+      const next = left.find(p => hw.list.indexOf(p) > at) || left[0];
+      this.isDailyPuzzle = false;
+      this.loadPuzzle(next);
+      return;
+    }
     const target = hw ? Math.max(hw.minRating, Math.min(hw.maxRating, this.targetRating()))
       : this.targetRating();
     // Bands used to be fetched once, at the rating the app started with. If the

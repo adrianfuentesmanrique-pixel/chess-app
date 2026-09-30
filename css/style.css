@@ -1796,6 +1796,16 @@ body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
 }
 .hw-chip small { color: var(--muted); font-variant-numeric: tabular-nums; }
 .hw-chip.on { background: var(--gold-bg); border-color: var(--gold); }
+/* Stage 5: four kinds do not fit one row at 375px — two by two. */
+.hw-sheet .hw-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.hw-ls-head { margin-bottom: 4px; }
+.hw-ls-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid var(--panel2);
+}
+.hw-ls-row .fr-name { min-width: 0; font-variant-numeric: tabular-nums; }
+.hw-ls-row .btn { margin-top: 0; }
+.hw-send-list { border: 1px solid var(--gold); }
 /* Puzzles homework mode bar */
 .puzzle-hw {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 10px;

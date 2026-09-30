@@ -13,7 +13,7 @@ import {
   // the only place in the app that opens a Firestore listener at all.
   addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot,
   // Students homework: progress is added, not overwritten, so two phones add up.
-  increment,
+  increment, arrayUnion,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -863,6 +863,25 @@ export async function addMembers(mcId, uids, role = 'viewer') {
   return added;
 }
 
+// Students stage 5: a chapter homework makes the student a viewer of the
+// class, if they are not in it already. One read (their member doc) when they
+// are; one write more when they are not. `memberCount` is the class row's
+// advisory count — the 30-member cap is app-side only, like everywhere else,
+// so a full class is refused HERE rather than silently going to 31.
+// Returns 'member' | 'added' | 'full' | 'failed'.
+export async function ensureViewer(mcId, uid, memberCount = 0) {
+  if (!auth.currentUser || !mcId || !uid) return 'failed';
+  try {
+    const snap = await getDoc(doc(firestore, 'masterclasses', mcId, 'members', uid));
+    if (snap.exists()) return 'member';
+  } catch { return 'failed'; }
+  if (memberCount >= MAX_MEMBERS) return 'full';
+  if (!await addMembers(mcId, [uid], 'viewer')) return 'failed';
+  // Keep the Bases row honest; a failure here only leaves the number stale.
+  try { await setMemberCount(mcId, memberCount + 1); } catch { /* advisory */ }
+  return 'added';
+}
+
 // Everyone in the class can see who else is in it. Unsorted here; the screen
 // sorts, the same way fetchChapters() and the friends list do, so no composite
 // index is needed.
@@ -1291,13 +1310,42 @@ export async function fetchStudentReports() {
 // ── Homework (Students stage 4) ─────────────────────────────────────
 // homework/{autoId}: the teacher writes the task once; after that only the
 // student's app moves it, and only done / seconds / status / completedAt.
-// Guarded by the homework block in firestore.rules. Kinds this stage:
-// 'puzzles' {themes ≤ 5, minRating, maxRating, count 1–100} and 'text' {}.
+// Guarded by the homework block in firestore.rules. Kinds:
+// 'puzzles' {themes ≤ 5, minRating, maxRating, count 1–100} and 'text' {}
+// (stage 4); 'chapter' {mcId, chapterId} and 'list' {puzzles: ≤ 20 packed
+// strings} (stage 5). A list also carries doneIds (arrayUnion, student only).
 
 // ADVISORY, app-side only (no rule can count): open homework per student.
 export const MAX_OPEN_HOMEWORK = 10;
 // kv key for {open, done}: what the student's summary sends as hwOpen/hwDone.
 export const HW_COUNTS_KEY = 'hwCounts';
+// A 'list' holds at most this many puzzles (enforced by the rules too).
+export const MAX_LIST_PUZZLES = 20;
+
+// A list puzzle is stored as ONE string, id|fen|moves|rating|themes — see the
+// hwPzOk comment in firestore.rules: a map per puzzle cost too many rule
+// expressions to fit 20. This regex is the rule's regex, so a puzzle the app
+// would pack but the rules would refuse is caught here, before the write.
+const PZ_RE = new RegExp('^[A-Za-z0-9_-]{1,40}[|]'
+  + '[1-8pnbrqkPNBRQK/]{15,71} [wb] [-KQkq]{1,4} [-a-h1-8]{1,2} [0-9]{1,3} [0-9]{1,4}[|]'
+  + '[a-h][1-8][a-h][1-8][qrbn]?( [a-h][1-8][a-h][1-8][qrbn]?){0,39}[|]'
+  + '(4000|[0-3]?[0-9]{1,3})[|]'
+  + '([A-Za-z0-9]{1,40}( [A-Za-z0-9]{1,40}){0,19})?$');
+
+// A puzzle object → the stored string, or null if it cannot be stored.
+export function packPuzzle(p) {
+  if (!p || !Array.isArray(p.moves)) return null;
+  const themes = (Array.isArray(p.themes) ? p.themes : []).filter(x => /^[A-Za-z0-9]{1,40}$/.test(x)).slice(0, 20);
+  const s = [p.id, p.fen, p.moves.join(' '), Math.round(p.rating), themes.join(' ')].join('|');
+  return PZ_RE.test(s) ? s : null;
+}
+
+// The stored string → a puzzle object the Puzzles board plays, or null.
+export function unpackPuzzle(s) {
+  if (typeof s !== 'string' || !PZ_RE.test(s)) return null;
+  const [id, fen, moves, rating, themes] = s.split('|');
+  return { id, fen, moves: moves.split(' '), rating: Number(rating), themes: themes ? themes.split(' ') : [] };
+}
 
 // Refs of every homework `teacherUid` gave `studentUid`. Both fields are
 // constrained, so either side may run it (the read rule uses .get(field, '')).
@@ -1365,10 +1413,12 @@ export async function deleteHomework(hwId) {
 // second phone adds its own puzzles instead of overwriting (the rules only let
 // the counters go up). `finish` stamps status 'done' + completedAt from the
 // server; the rules accept that only once the target is reached.
-export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false } = {}) {
+export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false, addIds = [] } = {}) {
   if (!auth.currentUser || !hwId) return false;
   const patch = {};
   if (addDone > 0) patch.done = increment(Math.round(addDone));
+  // A list's solved puzzle ids. arrayUnion, so two phones merge.
+  if (addIds.length) patch.doneIds = arrayUnion(...addIds);
   if (addSeconds > 0) patch.seconds = increment(Math.round(addSeconds));
   if (finish) { patch.status = 'done'; patch.completedAt = serverTimestamp(); }
   if (!Object.keys(patch).length) return false;

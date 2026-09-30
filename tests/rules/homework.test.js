@@ -1,4 +1,4 @@
-// Rules tests for Students homework: /homework/{autoId} (stage 4).
+// Rules tests for Students homework: /homework/{autoId} (stages 4 and 5).
 //
 // A teacher assigns a task to a student who currently accepts them; after
 // that only the student's app moves it, and only its progress fields. Every
@@ -15,7 +15,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc, collection, query, where, getDoc, getDocs,
-  setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, increment,
+  setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, increment, arrayUnion, deleteField,
 } from 'firebase/firestore';
 
 const TEACH = 'alice_uid';   // the teacher
@@ -41,6 +41,34 @@ const textTask = (extra = {}) => ({
   status: 'open', done: 0, seconds: 0, createdAt: serverTimestamp(),
   ...extra,
 });
+
+// Stage 5. A chapter of a class the teacher owns, and a hand-picked list.
+const MC = 'mc1';
+const CH = 'ch1';
+const chapterTask = (extra = {}, params = {}) => ({
+  teacherUid: TEACH, studentUid: STU, kind: 'chapter',
+  title: 'The Lucena position',
+  params: { mcId: MC, chapterId: CH, ...params },
+  status: 'open', done: 0, seconds: 0, createdAt: serverTimestamp(),
+  ...extra,
+});
+// A puzzle as the app packs it: id|fen|moves|rating|themes (see the comment on
+// hwPzOk in firestore.rules for why it is one string, not a map).
+const FEN = 'r2qk2r/pp4pp/2nbPn2/1Bp5/3pP3/2N5/PPP2PPP/R1BQK2R w KQkq - 2 11';
+const pack = ({ id, fen = FEN, moves = ['c3d5', 'd8a5', 'c1d2', 'a5b5'], rating = 1219, themes = ['fork'] }) =>
+  [id, fen, moves.join(' '), rating, themes.join(' ')].join('|');
+const pz = (i, extra = {}) => pack({ id: `p${i}`, ...extra });
+const listTask = (n = 3, extra = {}) => ({
+  teacherUid: TEACH, studentUid: STU, kind: 'list',
+  title: 'Puzzles from our lesson',
+  params: { puzzles: Array.from({ length: n }, (_, i) => pz(i)) },
+  status: 'open', done: 0, seconds: 0, createdAt: serverTimestamp(),
+  ...extra,
+});
+const seedClass = async (owner = TEACH) => {
+  await seed(`masterclasses/${MC}`, { ownerUid: owner, name: 'Endgames', createdAt: 1, updatedAt: 1, memberCount: 1 });
+  await seed(`masterclasses/${MC}/chapters/${CH}`, { title: 'Lucena', pgn: '1. e4 *', startFen: '', order: 0, updatedAt: 1, updatedBy: owner });
+};
 
 // As stored (seeded with rules off, so createdAt is a plain number).
 const stored = (task) => ({ ...task, createdAt: 1755000000000 });
@@ -123,7 +151,7 @@ describe('/homework — the teacher assigns', () => {
     await assertFails(setDoc(doc(asTeacher(), `homework/${HW}`), puzzlesTask({ studentUid: TEACH })));
   });
 
-  it('the stage 5 kinds (chapter, list) and unknown kinds are refused for now', async () => {
+  it('unknown kinds are refused, and chapter/list need their own params (not {})', async () => {
     await active();
     await assertFails(setDoc(doc(asTeacher(), 'homework/a'), textTask({ kind: 'chapter' })));
     await assertFails(setDoc(doc(asTeacher(), 'homework/b'), textTask({ kind: 'list' })));
@@ -350,6 +378,178 @@ describe('/homework — deleting', () => {
   it('a stranger CANNOT delete', async () => {
     await seed(`homework/${HW}`, stored(puzzlesTask()));
     await assertFails(deleteDoc(doc(asOther(), `homework/${HW}`)));
+  });
+});
+
+// ═══════════════════════ stage 5: chapter ═══════════════════════
+
+describe('/homework — a Masterclass chapter (stage 5)', () => {
+  it('CAN assign a chapter of a class I own', async () => {
+    await active();
+    await seedClass();
+    await assertSucceeds(setDoc(doc(asTeacher(), `homework/${HW}`), chapterTask()));
+  });
+
+  it('CANNOT assign a chapter of a class somebody else owns', async () => {
+    await active();
+    await seedClass(OTHER);
+    await assertFails(setDoc(doc(asTeacher(), `homework/${HW}`), chapterTask()));
+  });
+
+  it('CANNOT assign a chapter that does not exist, or of a class that does not exist', async () => {
+    await active();
+    await seedClass();
+    await assertFails(setDoc(doc(asTeacher(), 'homework/a'), chapterTask({}, { chapterId: 'nope' })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), chapterTask({}, { mcId: 'nope' })));
+  });
+
+  it('chapter params are exactly {mcId, chapterId}, short strings', async () => {
+    await active();
+    await seedClass();
+    await assertFails(setDoc(doc(asTeacher(), 'homework/a'), chapterTask({}, { extra: 1 })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), chapterTask({ params: { mcId: MC } })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/c'), chapterTask({}, { chapterId: 7 })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/d'), chapterTask({}, { mcId: '' })));
+    // A '/' would re-aim the ownership lookup at another document (auditor).
+    await assertFails(setDoc(doc(asTeacher(), 'homework/e'), chapterTask({}, { chapterId: `x/../${CH}` })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/f'), chapterTask({}, { mcId: `${MC}/chapters/${CH}` })));
+  });
+
+  it('CANNOT assign a chapter without an active link, even of my own class', async () => {
+    await seedClass();
+    await assertFails(setDoc(doc(asTeacher(), `homework/${HW}`), chapterTask()));
+  });
+
+  it('the student finishes it: done 1 + done status (target is 1)', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(chapterTask()));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`), { done: 2 }));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { status: 'done', completedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: increment(1), seconds: increment(95), status: 'done', completedAt: serverTimestamp() }));
+  });
+
+  it('a chapter whose class was deleted can still be marked done (plan 3.6)', async () => {
+    await active();
+    // No masterclasses/mc1 at all: the update rule never looks at the class.
+    await seed(`homework/${HW}`, stored(chapterTask()));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: 1, status: 'done', completedAt: serverTimestamp() }));
+  });
+
+  it('a chapter task may not carry doneIds', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(chapterTask()));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`), { doneIds: ['x'] }));
+  });
+});
+
+// ═══════════════════════ stage 5: list ═══════════════════════
+
+describe('/homework — a hand-picked puzzle list (stage 5)', () => {
+  it('CAN assign 1 and 20 puzzles', async () => {
+    await active();
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/a'), listTask(1)));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/b'), listTask(20)));
+  });
+
+  it('CANNOT assign an empty list or 21 puzzles', async () => {
+    await active();
+    await assertFails(setDoc(doc(asTeacher(), 'homework/a'), listTask(0)));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), listTask(21)));
+  });
+
+  it('a puzzle with no themes, a promotion and a 1-move line is fine', async () => {
+    await active();
+    const t = listTask(2);
+    t.params.puzzles[1] = pack({ id: 'x-1_Z', moves: ['e7e8q'], themes: [], rating: 4000 });
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/a'), t));
+  });
+
+  it('each puzzle must be a packed string, and params only {puzzles}', async () => {
+    await active();
+    const asMap = listTask(2);
+    asMap.params.puzzles[1] = { id: 'p1', fen: FEN, moves: ['c3d5'], rating: 1219, themes: ['fork'] };
+    await assertFails(setDoc(doc(asTeacher(), 'homework/a'), asMap));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), listTask(1, { params: { puzzles: [pz(0)], count: 1 } })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/c'), listTask(1, { params: { puzzles: pz(0) } })));
+  });
+
+  it('every part of a packed puzzle is checked — also on the 20th', async () => {
+    await active();
+    const bad = [
+      pack({ id: '' }), pack({ id: 'x'.repeat(41) }), pack({ id: 'a|b' }), pack({ id: '<img>' }),
+      pack({ id: 'p', fen: 'not a fen' }), pack({ id: 'p', fen: FEN + ' extra' }),
+      pack({ id: 'p', moves: [] }), pack({ id: 'p', moves: ['Nf3'] }), pack({ id: 'p', moves: ['e2e4x'] }),
+      pack({ id: 'p', moves: Array(41).fill('e2e4') }),
+      pack({ id: 'p', rating: 4001 }), pack({ id: 'p', rating: -1 }), pack({ id: 'p', rating: '12.5' }),
+      pack({ id: 'p', themes: ['<script>'] }), pack({ id: 'p', themes: Array(21).fill('fork') }),
+      pack({ id: 'p' }) + '|extra', pack({ id: 'p' }).replace(/\|[^|]*$/, ''),
+    ];
+    for (const [i, b] of bad.entries()) {
+      const task = listTask(20);
+      task.params.puzzles[19] = b;
+      await assertFails(setDoc(doc(asTeacher(), `homework/b${i}`), task));
+    }
+    // …and the same 20 with a good last one is fine (the limit really is 20).
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/good'), listTask(20)));
+  });
+
+  it('20 of the LONGEST legal puzzles still fit the rules expression budget', async () => {
+    await active();
+    const t = listTask(20);
+    t.params.puzzles = t.params.puzzles.map((_, i) => pack({
+      id: `p${i}`.padEnd(40, 'x'), moves: Array(40).fill('e7e8q'),
+      themes: Array(20).fill('t'.repeat(40)),
+    }));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/long'), t));
+  });
+
+  it('the student counts solved puzzles into doneIds with arrayUnion + increment', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(listTask(3)));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: increment(2), doneIds: arrayUnion('p0', 'p1'), seconds: increment(60) }));
+    const snap = await getDoc(doc(asStudent(), `homework/${HW}`));
+    if (snap.data().doneIds.length !== 2) throw new Error('arrayUnion did not land');
+  });
+
+  it('finishes only when done == the list length', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...listTask(3), done: 2, doneIds: ['p0', 'p1'] }));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { status: 'done', completedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`), { done: 4 }));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: increment(1), doneIds: arrayUnion('p2'), status: 'done', completedAt: serverTimestamp() }));
+  });
+
+  it('doneIds only grows, never past the list length, and holds short strings', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...listTask(3), done: 2, doneIds: ['p0', 'p1'] }));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { doneIds: ['p0'] }));                       // shrinks
+    await assertFails(updateDoc(ref, { doneIds: ['p0', 'p2', 'p1', 'p3'] }));     // 4 > 3
+    await assertFails(updateDoc(ref, { doneIds: arrayUnion(7) }));                 // not a string
+    await assertFails(updateDoc(ref, { doneIds: arrayUnion('x'.repeat(41)) }));
+    await assertFails(updateDoc(ref, { doneIds: 'p0,p1,p2' }));
+    await assertFails(updateDoc(ref, { doneIds: deleteField() }));                 // auditor: no delete-to-shrink
+    await assertSucceeds(updateDoc(ref, { doneIds: arrayUnion('p2') }));
+  });
+
+  it('the teacher CANNOT write doneIds, and the list itself cannot be edited', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(listTask(3)));
+    await assertFails(updateDoc(doc(asTeacher(), `homework/${HW}`), { doneIds: arrayUnion('p0') }));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`), { 'params.puzzles': [pz(0)] }));
+  });
+
+  it('a puzzles/text task may not carry doneIds, and a new task cannot start with one', async () => {
+    await active();
+    await seed('homework/a', stored(puzzlesTask()));
+    await assertFails(updateDoc(doc(asStudent(), 'homework/a'), { doneIds: ['p0'] }));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), listTask(2, { doneIds: [] })));
   });
 });
 

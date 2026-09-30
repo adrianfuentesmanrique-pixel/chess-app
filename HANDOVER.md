@@ -2,6 +2,77 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS STAGE 5 — HOMEWORK PART 2: CHAPTERS + PUZZLE LISTS
+  (2026-09-30).** Committed on `main`, NOT pushed. **RULES CHANGED: Adrian
+  must run `npm.cmd run rules:deploy` BEFORE `git push`.** Stage 4's rules
+  were never deployed either (Adrian confirmed) — this ONE deploy covers
+  stages 4 and 5. `sw.js` v116 → **v117**. **The Students plan is complete**
+  (stage 5 was its last stage; `list` was NOT split off).
+  - **Rules** (`homework` block): kinds now `puzzles|text|chapter|list`.
+    `chapter` params exactly `{mcId, chapterId}`, both `[A-Za-z0-9_-]{1,128}`
+    (auditor: a `/` would re-aim the lookup), and `hwChapterOk` requires the
+    class to be OWNED by the teacher and the chapter to exist (2 reads, chapter
+    kind only). `list` = `{puzzles: 1–20 PACKED STRINGS}`
+    `id|fen|uci uci…|rating|theme theme…`, one regex per puzzle (`hwPzOk`).
+    **Why strings, not maps:** measured in the emulator, every field read of a
+    list element costs ~12 of the 1,000 expressions a write may evaluate; a
+    map with its 5 fields checked failed at FIVE puzzles. The regex is 2 reads
+    and stricter (every move UCI, every theme a word). All 30,000 library
+    puzzles pack. Target: chapter 1, list = `puzzles.size()`. Update diff adds
+    `doneIds`: list only, `hwDoneIdsOk` (≤ 20 short strings), ≤ list length,
+    only grows (`hasAll(old)`), keyed on the DIFF so `deleteField()` cannot
+    shrink it (auditor). Deliberately NOT tied to `done` (two phones).
+  - **Tests:** `tests/rules/homework.test.js` 38 → 57; **302/302** total.
+    Includes 20 of the LONGEST legal puzzles fitting the expression budget.
+    Auditor: 4/5 → both findings fixed and tested.
+  - **`js/firebase.js`:** `MAX_LIST_PUZZLES` (20), `packPuzzle` /
+    `unpackPuzzle` (same regex as the rule), `ensureViewer(mcId, uid,
+    memberCount)` → 'member' | 'added' | 'full' | 'failed' (1 read; adds as
+    viewer + bumps memberCount; refuses at MAX_MEMBERS 30 instead of going to
+    31), `saveHomeworkProgress(…, addIds)` → `arrayUnion`.
+  - **Chapter:** assign sheet tab "📖 Chapter" = my OWNED classes → chapters
+    (`<select>`s; reuses `Masterclass.chapters` when that class is open, else
+    `fetchChapters`). Sending calls `ensureViewer` first. Student card "Open"
+    → `Masterclass.openForHomework(mcId, chapterId)` ('ok'|'gone'|'failed'),
+    which opens the class, then the chapter, and **rewinds to the start**
+    (`Analysis.loadTree` lands on the END — a naive hook counted on open).
+    The run is armed only after that. `Masterclass.onBoardChange` (the
+    `Analysis.refresh` choke point) calls `Students.hwChapterStep`, which
+    finishes it at the last move of the MAIN line (`atMainLineEnd`: no
+    children and every node is `children[0]`; a variation's end does not
+    count). 'gone' → `hwGone` → card says "This chapter is no longer
+    available" + Mark done (rules allow it: target 1, no class lookup).
+  - **List (Adrian's choice: collect, then send):** PuzzleLog review shows
+    "🎯 Give to a student" when I have an active student →
+    `Students.addToDraft(p)` (student sheet if > 1). Duplicates and > 20 are
+    refused, and nothing is written. The draft is `hwDraft` in `studentsCache`
+    (this phone only). The student page shows "🎯 Send puzzle list (n)"; the
+    sheet's "🎯 List" tab lists the draft with Remove. Sending clears it.
+    Runner = Puzzles homework mode with `hw.list` + `hw.doneIds`: `pool()` is
+    the list, `hwMatches` is by id and not yet done, and `nextPuzzle` takes the
+    next unsolved one in the teacher's order (wrapping, so a missed first try
+    comes back). The same first-try hook → `hwSolved` also records the id.
+  - **Also fixed:** `Puzzles.ensureLoaded()` now shares one in-flight load
+    (`loading` / `loadOnce`). `showScreen('puzzles')` and `startHomework`
+    both started a load, which ran two `nextPuzzle()`s and made a list skip
+    its first puzzle.
+  - `hwBegin`/`hwEnd`/`hwOnTask` generalise the run (puzzles, list and
+    chapter). Seconds count while on the task and `Activity.current()` is set.
+  - **Verified:** `test:rules` 302/302, `test:tree` 15/15. Headless CDP
+    (`tools/stu5-seed.js` + `tools/cdp-verify-students5.mjs`), 375px, EN/ES ×
+    light/dark: the student's chapter/list/gone cards, the teacher page +
+    Send list, the assign sheet's Chapter and List tabs, and the list runner
+    bar. **REAL:** a list puzzle solved through `Puzzles.userMove` → 1/3 +
+    doneIds; the next puzzle is list #2; Give to a student from the log review
+    → draft 2→3, again → "already in their list"; the chapter stepped with
+    Analysis's own ▶/⏮/⏭ buttons: open → not counted, ▶ → not counted, a
+    variation's end → not counted, main-line end → done + toast + run cleared;
+    both sheet specs read from their promises. **SEEDED:** all
+    Firestore-backed state (homework, classes, chapters, draft). The open step
+    ran `openForHomework`, which honestly returned 'failed' with no Firebase
+    user, and then its post-network half was replayed. No two-account flow ran
+    live (App Check). 0 console errors; offline boot serves v117.
+
 - **STUDENTS STAGE 4 — HOMEWORK PART 1 (2026-09-30).** Committed on `main`,
   NOT pushed. **RULES CHANGED: Adrian must run `npm.cmd run rules:deploy`
   BEFORE `git push`** — without the homework rules every assign/save is
