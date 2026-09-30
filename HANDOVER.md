@@ -2,6 +2,47 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **"OPEN WITH" / SHARE A PDF OR PGN FROM ANOTHER APP NOW REACHES CTC
+  (2026-09-29).** `sw.js` v112 → **v113**. Web side committed on `main` (NOT
+  pushed); Android side is TWA **1.0.5 (versionCode 7)**, built and signed but
+  not yet on Adrian's phone. Three root causes, all fixed:
+  - **The service worker never cached network responses.** Both fetch branches
+    in `sw.js` did `caches.open(CACHE).then(c => c.put(req, res.clone()))` —
+    the clone ran after the page had already consumed the body ("Response body
+    is already used"), so every put failed silently. Now `res.clone()` is taken
+    synchronously before `return res`, in both the cache-first and the
+    network-first branch.
+  - **Files were judged by name/MIME, which lie.** Many apps send a `.pgn` as
+    `application/octet-stream` or with a junk name. `routeIncomingFile()` in
+    `js/app.js` now sniffs the first 4 KB: `%PDF-` in the first 1 KB → PDF;
+    otherwise, if there are no NUL bytes, a PGN tag (`[Event "…"]`) or move text
+    (`1. e4`) → PGN; anything else → refused with `share_unsupported`.
+    `manifest.webmanifest` `share_target` accept gains
+    `application/octet-stream` (share target ONLY — not `file_handlers`, so CTC
+    doesn't offer to open every unknown file).
+  - **"Open with" never delivered the file.** In a TWA on Chrome 150,
+    `launchQueue` does NOT receive files (the claim further down that it might
+    is wrong). Fix is in the Android project `C:\Users\Adrian\chess-app-android`
+    (NOT a git repo): `app/src/main/java/com/chesstrainingcenter/app/LauncherActivity.java`
+    rewrites an incoming `ACTION_VIEW` intent into `ACTION_SEND` with the URI as
+    `EXTRA_STREAM` (`setIntent(share)`), so it goes through the share-target
+    POST that already works. `octet-stream` added to the SEND intent filter and
+    the `shareTarget` resValue; `twa-manifest.json` synced; version 1.0.5 / 7.
+    Signed with the same keystore (fingerprint checked). New outputs
+    `app-release-signed.apk` / `app-release-bundle.aab`; the old ones kept as
+    `*-1.0.4.*`.
+  - **⚠ NEVER run `bubblewrap update` without re-applying the
+    LauncherActivity patch** (and the octet-stream filter). Bubblewrap
+    regenerates the Java and the Android manifest from `twa-manifest.json` and
+    will silently wipe it — "Open with" goes back to landing on an empty Read
+    shelf.
+  - **Verified:** Android emulator (Chrome 150) — "Open with" a PDF → Read
+    shelf; a PGN → new base "OpenWithLines"; an octet-stream file is offered
+    in the share sheet. Headless CDP at 375px, EN/ES, light/dark: 19/19 PASS,
+    including offline boot.
+  - **Not verified / limits:** no test on Adrian's real phone yet. iOS has no
+    share target at all. App Check 403s in the console are expected.
+
 - **STUDENTS SEE THE TEACHER'S ARROWS DURING A LIVE MASTERCLASS
   (2026-09-29).** `sw.js` v111 → **v112**. Changed `firestore.rules`,
   `js/masterclass.js`, `js/board.js`, `js/firebase.js`, `js/app.js`,
@@ -591,8 +632,10 @@
     File Handling API delivers the file through `launchQueue`, routes it (PDF →
     Read shelf, PGN → new collection). If no file arrives within 2.5s (some
     phone/Chrome builds open the app but don't pass the file), it toasts
-    `share_open_failed` pointing the user to Share instead. **UNVERIFIED on
-    device** whether the TWA actually passes the file via launchQueue — if it
+    `share_open_failed` pointing the user to Share instead. **[STALE 2026-09-29:
+    answered — launchQueue does NOT deliver files in a TWA on Chrome 150; the
+    1.0.5 LauncherActivity patch routes "Open with" through the share target.]**
+    **UNVERIFIED on device** whether the TWA actually passes the file via launchQueue — if it
     doesn't, "Open with" lands on the Read shelf + shows that toast, and Share →
     CTC (which POSTs the file and DOES work) is the reliable path.
 
@@ -633,7 +676,10 @@
     the share + file intent filters) and reinstalled; an internal-testing build or
     a sideloaded signed APK is enough. The plain web Share Target does not reach
     the TWA; the TWA is a separate Android app.
-  - **LAYER 2 Android-side — still to do in the TWA/Bubblewrap project (NOT in this
+  - **[STALE — superseded 2026-09-29, see top entry. The intent filters shipped
+    in TWA 1.0.4; "Open with" was then fixed in 1.0.5 via a LauncherActivity
+    patch. Do NOT follow the steps below, and do NOT run `bubblewrap update`.]**
+    **LAYER 2 Android-side — still to do in the TWA/Bubblewrap project (NOT in this
     repo; only `.well-known/assetlinks.json` lives here):** run `bubblewrap update`
     to pull the new web manifest (Bubblewrap translates `share_target` +
     `file_handlers` into the Android intent filters), then `bubblewrap build`, then
