@@ -6729,9 +6729,19 @@ export function openRadarPicker(onSave) {
 async function routeIncomingFile(file) {
   if (!file) return;
   const name = file.name || 'shared';
-  const type = file.type || '';
-  const isPdf = /\.pdf$/i.test(name) || type === 'application/pdf';
-  const isPgn = /\.pgn$/i.test(name) || /chess-pgn/i.test(type);
+  // Decide by CONTENT, not by name/MIME: many apps send a .pgn as
+  // application/octet-stream (the share target accepts that), and a name or
+  // label can lie. Only a real PDF header or real PGN text gets in — anything
+  // else is refused, never silently swallowed.
+  let isPdf = false, isPgn = false;
+  try {
+    const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer());
+    isPdf = new TextDecoder('latin1').decode(head.subarray(0, 1024)).includes('%PDF-');
+    if (!isPdf && !head.includes(0)) {
+      const text = new TextDecoder().decode(head);
+      isPgn = /\[\s*[A-Za-z]\w*\s+"[^"\n]*"\s*\]/.test(text) || /(^|\s)1\.\s*(\.\.\.)?\s*[a-hKQRBNO]/.test(text);
+    }
+  } catch (e) { console.error('[share] sniff failed', e); }
   try {
     if (isPdf) {
       showScreen('read');

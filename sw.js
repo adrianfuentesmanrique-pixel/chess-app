@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v112';
+const CACHE = 'chess-training-center-v113';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -128,7 +128,10 @@ self.addEventListener('fetch', e => {
       caches.match(e.request).then(cached => {
         if (cached) return cached;
         return fetch(e.request).then(res => {
-          if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+          // Clone NOW, before the page starts reading the body. Cloning inside the
+          // async .then() ran after the body was consumed ("Response body is
+          // already used"), so the put silently failed and nothing got cached.
+          if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
           return res;
         }).catch(err => {
           // Previously this resolved to `cached`, which is undefined when
@@ -150,7 +153,8 @@ self.addEventListener('fetch', e => {
   // this handler explicitly wants to hit the network.
   e.respondWith(
     fetch(e.request, { cache: 'no-store' }).then(res => {
-      if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+      // Clone synchronously — see the cache-first branch above.
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
       return res;
     }).catch(() => caches.match(e.request))
   );
