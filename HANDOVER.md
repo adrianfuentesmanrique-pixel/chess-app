@@ -328,6 +328,42 @@
   No push (Spark plan): students see homework on next open. **Next: stage 1**
   (consent rules + tests + `js/firebase.js` data layer, no UI).
 
+- **"OPEN WITH" STILL FAILED ON ADRIAN'S PHONE — CAUSE: BRAVE IS HIS DEFAULT
+  BROWSER (2026-09-30).** `sw.js` v117 → **v118**. Web side committed on
+  `main` (NOT pushed). No Android change yet.
+  - **Facts from Adrian:** Play shows 1.0.5 (code 7) live; phone App info says
+    1.0.5; files come from **WhatsApp**; one CTC entry in the lists; Share →
+    CTC opens the app and shows a failure toast (so the share-target POST DID
+    reach the service worker and redirect to `?shared=1`, but no file was
+    stashed); **default browser = Brave**.
+  - **Why it passes on the emulator and fails on the phone:** the helper
+    (`androidbrowserhelper` 2.6.2) runs the TWA in the *default* browser when
+    it supports TWAs. Emulator = Chrome 150 → works cold AND warm (re-tested
+    today through the Files app UI: PDF → Read, PGN → base "OpenWithLines";
+    Chrome gets the share as `START_DELIVERED_TO_TOP`). Phone = Brave → the
+    share arrives without its file. The AAB was checked: the
+    LauncherActivity patch and the octet-stream filter ARE in the uploaded
+    build, so it is not a stale build.
+  - **Not yet confirmed on the phone.** The test: set Chrome as default
+    browser, force-stop CTC, share/open a PDF from WhatsApp. Works → Brave
+    confirmed; the fix is to pin the TWA provider to Chrome in
+    `LauncherActivity` (override `createTwaLauncher()`, pass
+    `com.android.chrome` when installed) → 1.0.6 / code 8, same keystore.
+    **Caveat:** in Brave the app's local storage (IndexedDB, un-synced
+    progress, sign-in) lives in Brave's profile; pinning to Chrome starts
+    from Chrome's profile — decide with Adrian first.
+  - **Web hardening (done):** `handleIncomingFiles()` `?open-file=1` no
+    longer jumps to Read. It stays where boot lands (Analysis), shows
+    `share_receiving`, and after 2.5 s with no file shows `share_open_failed`
+    for 6 s. `routeIncomingFile` still picks the screen when a file arrives.
+  - **Verified:** `node tools/cdp-verify-share.mjs http://localhost:9182`
+    (new dev tool; fixture `tools/fixtures/TestBook.pdf`) — headless Chrome
+    375px, EN/ES × light/dark: open-file with no file (no Read trap, toasts),
+    shared PDF → Read, PGN → base, octet-stream PGN → base, junk →
+    `share_unsupported`, offline boot, no console errors: **34/34 PASS**.
+    Emulator (Chrome) Open-with warm: PDF + PGN OK. **Nothing verified in
+    Brave** (the emulator has no Google account for the Play Store).
+
 - **"OPEN WITH" / SHARE A PDF OR PGN FROM ANOTHER APP NOW REACHES CTC
   (2026-09-29).** `sw.js` v112 → **v113**. Web side committed on `main` (NOT
   pushed); Android side is TWA **1.0.5 (versionCode 7)**, built and signed but

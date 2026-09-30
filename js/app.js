@@ -6896,14 +6896,15 @@ async function handleIncomingFiles() {
     });
   }
 
-  // If we were launched as a file handler, land on the Read shelf straight away
-  // (not the default Analysis tab). If the file never arrives via launchQueue —
-  // some phone/Chrome combinations open the app but don't pass the file — tell
-  // the user to use Share instead rather than leaving them on an empty shelf.
+  // Launched as a file handler. Do NOT jump to a screen yet: we don't know the
+  // file type until it arrives, and routeIncomingFile picks the screen (PDF →
+  // Read, PGN → Games). In a TWA launchQueue never delivers the file, so if
+  // nothing arrives, say so and leave the user where boot put them — never on
+  // an empty Read shelf.
   if (openWith) {
     history.replaceState(null, '', location.pathname + location.hash);
-    showScreen('read');
-    setTimeout(() => { if (!gotFile) toast(t('share_open_failed')); }, 2500);
+    toast(t('share_receiving'));
+    setTimeout(() => { if (!gotFile) toast(t('share_open_failed'), 6000); }, 2500);
   }
 
   // Share sheet — the service worker stashed the file and reloaded us. Reaching

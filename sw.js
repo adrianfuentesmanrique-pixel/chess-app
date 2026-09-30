@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v117';
+const CACHE = 'chess-training-center-v118';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
