@@ -12,7 +12,8 @@ import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard,
-         MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS } from './firebase.js';
+         MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS,
+         MAX_STUDENTS, MAX_TEACHERS } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
@@ -24,6 +25,7 @@ import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Friends } from './friends.js';
 import { Masterclass } from './masterclass.js';
+import { Students } from './students.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -306,7 +308,8 @@ function openLegalModal(doc) {
   });
 }
 
-function openAuthModal() {
+// Exported for js/students.js — its signed-out line has a sign-in button.
+export function openAuthModal() {
   return modal((box, close) => {
     let mode = 'signin';
 
@@ -1158,7 +1161,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'blind'];
+const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'blind', 'students'];
 export let activeScreen = 'analysis';
 
 export function showScreen(name) {
@@ -1178,6 +1181,7 @@ export function showScreen(name) {
   if (name === 'puzzles') Puzzles.ensureLoaded();
   if (name === 'endgame') Endgame.ensureLoaded();
   if (name === 'profile') Profile.refresh();
+  if (name === 'students') Students.onEnter();
   if (name !== 'blind') Blind.cleanup();
   if (name !== 'puzzles') Puzzles.disarmCheckin();
   // Leaving the Rush screen ends the run. Without this the clock kept ticking
@@ -1255,6 +1259,7 @@ const MENU_AREA = {
   puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles',
   play: 'play',
   read: 'read',
+  students: 'students',
   profile: 'profile', leaderboard: 'profile', 'public-profile': 'profile',
   friends: 'profile', 'friends-leaderboard': 'profile', 'friends-blocked': 'profile',
 };
@@ -2834,7 +2839,8 @@ export function esc(s) {
 // One page that names every real cap. Each number is pulled from the constant
 // that ENFORCES it — never retyped — so the page can't drift when a cap moves.
 // MAX_DATABASES / MAX_ENGINE_LINES / MAX_SEARCH_RESULTS are module consts here;
-// MAX_MASTERCLASSES / MAX_CHAPTERS / MAX_CHAPTER_BYTES / MAX_MEMBERS come from
+// MAX_MASTERCLASSES / MAX_CHAPTERS / MAX_CHAPTER_BYTES / MAX_MEMBERS /
+// MAX_STUDENTS / MAX_TEACHERS come from
 // firebase.js; MAX_RADAR_THEMES and Rush.MAX_STRIKES live further down this
 // file and are read at call time, once the module has finished evaluating.
 function capRows() {
@@ -2844,6 +2850,8 @@ function capRows() {
     [t('cap_chapters'), String(MAX_CHAPTERS)],
     [t('cap_chapter_size'), `${Math.round(MAX_CHAPTER_BYTES / 1000)} KB`],
     [t('cap_members'), String(MAX_MEMBERS)],
+    [t('cap_students'), String(MAX_STUDENTS)],
+    [t('cap_teachers'), String(MAX_TEACHERS)],
     [t('cap_search'), MAX_SEARCH_RESULTS.toLocaleString()],
     [t('cap_engine_lines'), String(MAX_ENGINE_LINES)],
     [t('cap_radar'), String(MAX_RADAR_THEMES)],
@@ -6271,6 +6279,7 @@ function relabel() {
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.refreshLists();
   if (activeScreen === 'read') Read.refresh();
+  if (activeScreen === 'students') Students.render();
 }
 
 function openEloHistoryModal(historyKey, titleKey) {
@@ -6828,6 +6837,7 @@ async function main() {
   PublicProfile.init();
   Friends.init();
   Masterclass.init();
+  Students.init();
   Setup.init();
   await Themes.init();
   await Streak.init();

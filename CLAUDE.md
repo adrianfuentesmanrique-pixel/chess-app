@@ -7,7 +7,7 @@
 ## Never read these whole — they will eat the session
 | File | Size | Instead |
 |---|---|---|
-| `js/app.js` | 232 KB (~58k tokens) | Grep the symbol, then Read with offset/limit |
+| `js/app.js` | 293 KB (~73k tokens) | Grep the symbol, then Read with offset/limit |
 | `js/endgames-data.js` | 212 KB | Grep only |
 | `puzzles/*.json` | 5.1 MB total | Grep only |
 | `graphify-out/graph.json` | 292 KB | Read `graphify-out/GRAPH_REPORT.md` (8 KB) instead |

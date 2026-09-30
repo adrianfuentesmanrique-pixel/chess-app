@@ -520,7 +520,15 @@ export async function blockUser(otherUid) {
     quiet(updateDoc(doc(firestore, 'friendRequests', `${otherUid}_${user.uid}`),
       { status: 'rejected' })),
     quiet(deleteDoc(doc(firestore, 'friendRequests', `${user.uid}_${otherUid}`))),
+    // Coaching ends in both directions (plan 3.5; the rules do not do this).
+    // As their student I may delete any status; as their teacher a 'declined'
+    // link is refused by design and simply stays.
+    quiet(deleteDoc(doc(firestore, 'coaching', coachingIdOf(user.uid, otherUid)))),
+    quiet(deleteDoc(doc(firestore, 'coaching', coachingIdOf(otherUid, user.uid)))),
   ]);
+  // Rebuilt from the links that are left, so a blocked teacher drops out of
+  // my summary now rather than on my next app open.
+  await quiet(publishStudentReport());
   return true;
 }
 
@@ -1011,8 +1019,7 @@ export function watchLiveState(mcId, cb) {
 // firestore.rules (Students block) and tested in tests/rules/students.test.js:
 //   coaching/{teacherUid}_{studentUid}  the link: 'pending' → 'active' | 'declined'
 //   studentReports/{studentUid}         the summary, written ONLY by the student
-// Plan: docs/plans/2026-09-29-students.md. Nothing here is called yet — the
-// screen arrives in stage 2.
+// Plan: docs/plans/2026-09-29-students.md. The screen is js/students.js.
 //
 // Unlike addMembers() above, nothing here gives anyone access without the
 // other person's yes: the teacher can only create a PENDING link, and only the
@@ -1190,13 +1197,14 @@ export async function endCoaching(teacherUid) {
 // is gone locally is gone remotely too). Teachers without an ACTIVE link are
 // pruned first — that is how a teacher who removed me stops being able to read
 // it. With no active teacher left the summary is deleted instead; returns
-// false in that case. Stage 2 decides WHEN this runs (on accept, on open, at
-// most every 15 minutes of practice).
-export async function publishStudentReport() {
+// false in that case. js/students.js decides WHEN this runs (on app open with
+// a teacher, then at most every 15 minutes of practice). `links` lets a caller
+// that has just fetched fetchMyTeacherLinks() skip a second query.
+export async function publishStudentReport(links = null) {
   const user = auth.currentUser;
   if (!user) return false;
   const ref = doc(firestore, 'studentReports', user.uid);
-  const teachers = activeTeacherUids(await fetchMyTeacherLinks());
+  const teachers = activeTeacherUids(links || await fetchMyTeacherLinks());
   if (!teachers.length) {
     await deleteDoc(ref);
     return false;

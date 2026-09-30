@@ -2,6 +2,65 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS STAGE 2 — THE STUDENTS SCREEN (2026-09-29).** Committed on
+  `main`, NOT pushed (`git push` deploys the site). **Stage 1 rules must be
+  deployed first** (`npm.cmd run rules:deploy`) or every action on the screen
+  is refused. No rules change this stage. `sw.js` v113 → **v114**.
+  - **New `js/students.js`** (`Students`): 9th drawer entry
+    `data-screen="students"` after Read (`SCREENS`, `MENU_AREA`, `TAB_ORDER`
+    pick it up); `#screen-students` in `index.html`. Sections: **My teachers**
+    (only when I have a link as student: pending invite card with the full
+    consent list — 6 items incl. minutes/homework marked "coming soon" + a
+    "Never: …" line + "you can end it any time" — Accept/Decline; active →
+    End; declined → Clear) and **My students** (always: `n/30` cap counter,
+    ➕ Invite (friends picker, Masterclass-picker shape, chips for
+    student/invited/declined), 🎓 My Masterclasses → Bases tab, roster cards
+    with 4 ratings + puzzle ▲/▼ 7-day change from `puzzleEloHistory` + streak /
+    solved / "updated X ago", ⋯ → Remove student; pending → Withdraw; declined →
+    note only, rules refuse the teacher deleting it). Every destructive action
+    and Decline go through `askConfirm`, names escaped. Signed out: one line +
+    sign-in button (`openAuthModal` is now exported from `js/app.js`).
+  - **Consent list fit at 375px** (≈290 px tall), so nothing was cut and no
+    decision was needed.
+  - **Invites** always toast "Invitation sent ✓", whatever `inviteStudent`
+    throws (not friends / blocked). Accept only via `acceptTeacher` (the one
+    batch); `max-teachers` → readable toast.
+  - **Publishing:** accept (the batch), app open when the cached lists say I
+    have an active teacher (fetches my teacher links once and passes them to
+    `publishStudentReport(links)` — new optional param, saves a query), then
+    every 15 min of practice (30 s tick; counts only while visible AND touched
+    in the last 2 min; area-blind until stage 3's `js/activity.js`).
+  - **Cost deviation from the plan, on purpose:** a user with NO links is
+    still asked for a pending invite once per **6 hours** (1 read when empty),
+    so the gold dot can appear without opening the screen. The plan's "0 extra
+    reads" would mean an invite is invisible until the student happens to open
+    Students. Teachers cost nothing at boot; the roster loads on open.
+  - **Gold dot** (`.has-dot`) on the drawer entry AND on ☰ when an invite waits
+    for my answer. Homework dots are stage 4.
+  - **Offline:** cached lists (kv key `studentsCache`, keyed to the uid; also
+    the has-teacher/has-students flag) with "Offline — showing saved data";
+    every action is refused with a toast instead of being queued. Sign-out
+    already wipes the whole kv store (`db.clearSyncedProfileData`), and
+    `Students.onAuth` resets memory + the dot.
+  - **`blockUser()`** now quietly deletes `coaching/{me}_{them}` and
+    `coaching/{them}_{me}` (a declined link where I'm teacher stays — rules),
+    then `publishStudentReport()` to prune the summary.
+  - Limits sheet: "Students per teacher 30", "Teachers per student 3",
+    imported `MAX_STUDENTS`/`MAX_TEACHERS`. EN + ES strings (`stu_*`,
+    `tab_students`, `cap_students`, `cap_teachers`).
+  - **Verified:** `npm.cmd run test:rules` 245/245. Browser pane 375px, light
+    AND dark, EN AND ES. **Signed-out line, drawer, Limits rows, offline boot
+    = real. Everything signed-in was SEEDED** (`Object.assign(Students, …)` +
+    `render()` via `import('/js/students.js')`): pending/active/declined on
+    both sides, a `<img onerror>` name (renders as text, also in the confirm),
+    the picker, Withdraw/Remove confirms, offline banner + refused Accept, the
+    kv cache round-trip. The Invite toast was exercised with no Firebase user,
+    so no write happened. **No two-account flow has run live** — localhost
+    cannot reach Firestore (App Check); the writes are proven by the stage 1
+    emulator tests. Offline boot via headless CDP: SW v114 serves the app,
+    only the expected App Check network error.
+  - **Stage 3 next:** `js/activity.js`, minutes on the card, student page.
+
 - **STUDENTS STAGE 1 — CONSENT RULES + DATA LAYER, NO UI (2026-09-29).**
   Committed on `main`, NOT pushed, **rules NOT deployed** — Adrian runs
   `npm.cmd run rules:deploy` (harmless without UI). No `sw.js` bump (no new

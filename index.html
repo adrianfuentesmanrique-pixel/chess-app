@@ -866,6 +866,44 @@
     <p id="fbl-empty" class="hint empty-note hidden" data-i18n="friends_blocked_empty"></p>
   </section>
 
+  <!-- ══════════ STUDENTS ══════════ -->
+  <!-- js/students.js, plan docs/plans/2026-09-29-students.md stage 2. Two
+       sections: "My teachers" (only when I have a link as a student — invites
+       with the full consent list, End, Clear) and "My students" (always, since
+       Invite is how anyone becomes a teacher). Rows reuse .fr-row. -->
+  <section id="screen-students" class="screen hidden">
+    <div class="row screen-head">
+      <h2 data-i18n="tab_students"></h2>
+      <button id="stu-refresh" class="fr-more" data-i18n-aria="stu_refresh">⟳</button>
+    </div>
+    <p id="stu-note" class="stu-note hidden" aria-live="polite"></p>
+    <div id="stu-signedout" class="hidden">
+      <p class="hint empty-note" data-i18n="stu_signedout"></p>
+      <button id="stu-signin" class="btn primary btn-wide" data-i18n="sign_in_or_up"></button>
+    </div>
+    <div id="stu-body">
+      <div id="stu-teachers" class="mc-section hidden">
+        <h3 class="group-head" data-i18n="stu_my_teachers"></h3>
+        <div id="stu-teacher-list" class="list"></div>
+      </div>
+      <div class="mc-section">
+        <div class="mc-section-head">
+          <div class="head-with-count">
+            <h3 data-i18n="stu_my_students"></h3>
+            <span id="stu-count" class="cap-counter" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="stu-buttons">
+          <button id="stu-invite" class="btn primary" data-i18n="stu_invite_btn_main"></button>
+          <button id="stu-mc" class="btn" data-i18n="stu_my_mc"></button>
+        </div>
+        <div id="stu-list" class="list"></div>
+        <p id="stu-empty" class="hint empty-note hidden" data-i18n="stu_no_students"></p>
+      </div>
+      <p id="stu-foot" class="hint hidden" data-i18n="stu_foot"></p>
+    </div>
+  </section>
+
   <!-- ══════════ FRIENDS LEADERBOARD ══════════ -->
   <!-- A near-copy of #screen-leaderboard: same segmented controls, same row
        markup, same watermark. No name filter — at most 100 rows. -->
@@ -1025,11 +1063,14 @@
   <button data-screen="puzzles"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 7.5H9a2 2 0 1 1 4 0h3.5V11a2 2 0 1 1 0 4v3.5h-11z"/></svg><span data-i18n="tab_puzzles"></span></button>
   <button data-screen="play"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 5v3M9.5 12.5v1.5M14.5 12.5v1.5M2.5 12v3M21.5 12v3"/><circle cx="12" cy="3.5" r="1"/></svg><span data-i18n="tab_play"></span></button>
   <button data-screen="read"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5h10a1 1 0 0 1 1 1v16l-6-4-6 4v-16a1 1 0 0 1 1-1z"/></svg><span data-i18n="tab_read"></span></button>
+  <!-- Students (js/students.js). .has-dot paints the gold dot when an invite
+       is waiting for my answer. -->
+  <button data-screen="students"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/><path d="M15.5 4.8a3.5 3.5 0 0 1 0 6.4M17.5 14.3c2.2.7 3.6 2.8 4 5.7"/></svg><span data-i18n="tab_students"></span></button>
   <!-- The bottom group. The divider's margin-top:auto pins it and everything
        after it to the foot of the drawer. Limits & storage is not a destination
        and deliberately NOT a <button>: every '#tabbar button' selector
        (TAB_ORDER, swipe nav, the .on highlight, the click handler, the tour
-       targets) must keep matching exactly the eight data-screen buttons, so it
+       targets) must keep matching exactly the nine data-screen buttons, so it
        can sit before Profile without disturbing their order. It opens the
        Limits & storage sheet (js/app.js openLimitsSheet). -->
   <hr class="drawer-sep">

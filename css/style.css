@@ -1676,3 +1676,48 @@ body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
   display: flex; flex-wrap: wrap; gap: 5px;
   margin: 10px 0 4px; justify-content: center;
 }
+
+/* ── Students (js/students.js) ─────────── */
+/* Existing tokens only. Rows are .fr-row; the invite card is a taller panel
+   because it carries the consent list. */
+.stu-note {
+  background: var(--gold-bg); color: var(--text); border-radius: var(--radius);
+  padding: 8px 12px; font-size: 13px; margin: 0 0 10px;
+}
+.stu-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.stu-buttons .btn { flex: 1 1 150px; margin-top: 0; }
+.stu-invite {
+  background: var(--panel); border-radius: var(--radius); padding: 12px;
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+.stu-invite-head { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
+.stu-invite-lead { margin: 10px 0 4px; font-weight: 600; font-size: 14px; }
+.stu-share { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.45; }
+.stu-share li { margin: 2px 0; }
+.stu-never { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.stu-invite-end { margin: 4px 0 10px; font-size: 13px; color: var(--muted); }
+.stu-invite .fr-actions { justify-content: flex-end; }
+/* Roster card: avatar · name · ⋯ on the first line, then the ratings grid and
+   a foot line spanning the full width. */
+.stu-card { row-gap: 8px; }
+.stu-card .stu-stats, .stu-card .stu-card-foot { grid-column: 1 / -1; }
+.stu-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.stu-stat {
+  background: var(--panel2); border-radius: 8px; padding: 5px 4px; text-align: center;
+  min-width: 0;
+}
+.stu-stat span { display: block; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stu-stat b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.stu-delta { display: block; font-size: 11px; font-weight: 700; }
+.stu-delta.up { color: var(--success); }
+.stu-delta.down { color: var(--danger); }
+.stu-card-foot { margin: 0; font-size: 12px; color: var(--muted); }
+/* The gold dot: an invite waits for my answer. On the drawer entry and on ☰,
+   since the drawer is closed most of the time. */
+#tabbar button.has-dot, #tabmenu-btn.has-dot { position: relative; }
+#tabbar button.has-dot::after, #tabmenu-btn.has-dot::after {
+  content: ''; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 0 2px var(--panel);
+}
+#tabbar button.has-dot::after { margin-left: auto; }
+#tabmenu-btn.has-dot::after { position: absolute; top: 5px; right: 3px; }
