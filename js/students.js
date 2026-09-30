@@ -19,11 +19,13 @@ import {
   Auth, MAX_STUDENTS, MAX_TEACHERS, inviteStudent, withdrawInvite, removeStudent,
   fetchMyStudentLinks, fetchMyTeacherLinks, acceptTeacher, declineTeacher,
   endCoaching, publishStudentReport, fetchStudentReports, fetchLeaderboardByUids,
+  previewStudentReport,
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen,
-  paintCapCounter, openAuthModal,
+  paintCapCounter, openAuthModal, openEloHistoryModal,
 } from './app.js';
+import { Activity, AREAS, sumActive, daysAgo } from './activity.js';
 // friends.js does not import this file, and app.js imports it first, so this is
 // a plain edge. The invite picker reads Friends.friends — the list the Friends
 // tab already fills — rather than running a query of its own.
@@ -38,13 +40,15 @@ const CACHE_KEY = 'studentsCache';
 // arrived, so the gold dot can appear without them opening the screen first.
 // One query (1 read when empty) per 6 hours, not per boot.
 const INVITE_CHECK_MS = 6 * 3600 * 1000;
-// Plan: "at most every 15 minutes of practice". A second of practice is a
-// second the app is on screen and was touched in the last 2 minutes — the same
-// definition stage 3's js/activity.js will use per area; this counter is
-// deliberately area-blind and only times the publish.
+// Plan: "at most every 15 minutes of practice". A second of practice is one
+// js/activity.js counts (on screen, touched in the last 2 minutes, in a
+// practice area) — one idle detector for the whole app.
 const PUBLISH_EVERY_S = 15 * 60;
-const IDLE_MS = 120 * 1000;
 const TICK_S = 30;
+// Student page: bars for the last 14 days, area totals over the 30 the
+// summary carries, the 8 weakest themes before "Show all".
+const BAR_DAYS = 14;
+const THEMES_SHOWN = 8;
 
 // Firestore Timestamps do not survive IndexedDB with their methods, and the
 // screen only needs milliseconds. JSON turns them into {seconds, nanoseconds}.
@@ -63,7 +67,6 @@ export const Students = {
   uid: null,          // whose lists these are
   bootChecked: null,  // uid the boot check already ran for
   practiceS: 0,
-  lastInput: 0,
   publishing: false,
 
   init() {
@@ -79,9 +82,6 @@ export const Students = {
         if (activeScreen !== 'students') return;
         if (ev === 'online') this.load(); else this.render();
       });
-    }
-    for (const ev of ['pointerdown', 'keydown']) {
-      window.addEventListener(ev, () => { this.lastInput = Date.now(); }, { passive: true, capture: true });
     }
     setInterval(() => this.tick(), TICK_S * 1000);
   },
@@ -168,6 +168,8 @@ export const Students = {
     this.publishing = true;
     this.practiceS = 0;
     try {
+      // The summary reads activeTime from kv; write the last minute first.
+      await Activity.flush(true);
       await publishStudentReport(links);
     } catch (e) {
       console.error('Publishing the training summary failed', e);
@@ -176,11 +178,9 @@ export const Students = {
     }
   },
 
-  // Counts practice seconds; publishes after 15 minutes of them. Area-blind
-  // until stage 3 brings js/activity.js.
+  // Samples js/activity.js every 30 s; publishes after 15 minutes of practice.
   tick() {
-    if (document.visibilityState !== 'visible') return;
-    if (Date.now() - this.lastInput > IDLE_MS) return;
+    if (!Activity.current()) return;
     this.practiceS += TICK_S;
     if (this.practiceS >= PUBLISH_EVERY_S && this.hasTeacher()) this.publish();
   },
@@ -278,6 +278,7 @@ export const Students = {
     const links = [...this.asStudent].sort((a, b) => order[a.status] - order[b.status]);
     $('stu-teachers').classList.toggle('hidden', !links.length);
     $('stu-foot').classList.toggle('hidden', links.length > 0 || !this.loaded);
+    if (this.hasTeacher()) el.appendChild(this.myPracticeRow());
     for (const l of links) {
       const p = this.who(l.teacherUid);
       if (l.status === 'pending') el.appendChild(this.inviteCard(p));
@@ -291,6 +292,24 @@ export const Students = {
         ]));
       }
     }
+  },
+
+  // My own minutes this week, from the live counter. Tapping opens the same
+  // student page my teachers get, built locally from the summary I would send.
+  myPracticeRow() {
+    const row = document.createElement('button');
+    row.className = 'fr-row stack tappable stu-mine';
+    const week = sumActive(Activity.data, 7).total;
+    row.innerHTML = `<span class="stu-mine-ico" aria-hidden="true">⏱</span>` +
+      `<span class="fr-name">${esc(t('stu_my_practice').replace('{m}', this.fmtMin(week)))}` +
+      `<span class="fr-sub">${esc(t('stu_my_practice_sub'))}</span></span>`;
+    row.onclick = async () => {
+      await Activity.flush(true);
+      const r = plain(await previewStudentReport());
+      const me = { uid: this.uid, profileName: r.profileName || '?', username: r.username || '', avatarId: r.avatarId };
+      this.openPage(me, r, { self: true });
+    };
+    return row;
   },
 
   // The consent screen, inline: exactly what the teacher will see, item by
@@ -339,7 +358,8 @@ export const Students = {
     $('stu-empty').classList.toggle('hidden', !this.loaded || this.asTeacher.length > 0);
   },
 
-  // Ratings only in stage 2; minutes and homework join the card in stages 3/4.
+  // Ratings, minutes this week; homework joins in stage 4. Tapping the card
+  // opens the student page; ⋯ keeps Remove.
   studentCard(p) {
     const r = this.reports[p.uid];
     const card = document.createElement('div');
@@ -364,13 +384,171 @@ export const Students = {
         `<p class="stu-card-foot">${esc(t('stu_card_foot')
           .replace('{s}', r.streakCount || 0)
           .replace('{p}', (r.puzzlesSolvedCount || 0).toLocaleString())
-          .replace('{u}', this.ago(tsMs(r.updatedAt))))}</p>`;
+          .replace('{u}', this.ago(tsMs(r.updatedAt))))}</p>` +
+        `<p class="stu-card-foot stu-card-min">⏱ ${esc(t('stu_min_week').replace('{m}', this.fmtMin(sumActive(r.activeTime, 7).total)))}</p>`;
     }
     card.innerHTML = this.nameHtml(p) + `<button class="fr-more" aria-label="⋯">⋯</button>` + body;
-    card.querySelector('.fr-more').onclick = () => sheet([
-      { label: t('stu_remove'), danger: true, action: () => this.remove(p) },
-    ]);
+    card.querySelector('.fr-more').onclick = e => {
+      e.stopPropagation();
+      sheet([{ label: t('stu_remove'), danger: true, action: () => this.remove(p) }]);
+    };
+    if (r) {
+      card.classList.add('tappable');
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.onclick = () => this.openPage(p, r);
+      card.onkeydown = e => { if (e.key === 'Enter' && e.target === card) this.openPage(p, r); };
+    }
     return card;
+  },
+
+  // "42 min" / "1 h 05 min".
+  fmtMin(sec) {
+    const m = Math.round((sec || 0) / 60);
+    if (m < 60) return t('stu_min').replace('{n}', m);
+    return t('stu_h_min').replace('{h}', Math.floor(m / 60)).replace('{m}', String(m % 60).padStart(2, '0'));
+  },
+
+  // ── the student page ─────────────────
+  // One scrolling modal: ratings (each opens the Profile chart with the
+  // student's history), practice time (14-day bars + 30-day areas), puzzle
+  // themes weakest first. `self` = the student looking at their own summary.
+  openPage(p, r, { self = false } = {}) {
+    const num = v => (typeof v === 'number' ? String(Math.round(v)) : '—');
+    return modal((box, close) => {
+      box.classList.add('stu-page');
+      const head = document.createElement('div');
+      head.className = 'stu-page-head';
+      head.innerHTML = this.nameHtml(p) +
+        `<p class="stu-card-foot">${esc(self ? t('stu_self_note')
+          : t('stu_updated').replace('{u}', this.ago(tsMs(r.updatedAt))))}</p>`;
+      box.appendChild(head);
+
+      // Ratings — the same four tiles as the card, each opening a chart.
+      const tiles = document.createElement('div');
+      tiles.className = 'stu-stats stu-page-tiles';
+      const charts = [
+        ['stu_r_puzzles', r.puzzleElo, 'puzzleEloHistory', 'puzzle_elo'],
+        ['stu_r_openings', r.openingEloAvg, 'openingEloHistory', 'opening_elo'],
+        ['stu_r_endgames', r.endgameEloAvg, 'endgameEloHistory', 'endgame_elo'],
+        ['stu_r_blind', r.blindfoldElo, 'blindfoldEloHistory', 'blindfold_elo'],
+      ];
+      for (const [key, v, hk, tk] of charts) {
+        const b = document.createElement('button');
+        b.className = 'stu-stat';
+        b.innerHTML = `<span>${esc(t(key))}</span><b>${num(v)}</b><i aria-hidden="true">📈</i>`;
+        b.onclick = () => openEloHistoryModal(r[hk], tk, { share: false });
+        tiles.appendChild(b);
+      }
+      box.append(this.pageHead('stu_ratings', 'stu_ratings_hint'), tiles);
+      const counts = document.createElement('p');
+      counts.className = 'stu-card-foot stu-page-counts';
+      counts.textContent = t('stu_counts')
+        .replace('{s}', r.streakCount || 0).replace('{b}', r.bestStreak || 0)
+        .replace('{p}', (r.puzzlesSolvedCount || 0).toLocaleString())
+        .replace('{a}', (r.puzzleAttemptCount || 0).toLocaleString());
+      box.appendChild(counts);
+
+      box.append(this.pageHead('stu_time'), this.minutesBlock(r.activeTime));
+      box.append(this.pageHead('stu_themes', 'stu_themes_hint'), this.themesBlock(r.puzzleThemeElo));
+
+      const actions = document.createElement('div');
+      actions.className = 'stu-page-actions';
+      if (!self) {
+        const rm = document.createElement('button');
+        rm.className = 'btn danger';
+        rm.textContent = t('stu_remove');
+        rm.onclick = () => { close(null); this.remove(p); };
+        actions.appendChild(rm);
+      }
+      const ok = document.createElement('button');
+      ok.className = 'btn primary';
+      ok.textContent = t('close');
+      ok.onclick = () => close(null);
+      actions.appendChild(ok);
+      box.appendChild(actions);
+    });
+  },
+
+  pageHead(key, hintKey) {
+    const h = document.createElement('div');
+    h.className = 'stu-page-sec';
+    h.innerHTML = `<h4>${esc(t(key))}</h4>` + (hintKey ? `<span>${esc(t(hintKey))}</span>` : '');
+    return h;
+  },
+
+  // Minutes per day as bars (the student's own dates), then each area's share
+  // of the 30 days the summary carries.
+  minutesBlock(map) {
+    const wrap = document.createElement('div');
+    wrap.className = 'stu-time';
+    const week = sumActive(map, 7);
+    const month = sumActive(map, 30);
+    const days = [];
+    for (let i = BAR_DAYS - 1; i >= 0; i--) {
+      const d = daysAgo(i);
+      const row = (map && map[d]) || {};
+      days.push([d, Object.values(row).reduce((a, s) => a + (typeof s === 'number' && s > 0 ? s : 0), 0)]);
+    }
+    const peak = Math.max(...days.map(([, s]) => s), 60);
+    wrap.innerHTML =
+      `<div class="stu-time-sum"><div><span>${esc(t('stu_week'))}</span><b>${esc(this.fmtMin(week.total))}</b></div>` +
+      `<div><span>${esc(t('stu_30d'))}</span><b>${esc(this.fmtMin(month.total))}</b></div></div>` +
+      `<div class="stu-bars" role="img" aria-label="${esc(t('stu_bars_aria').replace('{n}', BAR_DAYS))}">` +
+      days.map(([d, s]) => {
+        const m = Math.round(s / 60);
+        return `<div class="stu-bar" title="${esc(d)} · ${esc(this.fmtMin(s))}">` +
+          `<em>${m || ''}</em><i style="height:${s ? Math.max(3, Math.round(s / peak * 80)) : 0}px"></i>` +
+          `<span>${+d.slice(8)}</span></div>`;
+      }).join('') + `</div>`;
+    const areas = AREAS.filter(a => month.byArea[a] > 0);
+    if (!areas.length) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = t('stu_no_time');
+      wrap.appendChild(p);
+      return wrap;
+    }
+    const top = Math.max(...areas.map(a => month.byArea[a]));
+    const list = document.createElement('div');
+    list.className = 'stu-areas';
+    list.innerHTML = areas.sort((a, b) => month.byArea[b] - month.byArea[a]).map(a =>
+      `<div class="stu-area"><span>${esc(t('act_' + a))}</span>` +
+      `<i><b style="width:${Math.max(2, Math.round(month.byArea[a] / top * 100))}%"></b></i>` +
+      `<em>${esc(this.fmtMin(month.byArea[a]))}</em></div>`).join('');
+    wrap.appendChild(list);
+    return wrap;
+  },
+
+  // Per-theme puzzle ratings, weakest first — what a teacher would assign.
+  // puzzleThemeElo also rates the puzzle set's meta-tags (endgame, short,
+  // crushing…), which the app never offers as a theme; only named themes show.
+  themesBlock(themes) {
+    const wrap = document.createElement('div');
+    const rows = Object.entries(themes && typeof themes === 'object' ? themes : {})
+      .filter(([k, v]) => typeof v === 'number' && Number.isFinite(v) && t('theme_' + k) !== 'theme_' + k)
+      .map(([k, v]) => [t('theme_' + k), Math.round(v)])
+      .sort((a, b) => a[1] - b[1]);
+    if (!rows.length) {
+      wrap.innerHTML = `<p class="hint">${esc(t('stu_no_themes'))}</p>`;
+      return wrap;
+    }
+    const grid = document.createElement('div');
+    grid.className = 'stu-themes';
+    const draw = n => {
+      grid.innerHTML = rows.slice(0, n).map(([label, v]) =>
+        `<div class="stu-theme"><span>${esc(label)}</span><b>${v}</b></div>`).join('');
+    };
+    draw(THEMES_SHOWN);
+    wrap.appendChild(grid);
+    if (rows.length > THEMES_SHOWN) {
+      const more = document.createElement('button');
+      more.className = 'btn small stu-more';
+      more.textContent = t('stu_show_all').replace('{n}', rows.length);
+      more.onclick = () => { draw(rows.length); more.remove(); };
+      wrap.appendChild(more);
+    }
+    return wrap;
   },
 
   // Puzzle rating now minus the rating a week ago, from the history the
@@ -513,6 +691,7 @@ export const Students = {
     if (!this.online()) return;
     this.freeze(btn);
     try {
+      await Activity.flush(true);
       await acceptTeacher(p.uid);
       this.practiceS = 0;
       toast(t('stu_accepted').replace('{n}', p.profileName));

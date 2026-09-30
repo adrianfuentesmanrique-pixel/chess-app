@@ -1712,6 +1712,51 @@ body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
 .stu-delta.up { color: var(--success); }
 .stu-delta.down { color: var(--danger); }
 .stu-card-foot { margin: 0; font-size: 12px; color: var(--muted); }
+.stu-card .stu-card-min { margin-top: -4px; }
+/* The student's own row: "Your practice: 42 min this week". */
+.stu-mine { box-shadow: inset 0 0 0 1px var(--gold); cursor: pointer; font: inherit; border: none; }
+.stu-mine-ico { font-size: 22px; width: 36px; text-align: center; }
+/* Student page (a modal): tiles open the Profile rating chart, then practice
+   time as 14 day bars + area rows, then themes weakest first. */
+.stu-page-head { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 10px; }
+.stu-page-head .stu-card-foot { grid-column: 1 / -1; }
+.stu-page-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 16px 0 6px; }
+.stu-page-sec h4 { margin: 0; font-size: 15px; padding-left: 8px; border-left: 3px solid var(--gold); }
+.stu-page-sec span { font-size: 12px; color: var(--muted); }
+.stu-page-tiles .stu-stat {
+  border: none; color: var(--text); font: inherit; cursor: pointer; position: relative;
+}
+.stu-page-tiles .stu-stat:active { box-shadow: inset 0 0 0 1px var(--gold); }
+.stu-page-tiles .stu-stat i { display: block; font-style: normal; font-size: 11px; line-height: 1.2; }
+.stu-page-counts { margin-top: 8px; }
+.stu-time-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stu-time-sum div { background: var(--panel2); border-radius: 8px; padding: 6px 8px; }
+.stu-time-sum span { display: block; font-size: 11px; color: var(--muted); }
+.stu-time-sum b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.stu-bars {
+  display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 3px;
+  align-items: end; height: 118px; margin-top: 10px;
+}
+.stu-bar { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; }
+.stu-bar i { display: block; width: 100%; max-width: 18px; background: var(--gold); border-radius: 3px 3px 0 0; }
+.stu-bar em { font-style: normal; font-size: 9px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.stu-bar span { font-size: 10px; color: var(--muted); border-top: 1px solid var(--panel2); width: 100%; text-align: center; padding-top: 2px; }
+.stu-areas { display: grid; gap: 5px; margin-top: 12px; }
+.stu-area { display: grid; grid-template-columns: 7.5em 1fr 5.2em; align-items: center; gap: 8px; font-size: 13px; }
+.stu-area span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stu-area i { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+.stu-area i b { display: block; height: 100%; background: var(--gold); border-radius: 4px; }
+.stu-area em { text-align: right; font-style: normal; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stu-themes { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.stu-theme {
+  display: flex; justify-content: space-between; gap: 6px; background: var(--panel2);
+  border-radius: 8px; padding: 6px 8px; font-size: 13px; min-width: 0;
+}
+.stu-theme span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stu-theme b { font-variant-numeric: tabular-nums; }
+.stu-more { margin-top: 8px; }
+.stu-page-actions { display: flex; gap: 8px; margin-top: 18px; }
+.stu-page-actions .btn { flex: 1; margin-top: 0; }
 /* The gold dot: an invite waits for my answer. On the drawer entry and on ☰,
    since the drawer is closed most of the time. */
 #tabbar button.has-dot, #tabmenu-btn.has-dot { position: relative; }

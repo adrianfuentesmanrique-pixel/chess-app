@@ -1105,7 +1105,8 @@ function activeTeacherUids(links, { add = null, drop = null } = {}) {
 // the rules allowlist refuses anything else (real name, birth date, email,
 // games, bases, books). Values that would break a rule bound are left out
 // rather than sent, so one odd local value cannot block the whole summary.
-// activeTime (stage 3) and hwOpen/hwDone (stage 4) are not sent yet.
+// activeTime is the last 30 days of the local 'activeTime' kv (js/activity.js),
+// whole seconds per area. hwOpen/hwDone (stage 4) are not sent yet.
 const HISTORY_SENT = 120; // the device keeps 400 (recordEloHistory, js/app.js)
 async function buildStudentReport(teachers) {
   const out = { teachers, updatedAt: serverTimestamp() };
@@ -1135,7 +1136,31 @@ async function buildStudentReport(teachers) {
   numIn('puzzleAttemptCount', await db.kvGet('puzzleAttemptCount', null), 0, 10000000);
   numIn('streakCount', await db.kvGet('streakCount', null), 0, 30000);
   numIn('bestStreak', await db.kvGet('bestStreak', null), 0, 30000);
+  // Rules: a map of at most 31 days. Dates are the device's own, like the
+  // rating histories. Unknown shapes are skipped, never sent.
+  const act = await db.kvGet('activeTime', null);
+  if (act && typeof act === 'object' && !Array.isArray(act)) {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    const p = n => String(n).padStart(2, '0');
+    const cut = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const days = {};
+    for (const date of Object.keys(act).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k >= cut).sort().slice(-30)) {
+      const row = {};
+      for (const [area, sec] of Object.entries(act[date] || {})) {
+        if (typeof sec === 'number' && sec > 0 && sec <= 86400) row[area.slice(0, 20)] = Math.round(sec);
+      }
+      if (Object.keys(row).length) days[date] = row;
+    }
+    out.activeTime = days;
+  }
   return out;
+}
+
+// The summary exactly as a teacher would get it, for the student's own
+// "what my teachers see" view. Built locally; nothing is written.
+export function previewStudentReport() {
+  return buildStudentReport([]);
 }
 
 // Student side: Accept is ONE batch — the link goes active AND the summary

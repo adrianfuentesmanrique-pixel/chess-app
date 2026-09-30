@@ -26,6 +26,7 @@ import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Friends } from './friends.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
+import { Activity } from './activity.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -6282,9 +6283,12 @@ function relabel() {
   if (activeScreen === 'students') Students.render();
 }
 
-function openEloHistoryModal(historyKey, titleKey) {
+// `hist` is [{date: 'YYYY-MM-DD', value}] — my own from kv (Profile), or a
+// student's from their summary (js/students.js, share: false: the share card
+// says "my record", which is not the teacher's to post).
+export function openEloHistoryModal(hist, titleKey, { share = true } = {}) {
   return modal(async (box, close) => {
-    const hist = await db.kvGet(historyKey, []);
+    hist = Array.isArray(hist) ? hist.filter(h => h && typeof h.value === 'number' && typeof h.date === 'string') : [];
     box.innerHTML = `<h3>${t(titleKey)}</h3>`;
     if (hist.length < 2) {
       const p = document.createElement('p'); p.className = 'hint'; p.textContent = t('no_history_yet');
@@ -6313,7 +6317,9 @@ function openEloHistoryModal(historyKey, titleKey) {
     }, 'record-elo.png');
     const closeBtn = document.createElement('button'); closeBtn.className = 'btn big'; closeBtn.textContent = t('close');
     closeBtn.onclick = () => close(null);
-    box.append(tf, chartWrap, peakEl, shareBtn, closeBtn);
+    box.append(tf, chartWrap, peakEl);
+    if (share) box.append(shareBtn);
+    box.append(closeBtn);
 
     let chart = null;
     function render(days) {
@@ -6363,10 +6369,10 @@ export const Profile = {
     $('profile-auth-btn').onclick = () => openAuthModal();
     $('profile-signout-btn').onclick = () => Auth.signOut();
     // Delete account now lives in the Settings sheet (openSettings), not here.
-    $('profile-elo-puzzle-card').onclick = () => openEloHistoryModal('puzzleEloHistory', 'puzzle_elo');
-    $('profile-elo-opening-card').onclick = () => openEloHistoryModal('openingEloHistory', 'opening_elo');
-    $('profile-elo-endgame-card').onclick = () => openEloHistoryModal('endgameEloHistory', 'endgame_elo');
-    $('profile-elo-blindfold-card').onclick = () => openEloHistoryModal('blindfoldEloHistory', 'blindfold_elo');
+    $('profile-elo-puzzle-card').onclick = async () => openEloHistoryModal(await db.kvGet('puzzleEloHistory', []), 'puzzle_elo');
+    $('profile-elo-opening-card').onclick = async () => openEloHistoryModal(await db.kvGet('openingEloHistory', []), 'opening_elo');
+    $('profile-elo-endgame-card').onclick = async () => openEloHistoryModal(await db.kvGet('endgameEloHistory', []), 'endgame_elo');
+    $('profile-elo-blindfold-card').onclick = async () => openEloHistoryModal(await db.kvGet('blindfoldEloHistory', []), 'blindfold_elo');
     $('profile-leaderboard-btn').onclick = () => Leaderboard.open();
     $('profile-friends-btn').onclick = () => Friends.open();
     $('profile-share-streak').onclick = () => shareStatCard({
@@ -6838,6 +6844,7 @@ async function main() {
   Friends.init();
   Masterclass.init();
   Students.init();
+  Activity.init(() => activeScreen);
   Setup.init();
   await Themes.init();
   await Streak.init();

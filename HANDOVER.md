@@ -2,6 +2,69 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS STAGE 3 — ACTIVE TIME + THE STUDENT PAGE (2026-09-29).**
+  Committed on `main`, NOT pushed (`git push` deploys the site). No rules
+  change (stage 1 already allowed `activeTime`); stage 1 rules still need
+  `npm.cmd run rules:deploy` if not done. `sw.js` v114 → **v115**,
+  `js/activity.js` added to `ASSETS`.
+  - **New `js/activity.js`** (`Activity`, `AREAS`, `sumActive`, `dayStr`,
+    `daysAgo`, `IDLE_MS`): 1 s tick; a second counts only when visible AND
+    pointer/key input in the last 120 s AND the screen maps to an area
+    (puzzles/rush/blind → puzzles, endgame → endgames, trainer → openings,
+    masterclass, analysis/base → analysis, play, read → reading; setup,
+    profile, friends, leaderboards, students count nothing). kv `activeTime`
+    = `{localDate: {area: seconds}}`, flushed at most once a minute + on
+    `visibilitychange: hidden` / `pagehide`, pruned to 60 days. NOT in
+    `SYNCED_KEYS`. On an account switch (sign-out wipes kv) the in-memory copy
+    is reloaded so old minutes are not written back. Started from `app.js`
+    boot: `Activity.init(() => activeScreen)` — activity.js imports nothing
+    from app.js.
+  - **`Students.tick()`** now samples `Activity.current()` — the stage 2
+    `lastInput` listeners and `IDLE_MS` are gone (one idle detector).
+    `publish()` and `accept()` call `Activity.flush(true)` first.
+  - **Summary:** `buildStudentReport()` (`js/firebase.js`) now sends
+    `activeTime`, last 30 days (≤ 30 keys; rules allow 31), whole seconds,
+    shape-checked. New export `previewStudentReport()` = the same summary
+    built locally, nothing written.
+  - **`openEloHistoryModal(hist, titleKey, { share = true })`** in `js/app.js`
+    is now exported and takes the history ARRAY; the four Profile callers pass
+    `await db.kvGet(key, [])`. Students pass the summary's history with
+    `share: false` (the share card says "my record").
+  - **Roster card:** "⏱ X of practice this week" line; the whole card is
+    tappable (role=button, Enter works) when a summary exists; ⋯ → Remove
+    still works (stopPropagation).
+  - **Student page** (`Students.openPage`, a modal): name + "updated X ago";
+    4 rating tiles, each opens the chart; streak/best/solved/attempts; practice
+    time: 7-day and 30-day totals, 14 bars of minutes per day (HTML/CSS, gold,
+    student's own dates), 30-day area rows; puzzle themes weakest first, 8 then
+    "Show all (n)" — **only themes the app names** (`theme_*` i18n exists):
+    `puzzleThemeElo` also rates meta-tags like `endgame`/`short`/`crushing`,
+    which were showing as raw keys; Remove student + Close. At 375px it is
+    ~1.6 screens of one scroll, charts live behind the tiles (the Profile
+    pattern), so no layout decision was needed.
+  - **Student's own side:** a gold-outlined row at the top of "My teachers"
+    (only with an ACTIVE teacher): "Your practice: X this week — Tap to see
+    what your teachers see" → the same page built by `previewStudentReport()`
+    with "This is exactly what your teachers see", no Remove. Consent list
+    line for minutes no longer says "coming soon" (homework still does).
+  - **Verified:** `npm.cmd run test:rules` 245/245. **Activity counting was
+    REAL** in the browser pane (Puzzles): a real key press → counted 10 s in
+    10 s, kv flushed once then throttled; no input → stopped at exactly 120 s
+    after the last input (memory 120, kv 62 from the 1-minute flush). **Hiding
+    was SIMULATED** (the pane keeps background tabs 'visible'; overrode
+    `visibilityState` + fired the event): kv got the unflushed seconds, counting
+    stopped. Profile with input counted nothing; Endgame counted `endgames`.
+    `previewStudentReport()` trimmed a 45-day-old day and a junk key.
+    **Screens were SEEDED** (`tools/cdp-verify-students3.mjs` + a seed body:
+    `Students.load()` first, THEN `Object.assign(Students, …)` + `render()`,
+    or load() wipes the seed with empty lists) and shot in headless CDP at
+    375px, EN/ES × light/dark: roster with minutes, student page top/bottom,
+    Show all, chart from the student's history (no Share), own view.
+    `<img onerror>` name renders as text. Profile chart still opens from kv
+    (with Share). Offline boot via CDP: SW v115 serves, `Activity.loaded`,
+    0 console errors.
+  - **Stage 4 next:** homework rules + tests, `puzzles`/`text` kinds.
+
 - **STUDENTS STAGE 2 — THE STUDENTS SCREEN (2026-09-29).** Committed on
   `main`, NOT pushed (`git push` deploys the site). **Stage 1 rules must be
   deployed first** (`npm.cmd run rules:deploy`) or every action on the screen
