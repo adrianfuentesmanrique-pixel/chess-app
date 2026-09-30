@@ -28,6 +28,10 @@
     `EXTRA_STREAM` (`setIntent(share)`), so it goes through the share-target
     POST that already works. `octet-stream` added to the SEND intent filter and
     the `shareTarget` resValue; `twa-manifest.json` synced; version 1.0.5 / 7.
+    **minSdkVersion raised 21 → 24** (`app/build.gradle` + `twa-manifest.json`):
+    Play Console rejected the first 1.0.5 AAB — "Play automatic protection
+    requires a minimum SDK version of 24". Rebuilt as the same 1.0.5 / code 7
+    (the rejected upload never consumed the code).
     Signed with the same keystore (fingerprint checked). New outputs
     `app-release-signed.apk` / `app-release-bundle.aab`; the old ones kept as
     `*-1.0.4.*`.
