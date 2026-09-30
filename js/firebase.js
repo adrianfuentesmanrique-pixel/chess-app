@@ -174,8 +174,9 @@ export const Auth = {
     }
   },
 
-  // Permanently deletes the account: the public leaderboard entry, the
-  // private user document, and the Firebase Auth account itself.
+  // Permanently deletes the account: the Students summary and coaching links,
+  // the public leaderboard entry, the private user document, and the Firebase
+  // Auth account itself. (Homework joins this list in Students stage 4.)
   // Firestore doc deletes are best-effort and swallow permission-denied
   // specifically (rather than aborting) — losing the Auth account is far
   // worse for the user than an orphaned leaderboard doc. Any other error
@@ -191,7 +192,23 @@ export const Auth = {
     const user = auth.currentUser;
     if (!user) return;
     const uid = user.uid;
-    for (const path of [['leaderboard', uid], ['users', uid]]) {
+    // Students: my summary, and every coaching link where I am the teacher or
+    // the student. The links are found by query first because their ids name
+    // the other person. As a teacher, a link the student DECLINED cannot be
+    // deleted by me (the rules keep a decline until the student clears it); it
+    // is skipped with the usual warning and holds nothing but the two uids.
+    const paths = [['studentReports', uid]];
+    for (const field of ['teacherUid', 'studentUid']) {
+      try {
+        const snap = await getDocs(query(collection(firestore, 'coaching'), where(field, '==', uid)));
+        snap.forEach(d => paths.push(['coaching', d.id]));
+      } catch (e) {
+        if (e.code !== 'permission-denied') throw e;
+        console.warn(`Could not list coaching links (${field}) — proceeding anyway`, e);
+      }
+    }
+    paths.push(['leaderboard', uid], ['users', uid]);
+    for (const path of paths) {
       try {
         await deleteDoc(doc(firestore, ...path));
       } catch (e) {
@@ -987,6 +1004,218 @@ export function watchLiveState(mcId, cb) {
     { includeMetadataChanges: true },
     snap => cb(snap.exists() ? snap.data() : null, { fromCache: snap.metadata.fromCache }),
     err => { console.error('live watch failed', err); cb(null, { fromCache: true }); });
+}
+
+// ── Students ──────────────────────────────────────────────────────────────
+// A teacher follows a student's training. Two collections, both guarded in
+// firestore.rules (Students block) and tested in tests/rules/students.test.js:
+//   coaching/{teacherUid}_{studentUid}  the link: 'pending' → 'active' | 'declined'
+//   studentReports/{studentUid}         the summary, written ONLY by the student
+// Plan: docs/plans/2026-09-29-students.md. Nothing here is called yet — the
+// screen arrives in stage 2.
+//
+// Unlike addMembers() above, nothing here gives anyone access without the
+// other person's yes: the teacher can only create a PENDING link, and only the
+// student can make it active.
+
+// ADVISORY, UI-side only, like MAX_MEMBERS: no rule can count a teacher's
+// links. It is also the bound on fetchMyStudentLinks() / fetchStudentReports().
+export const MAX_STUDENTS = 30;
+// REAL — the studentReports rule refuses `teachers.size() > 3`. The client
+// checks it too (acceptTeacher) so a 4th accept gets a readable refusal
+// instead of a half-applied state.
+export const MAX_TEACHERS = 3;
+
+// Directional, teacher first — NOT pairIdOf(). The rules require exactly this.
+function coachingIdOf(teacherUid, studentUid) {
+  return `${teacherUid}_${studentUid}`;
+}
+
+// Teacher side. Throws on a permission error, like sendFriendRequest(): that
+// error means not-friends OR a block, and the caller must show the same
+// neutral "Invite sent" for both — a block is never revealed.
+// serverTimestamp(), never Date.now(): the rule is `createdAt == request.time`.
+export async function inviteStudent(studentUid) {
+  const user = auth.currentUser;
+  if (!user || !studentUid || studentUid === user.uid) return false;
+  await setDoc(doc(firestore, 'coaching', coachingIdOf(user.uid, studentUid)), {
+    teacherUid: user.uid,
+    studentUid,
+    status: 'pending',
+    createdAt: serverTimestamp(),
+  });
+  return true;
+}
+
+// Teacher side: removing an active student. The rule lets the teacher delete
+// a 'pending' or 'active' link but NOT a 'declined' one — a decline stays until
+// the student clears it, so deleting and re-inviting cannot pester them.
+//
+// The student's summary still lists this teacher until the student's app next
+// runs publishStudentReport(), which prunes it. The teacher cannot edit the
+// student's document; this is documented in firestore.rules, not a leak.
+export async function removeStudent(studentUid) {
+  const user = auth.currentUser;
+  if (!user || !studentUid) return false;
+  await deleteDoc(doc(firestore, 'coaching', coachingIdOf(user.uid, studentUid)));
+  return true;
+}
+
+// Withdrawing a pending invite is the same delete. Two names so the stage 2
+// screen reads the way the person thinks about it.
+export const withdrawInvite = removeStudent;
+
+// Each list query constrains ONE of the two uid fields. The read rule uses
+// .get(field, '') precisely so each can pass on the field it constrained — do
+// not tidy that rule. No orderBy, so no composite index; the screen sorts.
+async function fetchLinksWhere(field, max) {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const snap = await getDocs(query(collection(firestore, 'coaching'),
+    where(field, '==', user.uid), limit(max)));
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out;
+}
+export const fetchMyStudentLinks = () => fetchLinksWhere('teacherUid', MAX_STUDENTS + 10);
+export const fetchMyTeacherLinks = () => fetchLinksWhere('studentUid', 50);
+
+// Teacher uids with an ACTIVE link to me, oldest acceptance first, capped at
+// MAX_TEACHERS. The summary's `teachers` list is always built from this, never
+// from an older copy of the summary: the rules refuse any listed teacher whose
+// link is not active, so a stale list would fail the whole write.
+function activeTeacherUids(links, { add = null, drop = null } = {}) {
+  const ms = t => (t && typeof t.toMillis === 'function') ? t.toMillis() : 0;
+  const uids = links
+    .filter(l => l.status === 'active' && l.teacherUid !== drop)
+    .sort((a, b) => ms(a.respondedAt) - ms(b.respondedAt))
+    .map(l => l.teacherUid);
+  if (add && !uids.includes(add)) uids.push(add);
+  return uids.slice(0, MAX_TEACHERS);
+}
+
+// The summary a teacher sees, built from local kv keys. ONLY these fields —
+// the rules allowlist refuses anything else (real name, birth date, email,
+// games, bases, books). Values that would break a rule bound are left out
+// rather than sent, so one odd local value cannot block the whole summary.
+// activeTime (stage 3) and hwOpen/hwDone (stage 4) are not sent yet.
+const HISTORY_SENT = 120; // the device keeps 400 (recordEloHistory, js/app.js)
+async function buildStudentReport(teachers) {
+  const out = { teachers, updatedAt: serverTimestamp() };
+  const str = async (key, max) => {
+    const v = await db.kvGet(key, null);
+    if (typeof v === 'string') out[key] = v.slice(0, max);
+  };
+  const numIn = (key, v, lo, hi) => {
+    if (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi) out[key] = v;
+  };
+  await str('profileName', 60);
+  await str('username', 60);
+  await str('avatarId', 64);
+  numIn('puzzleElo', await db.kvGet('puzzleElo', null), 0, 4000);
+  numIn('blindfoldElo', await db.kvGet('blindfoldElo', null), 0, 4000);
+  numIn('openingEloAvg', avgOf(await db.kvGet('openingElo', null)), 0, 4000);
+  numIn('endgameEloAvg', avgOf(await db.kvGet('endgameElo', null)), 0, 4000);
+  const themes = await db.kvGet('puzzleThemeElo', null);
+  if (themes && typeof themes === 'object' && !Array.isArray(themes)) out.puzzleThemeElo = themes;
+  for (const key of ['puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'blindfoldEloHistory']) {
+    const h = await db.kvGet(key, null);
+    if (Array.isArray(h)) out[key] = h.slice(-HISTORY_SENT);
+  }
+  // puzzlesSolved is {puzzleId: themes|true} — only its size leaves the device.
+  const solved = await db.kvGet('puzzlesSolved', null);
+  if (solved && typeof solved === 'object') numIn('puzzlesSolvedCount', Object.keys(solved).length, 0, 1000000);
+  numIn('puzzleAttemptCount', await db.kvGet('puzzleAttemptCount', null), 0, 10000000);
+  numIn('streakCount', await db.kvGet('streakCount', null), 0, 30000);
+  numIn('bestStreak', await db.kvGet('bestStreak', null), 0, 30000);
+  return out;
+}
+
+// Student side: Accept is ONE batch — the link goes active AND the summary
+// naming this teacher is written. The rule checks the summary's teachers with
+// getAfter(), which sees the link as it will be after this batch; with get()
+// this batch could never succeed. Throws an error with code 'max-teachers'
+// when three are already active, before anything is written.
+export async function acceptTeacher(teacherUid) {
+  const user = auth.currentUser;
+  if (!user || !teacherUid) return false;
+  const links = await fetchMyTeacherLinks();
+  const already = activeTeacherUids(links, { drop: teacherUid });
+  if (already.length >= MAX_TEACHERS) {
+    const e = new Error('A student can have at most 3 teachers');
+    e.code = 'max-teachers';
+    throw e;
+  }
+  const batch = writeBatch(firestore);
+  batch.update(doc(firestore, 'coaching', coachingIdOf(teacherUid, user.uid)),
+    { status: 'active', respondedAt: serverTimestamp() });
+  batch.set(doc(firestore, 'studentReports', user.uid),
+    await buildStudentReport([...already, teacherUid]));
+  await batch.commit();
+  return true;
+}
+
+// Student side. One answer only: the rules refuse any change after this, and
+// only the student can clear it (endCoaching).
+export async function declineTeacher(teacherUid) {
+  const user = auth.currentUser;
+  if (!user || !teacherUid) return false;
+  await updateDoc(doc(firestore, 'coaching', coachingIdOf(teacherUid, user.uid)),
+    { status: 'declined', respondedAt: serverTimestamp() });
+  return true;
+}
+
+// Student side "End" (also clears a pending or declined link). ONE batch:
+// the link is deleted and the teacher is pruned from the summary in the same
+// instant, or the summary is deleted when no teacher is left. The remaining
+// list comes from the links, not from the summary, because a teacher who
+// removed me has no link left and the rules would refuse keeping them.
+export async function endCoaching(teacherUid) {
+  const user = auth.currentUser;
+  if (!user || !teacherUid) return false;
+  const reportRef = doc(firestore, 'studentReports', user.uid);
+  const [links, report] = await Promise.all([fetchMyTeacherLinks(), getDoc(reportRef)]);
+  const batch = writeBatch(firestore);
+  batch.delete(doc(firestore, 'coaching', coachingIdOf(teacherUid, user.uid)));
+  if (report.exists()) {
+    const remaining = activeTeacherUids(links, { drop: teacherUid });
+    if (remaining.length) batch.update(reportRef, { teachers: remaining, updatedAt: serverTimestamp() });
+    else batch.delete(reportRef);
+  }
+  await batch.commit();
+  return true;
+}
+
+// Student side: rewrite the whole summary (setDoc, no merge, so a field that
+// is gone locally is gone remotely too). Teachers without an ACTIVE link are
+// pruned first — that is how a teacher who removed me stops being able to read
+// it. With no active teacher left the summary is deleted instead; returns
+// false in that case. Stage 2 decides WHEN this runs (on accept, on open, at
+// most every 15 minutes of practice).
+export async function publishStudentReport() {
+  const user = auth.currentUser;
+  if (!user) return false;
+  const ref = doc(firestore, 'studentReports', user.uid);
+  const teachers = activeTeacherUids(await fetchMyTeacherLinks());
+  if (!teachers.length) {
+    await deleteDoc(ref);
+    return false;
+  }
+  await setDoc(ref, await buildStudentReport(teachers));
+  return true;
+}
+
+// Teacher side: every summary that lists me, in ONE array-contains query — the
+// read rule can prove it from the query, so it costs one read per student and
+// no get(). Keyed by student uid. array-contains alone needs no index.
+export async function fetchStudentReports() {
+  const user = auth.currentUser;
+  if (!user) return {};
+  const snap = await getDocs(query(collection(firestore, 'studentReports'),
+    where('teachers', 'array-contains', user.uid), limit(MAX_STUDENTS + 10)));
+  const out = {};
+  snap.forEach(d => { out[d.id] = { uid: d.id, ...d.data() }; });
+  return out;
 }
 
 async function pullOrBootstrap(uid) {

@@ -2,6 +2,46 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS STAGE 1 — CONSENT RULES + DATA LAYER, NO UI (2026-09-29).**
+  Committed on `main`, NOT pushed, **rules NOT deployed** — Adrian runs
+  `npm.cmd run rules:deploy` (harmless without UI). No `sw.js` bump (no new
+  file, nothing visible). Changed `firestore.rules` (new "Students" block),
+  `js/firebase.js`, new `tests/rules/students.test.js`.
+  - **Rules.** `coaching/{teacherUid}_{studentUid}`: read via
+    `.get('teacherUid','')`/`.get('studentUid','')` (list-query trap); create =
+    teacher only, `pending`, directional id, friends only
+    (`friendPairWith()` computes the sorted pair), silent block check,
+    `createdAt == request.time`; update = student only, pending → active |
+    declined once, diff limited to `status`+`respondedAt`; delete = student any
+    status, teacher only pending/active (never declined).
+    `studentReports/{studentUid}`: read = student or `me() in
+    .get('teachers',[])`; write = student only, field allowlist (no
+    name/DOB/email), `teachers` ≤ 3, no duplicates, each checked by
+    `linkActiveAfter()` (**getAfter**, so accept = one batch works), bounds on
+    ratings/strings/histories (≤120)/counters, `activeTime` ≤ 31 keys and
+    `puzzleThemeElo` ≤ 200 keys (auditor finding, fixed), `hwOpen`/`hwDone`
+    0–1000 already allowed for stages 3/4. Emulator quirk: `getAfter()` on a
+    missing doc ERRORS (denies) rather than returning null.
+  - **Data layer (`js/firebase.js`, nothing calls it yet):** `MAX_STUDENTS`
+    30 (advisory), `MAX_TEACHERS` 3 (rules-enforced), `inviteStudent`,
+    `withdrawInvite` (= `removeStudent`), `removeStudent`,
+    `fetchMyStudentLinks`, `fetchMyTeacherLinks`, `acceptTeacher` (one batch;
+    throws `code: 'max-teachers'`), `declineTeacher`, `endCoaching` (one batch:
+    delete link + prune/delete summary), `publishStudentReport` (rebuilds
+    teachers from ACTIVE links, deletes the summary when none), 
+    `fetchStudentReports` (one array-contains query). Internal helpers
+    `buildStudentReport` (last 120 history entries, `puzzlesSolvedCount` only),
+    `activeTeacherUids`. `Auth.deleteAccount()` now also deletes
+    `studentReports/{me}` and every coaching link (declined links where I am
+    teacher are refused by design and skipped with a warning).
+  - **Verified:** `npm.cmd run test:rules` 245/245 pass (students 71, all
+    other suites unchanged). App boots online and offline (SW) with no
+    `js/firebase.js` errors. **The data-layer functions are proven by the
+    emulator tests of the writes they make, not live** — localhost cannot
+    reach Firestore (App Check). No screenshots: nothing visible changed.
+  - **Owed to stage 2:** `blockUser()` must also end coaching links (plan 3.5;
+    the rules do not), sign-out clears the local "has teacher/students" flag.
+
 - **STUDENTS TAB — PLAN ONLY, NOTHING BUILT (2026-09-29).** Staged plan at
   `docs/plans/2026-09-29-students.md`; no feature code, no rules change, no
   `sw.js` bump. Decided with Adrian: a NEW directional link

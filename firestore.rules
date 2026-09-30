@@ -450,5 +450,226 @@ service cloud.firestore {
       // too, so viewers see the class go off air. Two real callers, not tidying.
       allow delete: if mcIsOwner(mcId);
     }
+
+    // ═════════════════════════ Students ═════════════════════════
+    // A teacher follows a student's training. This is the first place in the
+    // app where one person's PRIVATE progress becomes readable by someone
+    // else, so consent is enforced here, not by the screen:
+    //
+    //   coaching/{teacherUid}_{studentUid}   the link — the teacher invites,
+    //                                        ONLY the student can make it active
+    //   studentReports/{studentUid}          the summary — written only by the
+    //                                        student, readable only by the
+    //                                        teachers listed in it, and it can
+    //                                        only list teachers with an ACTIVE link
+    //
+    // Unlike Masterclass members (added by the owner with no yes from the
+    // member), nothing here becomes readable without the student's own Accept.
+    // Do not copy the addMembers() pattern into this block.
+    //
+    // Plan: docs/plans/2026-09-29-students.md, section 3.1.
+    // Every clause here is covered by a test in tests/rules/students.test.js.
+
+    function coachingPath(linkId) {
+      return /databases/$(database)/documents/coaching/$(linkId);
+    }
+
+    // The friendship id for me and `other`: the two uids sorted and joined with
+    // "_", exactly as pairIdOk() above requires, so the rule can compute it
+    // without looking anything up.
+    function friendPairWith(other) {
+      return me() < other ? me() + '_' + other : other + '_' + me();
+    }
+
+    // Is there an ACTIVE link from teacher t to student s once THIS write (or
+    // batch) has been applied? getAfter(), not get(), and that is the whole
+    // point: accepting is ONE batch — the link goes pending → active AND the
+    // first summary naming the teacher is written. get() sees the database
+    // BEFORE the batch, where the link is still pending, so it would refuse the
+    // very accept it exists for. Likewise "End" deletes a link and rewrites the
+    // summary in one batch, and the remaining teachers are checked as they will
+    // be afterwards.
+    //
+    // The two uid fields are checked as well as the id. Firebase uids contain
+    // no "_", so "t_s" cannot really name somebody else's link — but checking
+    // costs nothing (getAfter results are cached per path) and it means the
+    // guarantee does not rest on that fact.
+    //
+    // When the link does not exist at all, the emulator makes getAfter() ERROR
+    // ("Service call error") rather than return null, and an error denies —
+    // the right answer. The `!= null` is kept so a runtime that returns null
+    // instead still denies.
+    function linkActiveAfter(t, s) {
+      let link = getAfter(coachingPath(t + '_' + s));
+      return link != null
+        && link.data.status == 'active'
+        && link.data.teacherUid == t
+        && link.data.studentUid == s;
+    }
+
+    match /coaching/{linkId} {
+      // Only the two people in the link can read it. .get(field, default), NOT
+      // resource.data.teacherUid — the same trap documented on /friendRequests.
+      // The app runs two list queries, "my students" (teacherUid == me) and "my
+      // teachers" (studentUid == me). Each constrains ONE of the two fields, and
+      // on a list query a field the query did not constrain does not exist, so
+      // reading it directly errors and denies the whole query. Defaulting to ''
+      // lets each query pass on the field it constrained, while a query that
+      // constrains neither to my uid gets nothing.
+      allow read: if signedIn()
+        && (resource.data.get('teacherUid', '') == me()
+            || resource.data.get('studentUid', '') == me());
+
+      // Only the TEACHER creates a link, and only as 'pending'. It grants
+      // nothing on its own: no summary can name this teacher until the student
+      // flips it to 'active' (see linkActiveAfter above).
+      allow create: if signedIn()
+        && after().keys().hasOnly(['teacherUid', 'studentUid', 'status', 'createdAt'])
+        && after().keys().hasAll(['teacherUid', 'studentUid', 'status', 'createdAt'])
+        && after().teacherUid == me()
+        && after().studentUid is string
+        && after().studentUid.size() > 0 && after().studentUid.size() <= 128
+        && after().studentUid != me()
+        // Directional id, teacher first. NOT the sorted pair friendships use:
+        // the two sides have different powers, so "who is the teacher" must be
+        // readable from the id alone. It also makes a second invite to the same
+        // person the same document — and a setDoc on an existing document is
+        // an UPDATE, which the teacher is never allowed. So a pending invite
+        // cannot be re-sent, and a declined one cannot be overwritten back to
+        // pending.
+        && linkId == me() + '_' + after().studentUid
+        && after().status == 'pending'
+        // serverTimestamp() on the client. A Date.now() number is refused.
+        && after().createdAt == request.time
+        // Friends only: you invite someone who already accepted YOU as a
+        // friend. Friendships themselves need both sides' consent.
+        && exists(/databases/$(database)/documents/friendships/$(friendPairWith(after().studentUid)))
+        // Blocking is silent by design, exactly as on /friendRequests. A
+        // blocked teacher gets a plain permission error and the app shows the
+        // ordinary "Invite sent" toast. A block is never revealed.
+        && !exists(/databases/$(database)/documents/blocks/$(after().studentUid)/blocked/$(me()));
+
+      // Only the STUDENT answers, only once, and only pending → active or
+      // pending → declined. Nothing else on the document may move: the diff
+      // allows exactly the two answer fields. So an active link cannot be put
+      // back to pending, a decline cannot be turned into an accept later, and
+      // the teacher cannot accept on the student's behalf.
+      allow update: if signedIn()
+        && resource.data.studentUid == me()
+        && resource.data.status == 'pending'
+        && after().diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])
+        && after().status in ['active', 'declined']
+        && after().respondedAt == request.time;
+
+      // The student may delete in any state: that is "End", and also clearing
+      // an old decline. The teacher may delete only 'pending' (withdraw the
+      // invite) or 'active' (remove the student) — NOT 'declined'. Otherwise
+      // delete + re-invite would let a teacher pester someone who said no. A
+      // decline stays until the student clears it.
+      allow delete: if signedIn()
+        && (resource.data.studentUid == me()
+            || (resource.data.teacherUid == me()
+                && resource.data.status in ['pending', 'active']));
+    }
+
+    match /studentReports/{studentUid} {
+      // The student, and the teachers the student listed. The teacher's
+      // overview is one query, where('teachers','array-contains', me), which
+      // this clause can prove from the query itself — no get(), no extra read.
+      //
+      // Known and accepted (plan 3.1): when a TEACHER removes a student, the
+      // link is gone but the teacher cannot edit the student's summary, so they
+      // stay listed until the student's app prunes them on its next publish
+      // (the write rule below then refuses the old list). Until then the
+      // removed teacher can still read it. That is the teacher removing
+      // themselves, not a leak of anything the student did not agree to. There
+      // is no server to do it sooner — do not try to "fix" it here.
+      allow read: if signedIn()
+        && (me() == studentUid || me() in resource.data.get('teachers', []));
+
+      // Written ONLY by the student's own app. create and update share one
+      // rule; after() is the whole resulting document either way.
+      allow create, update: if signedIn()
+        && me() == studentUid
+        // The allowlist is the privacy promise. firstName, lastName,
+        // dateOfBirth, email, games, bases and books are NOT here, so the
+        // rules refuse them even from a buggy client — the same technique
+        // /leaderboard uses. activeTime, hwOpen and hwDone are allowed from
+        // stage 1 so stages 3 and 4 need no rules redeploy.
+        && after().keys().hasOnly([
+          'teachers', 'profileName', 'username', 'avatarId',
+          'puzzleElo', 'blindfoldElo', 'openingEloAvg', 'endgameEloAvg',
+          'puzzleThemeElo',
+          'puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'blindfoldEloHistory',
+          'puzzlesSolvedCount', 'puzzleAttemptCount', 'streakCount', 'bestStreak',
+          'activeTime', 'hwOpen', 'hwDone', 'updatedAt'
+        ])
+        && after().updatedAt == request.time
+
+        // THE CONSENT CHECK. At most 3 teachers — this is the enforced
+        // 3-teacher cap — no duplicates, and EVERY one of them must have an
+        // ACTIVE link to this student after this write. Three fixed index
+        // checks because rules have no loops; each is skipped when the list is
+        // shorter. So the summary physically cannot be shared with a teacher
+        // whose invite the student did not accept.
+        && after().teachers is list
+        && after().teachers.size() <= 3
+        && after().teachers.toSet().size() == after().teachers.size()
+        && (after().teachers.size() < 1 || linkActiveAfter(after().teachers[0], studentUid))
+        && (after().teachers.size() < 2 || linkActiveAfter(after().teachers[1], studentUid))
+        && (after().teachers.size() < 3 || linkActiveAfter(after().teachers[2], studentUid))
+
+        // Display text, bounded like /leaderboard so this cannot become free
+        // storage.
+        && (!('profileName' in after()) ||
+            (after().profileName is string && after().profileName.size() <= 60))
+        && (!('username' in after()) ||
+            (after().username is string && after().username.size() <= 60))
+        && (!('avatarId' in after()) ||
+            (after().avatarId is string && after().avatarId.size() <= 64))
+
+        // Ratings, range-checked to reject impossible values.
+        && (!('puzzleElo' in after())     || num(after().puzzleElo, 0, 4000))
+        && (!('blindfoldElo' in after())  || num(after().blindfoldElo, 0, 4000))
+        && (!('openingEloAvg' in after()) || num(after().openingEloAvg, 0, 4000))
+        && (!('endgameEloAvg' in after()) || num(after().endgameEloAvg, 0, 4000))
+        // Maps get a key-count bound (the rules auditor's finding): without
+        // one, a tampered client could grow its summary toward the 1 MB cap and
+        // every teacher would download it. Keys are Lichess puzzle themes
+        // (about 70 exist), so 200 is headroom, not a squeeze.
+        && (!('puzzleThemeElo' in after()) ||
+            (after().puzzleThemeElo is map && after().puzzleThemeElo.size() <= 200))
+
+        // Rating histories: the client sends the last 120 {date, value}
+        // entries (the device keeps 400). The size cap is what matters here;
+        // the entries themselves cannot be shape-checked (rules have no loops),
+        // which is accepted — this document is the student's own and only the
+        // teachers they accepted can read it.
+        && (!('puzzleEloHistory' in after()) ||
+            (after().puzzleEloHistory is list && after().puzzleEloHistory.size() <= 120))
+        && (!('openingEloHistory' in after()) ||
+            (after().openingEloHistory is list && after().openingEloHistory.size() <= 120))
+        && (!('endgameEloHistory' in after()) ||
+            (after().endgameEloHistory is list && after().endgameEloHistory.size() <= 120))
+        && (!('blindfoldEloHistory' in after()) ||
+            (after().blindfoldEloHistory is list && after().blindfoldEloHistory.size() <= 120))
+
+        // Counters.
+        && (!('puzzlesSolvedCount' in after()) || num(after().puzzlesSolvedCount, 0, 1000000))
+        && (!('puzzleAttemptCount' in after()) || num(after().puzzleAttemptCount, 0, 10000000))
+        && (!('streakCount' in after())        || num(after().streakCount, 0, 30000))
+        && (!('bestStreak' in after())         || num(after().bestStreak, 0, 30000))
+
+        // Stage 3 and 4 fields, shape-checked now so they need no redeploy.
+        // activeTime is {date: {area: seconds}} for the last 30 days, so at
+        // most 31 day keys.
+        && (!('activeTime' in after()) ||
+            (after().activeTime is map && after().activeTime.size() <= 31))
+        && (!('hwOpen' in after()) || num(after().hwOpen, 0, 1000))
+        && (!('hwDone' in after()) || num(after().hwDone, 0, 1000));
+
+      // Only the student. This is what "End" does when the last teacher goes.
+      allow delete: if signedIn() && me() == studentUid;
+    }
   }
 }
