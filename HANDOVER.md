@@ -2,6 +2,24 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS TAB — PLAN ONLY, NOTHING BUILT (2026-09-29).** Staged plan at
+  `docs/plans/2026-09-29-students.md`; no feature code, no rules change, no
+  `sw.js` bump. Decided with Adrian: a NEW directional link
+  `coaching/{teacherUid}_{studentUid}` (pending → active/declined, invite
+  friends only, block-silent), a student-written summary
+  `studentReports/{studentUid}` readable only by the ≤ 3 teachers listed in it
+  (rules check each has an ACTIVE link via `getAfter()`), and `homework/{id}`
+  (4 kinds) in stage 4. Masterclass is reused for chapters and the live board, not
+  duplicated. Masterclass covers about a third of the ask, not 80%: it has no
+  consent step (owners add friends without a yes), no progress view and no
+  homework. 9th drawer entry `data-screen="students"` after `read`. Caps 30
+  students (advisory) / 3 teachers (rules-enforced). Active-time tracking is
+  new (`js/activity.js`, local key `activeTime`, deliberately NOT in
+  `SYNCED_KEYS`); the app stored no time before. Free-tier cost ≈ 40 reads per
+  teacher open with 20 students; 0 extra for users without teachers/students.
+  No push (Spark plan): students see homework on next open. **Next: stage 1**
+  (consent rules + tests + `js/firebase.js` data layer, no UI).
+
 - **"OPEN WITH" / SHARE A PDF OR PGN FROM ANOTHER APP NOW REACHES CTC
   (2026-09-29).** `sw.js` v112 → **v113**. Web side committed on `main` (NOT
   pushed); Android side is TWA **1.0.5 (versionCode 7)**, built and signed but
