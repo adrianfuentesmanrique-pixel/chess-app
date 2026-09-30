@@ -12,6 +12,8 @@ import {
   // Masterclass. onSnapshot drives the live board — watchLiveState() below is
   // the only place in the app that opens a Firestore listener at all.
   addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot,
+  // Students homework: progress is added, not overwritten, so two phones add up.
+  increment,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -174,9 +176,9 @@ export const Auth = {
     }
   },
 
-  // Permanently deletes the account: the Students summary and coaching links,
-  // the public leaderboard entry, the private user document, and the Firebase
-  // Auth account itself. (Homework joins this list in Students stage 4.)
+  // Permanently deletes the account: the Students summary, coaching links and
+  // homework (given or received), the public leaderboard entry, the private
+  // user document, and the Firebase Auth account itself.
   // Firestore doc deletes are best-effort and swallow permission-denied
   // specifically (rather than aborting) — losing the Auth account is far
   // worse for the user than an orphaned leaderboard doc. Any other error
@@ -205,6 +207,17 @@ export const Auth = {
       } catch (e) {
         if (e.code !== 'permission-denied') throw e;
         console.warn(`Could not list coaching links (${field}) — proceeding anyway`, e);
+      }
+    }
+    // Homework after the links: as a student I may delete it only once the
+    // link is no longer active, and the loop below deletes in order.
+    for (const field of ['teacherUid', 'studentUid']) {
+      try {
+        const snap = await getDocs(query(collection(firestore, 'homework'), where(field, '==', uid)));
+        snap.forEach(d => paths.push(['homework', d.id]));
+      } catch (e) {
+        if (e.code !== 'permission-denied') throw e;
+        console.warn(`Could not list homework (${field}) — proceeding anyway`, e);
       }
     }
     paths.push(['leaderboard', uid], ['users', uid]);
@@ -526,6 +539,10 @@ export async function blockUser(otherUid) {
     quiet(deleteDoc(doc(firestore, 'coaching', coachingIdOf(user.uid, otherUid)))),
     quiet(deleteDoc(doc(firestore, 'coaching', coachingIdOf(otherUid, user.uid)))),
   ]);
+  // Homework between us goes too, after the links (a student may delete it
+  // only once the link is not active). Quiet for the same reason as above.
+  await quiet(deleteHomeworkBetween(otherUid, user.uid));
+  await quiet(deleteHomeworkBetween(user.uid, otherUid));
   // Rebuilt from the links that are left, so a blocked teacher drops out of
   // my summary now rather than on my next app open.
   await quiet(publishStudentReport());
@@ -1061,10 +1078,18 @@ export async function inviteStudent(studentUid) {
 // The student's summary still lists this teacher until the student's app next
 // runs publishStudentReport(), which prunes it. The teacher cannot edit the
 // student's document; this is documented in firestore.rules, not a leak.
+//
+// The homework I gave this student goes in the same batch (the teacher may
+// always delete their own homework). A pending invite has none; the query is
+// one read either way.
 export async function removeStudent(studentUid) {
   const user = auth.currentUser;
   if (!user || !studentUid) return false;
-  await deleteDoc(doc(firestore, 'coaching', coachingIdOf(user.uid, studentUid)));
+  const hw = await homeworkRefs(user.uid, studentUid);
+  const batch = writeBatch(firestore);
+  batch.delete(doc(firestore, 'coaching', coachingIdOf(user.uid, studentUid)));
+  hw.forEach(r => batch.delete(r));
+  await batch.commit();
   return true;
 }
 
@@ -1106,7 +1131,9 @@ function activeTeacherUids(links, { add = null, drop = null } = {}) {
 // games, bases, books). Values that would break a rule bound are left out
 // rather than sent, so one odd local value cannot block the whole summary.
 // activeTime is the last 30 days of the local 'activeTime' kv (js/activity.js),
-// whole seconds per area. hwOpen/hwDone (stage 4) are not sent yet.
+// whole seconds per area. hwOpen/hwDone come from the kv HW_COUNTS_KEY that
+// js/students.js writes whenever it fetches my homework (all my teachers'
+// together — the summary is one document for all of them).
 const HISTORY_SENT = 120; // the device keeps 400 (recordEloHistory, js/app.js)
 async function buildStudentReport(teachers) {
   const out = { teachers, updatedAt: serverTimestamp() };
@@ -1154,6 +1181,11 @@ async function buildStudentReport(teachers) {
     }
     out.activeTime = days;
   }
+  const hw = await db.kvGet(HW_COUNTS_KEY, null);
+  if (hw && typeof hw === 'object') {
+    numIn('hwOpen', hw.open, 0, 1000);
+    numIn('hwDone', hw.done, 0, 1000);
+  }
   return out;
 }
 
@@ -1198,17 +1230,22 @@ export async function declineTeacher(teacherUid) {
 }
 
 // Student side "End" (also clears a pending or declined link). ONE batch:
-// the link is deleted and the teacher is pruned from the summary in the same
-// instant, or the summary is deleted when no teacher is left. The remaining
+// the link and that teacher's homework are deleted and the teacher is pruned
+// from the summary in the same instant, or the summary is deleted when no teacher is left. The remaining
 // list comes from the links, not from the summary, because a teacher who
 // removed me has no link left and the rules would refuse keeping them.
 export async function endCoaching(teacherUid) {
   const user = auth.currentUser;
   if (!user || !teacherUid) return false;
   const reportRef = doc(firestore, 'studentReports', user.uid);
-  const [links, report] = await Promise.all([fetchMyTeacherLinks(), getDoc(reportRef)]);
+  const [links, report, hw] = await Promise.all([
+    fetchMyTeacherLinks(), getDoc(reportRef), homeworkRefs(teacherUid, user.uid)]);
   const batch = writeBatch(firestore);
   batch.delete(doc(firestore, 'coaching', coachingIdOf(teacherUid, user.uid)));
+  // That teacher's homework, in the same instant. The rule lets the student
+  // delete it only once the link is not active — checked with existsAfter(),
+  // so it passes inside this very batch.
+  hw.forEach(r => batch.delete(r));
   if (report.exists()) {
     const remaining = activeTeacherUids(links, { drop: teacherUid });
     if (remaining.length) batch.update(reportRef, { teachers: remaining, updatedAt: serverTimestamp() });
@@ -1249,6 +1286,94 @@ export async function fetchStudentReports() {
   const out = {};
   snap.forEach(d => { out[d.id] = { uid: d.id, ...d.data() }; });
   return out;
+}
+
+// ── Homework (Students stage 4) ─────────────────────────────────────
+// homework/{autoId}: the teacher writes the task once; after that only the
+// student's app moves it, and only done / seconds / status / completedAt.
+// Guarded by the homework block in firestore.rules. Kinds this stage:
+// 'puzzles' {themes ≤ 5, minRating, maxRating, count 1–100} and 'text' {}.
+
+// ADVISORY, app-side only (no rule can count): open homework per student.
+export const MAX_OPEN_HOMEWORK = 10;
+// kv key for {open, done}: what the student's summary sends as hwOpen/hwDone.
+export const HW_COUNTS_KEY = 'hwCounts';
+
+// Refs of every homework `teacherUid` gave `studentUid`. Both fields are
+// constrained, so either side may run it (the read rule uses .get(field, '')).
+async function homeworkRefs(teacherUid, studentUid) {
+  const snap = await getDocs(query(collection(firestore, 'homework'),
+    where('teacherUid', '==', teacherUid), where('studentUid', '==', studentUid), limit(100)));
+  return snap.docs.map(d => d.ref);
+}
+
+async function deleteHomeworkBetween(teacherUid, studentUid) {
+  const refs = await homeworkRefs(teacherUid, studentUid);
+  if (!refs.length) return;
+  const batch = writeBatch(firestore);
+  refs.forEach(r => batch.delete(r));
+  await batch.commit();
+}
+
+// Teacher side. The rule refuses it unless the link is ACTIVE right now.
+// Everything starts at zero; createdAt is the server's clock.
+export async function assignHomework(studentUid, { kind, title, note, params, dueDate }) {
+  const user = auth.currentUser;
+  if (!user || !studentUid) return null;
+  const data = {
+    teacherUid: user.uid, studentUid, kind,
+    title: String(title).slice(0, 80), params,
+    status: 'open', done: 0, seconds: 0, createdAt: serverTimestamp(),
+  };
+  if (note) data.note = String(note).slice(0, 500);
+  if (dueDate) data.dueDate = dueDate;
+  const ref = await addDoc(collection(firestore, 'homework'), data);
+  return ref.id;
+}
+
+function hwList(snap) {
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out;
+}
+
+// Teacher side: what I gave one student. Fetched when the student page opens,
+// so the roster itself costs no homework reads.
+export async function fetchHomeworkFor(studentUid) {
+  const user = auth.currentUser;
+  if (!user || !studentUid) return [];
+  return hwList(await getDocs(query(collection(firestore, 'homework'),
+    where('teacherUid', '==', user.uid), where('studentUid', '==', studentUid), limit(100))));
+}
+
+// Student side: everything assigned to me, by every teacher.
+export async function fetchMyHomework() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  return hwList(await getDocs(query(collection(firestore, 'homework'),
+    where('studentUid', '==', user.uid), limit(100))));
+}
+
+// Teacher side. The teacher never edits a task — delete and assign again.
+export async function deleteHomework(hwId) {
+  if (!auth.currentUser || !hwId) return false;
+  await deleteDoc(doc(firestore, 'homework', hwId));
+  return true;
+}
+
+// Student side: one bundled save. increment(), never an absolute number, so a
+// second phone adds its own puzzles instead of overwriting (the rules only let
+// the counters go up). `finish` stamps status 'done' + completedAt from the
+// server; the rules accept that only once the target is reached.
+export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false } = {}) {
+  if (!auth.currentUser || !hwId) return false;
+  const patch = {};
+  if (addDone > 0) patch.done = increment(Math.round(addDone));
+  if (addSeconds > 0) patch.seconds = increment(Math.round(addSeconds));
+  if (finish) { patch.status = 'done'; patch.completedAt = serverTimestamp(); }
+  if (!Object.keys(patch).length) return false;
+  await updateDoc(doc(firestore, 'homework', hwId), patch);
+  return true;
 }
 
 async function pullOrBootstrap(uid) {

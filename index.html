@@ -490,6 +490,14 @@
       <button data-v="blind" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
     </div>
+    <!-- Students homework mode (Puzzles.paintHomework): the homework's title,
+         n/count and Exit. Only these puzzles count while it shows. -->
+    <div id="puzzle-hw" class="puzzle-hw hidden" role="status">
+      <span class="puzzle-hw-ico" aria-hidden="true">📘</span>
+      <span class="puzzle-hw-text"><b class="puzzle-hw-title"></b><span class="puzzle-hw-count"></span></span>
+      <button id="puzzle-hw-exit" class="btn small" data-i18n="hw_exit"></button>
+      <i class="puzzle-hw-bar"><b class="puzzle-hw-fill"></b></i>
+    </div>
     <div class="row" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
       <span id="puzzle-timer" class="elo-badge"></span>
@@ -885,6 +893,12 @@
       <div id="stu-teachers" class="mc-section hidden">
         <h3 class="group-head" data-i18n="stu_my_teachers"></h3>
         <div id="stu-teacher-list" class="list"></div>
+      </div>
+      <!-- Homework my teachers gave me (Students stage 4): open cards with
+           Start / Mark done, finished ones folded underneath. -->
+      <div id="stu-hw" class="mc-section hidden">
+        <h3 class="group-head" data-i18n="hw_my_homework"></h3>
+        <div id="stu-hw-list" class="list"></div>
       </div>
       <div class="mc-section">
         <div class="mc-section-head">

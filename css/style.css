@@ -1757,6 +1757,58 @@ body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
 .stu-more { margin-top: 8px; }
 .stu-page-actions { display: flex; gap: 8px; margin-top: 18px; }
 .stu-page-actions .btn { flex: 1; margin-top: 0; }
+
+/* ── Students homework (stage 4) ── Existing tokens only. Cards reuse
+   .fr-row.stack (icon | title), everything else spans the full width. */
+.hw-card { row-gap: 6px; }
+.hw-card .hw-what, .hw-card .hw-note, .hw-card .hw-prog { grid-column: 1 / -1; margin: 0; }
+.hw-card.running { box-shadow: inset 0 0 0 1px var(--gold); }
+.hw-card.done { opacity: .8; }
+.hw-ico { font-size: 22px; width: 36px; text-align: center; }
+.hw-what { font-size: 13px; }
+.hw-note {
+  font-size: 13px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere;
+  border-left: 3px solid var(--gold); padding-left: 8px;
+}
+.hw-prog { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+.hw-prog i { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+.hw-prog i b { display: block; height: 100%; background: var(--gold); border-radius: 4px; }
+.hw-prog em { font-style: normal; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hw-done-list summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 6px 2px; }
+.hw-done-list .hw-card { margin-top: 8px; }
+.hw-new {
+  display: inline-block; background: var(--gold); color: #1a202c; font-weight: 700;
+  font-size: 11px; border-radius: 999px; padding: 0 7px; margin-left: 4px;
+}
+.hw-teacher .btn-wide { margin: 0 0 8px; }
+/* Assign sheet */
+.hw-sheet .hw-kind { margin-bottom: 8px; }
+.hw-sheet .hw-kind button { flex: 1; }
+.hw-label { display: block; font-size: 13px; font-weight: 600; margin-top: 10px; }
+.hw-label .input { width: 100%; box-sizing: border-box; font-weight: 400; }
+.hw-sub { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.hw-band { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hw-band label { font-weight: 400; color: var(--muted); font-size: 12px; }
+.hw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hw-chip {
+  background: var(--panel2); color: var(--text); border: 1px solid transparent;
+  border-radius: 999px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer;
+}
+.hw-chip small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.hw-chip.on { background: var(--gold-bg); border-color: var(--gold); }
+/* Puzzles homework mode bar */
+.puzzle-hw {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 10px;
+  background: var(--gold-bg); box-shadow: inset 0 0 0 1px var(--gold);
+  border-radius: var(--radius); padding: 8px 10px; margin: 6px 0;
+}
+.puzzle-hw-ico { font-size: 20px; }
+.puzzle-hw-text { min-width: 0; }
+.puzzle-hw-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.puzzle-hw-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.puzzle-hw .btn { margin-top: 0; }
+.puzzle-hw-bar { grid-column: 1 / -1; height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; }
+.puzzle-hw-fill { display: block; height: 100%; width: 0; background: var(--gold); border-radius: 3px; }
 /* The gold dot: an invite waits for my answer. On the drawer entry and on ☰,
    since the drawer is closed most of the time. */
 #tabbar button.has-dot, #tabmenu-btn.has-dot { position: relative; }

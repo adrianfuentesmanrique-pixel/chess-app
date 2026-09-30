@@ -671,5 +671,122 @@ service cloud.firestore {
       // Only the student. This is what "End" does when the last teacher goes.
       allow delete: if signedIn() && me() == studentUid;
     }
+
+    // ── Homework (stage 4) ──────────────────────────────────────────
+    //   homework/{autoId}   one task from a teacher to a student. The teacher
+    //                       writes it once; after that only the STUDENT's app
+    //                       moves it, and only its progress fields.
+    //
+    // Stage 4 allows the kinds 'puzzles' (N puzzles of a theme set and rating
+    // band) and 'text' (the student ticks it off). 'chapter' and 'list' arrive
+    // with their own clauses and tests in stage 5 — until then they are refused.
+    //
+    // Progress is reported by the student's own phone (plan Part 1, point 2):
+    // these clauses reject impossible values, they cannot prove the puzzles
+    // were really solved. There is no server to check that.
+
+    // The task itself: a closed set of fields per kind, each bounded. Rules have
+    // no loops, so the ≤ 5 theme ids get five fixed index checks.
+    function hwThemeOk(list, i) {
+      return list.size() <= i || (list[i] is string && list[i].size() >= 1 && list[i].size() <= 40);
+    }
+    function hwParamsOk(d) {
+      return (d.kind == 'text' && d.params is map && d.params.size() == 0)
+        || (d.kind == 'puzzles' && d.params is map
+            && d.params.keys().hasOnly(['themes', 'minRating', 'maxRating', 'count'])
+            && d.params.keys().hasAll(['themes', 'minRating', 'maxRating', 'count'])
+            // An empty list means "any theme" — a rating band on its own.
+            && d.params.themes is list && d.params.themes.size() <= 5
+            && hwThemeOk(d.params.themes, 0) && hwThemeOk(d.params.themes, 1)
+            && hwThemeOk(d.params.themes, 2) && hwThemeOk(d.params.themes, 3)
+            && hwThemeOk(d.params.themes, 4)
+            && d.params.minRating is int && d.params.maxRating is int
+            && d.params.minRating >= 0 && d.params.maxRating <= 4000
+            && d.params.minRating <= d.params.maxRating
+            && d.params.count is int && d.params.count >= 1 && d.params.count <= 100);
+    }
+
+    // What `done` counts up to: the puzzle count, or 1 for a text task.
+    function hwTargetOk(d, n) {
+      return (d.kind == 'puzzles' && n <= d.params.count)
+        || (d.kind == 'text' && n <= 1);
+    }
+    // …and 'done' only once it is reached exactly (the rules auditor's
+    // finding: without this a text task could be 'done' with done == 0).
+    function hwTargetReached(d, n) {
+      return (d.kind == 'puzzles' && n == d.params.count)
+        || (d.kind == 'text' && n == 1);
+    }
+
+    match /homework/{hwId} {
+      // The two people it names. .get(field, default) for the same reason as
+      // /coaching: the student lists "studentUid == me", the teacher lists
+      // "teacherUid == me AND studentUid == X", and a field a query did not
+      // constrain must not error the whole query.
+      allow read: if signedIn()
+        && (resource.data.get('teacherUid', '') == me()
+            || resource.data.get('studentUid', '') == me());
+
+      // Only a teacher, and only for somebody who currently ACCEPTS them: the
+      // link must be 'active' right now. get(), not getAfter() — nothing is
+      // batched with a create, and a pending/declined/missing link must refuse.
+      // (get() of a missing document errors, and an error denies.)
+      // Everything starts at zero; progress belongs to the student.
+      allow create: if signedIn()
+        && after().keys().hasOnly(['teacherUid', 'studentUid', 'kind', 'title', 'note',
+                                   'params', 'dueDate', 'status', 'done', 'seconds', 'createdAt'])
+        && after().keys().hasAll(['teacherUid', 'studentUid', 'kind', 'title',
+                                  'params', 'status', 'done', 'seconds', 'createdAt'])
+        && after().teacherUid == me()
+        && after().studentUid is string
+        && after().studentUid.size() > 0 && after().studentUid.size() <= 128
+        && after().studentUid != me()
+        && get(coachingPath(me() + '_' + after().studentUid)).data.status == 'active'
+        && after().kind in ['puzzles', 'text']
+        && after().title is string && after().title.size() >= 1 && after().title.size() <= 80
+        && (!('note' in after()) || (after().note is string && after().note.size() <= 500))
+        && (!('dueDate' in after())
+            || (after().dueDate is string && after().dueDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')))
+        && hwParamsOk(after())
+        && after().status == 'open'
+        && after().done == 0
+        && after().seconds == 0
+        && after().createdAt == request.time;
+
+      // Only the STUDENT, and only the progress fields: the diff allows
+      // done / seconds / status / completedAt and nothing else, so the task
+      // (kind, title, count, band, who) can never be edited — the teacher
+      // deletes and re-creates instead. Counters only go up (the app sends
+      // increment(), so two phones add up instead of overwriting), `done` never
+      // passes the target, and time is capped at 100 hours. 'done' is final:
+      // it cannot be reopened, and a task can only be 'done' once its target
+      // is reached (count for puzzles, 1 for text). completedAt is stamped by the server exactly once,
+      // on the move to 'done'.
+      allow update: if signedIn()
+        && resource.data.studentUid == me()
+        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt'])
+        && after().done is int && after().done >= resource.data.done
+        && hwTargetOk(resource.data, after().done)
+        && after().seconds is int && after().seconds >= resource.data.seconds
+        && after().seconds <= 360000
+        && after().status in ['open', 'done']
+        && (resource.data.status == 'open' || after().status == 'done')
+        && (after().status == 'open' || hwTargetReached(resource.data, after().done))
+        && ((after().status == resource.data.status
+             && !('completedAt' in after().diff(resource.data).affectedKeys()))
+            || (after().status != resource.data.status
+                && after().completedAt == request.time));
+
+      // The teacher, always (withdrawing a task, removing a student, deleting
+      // an account). The student only once the link is no longer active —
+      // getAfter()/existsAfter(), so "End" can delete the link AND this
+      // teacher's homework in ONE batch. existsAfter() first: getAfter() on a
+      // deleted link errors, and an error would deny the tidy-up.
+      allow delete: if signedIn()
+        && (resource.data.teacherUid == me()
+            || (resource.data.studentUid == me()
+                && (!existsAfter(coachingPath(resource.data.teacherUid + '_' + me()))
+                    || getAfter(coachingPath(resource.data.teacherUid + '_' + me())).data.status != 'active')));
+    }
   }
 }

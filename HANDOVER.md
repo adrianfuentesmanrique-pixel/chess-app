@@ -1,6 +1,81 @@
-# Chess app — where things stand (updated 2026-09-29)
+# Chess app — where things stand (updated 2026-09-30)
 
 ## Already done and pushed — do NOT redo these
+
+- **STUDENTS STAGE 4 — HOMEWORK PART 1 (2026-09-30).** Committed on `main`,
+  NOT pushed. **RULES CHANGED: Adrian must run `npm.cmd run rules:deploy`
+  BEFORE `git push`** — without the homework rules every assign/save is
+  refused. `sw.js` v115 → **v116**.
+  - **Rules** (`firestore.rules`, end of the Students block): `homework/{id}`.
+    Create = teacher only, `get(coaching/{me}_{student}).status == 'active'`,
+    kinds `puzzles` {themes ≤ 5 strings ≤ 40, minRating ≤ maxRating in
+    0–4000, count int 1–100} and `text` {} ONLY (`chapter`/`list` refused
+    until stage 5 adds their clauses), title 1–80, note ≤ 500, dueDate
+    `YYYY-MM-DD`, starts open/0/0, `createdAt == request.time`. Update =
+    student only, `diff().affectedKeys()` ⊆ done/seconds/status/completedAt,
+    counters only go up (the app sends `increment()`, so two phones add up),
+    done ≤ target, seconds ≤ 360000, 'done' only when the target is reached
+    exactly and never reopened, `completedAt == request.time` exactly once.
+    Delete = teacher always; student only when the link is not active
+    (`existsAfter`/`getAfter`, so End deletes link + homework in ONE batch).
+    Read = `.get('teacherUid'|'studentUid','') == me`.
+  - **Tests:** new `tests/rules/homework.test.js` (38). **283/283** total.
+    `firebase-security-rules-auditor` scored 4/5: fixed its finding (a text
+    task could be 'done' with done 0 → `hwTargetReached`); the other finding
+    (no rule can cap homework count per student) is the plan's advisory cap.
+  - **`js/firebase.js`:** `MAX_OPEN_HOMEWORK` (10, advisory), `HW_COUNTS_KEY`
+    ('hwCounts' kv → the summary's `hwOpen`/`hwDone`, totals across ALL the
+    student's teachers — one summary doc), `assignHomework`,
+    `fetchHomeworkFor(studentUid)`, `fetchMyHomework`, `deleteHomework`,
+    `saveHomeworkProgress(id, {addDone, addSeconds, finish})`.
+    `removeStudent` and `endCoaching` now delete that pair's homework in the
+    same batch; `blockUser` deletes it both ways; `deleteAccount` deletes
+    homework given/received after the links.
+  - **Start = "homework mode" on Puzzles (Adrian's choice).**
+    `Puzzles.homework` sits on top of `themeFilter`/`difficulty` and never
+    writes them: `pool()` = rating band + any of the themes, `nextPuzzle` aims
+    at the player's level clamped into the band, `startHomework` loads every
+    band the homework spans. Gold bar `#puzzle-hw` (title, n/count, progress,
+    Exit) replaces the theme button while it runs. `Puzzles` is now exported.
+  - **Counting hook** (plan 3.2): the first-try branch in `Puzzles.userMove`
+    (right after `db.kvSet('puzzlesSolved', …)`) calls
+    `Students.hwSolved(id)` only in homework mode and only if `hwMatches`.
+    Seconds: a 1 s timer while a homework runs counts when Puzzles is on
+    screen in homework mode AND `Activity.current() === 'puzzles'`.
+    **Bundled saves:** every 5 puzzles, on leaving Puzzles, app hidden /
+    pagehide, Exit, completion. Completion → status done, toast, mode exits,
+    `hwCounts` + summary publish.
+  - **Students screen:** "Homework" section (student) with open cards
+    (Start / Continue, or Mark done + an honest "nobody checks it" confirm for
+    text) and "Done (n)" folded. Roster card: "📘 Homework: x open · y done"
+    + a gold "new" chip when hwDone rose since I last opened that page.
+    Student page (teacher): Homework list with progress + time + Delete, and
+    ➕ Assign → the assign sheet (Puzzles/Task, count, band defaulted from
+    their rating, theme chips weakest-first with their rating, max 5, title
+    auto-filled if empty, note, due date). Last list per student cached
+    (`hwGiven` in `studentsCache`) so offline shows it.
+  - **Gold dot** now also: open homework I haven't seen (cleared when the
+    Students screen shows it), and (teacher) a student's hwDone rose — the
+    teacher part only lights from cached summaries (teachers still cost 0
+    reads at boot). Consent list no longer says "coming soon".
+  - **Cost:** a student with a teacher = +1 query at app open (≈1 read per
+    homework); a teacher pays only when opening a student page.
+  - **Verified:** `npm.cmd run test:rules` 283/283. **Counting hook REAL** in
+    the browser pane: a seeded homework (Fork, 1200–1500, count 3; no Firebase
+    user so nothing was written), Start → Puzzles in homework mode, 3 matching
+    puzzles solved through `Puzzles.userMove` (the board's own onMove path):
+    1/3, 2/3, a wrong-first-move puzzle did NOT count, 3/3 finished → mode off,
+    bar hidden, theme button back, themeFilter 'random' + difficulty 0
+    untouched, 27 s counted, `hwCounts` {open 0, done 1},
+    `previewStudentReport()` carried hwOpen 0 / hwDone 1. **Screens SEEDED**
+    (`tools/stu4-seed.js` + `tools/cdp-verify-students4.mjs`, headless CDP
+    375px, EN/ES × light/dark): homework cards, done list, roster line + new
+    chip, teacher list on the student page, assign sheet (puzzles + task),
+    Puzzles bar. `<img onerror>` / `<script>` names and notes render as text.
+    The assign sheet's output was read from its promise (count 12, 2 themes,
+    due date → correct spec; min > max refused). 0 console errors; offline
+    boot via CDP serves v116. **No two-account flow ran live** (App Check).
+  - **Stage 5 next:** `chapter` + `list` kinds.
 
 - **STUDENTS STAGE 3 — ACTIVE TIME + THE STUDENT PAGE (2026-09-29).**
   Committed on `main`, NOT pushed (`git push` deploys the site). No rules

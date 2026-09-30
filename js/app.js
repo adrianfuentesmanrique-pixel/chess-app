@@ -3949,7 +3949,7 @@ const DIFFICULTY_LEVELS = [
   { v: 500, key: 'diff_harder' },
 ];
 
-const Puzzles = {
+export const Puzzles = {
   board: null,
   current: null,       // puzzle object
   chess: null,
@@ -3963,6 +3963,11 @@ const Puzzles = {
   themeElo: {},
   attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
   themeFilter: 'random',      // 'random' | Set<themeId>
+  // Students homework mode: {id, title, themes[], minRating, maxRating, count,
+  // done} while a homework runs (started from its card, js/students.js). It
+  // sits ON TOP of themeFilter/difficulty and never writes them, so Exit puts
+  // the player back exactly where they were.
+  homework: null,
   difficulty: 0,              // ELO offset applied when picking the next puzzle
   autoNext: false,            // load the next puzzle as soon as this one is solved
   logged: false,              // this puzzle already recorded in the session log
@@ -3976,6 +3981,7 @@ const Puzzles = {
   async init() {
     this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('puzzle-theme-btn').onclick = () => this.openThemePicker();
+    $('puzzle-hw-exit').onclick = () => this.exitHomework();
     $('puzzle-options').onclick = () => this.openOptions();
     $('puzzle-next').onclick = () => this.nextPuzzle();
     $('puzzle-hint').onclick = () => this.hint();
@@ -4138,8 +4144,57 @@ const Puzzles = {
   },
 
   pool() {
+    if (this.homework) return PUZZLES.filter(p => this.hwMatches(p));
     if (this.themeFilter === 'random') return PUZZLES;
     return PUZZLES.filter(p => p.themes.some(th => this.themeFilter.has(th)));
+  },
+
+  // ── Students homework mode ──
+  // In the band AND (no themes set, or any theme shared). Also the test for
+  // "does this solve count", so the pool and the count cannot disagree.
+  hwMatches(p) {
+    const hw = this.homework;
+    if (!hw || !p || typeof p.rating !== 'number') return false;
+    if (p.rating < hw.minRating || p.rating > hw.maxRating) return false;
+    return !hw.themes.length || (p.themes || []).some(th => hw.themes.includes(th));
+  },
+
+  async startHomework(hw) {
+    this.homework = hw;
+    this.paintHomework();
+    if (activeScreen !== 'puzzles') showScreen('puzzles');
+    window.scrollTo(0, 0);
+    // Every band the homework spans, so the pool is not just "what happened to
+    // be loaded near my own rating".
+    const lo = bandOf(hw.minRating), hi = bandOf(hw.maxRating);
+    try {
+      await Promise.all(PUZZLE_BANDS.map((_, i) => i).filter(i => i >= lo && i <= hi).map(loadBand));
+    } catch { /* play what is there */ }
+    if (!this.loaded) { await this.ensureLoaded(); return; }
+    this.nextPuzzle();
+  },
+
+  // Exit by hand, or the homework was finished (js/students.js calls this).
+  exitHomework() {
+    if (!this.homework) return;
+    this.homework = null;
+    Students.hwStop();
+    this.paintHomework();
+    if (this.loaded) this.nextPuzzle();
+  },
+
+  // The gold bar over the board: title, n/count, Exit. The theme button hides
+  // while it shows — the homework decides the themes.
+  paintHomework() {
+    const bar = $('puzzle-hw');
+    const hw = this.homework;
+    bar.classList.toggle('hidden', !hw);
+    $('puzzle-theme-btn').classList.toggle('hidden', !!hw);
+    if (!hw) return;
+    bar.querySelector('.puzzle-hw-title').textContent = hw.title;
+    bar.querySelector('.puzzle-hw-count').textContent =
+      t('hw_progress').replace('{d}', hw.done).replace('{n}', hw.count);
+    bar.querySelector('.puzzle-hw-fill').style.width = `${Math.min(100, Math.round(hw.done / hw.count * 100))}%`;
   },
 
   updateProgress() {
@@ -4292,7 +4347,10 @@ const Puzzles = {
     // Moving on from a puzzle that was attempted and got away still counts as
     // a miss in the strip; skipping one that was never touched does not.
     if (this.current && !this.logged && this.failedThis) this.log(false);
-    const target = this.targetRating();
+    // In homework mode, aim at the player's own level clamped into the band.
+    const hw = this.homework;
+    const target = hw ? Math.max(hw.minRating, Math.min(hw.maxRating, this.targetRating()))
+      : this.targetRating();
     // Bands used to be fetched once, at the rating the app started with. If the
     // rating then moved — climbing through a session, or arriving from the
     // cloud after sign-in — the pool stayed where it was, and the picker could
@@ -4373,6 +4431,10 @@ const Puzzles = {
           // quietly under-count. Old records saved as `true` still work.
           this.solved[this.current.id] = this.current.themes ?? true;
           db.kvSet('puzzlesSolved', this.solved);
+          // Students homework (plan 3.2): counted HERE, at the moment of a
+          // first-try solve, because puzzlesSolved has no date or rating and
+          // cannot tell "since assigned". Only in homework mode, only a match.
+          if (this.homework && this.hwMatches(this.current)) Students.hwSolved(this.current.id);
         }
         this.recordResult(!this.failedThis);
         this.log(!this.failedThis);
