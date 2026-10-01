@@ -49,8 +49,25 @@
     (real app, headless Chrome, this PC) on a 2,000-game TEST file of short
     games: first search 0.7 s (was 6.0 s before the fast reader), 3.5 s at a
     4x "phone" slowdown; index 0.6 MB; a move 3 ms; one game added 31 ms.
-    **Adrian's own biggest base is NOT measured yet** — it lives in his browser;
-    he is to supply the .pgn and the tool is run on it.
+    That test file flattered it. **Adrian's real bases, measured 2026-10-01**
+    (same tool, files under `D:\2. Chess\`, slowdown 1 = this PC, 4 ≈ a phone):
+
+    | Base | Games | First search x1 | First search x4 | Index | A move x1 / x4 | After 1 game added x1 / x4 |
+    |---|---|---|---|---|---|---|
+    | `Base Panama.pgn` (22 MB) | 27,128 | 20.9 s | 83.7 s | 15.0 MB | 15 ms / 45 ms | 0.6 s / 1.4 s |
+    | `Opening Encyclopedia 2024 games.pgn` (65 MB) | 37,328 | 47.0 s | 230 s | 37.3 MB | 9 ms / 45 ms | 1.1 s / 2.5 s |
+    | `2024 - 27 UPDATES.pgn` (181 MB) | 177,138 | 137 s | 677 s | 120.5 MB | 20 ms / 100 ms | 3.4 s / 10.2 s |
+
+    What the numbers say: the first search costs 0.8–1.3 ms a game on the PC
+    (the Encyclopedia's games are longer: 131 positions a game against 72–89),
+    x4 on a phone-like CPU — so EVERY real base is far past the ~10 s line, and
+    it is paid again on every app start. The index is 8 bytes a position,
+    exactly as designed. Moves stay fast once it is built. Adding ONE game is
+    not free on a big base (0.6–10 s): that is `db.listGameSummaries()` re-reading
+    the whole base's list, not parsing. Which of the three Adrian keeps in the
+    app was not established — he asked for all three.
+  - **OPEN DECISION (Adrian's, not built):** store the index on disk so it is
+    built once per base, not once per app start. Recommended: yes.
   - **Not done, on purpose:** the index is rebuilt once per app start per base
     (not stored on disk); a result still opens at the END of the game, as before.
   - **Pre-existing, untouched:** offline, the Internet search shows the raw
