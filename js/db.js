@@ -129,24 +129,65 @@ export let gamesRev = 0;
 // base it touches IN THE SAME TRANSACTION — the game and the bump land together
 // or not at all. A stored index is trusted only while its 'built' number equals
 // that counter, which is what lets an app start skip re-reading the base.
-// fn(games, touch, posIndex): call touch(baseId) for every base written to.
+//
+// The counter says THAT the base changed; [baseId, 'log'] says WHICH games:
+// { since, ids } = the ids of every game of this base written after the counter
+// stood at `since`. It lets the search catch up by reading those few games
+// instead of walking the base's whole game list. It is kept short: a write
+// that does not name its games (a bulk import), or more than LOG_MAX ids,
+// drops it, and the search falls back to the walk. Written here, in the same
+// transaction as the game, so it cannot miss a write either.
+// fn(games, touch, posIndex): call touch(baseId, gameId) for every game written
+// — or touch(baseId) alone when the games are too many to name.
+const LOG_MAX = 200;
 function gamesWrite(fn) {
   gamesRev++;
   return open().then(database => new Promise((resolve, reject) => {
     const t = database.transaction(['games', 'posIndex'], 'readwrite');
     const pos = t.objectStore('posIndex');
-    const bumped = new Set();
-    const touch = baseId => {
-      if (typeof baseId !== 'number' || bumped.has(baseId)) return;
-      bumped.add(baseId);
-      const req = pos.get([baseId, 'rev']);
-      req.onsuccess = () => pos.put((req.result || 0) + 1, [baseId, 'rev']);
+    const bases = new Map();   // baseId → { ids (null = not listed), since, ready }
+    const saveLog = (baseId, b) => {
+      if (b.ids) pos.put({ since: b.since, ids: b.ids }, [baseId, 'log']); else pos.delete([baseId, 'log']);
+    };
+    const touch = (baseId, id) => {
+      if (typeof baseId !== 'number') return;
+      let b = bases.get(baseId);
+      if (!b) {
+        bases.set(baseId, b = { ids: [], since: 0, ready: false });
+        const rev = pos.get([baseId, 'rev']);
+        rev.onsuccess = () => { b.since = rev.result || 0; pos.put(b.since + 1, [baseId, 'rev']); };
+        const log = pos.get([baseId, 'log']);
+        log.onsuccess = () => {
+          // An existing list carries on; without one, a new list starts here.
+          const had = log.result;
+          if (had && b.ids) { b.since = had.since; b.ids = [...new Set([...had.ids, ...b.ids])]; }
+          if (b.ids && b.ids.length > LOG_MAX) b.ids = null;
+          b.ready = true;
+          saveLog(baseId, b);
+        };
+      }
+      if (!b.ids) return;
+      if (id === undefined) b.ids = null;
+      else if (!b.ids.includes(id)) { b.ids.push(id); if (b.ids.length > LOG_MAX) b.ids = null; }
+      else return;
+      if (b.ready) saveLog(baseId, b);
     };
     const out = fn(t.objectStore('games'), touch, pos);
     t.oncomplete = () => resolve(out);
     t.onerror = () => reject(t.error);
     t.onabort = () => reject(t.error);
   }));
+}
+
+// Adds the games and returns their requests. A handful of games are named to
+// touch() one by one, as their ids come back; a bulk import is not.
+function addAll(s, touch, games) {
+  const named = games.length <= LOG_MAX;
+  return games.map(g => {
+    const req = s.add(g);
+    if (named) req.addEventListener('success', () => touch(g.baseId, req.result)); else touch(g.baseId);
+    return req;
+  });
 }
 
 export async function listGames(baseId) {
@@ -156,15 +197,15 @@ export async function listGames(baseId) {
 }
 
 export function addGame(game) {
-  return gamesWrite((s, touch) => { touch(game.baseId); return reqToPromise(s.add(game)); });
+  return gamesWrite((s, touch) => reqToPromise(addAll(s, touch, [game])[0]));
 }
 
 export function updateGame(game) {
   return gamesWrite((s, touch) => {
     // The base the game was in before, in case the edit moved it.
     const old = s.get(game.id);
-    old.onsuccess = () => { if (old.result) touch(old.result.baseId); };
-    touch(game.baseId);
+    old.onsuccess = () => { if (old.result) touch(old.result.baseId, game.id); };
+    touch(game.baseId, game.id);
     return reqToPromise(s.put(game));
   });
 }
@@ -172,7 +213,7 @@ export function updateGame(game) {
 export function deleteGame(id) {
   return gamesWrite((s, touch) => {
     const old = s.get(id);
-    old.onsuccess = () => { if (old.result) touch(old.result.baseId); s.delete(id); };
+    old.onsuccess = () => { if (old.result) touch(old.result.baseId, id); s.delete(id); };
   });
 }
 
@@ -182,20 +223,20 @@ export async function getGame(id) {
 }
 
 export async function addGames(games) {
-  return gamesWrite((s, touch) => { for (const g of games) { touch(g.baseId); s.add(g); } });
+  return gamesWrite((s, touch) => { addAll(s, touch, games); });
 }
 
 // --- the stored position index (see explore-index.js) ---
 // Everything stored for one base: its blocks, 'built' and 'rev'.
 function posRange(baseId) { return IDBKeyRange.bound([baseId], [baseId, []]); }
 
-// { blocks: [{ n, summaries, counts, hashes }], built, rev } — the index is up
-// to date exactly when built === rev.
+// { blocks: [{ n, summaries, counts, hashes }], built, rev, log } — the index
+// is up to date exactly when built === rev.
 export async function loadPosIndex(baseId) {
   const database = await open();
   const s = database.transaction('posIndex').objectStore('posIndex');
   const [keys, values] = await Promise.all([reqToPromise(s.getAllKeys(posRange(baseId))), reqToPromise(s.getAll(posRange(baseId)))]);
-  const out = { blocks: [], built: null, rev: 0 };
+  const out = { blocks: [], built: null, rev: 0, log: null };
   keys.forEach((k, i) => {
     if (k[1] === 'block') out.blocks.push({ n: k[2], ...values[i] });
     else out[k[1]] = values[i];
@@ -203,9 +244,13 @@ export async function loadPosIndex(baseId) {
   return out;
 }
 
-export async function posIndexRev(baseId) {
+// { rev, log } as they stand together (one transaction): the base's counter and
+// the list of games written — see gamesWrite(). log is null when there is none.
+export async function posIndexChanges(baseId) {
   const database = await open();
-  return (await reqToPromise(database.transaction('posIndex').objectStore('posIndex').get([baseId, 'rev']))) || 0;
+  const s = database.transaction('posIndex').objectStore('posIndex');
+  const [rev, log] = await Promise.all([reqToPromise(s.get([baseId, 'rev'])), reqToPromise(s.get([baseId, 'log']))]);
+  return { rev: rev || 0, log: log || null };
 }
 
 // block === null removes it. Rejects (QuotaExceededError) when the device is full.
@@ -213,13 +258,27 @@ export function savePosBlock(baseId, n, block) {
   return tx('posIndex', 'readwrite', s => { if (block) s.put(block, [baseId, 'block', n]); else s.delete([baseId, 'block', n]); });
 }
 
-export function markPosIndexBuilt(baseId, rev) {
-  return tx('posIndex', 'readwrite', s => { s.put(rev, [baseId, 'built']); });
+// The index now matches the base as it was at counter `rev`. `stored` false =
+// the index is in memory only, so nothing is said about the blocks on disk.
+// If no game was written since, the list of written games has been used up and
+// starts again empty; otherwise it stays, and still covers the newer writes.
+export function markPosIndexBuilt(baseId, rev, { stored = true } = {}) {
+  return tx('posIndex', 'readwrite', s => {
+    if (stored) s.put(rev, [baseId, 'built']);
+    const now = s.get([baseId, 'rev']);
+    now.onsuccess = () => { if ((now.result || 0) === rev) s.delete([baseId, 'log']); };
+  });
 }
 
-// Drops the stored blocks but keeps the 'rev' counter counting.
+// Drops the stored blocks but keeps the 'rev' counter counting (and the 'log').
 export function clearPosIndex(baseId) {
   return tx('posIndex', 'readwrite', s => { s.delete(IDBKeyRange.bound([baseId, 'block'], [baseId, 'built'])); });
+}
+
+// One game as the lists show it: every field EXCEPT the PGN text.
+export function gameSummary(g) {
+  return { id: g.id, baseId: g.baseId, white: g.white, black: g.black,
+           event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt };
 }
 
 // Lightweight list for the games view: every field EXCEPT the PGN text.
@@ -236,8 +295,7 @@ export async function listGameSummaries(baseId) {
       const cur = req.result;
       if (!cur) { resolve(out); return; }
       const g = cur.value;
-      out.push({ id: g.id, baseId: g.baseId, white: g.white, black: g.black,
-                 event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt });
+      out.push(gameSummary(g));
       cur.continue();
     };
     req.onerror = () => reject(req.error);
@@ -271,8 +329,7 @@ export async function findGamesBy(baseId, field, { equals, prefix, from, to } = 
       const g = cur.value;
       // The index spans every base, so filter to the one being viewed.
       if (g.baseId === baseId) {
-        const summary = { id: g.id, baseId: g.baseId, white: g.white, black: g.black,
-                          event: g.event, date: g.date, result: g.result, updatedAt: g.updatedAt };
+        const summary = gameSummary(g);
         if (!match || match(summary)) out.push(summary);
       }
       cur.continue();
@@ -285,7 +342,7 @@ export async function findGamesBy(baseId, field, { equals, prefix, from, to } = 
 // can await each chunk instead of opening a single transaction over the whole
 // file — which grows unboundedly and can time out.
 export function addGamesBatch(games) {
-  return gamesWrite((s, touch) => { for (const g of games) { touch(g.baseId); s.add(g); } return games.length; });
+  return gamesWrite((s, touch) => { addAll(s, touch, games); return games.length; });
 }
 
 // --- play history (games against the engine) ---

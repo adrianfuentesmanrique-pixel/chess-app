@@ -1946,7 +1946,7 @@ export const Analysis = {
   // change looks the new position up (refresh() calls searchLive()). There is
   // no off switch: with the moves showing it costs one check, and 🔎 brings
   // the results back for the same base. The Internet search stays one-shot.
-  explore: null,        // { baseId, name, index, rev, syncing } + opened, noStore (syncExplore)
+  explore: null,        // { baseId, name, index, rev, syncing } + opened, noStore, at (syncExplore)
   exploreSource: null,  // what the results list holds: 'local' | 'lichess'
   exploreSeq: 0,        // newest search wins when an index build is still running
 
@@ -2036,8 +2036,11 @@ export const Analysis = {
   // once per base, not once per app start: the first search after a start
   // reopens the stored index, and if no game of the base was written since it
   // was saved (built === rev) that is all — the base itself is not read.
-  // Otherwise the games' updatedAt decide which few are read again, and the
-  // blocks they sit in are saved as they are finished.
+  // Otherwise db.js's list of the games written since (posIndexChanges) says
+  // which few to read again, and the blocks they sit in are saved. Only when
+  // that list cannot vouch for everything since the index was last right — a
+  // bulk import, a first build — is the base's whole game list walked, the
+  // games' updatedAt deciding which are read.
   async syncExplore(ex) {
     const rev = db.gamesRev;
     const base = await db.getBase(ex.baseId);
@@ -2048,10 +2051,12 @@ export const Analysis = {
       try {
         const stored = await db.loadPosIndex(ex.baseId);
         ex.index.load(stored.blocks);
+        ex.at = stored.built;
         if (stored.built === stored.rev) { ex.rev = rev; return true; }
       } catch {
         // Unreadable: start again rather than build on top of it.
         ex.index = new PositionIndex();
+        ex.at = null;
         await db.clearPosIndex(ex.baseId).catch(() => {});
       }
     }
@@ -2059,10 +2064,14 @@ export const Analysis = {
     // stored copy is dropped and the search carries on in memory, as it did
     // before the index was kept. Once off, it stays off until the next start,
     // because the blocks on disk would no longer match the ones in memory.
-    const diskRev = await db.posIndexRev(ex.baseId).catch(() => null);
+    const changes = await db.posIndexChanges(ex.baseId).catch(() => null);
+    const diskRev = changes ? changes.rev : null;
+    // ex.at = the base's counter when the index was last right. Unmoved: the
+    // write that brought us here went to another base.
+    const known = typeof ex.at === 'number';
+    if (known && diskRev === ex.at) { ex.rev = rev; return true; }
     if (!ex.noStore && (diskRev === null || !(await this.roomForIndex()))) await this.stopStoringIndex(ex);
-    const summaries = await db.listGameSummaries(ex.baseId);
-    await ex.index.sync(summaries, async id => (await db.getGame(id)).pgn, {
+    const opts = {
       onProgress: (done, total) => {
         if (total > 1 && this.explore === ex && this.exploreLive()) {
           $('ana-games-status').textContent = `${t('explore_indexing')} ${done} / ${total}`;
@@ -2072,10 +2081,20 @@ export const Analysis = {
         if (ex.noStore) return;
         try { await db.savePosBlock(ex.baseId, n, block); } catch { await this.stopStoringIndex(ex); }
       },
-    });
+    };
+    if (known && changes.log && changes.log.since <= ex.at) {
+      await ex.index.patch(changes.log.ids, async id => {
+        const g = await db.getGame(id);
+        return g && g.baseId === ex.baseId ? { summary: db.gameSummary(g), pgn: g.pgn } : null;
+      }, opts);
+    } else {
+      const summaries = await db.listGameSummaries(ex.baseId);
+      await ex.index.sync(summaries, async id => (await db.getGame(id)).pgn, opts);
+    }
     // diskRev was read BEFORE the games were: a game written meanwhile leaves
-    // the counter ahead of it, so the next start checks the base again.
-    if (!ex.noStore) await db.markPosIndexBuilt(ex.baseId, diskRev).catch(() => {});
+    // the counter ahead of it (and stays on the list), so it is not missed.
+    if (diskRev !== null) await db.markPosIndexBuilt(ex.baseId, diskRev, { stored: !ex.noStore }).catch(() => {});
+    ex.at = diskRev;
     ex.rev = rev;
     return true;
   },

@@ -2,6 +2,83 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **LIVE SEARCH: ONE CHANGED GAME NO LONGER RE-READS THE BASE (2026-10-01).**
+  Committed on `main`, NOT pushed, NOT deployed. No rules change. **No
+  IndexedDB schema change** (`DB_VER` stays 5 — one more hand-written key in
+  the existing `posIndex` store, so there is no upgrade step). `sw.js` v122 →
+  **v123**. This closes the "Not done, follows from this" bullet of the entry
+  below.
+  - **What it does:** after one game is added, edited, moved or deleted, the
+    search reads THAT game, not the base's whole game list. Before / after
+    (`tools/measure-livesearch.mjs`, real app, headless Chrome, this PC;
+    x4 ≈ a phone):
+
+    | Base | Games | Next search after 1 game added, before x1 / x4 | after x1 / x4 | 2nd start after 1 game added, before x1 / x4 | after x1 / x4 | 2nd start, no change (must not regress) x1 / x4 |
+    |---|---|---|---|---|---|---|
+    | `Base Panama.pgn` | 27,129 | 0.5 s / 1.5 s | **0.02 s / 0.05 s** | 0.5 s / 1.6 s | **0.07 s / 0.22 s** | 0.05 s / 0.19 s (was 0.05 / 0.20) |
+    | `2024 - 27 UPDATES.pgn` | 177,139 | 3.4 s / 10.0 s | **0.04 s / 0.12 s** | 3.7 s / 11.2 s | **0.39 s / 1.4 s** | 0.37 s / 1.5 s (was 0.34 / 1.6) |
+
+    The tool now prints which path ran: "base NOT walked, 1 listed game(s)
+    re-read". A second start after a change now costs the same as one with no
+    change (it is the reopening of the stored blocks, nothing else). First ever
+    build unchanged (140 s / 660 s on the 177k base).
+  - **How:** next to each base's `rev` counter there is now a short list of
+    WHICH games were written: key `[baseId,'log']` = `{ since, ids }` — the ids
+    of every game of that base written after the counter stood at `since`.
+    `gamesWrite()` writes it in the SAME transaction as the game and the `rev`
+    bump. `touch(baseId, gameId)` names a game; `touch(baseId)` alone (a write
+    too big to name) drops the list.
+  - **The rule that keeps it correct:** `Analysis.explore.at` = the base's
+    counter when the index was last right (from `built` on disk after a start,
+    then kept in memory). `syncExplore()` reads `{ rev, log }` in one
+    transaction (`db.posIndexChanges`), then:
+    1. `rev === at` → nothing was written to THIS base; return (a write to
+       another base now costs nothing).
+    2. `log && log.since <= at` → the list vouches for everything since →
+       `PositionIndex.patch(ids, getGame)` looks at those ids only.
+    3. anything else (no list, a list that starts too late, index never built
+       or unreadable) → the full `listGameSummaries` + `sync()` walk, exactly
+       as before. **The walk is still the fallback and must stay.**
+    `markPosIndexBuilt(baseId, rev, { stored })` empties the list in the same
+    transaction ONLY if the counter still equals `rev`; a game written during
+    the sync stays listed. `patch()` is safe to repeat (a listed id whose
+    `updatedAt` already matches costs one look), so a list that was not
+    emptied, or a sync cut short, is harmless.
+  - **Cap:** `LOG_MAX = 200` ids (`js/db.js`). A write of more than 200 games
+    at once (`addGamesBatch` — the importer sends 500 a batch) names nothing
+    and drops the list → one walk on the next search, as before; the list
+    starts again with the next single write. A small import (≤ 200 games in a
+    batch) IS named and read game by game.
+  - **Memory-only index (`noStore`, device short of space):** same path — the
+    list lives with the games' counter, not with the stored blocks, and
+    `markPosIndexBuilt(..., { stored: false })` empties it without writing
+    `built`. `clearPosIndex` keeps `rev` and `log`.
+  - **Files:** `js/db.js` (`gamesWrite`, `addAll`, `gameSummary`,
+    `posIndexChanges` — replaces `posIndexRev` —, `markPosIndexBuilt`,
+    `loadPosIndex` now also returns `log`), `js/explore-index.js`
+    (`PositionIndex.patch`), `js/app.js` (`Analysis.syncExplore()` only;
+    `explore` gained `at`). **Any new code that writes games must still go
+    through `gamesWrite()` and should name the game to `touch()`.**
+  - **Verified:** `npm.cmd run test:tree` = **45** green (new tests 18–21:
+    `patch()` for add / edit / delete, block filling, unchanged or unknown ids,
+    and patch-then-full-sync agreeing). `tools/cdp-verify-livesearch.mjs` — ALL
+    PASSED at 375px, EN/ES × light/dark, now **51 checks each**, 0 page errors.
+    The tool now counts walks (`sync`) and list checks (`patch`) separately.
+    Old checks 8, 12, 13 now assert **0 walks**. New (all writes SEEDED through
+    `js/db.js`): 14 a write to another base costs nothing; 15 two games
+    imported at once → 2 read, 0 walks; 16 a game moved to another base leaves
+    this one, and after a restart the other base — whose index was not open
+    when it was written — finds it by reading 2 games, 0 walks; 17 a 250-game
+    batch → ONE walk that re-reads only the 250, no list kept, and the next
+    single game is read alone again; 18 no room (`roomForIndex` FORCED false):
+    stored copy dropped, add and delete still found with 0 walks, and after a
+    restart with room the base is walked once and stored again; 19 (was 14)
+    base deleted → no `log` left either.
+  - **NOT tested:** a real full phone (the branch where saving a block fails),
+    as before; two tabs of the app open at once (reasoned through: the second
+    tab's list would start after the first tab's `at`, so it falls back to the
+    walk — not run).
+
 - **LIVE SEARCH: THE POSITION INDEX IS NOW KEPT ON DISK (2026-10-01).**
   Committed on `main`, NOT pushed, NOT deployed. No rules change.
   **IndexedDB schema change: `DB_VER` 4 → 5** (one new empty store, `posIndex`;
@@ -68,11 +145,11 @@
     The no-room path was run by hand in the pane (`roomForIndex` forced false):
     stored copy dropped, search still right, stored again once there is room.
     NOT tested: a real full device (the save-fails branch itself).
-  - **Not done, follows from this:** with the app open, adding or editing ONE
-    game still makes the next search re-read the base's game list
-    (`db.listGameSummaries()` — 0.5 s / 1.5 s Panama, 3.4 s / 10.0 s on the 177k base),
-    and so does the first start after any change. Nothing is re-parsed; it is
-    the walk over whole game records.
+  - **Not done, follows from this — NOW DONE, see the entry above ("ONE
+    CHANGED GAME NO LONGER RE-READS THE BASE"):** with the app open, adding or
+    editing ONE game made the next search re-read the base's game list
+    (`db.listGameSummaries()` — 0.5 s / 1.5 s Panama, 3.4 s / 10.0 s on the 177k
+    base), and so did the first start after any change.
 
 - **LIVE DATABASE SEARCH ON THE ANALYSIS TAB (2026-10-01).** Committed on
   `main`, NOT pushed, NOT deployed. No rules change, no IndexedDB schema

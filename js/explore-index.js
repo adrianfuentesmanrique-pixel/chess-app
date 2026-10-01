@@ -243,6 +243,60 @@ export class PositionIndex {
     return { parsed: todo.length, removed };
   }
 
+  // The same result as sync() when the caller KNOWS which games were written
+  // (db.js keeps a short list of them): only those ids are looked at, so the
+  // base's game list is not read at all. `getGame(id)` gives { summary, pgn },
+  // or null when the game is gone from this base. An id that turns out to be
+  // unchanged costs that one look and nothing else.
+  async patch(ids, getGame, { onProgress = null, sliceMs = 40, onBlock = null, blockSize = BLOCK } = {}) {
+    const changed = new Set();  // blocks whose stored copy is now out of date
+    let fill = null, last = 0;  // counted the first time a NEW game needs a place
+    let parsed = 0, removed = 0, done = 0;
+    let sliceStart = performance.now();
+    for (const id of ids) {
+      const rec = await getGame(id);
+      const old = this.games.get(id);
+      if (!rec) {
+        if (old) {
+          this.games.delete(id); changed.add(old.block); removed++;
+          if (fill) fill.set(old.block, fill.get(old.block) - 1);
+        }
+      } else if (!old || old.updatedAt !== rec.summary.updatedAt) {
+        let block = old && old.block;
+        if (!old) {
+          if (!fill) {
+            fill = new Map();
+            for (const g of this.games.values()) { fill.set(g.block, (fill.get(g.block) || 0) + 1); if (g.block > last) last = g.block; }
+          }
+          if ((fill.get(last) || 0) >= blockSize) last++;
+          block = last;
+          fill.set(last, (fill.get(last) || 0) + 1);
+        }
+        let hashes = EMPTY;
+        // A game that will not parse simply matches nothing.
+        try { hashes = positionHashes(rec.pgn); } catch {}
+        this.games.set(id, { summary: rec.summary, updatedAt: rec.summary.updatedAt, hashes, block });
+        changed.add(block); parsed++;
+      }
+      done++;
+      if (performance.now() - sliceStart >= sliceMs) {
+        if (onProgress) onProgress(done, ids.length);
+        await new Promise(r => setTimeout(r));
+        sliceStart = performance.now();
+      }
+    }
+    if (onBlock && changed.size) {
+      const members = new Map();
+      for (const g of this.games.values()) {
+        if (!changed.has(g.block)) continue;
+        if (!members.has(g.block)) members.set(g.block, []);
+        members.get(g.block).push(g);
+      }
+      for (const n of changed) await onBlock(n, packBlock(members.get(n)));
+    }
+    return { parsed, removed };
+  }
+
   // The games that pass through this position, in the base's own order.
   find(fen) {
     const h = hash53(fenKey(fen));

@@ -132,12 +132,14 @@ async function restart(changed) {
     window.__baseId = (await db.listBases()).find(b => b.name === 'Measured base').id;
     const out = { parsed: 'none — the base was not read' };
     const sync = PositionIndex.prototype.sync;
-    PositionIndex.prototype.sync = async function () { const s = await sync.apply(this, arguments); out.parsed = s.parsed + ' game(s) re-read'; return s; };
+    PositionIndex.prototype.sync = async function () { const s = await sync.apply(this, arguments); out.parsed = 'base walked, ' + s.parsed + ' game(s) re-read'; return s; };
+    const patch = PositionIndex.prototype.patch;
+    PositionIndex.prototype.patch = async function () { const s = await patch.apply(this, arguments); out.parsed = 'base NOT walked, ' + s.parsed + ' listed game(s) re-read'; return s; };
     Analysis.loadTree(new GameTree());
     Analysis.explore = { baseId: window.__baseId, name: '', index: new PositionIndex(), rev: -1, syncing: null };
     Analysis.showGamesTab();
     const t0 = performance.now(); await Analysis.searchLive(); out.ms = performance.now() - t0;
-    PositionIndex.prototype.sync = sync;
+    PositionIndex.prototype.sync = sync; PositionIndex.prototype.patch = patch;
     out.matches = Analysis.explore.index.find(Analysis.tree.fen()).length; out.games = Analysis.explore.index.size;
     out.stored = !Analysis.explore.noStore;
     const st = await db.loadPosIndex(window.__baseId);

@@ -5,7 +5,8 @@
 //   node tools/cdp-verify-livesearch.mjs http://localhost:9185 <outDir>
 //
 // SEEDED (written straight into IndexedDB through js/db.js): two bases of real
-// games, the game added mid-run, and the Masterclass context at the end.
+// games, every game added / edited / moved / deleted / imported mid-run, and
+// the Masterclass context. FORCED: "no room on the device" (check 18).
 // REALLY CLICKED (CDP mouse events at 375px): 🔎, every sheet and chooser
 // button, every move on the board, the ⏮ ◀ ▶ arrows, the result that is opened,
 // and the Moves switch.
@@ -134,13 +135,19 @@ const SEED = `const db = await import('/js/db.js'); const { parsePgn } = await i
   return 'seeded bases ' + a + ', ' + b;`;
 
 // Counts every call into the search, so "does no extra work" is a number.
+// sync = the base's whole game list was walked; patch = only the games db.js
+// listed as written were looked at; parsed = games re-read by each of those.
 const SPY = `const { Analysis } = await import('/js/app.js'); const { PositionIndex } = await import('/js/explore-index.js');
-  window.__n = { live: 0, find: 0, sync: 0, parsed: [] };
+  window.__n = { live: 0, find: 0, sync: 0, patch: 0, parsed: [] };
+  const patch = PositionIndex.prototype.patch; PositionIndex.prototype.patch = async function () { window.__n.patch++; const s = await patch.apply(this, arguments); window.__n.parsed.push(s.parsed); return s; };
   const live = Analysis.searchLive; Analysis.searchLive = function () { window.__n.live++; return live.apply(this, arguments); };
   const find = PositionIndex.prototype.find; PositionIndex.prototype.find = function () { window.__n.find++; return find.apply(this, arguments); };
   const sync = PositionIndex.prototype.sync; PositionIndex.prototype.sync = async function () { window.__n.sync++; const s = await sync.apply(this, arguments); window.__n.parsed.push(s.parsed); return s; };`;
 const counts = () => evalP(`return JSON.stringify(window.__n);`);
-const resetCounts = () => evalP(`window.__n = { live: 0, find: 0, sync: 0, parsed: [] };`);
+const resetCounts = () => evalP(`window.__n = { live: 0, find: 0, sync: 0, patch: 0, parsed: [] };`);
+const ZERO = '{"live":0,"find":0,"sync":0,"patch":0,"parsed":[]}';
+// walks of the whole base, checks of listed games only, games re-read by each
+const did = (json, walks, patches, parsed) => { const n = JSON.parse(json); return n.sync === walks && n.patch === patches && n.parsed.join() === parsed; };
 const view = () => evalP(`const { Analysis } = await import('/js/app.js');
   return { status: document.getElementById('ana-games-status').innerText.replace(/\\n/g, ' | '),
     rows: [...document.querySelectorAll('#ana-games-list .list-item b')].map(b => b.textContent),
@@ -160,7 +167,8 @@ function check(name, ok, detail) {
 async function run(lang, scheme, first) {
   const tag = `${lang}-${scheme}`;
   const one = lang === 'en' ? 'game' : 'partida', many = lang === 'en' ? 'games' : 'partidas';
-  const count = (v, base, n) => v.status.startsWith(`📚 ${base} · ${n} ${n === 1 ? one : many}`) && v.rows.length === n;
+  const says = (v, base, n) => v.status.startsWith(`📚 ${base} · ${n} ${n === 1 ? one : many}`);
+  const count = (v, base, n) => says(v, base, n) && v.rows.length === n;
   log.push(`\n══ ${tag} ══`);
   await load(lang, scheme);
   check('seed', true, await evalP(SEED));
@@ -171,7 +179,7 @@ async function run(lang, scheme, first) {
 
   // 1. search OFF: normal analysis does no search work
   await move('e2', 'e4'); await click('#ana-prev');
-  check('search off: a move and a step back call the search 0 times', await counts() === '{"live":0,"find":0,"sync":0,"parsed":[]}', await counts());
+  check('search off: a move and a step back call the search 0 times', await counts() === ZERO, await counts());
 
   // 2. first press: Database / Internet, then which base
   await click('#ana-explore'); v = await view();
@@ -234,7 +242,7 @@ async function run(lang, scheme, first) {
   await evalP(`const db = await import('/js/db.js'); await db.addGame(${rec('gibaud', baseId)});`);
   await move('d2', 'd4'); await sleep(500); v = await view();
   check('game added to the base → 1.d4 now finds it', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud'), v.rows);
-  check('…by reading 1 game, not the base again', JSON.parse(await counts()).parsed.join() === '1', await counts());
+  check('…by reading 1 game, without walking the base (0 walks)', did(await counts(), 0, 1, '1'), await counts());
 
   // 9. offline
   await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
@@ -253,7 +261,7 @@ async function run(lang, scheme, first) {
     Analysis.loadTree(parsePgn(${JSON.stringify(G.opera[6])}), { baseId: null, gameId: null, fromMasterclass: 'seeded-class' });`);
   await resetCounts();
   await click('#ana-prev'); await click('#ana-prev'); await click('#ana-next'); v = await view();
-  check('Masterclass chapter: opens on its moves, stepping calls the search 0 times', !v.gamesShowing && await counts() === '{"live":0,"find":0,"sync":0,"parsed":[]}', await counts());
+  check('Masterclass chapter: opens on its moves, stepping calls the search 0 times', !v.gamesShowing && await counts() === ZERO, await counts());
 
   // 11. the index is kept on disk: a new app start reopens it and reads no game
   const restart = async () => {
@@ -264,7 +272,7 @@ async function run(lang, scheme, first) {
   const pickBase = async name => { await click('#ana-explore'); await click('.modal-box .sheet-btn'); await click('.modal-box .sheet-btn', name); await sleep(500); return view(); };
   await restart(); v = await pickBase('One game');
   check('app restarted: the base is searched again → 2', count(v, 'One game', 2), v.status);
-  check('…from the stored index: the base was not read (0 index builds)', JSON.parse(await counts()).sync === 0, await counts());
+  check('…from the stored index: the base was not read (0 index builds)', did(await counts(), 0, 0, ''), await counts());
   await move('d2', 'd4'); v = await view();
   check('…and it still follows the board: 1.d4 → Gibaud', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud'), v.rows);
 
@@ -273,22 +281,74 @@ async function run(lang, scheme, first) {
   await evalP(`const db = await import('/js/db.js'); const g = (await db.listGameSummaries(${oneId})).find(x => x.white === 'Gibaud'); await db.deleteGame(g.id);`);
   await restart(); v = await pickBase('One game');
   check('game deleted + restart: it is gone from the results → 1', count(v, 'One game', 1) && v.rows[0].startsWith('Reti'), v.rows);
-  check('…noticed by one check of the base that re-read 0 games', JSON.parse(await counts()).sync === 1 && JSON.parse(await counts()).parsed.join() === '0', await counts());
+  check('…noticed from the list of written games: 0 walks of the base, 0 games re-read', did(await counts(), 0, 1, '0'), await counts());
 
   // 13. a game edited (SEEDED edit), found at once and still right after a restart with no rebuild
   await evalP(`const db = await import('/js/db.js'); const g = await db.getGame((await db.listGameSummaries(${oneId}))[0].id);
     await db.updateGame({ ...g, white: 'Gibaud', black: 'Lazard', pgn: ${JSON.stringify(G.gibaud[6])}, updatedAt: Date.now() });`);
   await move('d2', 'd4'); await sleep(500); v = await view();
-  check('game edited into a 1.d4 game → found, by re-reading 1 game', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud') && JSON.parse(await counts()).parsed.join() === '0,1', await counts());
+  check('game edited into a 1.d4 game → found, by re-reading 1 game', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud') && did(await counts(), 0, 2, '0,1'), await counts());
   await restart(); v = await pickBase('One game');
   await move('d2', 'd4'); v = await view();
-  check('restart after the edit: 1.d4 → the edited game, 0 index builds', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud') && JSON.parse(await counts()).sync === 0, await counts());
+  check('restart after the edit: 1.d4 → the edited game, 0 index builds', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud') && did(await counts(), 0, 0, ''), await counts());
 
-  // 14. deleting a base removes its stored index
+  // 14. a write to ANOTHER base costs this one nothing (SEEDED add)
+  const classicsId = oneId - 1;
+  await resetCounts();
+  await evalP(`const db = await import('/js/db.js'); await db.addGame(${rec('legal', classicsId)});`);
+  await click('#ana-prev'); v = await view();
+  check('game added to another base: this search neither walks nor reads anything', count(v, 'One game', 1) && did(await counts(), 0, 0, ''), await counts());
+
+  // 15. a few games added at once (a small PGN import) are read on their own (SEEDED batch)
+  await resetCounts();
+  await evalP(`const db = await import('/js/db.js'); await db.addGamesBatch([${rec('opera', oneId)}, ${rec('legal', oneId)}]);`);
+  await move('e2', 'e4'); await sleep(500); v = await view();
+  check('2 games imported at once → 1.e4 finds both, 2 games read, 0 walks', count(v, 'One game', 2) && did(await counts(), 0, 1, '2'), await counts());
+
+  // 16. a game moved to another base (SEEDED edit) leaves this one and turns up
+  //     in the other — whose index was not open when any of this was written
+  await resetCounts();
+  await evalP(`const db = await import('/js/db.js'); const g = await db.getGame((await db.listGameSummaries(${oneId})).find(x => x.white === 'Legal').id);
+    await db.updateGame({ ...g, baseId: ${classicsId}, updatedAt: Date.now() });`);
+  await click('#ana-prev'); await move('e2', 'e4'); await sleep(500); v = await view();
+  check('game moved out of the base → gone from its results, 0 walks', count(v, 'One game', 1) && v.rows[0].startsWith('Morphy') && did(await counts(), 0, 1, '0'), await counts());
+  await restart(); v = await pickBase('Classics');
+  check('restart, the other base: its 2 new games are found by reading those 2, 0 walks', count(v, 'Classics', 7) && did(await counts(), 0, 1, '2'), await counts());
+
+  // 17. a bulk import is NOT listed game by game: one walk of the base, then quiet again (SEEDED batch)
+  await resetCounts();
+  await evalP(`const db = await import('/js/db.js'); const games = []; for (let i = 0; i < 250; i++) games.push(${rec('gibaud', classicsId)});
+    await db.addGamesBatch(games);`);
+  await move('d2', 'd4'); await sleep(900); v = await view();
+  check('250 games imported at once → all found, by ONE walk that read only the 250', says(v, 'Classics', 250) && did(await counts(), 1, 0, '250'), await counts());
+  const kept = await evalP(`const db = await import('/js/db.js'); const c = await db.posIndexChanges(${classicsId}); const s = await db.loadPosIndex(${classicsId}); return { log: c.log, upToDate: s.built === s.rev };`);
+  check('…and no list of 250 ids was kept', kept.log === null && kept.upToDate, kept);
+  await resetCounts();
+  await evalP(`const db = await import('/js/db.js'); await db.addGame(${rec('gibaud', classicsId)});`);
+  await click('#ana-prev'); await move('d2', 'd4'); await sleep(500); v = await view();
+  check('…the next single game is read on its own again, 0 walks', says(v, 'Classics', 251) && did(await counts(), 0, 1, '1'), await counts());
+
+  // 18. no room on the device (roomForIndex FORCED to say no): the index lives in
+  //     memory only, and a changed game is still read alone
+  await resetCounts();
+  await evalP(`const { Analysis } = await import('/js/app.js'); const db = await import('/js/db.js');
+    Analysis.roomForIndex = async () => false; await db.addGame(${rec('gibaud', classicsId)});`);
+  await click('#ana-prev'); await move('d2', 'd4'); await sleep(500); v = await view();
+  let mem = await evalP(`const { Analysis } = await import('/js/app.js'); const db = await import('/js/db.js');
+    const s = await db.loadPosIndex(${classicsId}); return { noStore: !!Analysis.explore.noStore, blocks: s.blocks.length, built: s.built };`);
+  check('no room: stored copy dropped, the new game found by reading 1 game, 0 walks', says(v, 'Classics', 252) && mem.noStore && mem.blocks === 0 && mem.built === null && did(await counts(), 0, 1, '1'), { ...mem, counts: await counts() });
+  await evalP(`const db = await import('/js/db.js'); const g = (await db.listGameSummaries(${classicsId})).find(x => x.white === 'Gibaud'); await db.deleteGame(g.id);`);
+  await click('#ana-prev'); await move('d2', 'd4'); await sleep(500); v = await view();
+  check('no room: a deleted game is noticed the same way, still 0 walks', says(v, 'Classics', 251) && did(await counts(), 0, 2, '1,0'), await counts());
+  await restart(); v = await pickBase('Classics');
+  mem = await evalP(`const db = await import('/js/db.js'); const s = await db.loadPosIndex(${classicsId}); return { blocks: s.blocks.length, upToDate: s.built === s.rev };`);
+  check('restart with room again: the base is walked once and the index is stored again', says(v, 'Classics', 258) && did(await counts(), 1, 0, '258') && mem.blocks === 1 && mem.upToDate, { ...mem, counts: await counts() });
+
+  // 19. deleting a base removes its stored index
   const left = await evalP(`const db = await import('/js/db.js'); await db.deleteBase(${oneId});
     const s = await db.loadPosIndex(${oneId}); const other = await db.loadPosIndex(${oneId} - 1);
-    return { blocks: s.blocks.length, built: s.built, rev: s.rev, otherBlocks: other.blocks.length };`);
-  check('base deleted: nothing of its index is left, the other base keeps its own', left.blocks === 0 && left.built === null && left.rev === 0 && left.otherBlocks === 1, left);
+    return { blocks: s.blocks.length, built: s.built, rev: s.rev, log: s.log, otherBlocks: other.blocks.length };`);
+  check('base deleted: nothing of its index is left, the other base keeps its own', left.blocks === 0 && left.built === null && left.rev === 0 && left.log === null && left.otherBlocks === 1, left);
 }
 
 let first = true;

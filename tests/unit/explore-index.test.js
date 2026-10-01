@@ -211,6 +211,68 @@ test('17. a build that was cut short carries on from the blocks it saved', async
   assert.deepEqual(ids(reopen(disk).find(fenAfter('1. d4 d5'))), [3]);
 });
 
+// --- patch(): only the games the caller knows were written ----------------
+// `base` stands in for the games store: id → { updatedAt, pgn }, absent = gone.
+async function patched(idx, disk, changedIds, base) {
+  const calls = [], written = [];
+  const stats = await idx.patch(changedIds, async id => {
+    calls.push(id);
+    return base[id] ? { summary: { ...summaries([id])[0], updatedAt: base[id].updatedAt }, pgn: base[id].pgn } : null;
+  }, { blockSize: 2, onBlock: (n, block) => { written.push(n); if (block) disk.set(n, block); else disk.delete(n); } });
+  return { stats, calls, written };
+}
+const rec = (id, updatedAt = 100) => ({ updatedAt, pgn: PGN[id] });
+
+test('18. patch: an added, an edited and a deleted game, looking at those three only', async () => {
+  const { idx, disk } = await stored([1, 2, 3, 4]);      // blocks: [1,2] [3,4]
+  const base = { 1: { updatedAt: 200, pgn: PGN[5] }, 5: rec(5) };   // 1 edited into 1.c4, 4 deleted, 5 added
+  const p = await patched(idx, disk, [1, 4, 5], base);
+  assert.deepEqual(p.calls, [1, 4, 5]);
+  assert.deepEqual(p.stats, { parsed: 2, removed: 1 });
+  assert.deepEqual(p.written.sort(), [0, 1]);            // 5 took the place 4 left in block 1
+  assert.deepEqual(ids(idx.find(START)), [1, 2, 3, 5]);
+  assert.deepEqual(ids(idx.find(fenAfter('1. c4 e5'))), [1, 5]);
+  assert.deepEqual(ids(idx.find(fenAfter('1. e4 e5 2. Nf3 Nc6'))), [2]);
+  // what was saved says the same after a restart, and a full check finds nothing to do
+  const again = reopen(disk);
+  assert.deepEqual(ids(again.find(fenAfter('1. c4 e5'))), [1, 5]);
+  const sums = summaries([1, 2, 3, 5]); sums[0].updatedAt = 200;
+  const full = await stored(null, disk, again, sums);
+  assert.deepEqual(full.calls, []);
+  assert.deepEqual(full.written, []);
+});
+
+test('19. patch: a new game fills the last block, then opens a new one; an emptied block goes', async () => {
+  const { idx, disk } = await stored([1, 2, 3]);         // blocks: [1,2] [3]
+  let p = await patched(idx, disk, [4], { 4: rec(4) });
+  assert.deepEqual(p.written, [1]);
+  p = await patched(idx, disk, [5], { 5: rec(5) });
+  assert.deepEqual(p.written, [2]);
+  p = await patched(idx, disk, [5], {});
+  assert.deepEqual(p.written, [2]);
+  assert.deepEqual([...disk.keys()].sort(), [0, 1]);
+  assert.deepEqual(ids(reopen(disk).find(START)), [1, 2, 3, 4]);
+});
+
+test('20. patch: ids that turn out unchanged or unknown cost a look, not a parse or a save', async () => {
+  const { idx, disk } = await stored([1, 2]);
+  const p = await patched(idx, disk, [1, 99], { 1: rec(1) });   // 1 as indexed; 99 added then deleted
+  assert.deepEqual(p.stats, { parsed: 0, removed: 0 });
+  assert.deepEqual(p.written, []);
+  assert.deepEqual(ids(idx.find(START)), [1, 2]);
+});
+
+test('21. patch then a full sync agree — the walk stays a valid fallback', async () => {
+  const a = await stored([1, 2, 3]);
+  await patched(a.idx, a.disk, [2, 4], { 4: rec(4) });   // 2 deleted, 4 added
+  const b = await stored([1, 3, 4]);
+  for (const moves of ['', '1. e4 e5 2. Nf3 Nc6', '1. d4 d5', '1. Nf3 Nc6 2. e4 e5 3. Bb5']) {
+    assert.deepEqual(ids(a.idx.find(fenAfter(moves))), ids(b.idx.find(fenAfter(moves))), moves);
+  }
+  const full = await stored([1, 3, 4], a.disk, reopen(a.disk));
+  assert.deepEqual(full.calls, []);
+});
+
 test('11. the move counters do not matter, the side to move does', () => {
   assert.equal(fenKey('8/8/8/8/8/8/8/K6k w - - 0 1'), fenKey('8/8/8/8/8/8/8/K6k w - - 12 40'));
   assert.notEqual(fenKey('8/8/8/8/8/8/8/K6k w - - 0 1'), fenKey('8/8/8/8/8/8/8/K6k b - - 0 1'));
