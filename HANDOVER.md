@@ -392,6 +392,12 @@
     cache the asset-links check) and confirm the address bar is gone and
     Share / Open with works. The address bar must have been there on every
     Play install since launch.
+  - **CORRECTION (same day): the `AC:D4…` fingerprint was the
+    POST-QUANTUM app signing key.** Play Console now shows two app signing
+    keys; phones verify against the **classical** one:
+    `CD:C1:9C:AD:D3:64:0C:7F:47:0B:C6:B5:E3:9B:A4:03:F3:84:86:BF:77:10:AF:10:BC:5B:B9:9E:9D:3C:FD:D0`.
+    `assetlinks.json` now lists all three (upload `4D:50…`, classical
+    `CD:C1…`, post-quantum `AC:D4…`). Phone confirmation still pending.
 
 - **"OPEN WITH" / SHARE A PDF OR PGN FROM ANOTHER APP NOW REACHES CTC
   (2026-09-29).** `sw.js` v112 → **v113**. Web side committed on `main` (NOT
