@@ -363,6 +363,35 @@
     `share_unsupported`, offline boot, no console errors: **34/34 PASS**.
     Emulator (Chrome) Open-with warm: PDF + PGN OK. **Nothing verified in
     Brave** (the emulator has no Google account for the Play Store).
+  - **UPDATE same day — BRAVE THEORY DISPROVED.** Adrian set Chrome as
+    default, force-stopped CTC, opened from WhatsApp: **still fails in
+    Chrome too.** He also declined pinning to Chrome (keep Brave). So do NOT
+    implement the `createTwaLauncher()` Chrome pin. Remaining difference
+    between emulator (works) and phone (fails): the file *source* — emulator
+    tests used the Files app, the phone uses WhatsApp (its own FileProvider
+    URIs + grants), plus phone vendor/Android version. Toast = the POST
+    reached the SW with no file → Chrome most likely could not read the
+    content:// URI (grant not passed on) or dropped it. Next step: real
+    phone over USB, `adb logcat` while sharing from WhatsApp; also compare
+    sharing the same PDF from the phone's Files app.
+  - **ROOT CAUSE FOUND (same day): `assetlinks.json` LACKED THE PLAY APP
+    SIGNING KEY.** Sharing from Samsung "My Files" failed too (not
+    WhatsApp), and Adrian confirmed CTC on the phone shows a **web address
+    bar** = the TWA is NOT verified. `.well-known/assetlinks.json` listed
+    only the upload key (`4D:50:F8…`, the local keystore — what the
+    emulator build is signed with, hence "works on emulator"). Play re-signs
+    the store build with Google's app signing key
+    (`AC:D4:2E:68:11:44:E2:B2:9A:B8:8D:42:FF:7A:6A:30:75:3B:6A:87:76:63:0C:E5:DC:97:95:79:1E:ED:53:FC`,
+    from Play Console → App integrity → Play app signing). An unverified
+    TWA is a plain Custom Tab, so the browser drops the shared file.
+    **Fix: both fingerprints now in `assetlinks.json`** (web-only, no new
+    AAB, stays 1.0.5 / code 7). Keep BOTH — the upload key is needed for
+    emulator/sideloaded builds. Verified: live file returns both
+    fingerprints. **NOT yet verified on the phone** — Adrian must
+    force-stop CTC (and maybe clear the browser's cache / wait: browsers
+    cache the asset-links check) and confirm the address bar is gone and
+    Share / Open with works. The address bar must have been there on every
+    Play install since launch.
 
 - **"OPEN WITH" / SHARE A PDF OR PGN FROM ANOTHER APP NOW REACHES CTC
   (2026-09-29).** `sw.js` v112 → **v113**. Web side committed on `main` (NOT

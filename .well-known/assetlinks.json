@@ -3,6 +3,7 @@
   "target": {
     "namespace": "android_app",
     "package_name": "com.chesstrainingcenter.app",
-    "sha256_cert_fingerprints": ["4D:50:F8:C0:02:02:52:B8:34:22:45:5F:98:37:D0:41:E0:86:C0:20:9D:7B:DC:EF:84:CC:82:12:65:39:D3:90"]
+    "sha256_cert_fingerprints": ["4D:50:F8:C0:02:02:52:B8:34:22:45:5F:98:37:D0:41:E0:86:C0:20:9D:7B:DC:EF:84:CC:82:12:65:39:D3:90",
+      "AC:D4:2E:68:11:44:E2:B2:9A:B8:8D:42:FF:7A:6A:30:75:3B:6A:87:76:63:0C:E5:DC:97:95:79:1E:ED:53:FC"]
   }
 }]
