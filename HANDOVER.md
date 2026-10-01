@@ -1,6 +1,52 @@
-# Chess app — where things stand (updated 2026-09-30)
+# Chess app — where things stand (updated 2026-10-01)
 
 ## Already done and pushed — do NOT redo these
+
+- **MOVE LIST REDESIGN — ONE MOVE PAIR PER ROW + VARIATION COLOUR
+  (2026-10-01).** Committed on `main`, NOT pushed, NOT deployed. No rules
+  change, nothing to deploy but the push itself. `sw.js` v119 → **v120**.
+  - **Adrian's decisions:** ALL THREE lists get the layout (Analysis, Play,
+    Opening) — not Analysis only; the colour SYNCS between devices; comments
+    always on their own line; nested variations each on their own indented line.
+  - **New module `js/movelist.js`** (imports only `js/tree.js`, precached in
+    `sw.js`). `moveListItems(tree)` decides what shares a row — pure, no DOM,
+    covered by `tests/unit/movelist.test.js` (9 tests, `npm.cmd run test:tree`
+    = 24 green). `renderMoveList(el, tree, current)` draws it.
+    `Analysis.renderLine`, `numberedHistory` and `nagMoveClass` are GONE from
+    `js/app.js` — do not look for them. Play and Opening pass
+    `treeFromHistory(...)` to the same renderer.
+  - **Markup:** main line = `div.mv-row` (grid: `.mv-num`, White `.mv`, Black
+    `.mv`); a row cut by a comment or variation shows White alone and Black
+    continues as `12…` in the Black column. Variation = `div.variation.dN`
+    with a left bar; inside it each "number + White + Black" is one
+    `span.mv-unit` with `white-space: nowrap`, "(" inside the first unit and
+    ")" inside the last — that is the whole fix for lines ending on "(" or a
+    lone White move. Comment = `div.mv-comment`. Every `.mv` and comment still
+    carries `data-node`, so the click handler, long-press menu and the
+    own-`scrollTop` keep-in-view code are untouched.
+  - **One honest exception:** a variation whose LAST move is White's, or a
+    White move directly followed by a comment / sub-variation, ends its line on
+    a White move. Unavoidable; the checker counts these separately.
+  - **Setting:** Settings → "Variation color" / "Color de las variantes"
+    (Grey / Blue / Gold). `Themes.setVariationColor` in `js/appearance.js`,
+    kv key `variationColor`, body class `varcol-*`, CSS var `--var-col`. Added
+    to `SYNCED_KEYS` in `js/firebase.js`; like board colour, a value pulled from
+    another device shows on the next app start. Measured contrast on the list
+    background, light / dark: grey 4.83 / 8.73, blue 5.85 / 7.05, gold 5.54 /
+    9.87 (light-mode gold is a darker `#8a6100`; the normal gold fails on
+    white). Comments were ~2:1 in light mode — now `#2f6b2f`, 6.43.
+  - **Verified** with `tools/cdp-verify-movelist.mjs` (headless CDP, 375px,
+    EN/ES × light/dark, plus the nested game at 320–430px): character-by-
+    character measurement, zero lines ending on "(", a symbol, or a White move
+    with a reply; no sideways scroll; and a control run with the glue removed
+    that the checker correctly fails. REAL mouse events: tap a main-line move,
+    tap a move 3 levels deep, tap a comment, long-press menu, ▶ ×150 / ◀ ×60
+    (current move never left the list, page never scrolled), the Settings
+    buttons + reload, a Play game vs Stockfish, Opening-trainer moves.
+    SEEDED: the games loaded into Analysis, the Masterclass chapter (handed to
+    `Masterclass.openChapter`; Firestore unreachable), the one-game opening
+    database. NOT tested: the colour arriving from a second signed-in device,
+    and a live broadcast.
 
 - **STUDENTS STAGE 6 — FINISHED-HOMEWORK NOTICE + PER-PUZZLE RESULTS
   (2026-09-30).** Committed on `main`, NOT pushed, NOT deployed. **Adrian

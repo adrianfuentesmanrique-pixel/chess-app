@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v119';
+const CACHE = 'chess-training-center-v120';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -38,6 +38,7 @@ const ASSETS = [
   'puzzles/puzzles-3.json',
   'js/endgames-data.js',
   'js/tree.js',
+  'js/movelist.js',
   'js/tour.js',
   'vendor/chess.js',
   'vendor/chart.umd.js',

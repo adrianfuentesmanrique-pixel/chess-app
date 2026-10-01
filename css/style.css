@@ -813,19 +813,40 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .movelist {
   background: var(--panel); border-radius: var(--radius);
   padding: 10px 12px; margin-top: 8px; line-height: 1.9;
-  min-height: 60px; max-height: 30dvh; overflow-y: auto;
-  font-size: 16px;
+  min-height: 60px; max-height: 30dvh; overflow-y: auto; overflow-x: hidden;
+  font-size: 18px; font-weight: 600;
 }
-.movelist.small { font-size: 14px; max-height: 20dvh; line-height: 1.6; color: var(--muted); }
+.movelist.small { font-size: 14px; font-weight: 400; max-height: 20dvh; line-height: 1.6; color: var(--muted); }
+/* Main line: one row per move number — number, White, Black. */
+.mv-row { display: grid; grid-template-columns: 2.7em 1fr 1fr; align-items: baseline; }
+.mv-row > .mv { justify-self: start; }
+.mv-num { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .mv { cursor: pointer; padding: 2px 3px; border-radius: 5px; white-space: nowrap; }
 .mv.current { background: var(--accent2); color: #fff; }
 .mv-brilliant { color: #1fb6a6; font-weight: 700; }
 .mv-mistake { color: var(--warning); font-weight: 700; }
 .mv-blunder { color: var(--danger); font-weight: 700; }
-.mv-comment { color: #8fbc8f; font-style: italic; cursor: pointer; }
-.variation { color: var(--muted); font-size: 14px; }
-.variation.d2 { font-size: 13px; }
-.variation.d3 { font-size: 12px; }
+.mv-comment {
+  color: #8fbc8f; font-style: italic; font-weight: 400; font-size: 15px; line-height: 1.45;
+  cursor: pointer; padding: 2px 0 4px; overflow-wrap: anywhere;
+}
+body.mode-light .mv-comment { color: #2f6b2f; }
+/* Variations: a block under their row. Lines break only BETWEEN .mv-unit
+   ("number + White + Black"), so no line ends on "(" or a lone White move. */
+.variation {
+  color: var(--var-col); font-size: 15px; font-weight: 400; line-height: 1.7;
+  margin: 2px 0 4px 2px; padding-left: 8px; border-left: 2px solid var(--var-col);
+}
+.variation .variation { margin-left: 4px; }
+.variation.d2 { font-size: 14px; }
+.variation.d3 { font-size: 14px; }
+.variation .mv-comment { font-size: 14px; }
+.mv-unit { white-space: nowrap; }
+body { --var-col: var(--muted); }
+body.varcol-blue { --var-col: #84a8ff; }
+body.varcol-gold { --var-col: var(--gold); }
+body.mode-light.varcol-blue { --var-col: #3659d9; }
+body.mode-light.varcol-gold { --var-col: #8a6100; }
 
 /* ── NAG symbol picker ─────────────────── */
 .nag-bar {

@@ -15,6 +15,12 @@ export const Themes = {
     document.body.classList.add('theme-' + boardTheme);
     const pieceSet = await db.kvGet('pieceSet', 'pieces');
     setPieceSet(pieceSet);
+    document.body.classList.add('varcol-' + await db.kvGet('variationColor', 'grey'));
+  },
+  setVariationColor(v) {
+    document.body.classList.remove('varcol-grey', 'varcol-blue', 'varcol-gold');
+    document.body.classList.add('varcol-' + v);
+    db.kvSet('variationColor', v);
   },
   setBoardTheme(v) {
     document.body.classList.remove('theme-wood', 'theme-green', 'theme-blue');

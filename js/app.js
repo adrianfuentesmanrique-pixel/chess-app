@@ -1,7 +1,7 @@
 // Chess Training Center — main application.
 import { Chess, validateFen } from '../vendor/chess.js';
 import { t, tn, getLang, setLang, applyStatic } from './i18n.js';
-import { GameTree, parsePgn, splitPgn, START_FEN, nagText } from './tree.js';
+import { GameTree, parsePgn, splitPgn, START_FEN } from './tree.js';
 import { Board, parsePlacement, setPieceSet, getPieceSet } from './board.js';
 import { Engine, uciToMove, pvWithNumbers, LEVELS } from './engine.js';
 import * as db from './db.js';
@@ -20,6 +20,7 @@ import * as History from './history.js';
 import * as Read from './read.js';
 import { Sound } from './sound.js';
 import { Themes, ColorMode } from './appearance.js';
+import { renderMoveList } from './movelist.js';
 import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
@@ -2034,13 +2035,7 @@ export const Analysis = {
 
   renderMoves() {
     const el = $('ana-moves');
-    el.innerHTML = '';
-    if (this.tree.root.comment) {
-      const c = document.createElement('span');
-      c.className = 'mv-comment'; c.textContent = this.tree.root.comment + ' ';
-      el.appendChild(c);
-    }
-    this.renderLine(el, this.tree.root, true, 0);
+    renderMoveList(el, this.tree, this.tree.current);
     const curEl = el.querySelector('.mv.current');
     if (curEl) {
       // Keep the current move visible inside #ana-moves ONLY. scrollIntoView
@@ -2052,44 +2047,6 @@ export const Analysis = {
       const er = el.getBoundingClientRect();
       if (cr.top < er.top) el.scrollTop -= (er.top - cr.top);
       else if (cr.bottom > er.bottom) el.scrollTop += (cr.bottom - er.bottom);
-    }
-  },
-
-  renderLine(container, fromNode, forceNum, depth) {
-    let node = fromNode.children[0];
-    let parent = fromNode;
-    let needNum = forceNum;
-    while (node) {
-      const { num, whiteMoves } = this.tree.moveNumberFor(node);
-      const span = document.createElement('span');
-      span.className = 'mv' + (node === this.tree.current ? ' current' : '') + nagMoveClass(node.nags);
-      span.dataset.node = node.id;
-      let label = '';
-      if (whiteMoves) label = num + '.';
-      else if (needNum) label = num + '…';
-      needNum = false;
-      label += node.san + node.nags.map(nagText).join('');
-      span.textContent = label + ' ';
-      container.appendChild(span);
-      if (node.comment) {
-        const c = document.createElement('span');
-        c.className = 'mv-comment';
-        c.dataset.node = node.id;
-        c.textContent = node.comment + ' ';
-        container.appendChild(c);
-        needNum = true;
-      }
-      for (let i = 1; i < parent.children.length; i++) {
-        const varEl = document.createElement('span');
-        varEl.className = 'variation d' + Math.min(depth + 1, 3);
-        varEl.appendChild(document.createTextNode('( '));
-        this.renderLine(varEl, { children: [parent.children[i]] }, true, depth + 1);
-        varEl.appendChild(document.createTextNode(') '));
-        container.appendChild(varEl);
-        needNum = true;
-      }
-      parent = node;
-      node = node.children[0];
     }
   },
 
@@ -3232,8 +3189,7 @@ const Play = {
 
   renderMoves() {
     const el = $('play-moves');
-    const hist = this.chess.history();
-    el.textContent = numberedHistory(hist, this.startFen);
+    renderMoveList(el, treeFromHistory(this.startFen, this.chess.history()));
     el.scrollTop = el.scrollHeight;
   },
 
@@ -3415,19 +3371,6 @@ const GameReview = {
     });
   },
 };
-
-function numberedHistory(sanList, startFen) {
-  const parts = startFen.split(' ');
-  let num = parseInt(parts[5], 10);
-  let white = parts[1] === 'w';
-  let out = '';
-  sanList.forEach((san, i) => {
-    if (white) out += `${num}. ${san} `;
-    else { out += (i === 0 ? `${num}... ` : '') + san + ' '; num++; }
-    white = !white;
-  });
-  return out.trim();
-}
 
 function treeFromHistory(startFen, sanList) {
   const tree = new GameTree(startFen === START_FEN ? undefined : startFen);
@@ -3804,7 +3747,7 @@ const Trainer = {
   },
 
   renderMoves() {
-    $('trainer-moves').textContent = numberedHistory(this.chess.history(), START_FEN);
+    renderMoveList($('trainer-moves'), treeFromHistory(START_FEN, this.chess.history()));
     $('trainer-moves').scrollTop = $('trainer-moves').scrollHeight;
   },
 
@@ -3818,15 +3761,6 @@ const Trainer = {
 
 function fenKey(fen) { return fen.split(' ').slice(0, 4).join(' '); }
 
-// Colors a move in the notation when it carries a Game-Review-assigned
-// quality NAG ($3 brilliant, $2 mistake, $4 blunder) — a plain " mv-xxx"
-// suffix (or '') so it can be appended straight into a className string.
-function nagMoveClass(nags) {
-  if (nags.includes(4)) return ' mv-blunder';
-  if (nags.includes(2)) return ' mv-mistake';
-  if (nags.includes(3)) return ' mv-brilliant';
-  return '';
-}
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ═════════════════════ PUZZLE SESSION LOG ═════════════════════
@@ -6329,6 +6263,17 @@ function openSettings() {
       seg3.appendChild(b);
     }
     segInit(seg3, v => Themes.setBoardTheme(v));
+    // variation colour in the move list
+    const lVar = document.createElement('label'); lVar.className = 'fld-label'; lVar.textContent = t('var_color');
+    const segVar = document.createElement('div'); segVar.className = 'seg';
+    const curVarColor = await db.kvGet('variationColor', 'grey');
+    for (const [v, key] of [['grey', 'var_grey'], ['blue', 'theme_blue'], ['gold', 'var_gold']]) {
+      const b = document.createElement('button');
+      b.textContent = t(key); b.dataset.v = v;
+      if (curVarColor === v) b.classList.add('on');
+      segVar.appendChild(b);
+    }
+    segInit(segVar, v => Themes.setVariationColor(v));
     // piece style
     const l4 = document.createElement('label'); l4.className = 'fld-label'; l4.textContent = t('piece_style');
     const seg4 = document.createElement('div'); seg4.className = 'seg';
@@ -6391,7 +6336,7 @@ function openSettings() {
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
     const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
     ok.onclick = () => close(null);
-    box.append(l1, seg, l2, seg2, l3, seg3, l4, seg4, lPriv, segPriv, privHint, lTour, tourBtn, lLegal, legalRow, ...accountEls, about, ok);
+    box.append(l1, seg, l2, seg2, l3, seg3, lVar, segVar, l4, seg4, lPriv, segPriv, privHint, lTour, tourBtn, lLegal, legalRow, ...accountEls, about, ok);
   });
 }
 

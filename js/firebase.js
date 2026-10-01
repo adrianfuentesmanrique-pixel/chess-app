@@ -32,7 +32,7 @@ const SYNCED_KEYS = [
   'profileName', 'username', 'firstName', 'lastName', 'dateOfBirth', 'profileVisibility',
   'streakCount', 'streakLastDate',
   'puzzleElo', 'puzzleThemeElo', 'puzzlesSolved',
-  'openingElo', 'endgameElo', 'boardTheme', 'pieceSet', 'colorMode',
+  'openingElo', 'endgameElo', 'boardTheme', 'pieceSet', 'colorMode', 'variationColor',
   'puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'avatarId',
   'earnedBadges', 'bestStreak', 'endgameConverted', 'firstImportDone', 'firstEngineUsed',
   'rushBestScore', 'rushBest180', 'rushBest300',
