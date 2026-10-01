@@ -1347,6 +1347,27 @@ export function unpackPuzzle(s) {
   return { id, fen, moves: moves.split(' '), rating: Number(rating), themes: themes ? themes.split(' ') : [] };
 }
 
+// Stage 6 — how each puzzle of a homework went, one string per ATTEMPT:
+// <packed puzzle>|<1 first try, 0 not>|<seconds>. The whole puzzle is in it so
+// the teacher's phone can redraw the position without loading a rating band.
+// The rules match the same shape (hwResultsOk) and cap the list at these two
+// numbers; past them the count still works, the detail just stops.
+export const MAX_HW_RESULTS = 300;
+export const MAX_HW_RESULTS_CHARS = 120000;
+
+export function packResult(p, ok, secs) {
+  const s = packPuzzle(p);
+  return s ? `${s}|${ok ? 1 : 0}|${Math.max(0, Math.min(99999, Math.round(secs) || 0))}` : null;
+}
+
+// → {puzzle, ok, secs}, or null. Written by another user's phone: anything
+// that is not exactly the shape is dropped, never shown.
+export function unpackResult(s) {
+  const m = typeof s === 'string' && /^(.*)[|]([01])[|]([0-9]{1,5})$/.exec(s);
+  const puzzle = m && unpackPuzzle(m[1]);
+  return puzzle ? { puzzle, ok: m[2] === '1', secs: Number(m[3]) } : null;
+}
+
 // Refs of every homework `teacherUid` gave `studentUid`. Both fields are
 // constrained, so either side may run it (the read rule uses .get(field, '')).
 async function homeworkRefs(teacherUid, studentUid) {
@@ -1394,6 +1415,28 @@ export async function fetchHomeworkFor(studentUid) {
     where('teacherUid', '==', user.uid), where('studentUid', '==', studentUid), limit(100))));
 }
 
+// Teacher side, stage 6: homework of MINE finished after `sinceMs` — how a
+// teacher is told at all on the free plan (no push). One query: 1 read when
+// nothing is new, else 1 per finished homework. Only a finished homework has
+// completedAt, so the range filter is also the "status == done" filter. Needs
+// the (teacherUid, completedAt) index in firestore.indexes.json. `doneMs` is
+// added because a Timestamp loses its methods (and its milliseconds, if read
+// as seconds) once cached.
+export async function fetchFinishedHomework(sinceMs) {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const snap = await getDocs(query(collection(firestore, 'homework'),
+    where('teacherUid', '==', user.uid), where('completedAt', '>', new Date(sinceMs)),
+    orderBy('completedAt'), limit(20)));
+  const out = [];
+  snap.forEach(d => {
+    const data = d.data();
+    const at = data.completedAt;
+    out.push({ id: d.id, ...data, doneMs: at && typeof at.toMillis === 'function' ? at.toMillis() : 0 });
+  });
+  return out;
+}
+
 // Student side: everything assigned to me, by every teacher.
 export async function fetchMyHomework() {
   const user = auth.currentUser;
@@ -1413,7 +1456,7 @@ export async function deleteHomework(hwId) {
 // second phone adds its own puzzles instead of overwriting (the rules only let
 // the counters go up). `finish` stamps status 'done' + completedAt from the
 // server; the rules accept that only once the target is reached.
-export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false, addIds = [] } = {}) {
+export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false, addIds = [], addResults = [] } = {}) {
   if (!auth.currentUser || !hwId) return false;
   const patch = {};
   if (addDone > 0) patch.done = increment(Math.round(addDone));
@@ -1421,8 +1464,21 @@ export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, 
   if (addIds.length) patch.doneIds = arrayUnion(...addIds);
   if (addSeconds > 0) patch.seconds = increment(Math.round(addSeconds));
   if (finish) { patch.status = 'done'; patch.completedAt = serverTimestamp(); }
+  // Per-puzzle results (stage 6), arrayUnion for the same reason.
+  if (addResults.length) patch.results = arrayUnion(...addResults);
   if (!Object.keys(patch).length) return false;
-  await updateDoc(doc(firestore, 'homework', hwId), patch);
+  const ref = doc(firestore, 'homework', hwId);
+  try {
+    await updateDoc(ref, patch);
+  } catch (e) {
+    // The detail is optional, the count is not. If the write was refused with
+    // results in it (a second phone filled the cap, or the stage 6 rules are
+    // not deployed yet), send the same bundle again without them.
+    if (!patch.results) throw e;
+    delete patch.results;
+    if (!Object.keys(patch).length) throw e;
+    await updateDoc(ref, patch);
+  }
   return true;
 }
 

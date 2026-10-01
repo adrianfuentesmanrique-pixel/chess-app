@@ -1781,6 +1781,31 @@ body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
   font-size: 11px; border-radius: 999px; padding: 0 7px; margin-left: 4px;
 }
 .hw-teacher .btn-wide { margin: 0 0 8px; }
+/* Stage 6 — the "Finished homework" strip (teacher) and the results sheet.
+   Same tokens: gold edge like .stu-mine, the log's green/red for ✓/✗. */
+.fin-row {
+  width: 100%; text-align: left; font: inherit; color: var(--text); border: none;
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+.fin-row .fr-name { min-width: 0; }
+.fin-go { font-size: 22px; color: var(--gold); line-height: 1; }
+.hwr-sheet h3 { overflow-wrap: anywhere; }
+.hwr-totals { margin: 10px 0 6px; }
+.hwr-list { display: grid; gap: 6px; }
+.hwr-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+  width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+  background: var(--panel2); border: none; border-radius: 8px; padding: 8px 10px;
+}
+.hwr-row:active { box-shadow: inset 0 0 0 1px var(--gold); }
+.hwr-row .fr-name { min-width: 0; font-variant-numeric: tabular-nums; }
+.hwr-mark {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; font-size: 14px;
+}
+.hwr-row.ok .hwr-mark { background: var(--success); }
+.hwr-row.miss .hwr-mark { background: var(--danger); }
+.hwr-time { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
 /* Assign sheet */
 .hw-sheet .hw-kind { margin-bottom: 8px; }
 .hw-sheet .hw-kind button { flex: 1; }

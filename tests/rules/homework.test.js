@@ -14,7 +14,7 @@ import {
   initializeTestEnvironment, assertFails, assertSucceeds,
 } from '@firebase/rules-unit-testing';
 import {
-  doc, collection, query, where, getDoc, getDocs,
+  doc, collection, query, where, orderBy, limit, getDoc, getDocs,
   setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, increment, arrayUnion, deleteField,
 } from 'firebase/firestore';
 
@@ -553,6 +553,120 @@ describe('/homework — a hand-picked puzzle list (stage 5)', () => {
   });
 });
 
+// ═══════════════════════ per-puzzle results (stage 6) ═══════════════════════
+
+// One attempt as the student's app writes it: the packed puzzle + first-try
+// flag + seconds.
+const res = (i, ok = 1, secs = 12, extra = {}) => `${pz(i, extra)}|${ok}|${secs}`;
+
+describe('/homework — per-puzzle results (stage 6)', () => {
+  it('the student records right and wrong attempts with arrayUnion (puzzles kind)', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(puzzlesTask()));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertSucceeds(updateDoc(ref,
+      { done: increment(1), seconds: increment(40), results: arrayUnion(res(0, 1, 25), res(1, 0, 15)) }));
+    // A wrong attempt alone: results grow, `done` does not.
+    await assertSucceeds(updateDoc(ref, { results: arrayUnion(res(2, 0, 9)) }));
+    const snap = await getDoc(ref);
+    if (snap.data().results.length !== 3 || snap.data().done !== 1) throw new Error('results did not land');
+  });
+
+  it('a list records them too, and the finishing write may carry the last one', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...listTask(2), done: 1, doneIds: ['p0'], results: [res(0), res(1, 0, 30)] }));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`), {
+      done: increment(1), doneIds: arrayUnion('p1'), results: arrayUnion(res(1, 1, 8)),
+      status: 'done', completedAt: serverTimestamp(),
+    }));
+  });
+
+  it('a finished homework may still gain results (a second phone\'s late bundle)', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...puzzlesTask(), done: 10, status: 'done', completedAt: 5 }));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`), { results: arrayUnion(res(0)) }));
+  });
+
+  it('300 entries fit (one match, not 300 checks); 301 do not', async () => {
+    await active();
+    const many = n => Array.from({ length: n }, (_, i) => res(i, i % 2, i));
+    await seed('homework/a', stored({ ...puzzlesTask({}, { count: 100 }), results: many(299) }));
+    await assertSucceeds(updateDoc(doc(asStudent(), 'homework/a'), { results: arrayUnion(res(299)) }));
+    await assertFails(updateDoc(doc(asStudent(), 'homework/a'), { results: arrayUnion(res(300)) }));
+  });
+
+  it('the joined size is capped at 120,000 characters', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(puzzlesTask()));
+    const long = i => res(i, 1, 99999, {
+      id: `p${i}`.padEnd(40, 'x'), moves: Array(40).fill('e7e8q'), themes: Array(20).fill('t'.repeat(40)),
+    });
+    const fits = Array.from({ length: 90 }, (_, i) => long(i));     // ≈ 108 KB
+    const over = Array.from({ length: 110 }, (_, i) => long(i));    // ≈ 132 KB
+    if (fits.join(';').length > 120000 || over.join(';').length <= 120000) throw new Error('fixture sizes are off');
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { results: over }));
+    await assertSucceeds(updateDoc(ref, { results: fits }));
+  });
+
+  it('results only grow: no shrinking, no replacing, no reordering, no deleting', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...puzzlesTask(), results: [res(0), res(1, 0)] }));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { results: [res(0)] }));
+    await assertFails(updateDoc(ref, { results: [res(0), res(2)] }));          // rewrote a wrong one away
+    await assertFails(updateDoc(ref, { results: [] }));
+    await assertFails(updateDoc(ref, { results: [res(1, 0), res(0), res(2)] }));   // reordered (rules audit)
+    await assertFails(updateDoc(ref, { results: deleteField() }));
+    await assertSucceeds(updateDoc(ref, { results: [res(0), res(1, 0), res(2)] }));
+  });
+
+  it('every entry is checked — also the last of many', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...puzzlesTask(), results: Array.from({ length: 50 }, (_, i) => res(i)) }));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    const bad = [
+      7, { id: 'p0' }, '', 'p0|1|12',
+      pz(60),                                  // a puzzle with no result on it
+      `${pz(60)}|2|12`, `${pz(60)}|1|`, `${pz(60)}|1|123456`, `${pz(60)}|1|-3`, `${pz(60)}|yes|12`,
+      res(60, 1, 12, { fen: '<img src=x onerror=alert(1)>' }),
+      res(60, 1, 12, { moves: ['e2e9'] }),
+      res(60, 1, 12, { rating: 4001 }),
+      res(60, 1, 12, { id: 'a b' }),
+      `${res(60)};<script>`,                   // the separator cannot smuggle text in
+      `${res(60)}\n${res(61)}`,
+    ];
+    for (const b of bad) await assertFails(updateDoc(ref, { results: arrayUnion(b) }));
+    await assertFails(updateDoc(ref, { results: 'nope' }));
+    await assertSucceeds(updateDoc(ref, { results: arrayUnion(res(60, 0, 0, { themes: [] })) }));
+  });
+
+  it('a text or chapter task may not carry results', async () => {
+    await active();
+    await seedClass();
+    await seed('homework/t', stored(textTask()));
+    await seed('homework/c', stored(chapterTask()));
+    await assertFails(updateDoc(doc(asStudent(), 'homework/t'), { results: arrayUnion(res(0)) }));
+    await assertFails(updateDoc(doc(asStudent(), 'homework/c'), { results: arrayUnion(res(0)) }));
+  });
+
+  it('the teacher and a stranger CANNOT write results, and a new task cannot start with them', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(puzzlesTask()));
+    await assertFails(updateDoc(doc(asTeacher(), `homework/${HW}`), { results: arrayUnion(res(0)) }));
+    await assertFails(updateDoc(doc(asOther(), `homework/${HW}`), { results: arrayUnion(res(0)) }));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), puzzlesTask({ results: [] })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/c'), puzzlesTask({ results: [res(0)] })));
+  });
+
+  it('old homework without results still takes the stage 4/5 saves unchanged', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...puzzlesTask(), done: 3, seconds: 100 }));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: increment(2), seconds: increment(60) }));
+  });
+});
+
 // ═══════════════════════ read ═══════════════════════
 
 describe('/homework — reading', () => {
@@ -574,6 +688,17 @@ describe('/homework — reading', () => {
     await seed(`homework/${HW}`, stored(puzzlesTask()));
     await assertSucceeds(getDocs(query(collection(asTeacher(), 'homework'),
       where('teacherUid', '==', TEACH), where('studentUid', '==', STU))));
+  });
+
+  it('the teacher\'s "finished since I last looked" query works (stage 6); not for a stranger', async () => {
+    await seed(`homework/${HW}`, stored({ ...textTask(), done: 1, status: 'done', completedAt: new Date(1755000500000) }));
+    const q = db => query(collection(db, 'homework'),
+      where('teacherUid', '==', TEACH), where('completedAt', '>', new Date(1755000000000)),
+      orderBy('completedAt'), limit(20));
+    const snap = await assertSucceeds(getDocs(q(asTeacher())));
+    if (snap.size !== 1) throw new Error('the finished homework was not returned');
+    await assertFails(getDocs(q(asOther())));
+    await assertFails(getDocs(q(asStudent())));
   });
 
   it('CANNOT list everything, or somebody else\'s homework', async () => {

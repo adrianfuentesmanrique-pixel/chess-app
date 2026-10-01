@@ -3839,7 +3839,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // "+10" / "-10" — the ELO an attempt moved, for the badge and the strip.
 const eloDeltaText = d => (d > 0 ? '+' : '') + d;
 
-const PuzzleLog = {
+export const PuzzleLog = {
   logs: { puzzles: [], blind: [], rush: [] },
   containers: { puzzles: 'puzzle-log', blind: 'blind-log', rush: 'rush-log' },
 
@@ -3876,7 +3876,15 @@ const PuzzleLog = {
   review(mode, i) {
     const entry = this.logs[mode]?.[i];
     if (!entry) return;
-    const p = entry.puzzle;
+    this.show(entry.puzzle, t('log_review_title').replace('{n}', i + 1),
+      `${t(entry.solved ? 'log_solved' : 'log_missed')} · ${t('log_rating').replace('{n}', entry.puzzle.rating)}`,
+      { give: true });
+  },
+
+  // The replay itself, for any puzzle object — also a student's homework
+  // result on the teacher's phone (js/students.js, stage 6), where `give` is
+  // off: that puzzle is already homework.
+  show(p, title, metaText, { give: canGive = false } = {}) {
     const chess = new Chess(p.fen);
     const frames = [{ fen: chess.fen(), last: null }];
     for (const u of p.moves) {
@@ -3889,10 +3897,10 @@ const PuzzleLog = {
     const playerColor = new Chess(p.fen).turn() === 'w' ? 'b' : 'w';
 
     modal((box, close) => {
-      box.innerHTML = `<h3>${esc(t('log_review_title').replace('{n}', i + 1))}</h3>`;
+      box.innerHTML = `<h3>${esc(title)}</h3>`;
       const meta = document.createElement('p');
       meta.className = 'hint';
-      meta.textContent = `${t(entry.solved ? 'log_solved' : 'log_missed')} · ${t('log_rating').replace('{n}', p.rating)}`;
+      meta.textContent = metaText;
       box.appendChild(meta);
 
       const holder = document.createElement('div');
@@ -3929,7 +3937,7 @@ const PuzzleLog = {
       // Students stage 5: a teacher collects puzzles for one student's list
       // (sent later, as ONE homework, from that student's page). Only shown
       // with at least one student who has accepted me.
-      if (Students.hasStudents()) {
+      if (canGive && Students.hasStudents()) {
         const give = document.createElement('button');
         give.className = 'btn btn-wide';
         give.style.marginTop = '8px';
@@ -4209,6 +4217,8 @@ export const Puzzles = {
   // Exit by hand, or the homework was finished (js/students.js calls this).
   exitHomework() {
     if (!this.homework) return;
+    // A puzzle that was attempted and got away is a miss in the results too.
+    if (this.current && !this.logged && this.failedThis) this.log(false);
     this.homework = null;
     Students.hwStop();
     this.paintHomework();
@@ -4467,20 +4477,26 @@ export const Puzzles = {
         Sound.play('puzzle-correct');
         KaelQuotes.chatter(pickKael(KAEL_PRAISE));
         this.setStatus(t('solved'));
-        if (!this.failedThis) {
+        const clean = !this.failedThis;
+        if (clean) {
           // Store the themes, not just a flag. The library is split across
           // rating bands now, so a later lookup by id would miss any puzzle
           // whose band isn't loaded — and the theme-mastery badges would
           // quietly under-count. Old records saved as `true` still work.
           this.solved[this.current.id] = this.current.themes ?? true;
           db.kvSet('puzzlesSolved', this.solved);
-          // Students homework (plan 3.2): counted HERE, at the moment of a
-          // first-try solve, because puzzlesSolved has no date or rating and
-          // cannot tell "since assigned". Only in homework mode, only a match.
-          if (this.homework && this.hwMatches(this.current)) Students.hwSolved(this.current.id);
         }
-        this.recordResult(!this.failedThis);
-        this.log(!this.failedThis);
+        // Students homework (plan 3.2): counted HERE, at the moment of a
+        // first-try solve, because puzzlesSolved has no date or rating and
+        // cannot tell "since assigned". Only in homework mode, only a match.
+        // Decided BEFORE log(): log() writes this attempt into the homework's
+        // results (stage 6), and for a list hwMatches() turns false once the
+        // puzzle is counted. Counted AFTER log(), so the finishing save
+        // carries the last result with it.
+        const hwHit = clean && this.homework && this.hwMatches(this.current);
+        this.recordResult(clean);
+        this.log(clean);
+        if (hwHit) Students.hwSolved(this.current.id);
         this.updateProgress();
         $('puzzle-analyze').classList.remove('hidden');
         this.setLiveInteractive(false);
@@ -4527,6 +4543,9 @@ export const Puzzles = {
   log(solved) {
     if (this.logged || !this.current) return;
     this.logged = true;
+    // Students stage 6: the teacher sees every homework attempt, right or
+    // wrong, with its time. This is the one place every ending comes through.
+    if (this.homework && this.hwMatches(this.current)) Students.hwResult(this.current, solved);
     PuzzleLog.add('puzzles', this.current, solved, this.lastDelta);
   },
 

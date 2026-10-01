@@ -24,12 +24,13 @@ import {
   previewStudentReport,
   MAX_OPEN_HOMEWORK, HW_COUNTS_KEY, assignHomework, fetchHomeworkFor, fetchMyHomework,
   deleteHomework, saveHomeworkProgress,
+  fetchFinishedHomework, packResult, unpackResult, MAX_HW_RESULTS, MAX_HW_RESULTS_CHARS,
   MAX_LIST_PUZZLES, packPuzzle, unpackPuzzle, ensureViewer, fetchMyMasterclasses, fetchChapters,
   MAX_MEMBERS as MAX_MEMBERS_MC,
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen,
-  paintCapCounter, openAuthModal, openEloHistoryModal, segInit, Puzzles,
+  paintCapCounter, openAuthModal, openEloHistoryModal, segInit, Puzzles, PuzzleLog,
 } from './app.js';
 import { TRACKED_THEMES } from './puzzles.js';
 import { Activity, AREAS, sumActive, daysAgo } from './activity.js';
@@ -64,6 +65,12 @@ const THEMES_SHOWN = 8;
 // puzzles, when leaving Puzzles (or the chapter) or the app, on Exit and on
 // completion.
 const HW_SAVE_EVERY = 5;
+// Stage 6: a teacher is told about finished homework by ONE query at app open
+// and again when coming back to the app after this long (the installed app
+// can stay alive for days). 1 read when nothing is new. The very first check
+// on a phone looks back this many days, not through everything ever finished.
+const FIN_CHECK_MS = 15 * 60 * 1000;
+const FIN_FIRST_DAYS = 14;
 // Assign sheet: the student's weakest themes shown first, the rest behind
 // "More themes".
 const HW_THEMES_SHOWN = 12;
@@ -107,6 +114,13 @@ export const Students = {
   // choice: collect, then send). studentUid → [packed puzzle strings].
   hwDraft: {},
   hwGone: new Set(),  // chapter homework whose class/chapter is gone (plan 3.6)
+  // Stage 6, teacher side: homework students finished that I have not opened
+  // yet — [{id, studentUid, title, kind, doneMs, seen}], the strip on top of
+  // the screen. `seen` = the strip has been on screen (the gold dot goes out;
+  // the line stays until it is opened or cleared).
+  finNew: [],
+  finSeenAt: 0,       // completedAt (ms) of the newest finished homework fetched
+  finCheckAt: 0,      // when the check last ran (memory only)
 
   init() {
     $('stu-invite').onclick = () => this.invite();
@@ -117,7 +131,7 @@ export const Students = {
     Auth.onChange(() => this.onAuth());
     for (const ev of ['online', 'offline']) {
       window.addEventListener(ev, () => {
-        if (ev === 'online') this.bootCheck();
+        if (ev === 'online') { this.bootCheck(); this.checkFinished(); }
         if (activeScreen !== 'students') return;
         if (ev === 'online') this.load(); else this.render();
       });
@@ -126,6 +140,7 @@ export const Students = {
     // A swipe-away must not lose the running homework's last bundle.
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') this.hwSave();
+      else this.checkFinished();
     });
     window.addEventListener('pagehide', () => this.hwSave());
   },
@@ -144,12 +159,14 @@ export const Students = {
     this.asTeacher = []; this.asStudent = []; this.reports = {}; this.people = {};
     this.homework = []; this.hwSeen = []; this.doneSeen = {}; this.hwGiven = {};
     this.hwDraft = {}; this.hwGone = new Set();
+    this.finNew = []; this.finSeenAt = 0; this.finCheckAt = 0;
     if (this.hwRun) this.hwDrop();
     this.loaded = false; this.failed = false; this.cachedAt = 0; this.practiceS = 0;
     if (uid) await this.readCache();
     this.paintDot();
     if (activeScreen === 'students') { this.render(); this.load(); }
     this.bootCheck();
+    this.checkFinished();
   },
 
   async readCache() {
@@ -164,6 +181,8 @@ export const Students = {
     this.doneSeen = c.doneSeen || {};
     this.hwGiven = c.hwGiven || {};
     this.hwDraft = c.hwDraft || {};
+    this.finNew = c.finNew || [];
+    this.finSeenAt = c.finSeenAt || 0;
     this.cachedAt = c.at || 0;
     this.loaded = true;
     return c;
@@ -178,6 +197,7 @@ export const Students = {
       reports: this.reports, people: this.people,
       homework: this.homework, hwSeen: this.hwSeen, doneSeen: this.doneSeen,
       hwGiven: this.hwGiven, hwDraft: this.hwDraft,
+      finNew: this.finNew, finSeenAt: this.finSeenAt,
       inviteCheckAt: (prev && prev.uid === this.uid && prev.inviteCheckAt) || 0,
       ...extra,
     }));
@@ -244,6 +264,46 @@ export const Students = {
     if (this.hasTeacher() || (mine && (c.asStudent || []).some(l => l.status === 'active'))) {
       this.publish(links);
     }
+  },
+
+  // Stage 6 — "a student finished homework", for the teacher. Runs at app open
+  // and when the app comes back to the front, at most once per 15 minutes
+  // (`force` = the Students screen was opened). Somebody with no accepted
+  // student (per the roster saved on this phone) never runs it: 0 reads.
+  // Otherwise ONE query: 1 read when nothing is new, 1 per finished homework.
+  // What it brings is put into hwGiven, so the results sheet opens from the
+  // strip without another read.
+  async checkFinished({ force = false } = {}) {
+    const uid = this.uid;
+    if (!uid || !navigator.onLine || !this.hasStudents()) return;
+    if (!force && Date.now() - this.finCheckAt < FIN_CHECK_MS) return;
+    this.finCheckAt = Date.now();
+    const since = this.finSeenAt || Date.now() - FIN_FIRST_DAYS * 86400000;
+    let list;
+    try {
+      list = await fetchFinishedHomework(since);
+    } catch (e) {
+      console.error('Checking for finished homework failed', e);
+      this.finCheckAt = 0;
+      return;
+    }
+    if (this.uid !== uid) return;
+    const mine = new Set(this.asTeacher.filter(l => l.status === 'active').map(l => l.studentUid));
+    for (const h of plain(list)) {
+      // +1 ms: the next check asks for "later than the newest one I have".
+      this.finSeenAt = Math.max(this.finSeenAt, (h.doneMs || 0) + 1);
+      if (!mine.has(h.studentUid)) continue;
+      const given = this.hwGiven[h.studentUid] || (this.hwGiven[h.studentUid] = []);
+      const at = given.findIndex(x => x.id === h.id);
+      if (at >= 0) given[at] = h; else given.push(h);
+      if (!this.finNew.some(x => x.id === h.id)) {
+        this.finNew.push({ id: h.id, studentUid: h.studentUid, title: h.title, kind: h.kind, doneMs: h.doneMs, seen: false });
+      }
+    }
+    if (!this.finSeenAt) this.finSeenAt = since;
+    await this.writeCache();
+    this.paintDot();
+    if (activeScreen === 'students') this.renderFinished();
   },
 
   async publish(links = null) {
@@ -316,6 +376,7 @@ export const Students = {
       console.error('Loading Students failed', e);
       this.failed = true;
     }
+    if (this.uid === uid) await this.checkFinished({ force: true });
     this.paintDot();
     this.render();
   },
@@ -336,6 +397,7 @@ export const Students = {
       const here = list.find(h => h.id === run.id);
       if (here) here.done = Math.min(this.hwTarget(here), (here.done || 0) + run.addDone);
       if (here && run.addIds.length) here.doneIds = [...new Set([...(here.doneIds || []), ...run.addIds])];
+      if (here && run.addResults.length) here.results = [...new Set([...(here.results || []), ...run.addResults])];
     }
     this.homework = list;
     await this.saveHwCounts();
@@ -361,13 +423,15 @@ export const Students = {
 
   // The gold dot, on the drawer entry AND on ☰ (the drawer is closed most of
   // the time): an invite waits for my answer, OR a homework I have not seen
-  // yet, OR (teacher) a student finished homework since I last opened their
-  // page. The teacher part uses the cached summaries — teachers still cost no
-  // reads at boot, so it lights after a Students visit, not by itself.
+  // yet, OR (teacher) a student finished homework: a line in the "Finished
+  // homework" strip that has not been on screen (stage 6 — checkFinished()
+  // asks at app open), or their summary's hwDone rose since I last opened
+  // their page (cached summaries, so that part lights after a Students visit).
   paintDot() {
     const seen = new Set(this.hwSeen);
     const on = this.asStudent.some(l => l.status === 'pending')
       || this.homework.some(h => h.status === 'open' && !seen.has(h.id))
+      || this.finNew.some(x => !x.seen)
       || this.newDone().length > 0;
     document.querySelector('#tabbar button[data-screen="students"]')?.classList.toggle('has-dot', on);
     $('tabmenu-btn')?.classList.toggle('has-dot', on);
@@ -406,9 +470,124 @@ export const Students = {
     note.textContent = noteText;
     note.classList.toggle('hidden', !noteText);
     if (!signedIn) { paintCapCounter('stu-count', null, MAX_STUDENTS); return; }
+    this.renderFinished();
     this.renderTeachers();
     this.renderHomework();
     this.renderStudents();
+  },
+
+  // ── Finished homework (stage 6, I am the teacher) ──
+  // One line per homework a student finished that I have not opened: who and
+  // what. Tapping opens how it went and takes the line away; "Clear" removes
+  // them all. Being on screen is what puts the gold dot out.
+  renderFinished() {
+    const wrap = $('stu-fin');
+    const el = $('stu-fin-list');
+    el.innerHTML = '';
+    const mine = new Set(this.asTeacher.filter(l => l.status === 'active').map(l => l.studentUid));
+    const items = this.finNew.filter(x => mine.has(x.studentUid)).sort((a, b) => b.doneMs - a.doneMs);
+    wrap.classList.toggle('hidden', !items.length);
+    if (!items.length) return;
+    for (const x of items) {
+      const p = this.who(x.studentUid);
+      const row = document.createElement('button');
+      row.className = 'fr-row tappable fin-row';
+      row.innerHTML = this.nameHtml(p, `${x.title} · ${this.fmtDay(x.doneMs)}`) +
+        `<span class="fin-go" aria-hidden="true">›</span>`;
+      row.onclick = () => {
+        this.finDrop([x]);
+        const h = (this.hwGiven[x.studentUid] || []).find(g => g.id === x.id);
+        if (h) this.resultsSheet(h, p); else toast(t('hwr_gone'));
+      };
+      el.appendChild(row);
+    }
+    $('stu-fin-clear').onclick = () => this.finDrop(items);
+    if (activeScreen === 'students' && items.some(x => !x.seen)) {
+      for (const x of items) x.seen = true;
+      this.writeCache();
+      this.paintDot();
+    }
+  },
+
+  // Lines leave the strip. The roster's "new" chip says the same thing from
+  // the summary, so it goes out for those students too.
+  finDrop(items) {
+    const ids = new Set(items.map(x => x.id));
+    this.finNew = this.finNew.filter(x => !ids.has(x.id));
+    for (const x of items) {
+      const r = this.reports[x.studentUid];
+      if (r) this.doneSeen[x.studentUid] = r.hwDone || 0;
+    }
+    this.writeCache();
+    this.paintDot();
+    if (activeScreen === 'students') { this.renderFinished(); this.renderStudents(); }
+  },
+
+  // "0:42" / "12:05".
+  fmtClock(sec) {
+    const s = Math.max(0, Math.round(sec || 0));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  },
+
+  // How a homework went: totals, then every attempt in the order it was made
+  // — first try or not, the puzzle's rating and themes, the time. A line
+  // opens the position in the puzzle-log replay. Everything here was written
+  // by the student's phone: entries that are not exactly the stored shape are
+  // dropped by unpackResult, and what is left is drawn with esc().
+  resultsSheet(h, p) {
+    const hasDetail = h.kind === 'puzzles' || h.kind === 'list';
+    const rs = hasDetail && Array.isArray(h.results) ? h.results.map(unpackResult).filter(Boolean) : [];
+    return modal((box, close) => {
+      box.classList.add('hwr-sheet');
+      box.innerHTML = `<h3>${esc(t('hwr_title').replace('{n}', p.profileName))}</h3>`;
+      const head = document.createElement('div');
+      head.className = 'fr-row stack hw-card';
+      head.innerHTML = this.hwRowHtml(h, null, true);
+      box.appendChild(head);
+      if (!rs.length) {
+        const none = document.createElement('p');
+        none.className = 'hint empty-note';
+        none.textContent = t(hasDetail ? 'hwr_none' : 'hwr_no_puzzles');
+        box.appendChild(none);
+      } else {
+        const right = rs.filter(r => r.ok).length;
+        const secs = rs.reduce((n, r) => n + r.secs, 0);
+        const cell = (key, v) => `<div class="stu-stat"><span>${esc(t(key))}</span><b>${esc(v)}</b></div>`;
+        const tot = document.createElement('div');
+        tot.className = 'stu-stats hwr-totals';
+        tot.innerHTML = cell('hwr_right', `✓ ${right}`) + cell('hwr_wrong', `✗ ${rs.length - right}`) +
+          cell('hwr_accuracy', `${Math.round(right / rs.length * 100)}%`) +
+          cell('hwr_avg', this.fmtClock(secs / rs.length));
+        box.appendChild(tot);
+        const hint = document.createElement('p');
+        hint.className = 'hint';
+        hint.textContent = t(h.results.length >= MAX_HW_RESULTS ? 'hwr_capped' : 'hwr_hint').replace('{n}', MAX_HW_RESULTS);
+        box.appendChild(hint);
+        const list = document.createElement('div');
+        list.className = 'list hwr-list';
+        rs.forEach((r, i) => {
+          const themes = r.puzzle.themes.slice(0, 2).map(x => this.themeName(x)).join(', ');
+          const title = t('log_review_title').replace('{n}', i + 1);
+          const what = `${t(r.ok ? 'hwr_first_try' : 'hwr_not_first')} · ${t('log_rating').replace('{n}', r.puzzle.rating)} · ⏱ ${this.fmtClock(r.secs)}`;
+          const row = document.createElement('button');
+          row.className = 'hwr-row ' + (r.ok ? 'ok' : 'miss');
+          row.innerHTML = `<b class="hwr-mark" aria-hidden="true">${r.ok ? '✓' : '✗'}</b>` +
+            `<span class="fr-name">${esc(title)} · ${esc(r.puzzle.rating)}` +
+            `<span class="fr-sub">${esc(themes)}</span></span>` +
+            `<span class="hwr-time">${esc(this.fmtClock(r.secs))}</span>`;
+          row.setAttribute('aria-label', `${title} — ${what}`);
+          row.onclick = () => PuzzleLog.show(r.puzzle, title, what);
+          list.appendChild(row);
+        });
+        box.appendChild(list);
+      }
+      const ok = document.createElement('button');
+      ok.className = 'btn primary big';
+      ok.style.marginTop = '10px';
+      ok.textContent = t('close');
+      ok.onclick = () => close(null);
+      box.appendChild(ok);
+    });
   },
 
   // ── My teachers (I am the student) ──
@@ -780,6 +959,7 @@ export const Students = {
     if (this.hwRun && this.hwRun.id !== h.id) this.hwEnd();
     if (!this.hwRun) {
       this.hwRun = { id: h.id, kind: h.kind, addDone: 0, addSec: 0, addIds: [], counted: new Set(),
+        addResults: [], pzId: null, pzSec: 0,     // stage 6: per-puzzle results + this puzzle's seconds
         timer: setInterval(() => this.hwTick(), 1000) };
     }
     return this.hwRun;
@@ -805,10 +985,39 @@ export const Students = {
     const run = this.hwRun;
     if (!run) return;
     if (this.hwOnTask(run)) {
-      if (Activity.current()) run.addSec++;
-    } else if (run.addDone || run.addSec) {
+      if (!Activity.current()) return;
+      run.addSec++;
+      // The same practising second, also on the puzzle on the board (stage 6).
+      const id = Puzzles.current ? Puzzles.current.id : null;
+      if (id !== run.pzId) { run.pzId = id; run.pzSec = 0; }
+      run.pzSec++;
+    } else if (run.addDone || run.addSec || run.addResults.length) {
       this.hwSave();                      // left the task: save the bundle
     }
+  },
+
+  // Stage 6. Puzzles.log() calls this once for every homework puzzle that
+  // ENDS — solved first try (ok), or not: solved after a mistake or a hint,
+  // solution shown, or left after a wrong move. A puzzle skipped untouched is
+  // not an attempt. Wrong ones do not count toward `done` (Adrian's choice);
+  // they are only shown to the teacher. Past the caps the detail stops and
+  // the count carries on.
+  hwResult(puzzle, ok) {
+    const run = this.hwRun;
+    const h = run && this.homework.find(x => x.id === run.id);
+    if (!h || h.status !== 'open' || (h.kind !== 'puzzles' && h.kind !== 'list')) return;
+    const secs = run.pzId === puzzle.id ? run.pzSec : 0;
+    run.pzSec = 0;
+    const s = packResult(puzzle, ok, secs);
+    const all = Array.isArray(h.results) ? h.results : (h.results = []);
+    if (!s || all.includes(s) || all.length >= MAX_HW_RESULTS) return;
+    if (all.reduce((n, x) => n + x.length + 1, 0) + s.length > MAX_HW_RESULTS_CHARS) return;
+    all.push(s);
+    run.addResults.push(s);
+    // A first-try solve goes on to hwSolved(), which saves; a miss saves here.
+    if (ok) return;
+    if (run.addResults.length >= HW_SAVE_EVERY) this.hwSave();
+    else this.writeCache();
   },
 
   // Called from the Puzzles first-try-solve branch (js/app.js) when the puzzle
@@ -835,7 +1044,7 @@ export const Students = {
       Puzzles.paintHomework();
     }
     if (h.done >= target) { this.hwFinish(h); return; }
-    if (run.addDone >= HW_SAVE_EVERY) this.hwSave();
+    if (run.addDone >= HW_SAVE_EVERY || run.addResults.length >= HW_SAVE_EVERY) this.hwSave();
     else this.writeCache();
   },
 
@@ -845,12 +1054,12 @@ export const Students = {
   hwSave({ finish = false } = {}) {
     const run = this.hwRun;
     if (!run) return;
-    const addDone = run.addDone, addSeconds = run.addSec, addIds = run.addIds;
-    run.addDone = 0; run.addSec = 0; run.addIds = [];
+    const addDone = run.addDone, addSeconds = run.addSec, addIds = run.addIds, addResults = run.addResults;
+    run.addDone = 0; run.addSec = 0; run.addIds = []; run.addResults = [];
     const h = this.homework.find(x => x.id === run.id);
     if (h) h.seconds = Math.min(360000, (h.seconds || 0) + addSeconds);
-    if (!addDone && !addSeconds && !finish) return;
-    saveHomeworkProgress(run.id, { addDone, addSeconds, finish, addIds })
+    if (!addDone && !addSeconds && !finish && !addResults.length) return;
+    saveHomeworkProgress(run.id, { addDone, addSeconds, finish, addIds, addResults })
       .catch(e => console.error('Saving homework progress failed', e));
     this.writeCache();
   },
@@ -978,9 +1187,15 @@ export const Students = {
       for (const h of sorted) {
         const row = document.createElement('div');
         row.className = 'fr-row stack hw-card' + (h.status === 'open' ? '' : ' done');
+        // Results (stage 6): how each puzzle went. Puzzle kinds only — a
+        // task or a chapter has nothing to list.
+        const detail = h.kind === 'puzzles' || h.kind === 'list';
         row.innerHTML = this.hwRowHtml(h, null, true) +
-          `<span class="fr-actions"><button class="btn small danger">${esc(t('hw_delete'))}</button></span>`;
-        row.querySelector('.fr-actions .btn').onclick = () => this.deleteHw(h, refresh);
+          `<span class="fr-actions">` +
+          (detail ? `<button class="btn small hw-results">${esc(t('hwr_open'))}</button>` : '') +
+          `<button class="btn small danger">${esc(t('hw_delete'))}</button></span>`;
+        if (detail) row.querySelector('.hw-results').onclick = () => this.resultsSheet(h, p);
+        row.querySelector('.fr-actions .btn.danger').onclick = () => this.deleteHw(h, refresh);
         list.appendChild(row);
       }
     };

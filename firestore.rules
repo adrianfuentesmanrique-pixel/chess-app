@@ -769,6 +769,43 @@ service cloud.firestore {
         && hwIdOk(ids, 16) && hwIdOk(ids, 17) && hwIdOk(ids, 18) && hwIdOk(ids, 19);
     }
 
+    // How each puzzle went (stage 6): one string per ATTEMPT, written by the
+    // student's phone for 'puzzles' and 'list' —
+    //     <packed puzzle as in hwPzOk>|<1 first try, 0 not>|<seconds>
+    // The whole puzzle is in it so the teacher's phone can redraw the position
+    // without loading that rating band. Wrong attempts are recorded too and a
+    // list puzzle can come back, so this is NOT bounded by the target: ≤ 300.
+    //
+    // 300 entries cannot be walked one by one (the 1,000-expression limit, see
+    // hwPzOk), so the list is JOINED and matched ONCE: a handful of
+    // expressions whatever its length. ';' is in no entry's alphabet, so it
+    // can only be the separator. The joined size bounds the document (≈ 120 KB
+    // of results, far under Firestore's 1 MB). Only grows, in order: the app
+    // sends arrayUnion(). Like every progress field it is self-reported — these
+    // clauses reject impossible values, they prove nothing was solved.
+    function hwResultRe() {
+      // The first five parts are hwPzOk's regex, unchanged.
+      return '[A-Za-z0-9_-]{1,40}[|]'
+        + '[1-8pnbrqkPNBRQK/]{15,71} [wb] [-KQkq]{1,4} [-a-h1-8]{1,2} [0-9]{1,3} [0-9]{1,4}[|]'
+        + '[a-h][1-8][a-h][1-8][qrbn]?( [a-h][1-8][a-h][1-8][qrbn]?){0,39}[|]'
+        + '(4000|[0-3]?[0-9]{1,3})[|]'
+        + '([A-Za-z0-9]{1,40}( [A-Za-z0-9]{1,40}){0,19})?[|]'
+        + '[01][|][0-9]{1,5}';
+    }
+    function hwResultsOk(old, rs) {
+      return old.kind in ['puzzles', 'list']
+        && rs is list && rs.size() >= 1 && rs.size() <= 300
+        // Only grows, and what was there stays where it was: the old list is
+        // a PREFIX of the new one (arrayUnion appends), so attempts can be
+        // neither dropped nor reordered (rules audit, stage 6).
+        && rs.size() >= old.get('results', []).size()
+        // (An empty range is an error in rules, hence the size() == 0 arm.)
+        && (old.get('results', []).size() == 0
+            || rs[0:old.get('results', []).size()] == old.get('results', []))
+        && rs.join(';').size() <= 120000
+        && rs.join(';').matches('(' + hwResultRe() + ';)*' + hwResultRe());
+    }
+
     // What `done` counts up to: the puzzle count, the length of a list, or 1
     // for a text task or a chapter.
     function hwTargetOk(d, n) {
@@ -821,7 +858,7 @@ service cloud.firestore {
         && after().createdAt == request.time;
 
       // Only the STUDENT, and only the progress fields: the diff allows
-      // done / seconds / status / completedAt and nothing else, so the task
+      // done / seconds / status / completedAt (+ doneIds, results) and nothing else, so the task
       // (kind, title, count, band, who) can never be edited — the teacher
       // deletes and re-creates instead. Counters only go up (the app sends
       // increment(), so two phones add up instead of overwriting), `done` never
@@ -838,7 +875,11 @@ service cloud.firestore {
       // nothing either way (plan Part 1, point 2).
       allow update: if signedIn()
         && resource.data.studentUid == me()
-        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt', 'doneIds'])
+        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt', 'doneIds', 'results'])
+        // results (stage 6): how each puzzle went — see hwResultsOk. Keyed on
+        // the diff for the same reason as doneIds below.
+        && (!('results' in after().diff(resource.data).affectedKeys())
+            || hwResultsOk(resource.data, after().results))
         // Keyed on the DIFF, not on presence: deleting the field (deleteField())
         // lands in the checks below and errors, so it cannot shrink that way
         // either (rules auditor, stage 5).

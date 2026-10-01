@@ -2,6 +2,85 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS STAGE 6 — FINISHED-HOMEWORK NOTICE + PER-PUZZLE RESULTS
+  (2026-09-30).** Committed on `main`, NOT pushed, NOT deployed. **Adrian
+  must run `npm.cmd run rules:deploy` AND `npm.cmd run indexes:deploy`
+  BEFORE `git push`** (new rule field + one new index). `sw.js` v118 →
+  **v119**. A stage on top of the "complete" plan; still no push, no Cloud
+  Functions, no email (Blaze stays off).
+  - **Adrian's decisions:** a WRONG puzzle does NOT count toward `done` (only
+    first-try solves, as before) — it only shows in the results. The teacher
+    check runs at app open AND on returning to the app after 15+ minutes.
+  - **(A) Notice.** `Students.checkFinished()` → `fetchFinishedHomework(since)`
+    = ONE query `teacherUid == me, completedAt > since, orderBy completedAt,
+    limit 20` (index `homework (teacherUid, completedAt)` in
+    `firestore.indexes.json`; only finished homework has `completedAt`, so no
+    status filter). **Cost: 0 reads with no accepted student** (decided from
+    the cached roster, `hasStudents()`), **1 read when nothing is new, 1 per
+    finished homework otherwise.** Runs from `onAuth` (boot), `visibilitychange`
+    → visible, `online`, throttled to 15 min (`FIN_CHECK_MS`), and forced by
+    `load()` (opening Students). First check on a phone looks back 14 days.
+    `finSeenAt` = newest `completedAt` ms + 1 (from `doneMs`, taken off the
+    Timestamp before caching). Results go into `hwGiven`, so the sheet opens
+    with no further read. `finNew` (in `studentsCache`) feeds the gold dot
+    (unseen lines) and the "🔔 Finished homework" strip `#stu-fin` on top of
+    Students (all four kinds). A line opens the results sheet and leaves the
+    strip; "Clear" drops all; both also settle that student's roster "new"
+    chip (`doneSeen`). Limit: a phone with no cached roster lights only after
+    its first Students visit.
+  - **(B) Results.** New field `results` on `homework`: one string per
+    ATTEMPT, `<packed puzzle>|<1 first try / 0 not>|<seconds>`
+    (`packResult` / `unpackResult` in `js/firebase.js`) — the whole puzzle, so
+    the teacher's phone needs no rating band. Kinds `puzzles` and `list`.
+    Written by `Students.hwResult(puzzle, ok)`, called from **`Puzzles.log()`**
+    (the one place every ending passes: solved, solved after a mistake/hint,
+    solution shown, left after a wrong move; `exitHomework` now logs a failed
+    unlogged puzzle too). A puzzle skipped untouched is not an attempt. In the
+    solve branch `hwSolved` moved to AFTER `log()` so the finishing save
+    carries the last result. Seconds are the run's practising seconds on that
+    puzzle (`run.pzSec`, same `Activity.current()` rule as the total), not the
+    wall clock. A list puzzle that comes back appears twice (✗ then ✓).
+    Bundled with the existing saves (`addResults` → `arrayUnion`; also every 5
+    results). Caps `MAX_HW_RESULTS` 300 / `MAX_HW_RESULTS_CHARS` 120,000 —
+    past them detail stops, the count goes on. **If a save with results is
+    refused, `saveHomeworkProgress` retries once without them** (cap filled by
+    a second phone, or stage 6 rules not deployed yet): the count is never
+    lost for the sake of the detail.
+  - **Rules:** `results` joins the student's allowed diff. `hwResultsOk`:
+    kinds puzzles/list only, list of 1–300, the OLD list must be a PREFIX of
+    the new one (no drop, no reorder — auditor finding, fixed; an empty range
+    errors in rules, hence the `size() == 0` arm), and **the list is JOINED
+    with ';' and matched ONCE** against `(entry;)*entry` — a handful of
+    expressions for any length, so 300 fit the 1,000-expression limit; joined
+    size ≤ 120,000 bounds the document far under 1 MB. Create still refuses
+    the field. **Emulator-proven only**: production's regex engine has not
+    seen a 100 KB match yet — the retry above is the safety net.
+  - **Tests:** `tests/rules/homework.test.js` 57 → 68; **313/313** total;
+    `test:tree` 15/15. Auditor 5/5 after the prefix fix.
+  - **Teacher view:** `Students.resultsSheet(h, p)` — "Results" button on
+    every puzzles/list row of the student page, and from the strip. Totals
+    (first try, missed, accuracy, average time), every attempt in order with
+    ✓/✗, rating, two themes, time; a line opens the position in
+    `PuzzleLog.show()` (the log's replay, split out of `review()`;
+    `PuzzleLog` is now exported). Old homework → "No detail recorded";
+    text/chapter → "no puzzles to show".
+  - **Verified** (`tools/stu6-seed.js` + `tools/cdp-verify-students6.mjs`,
+    headless CDP, 375px, EN/ES × light/dark, 0 console errors): **REALLY
+    PLAYED** through `Puzzles.userMove`: a 3-puzzle homework — right, wrong +
+    skipped, wrong + then solved, right, right → done 3/3, status done,
+    results ✓ ✗ ✗ ✓ ✓ with 3–6 s each, total 28 s; a 3-puzzle list — #1 wrong
+    and left, #2 ✓, #3 ✓, #1 came back ✓ → 4 results; the teacher sheet drawn
+    from those played results (60 %, rows, position opens); the strip line →
+    sheet → line gone; Clear → strip hidden, dot off; `checkFinished` did not
+    run with no students, ran with one, and the second call was throttled;
+    offline boot serves v119 and the sheet + position open offline.
+    **SEEDED:** every Firestore-backed thing — the links, the homework, the
+    two strip lines, the 14-attempt results in the screenshots, the old
+    homework without results. The played results reached the teacher sheet
+    inside one page, not through Firestore. The query itself is covered by
+    the rules test only. **No two-account flow ran live** (App Check), and
+    the seed stubs `Students.load` (it would wipe the seed on screen entry).
+
 - **STUDENTS STAGE 5 — HOMEWORK PART 2: CHAPTERS + PUZZLE LISTS
   (2026-09-30).** Committed on `main`, NOT pushed. **RULES CHANGED: Adrian
   must run `npm.cmd run rules:deploy` BEFORE `git push`.** Stage 4's rules

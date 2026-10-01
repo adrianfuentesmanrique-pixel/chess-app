@@ -644,6 +644,23 @@ const DICT = {
   hw_card_new: { es: 'nuevo', en: 'new' },
   hw_status_done: { es: 'Hecho', en: 'Done' },
   hw_status_open: { es: 'Abierto', en: 'Open' },
+  // Students stage 6: the teacher is told a homework is finished, and sees how
+  // every puzzle went.
+  hwr_strip: { es: '🔔 Deberes terminados', en: '🔔 Finished homework' },
+  hwr_clear: { es: 'Quitar', en: 'Clear' },
+  hwr_open: { es: 'Resultados', en: 'Results' },
+  hwr_title: { es: 'Resultados de {n}', en: '{n}\'s results' },
+  hwr_right: { es: 'A la primera', en: 'First try' },
+  hwr_wrong: { es: 'Falladas', en: 'Missed' },
+  hwr_accuracy: { es: 'Acierto', en: 'Accuracy' },
+  hwr_avg: { es: 'Tiempo medio', en: 'Avg. time' },
+  hwr_first_try: { es: 'Resuelto a la primera', en: 'Solved first try' },
+  hwr_not_first: { es: 'No salió a la primera', en: 'Not solved first try' },
+  hwr_hint: { es: 'Cada intento, en orden. Toca uno para ver la posición. Solo cuentan para los deberes los resueltos a la primera.', en: 'Every attempt, in order. Tap one to see the position. Only first-try solves count toward the homework.' },
+  hwr_capped: { es: 'Se guardan los primeros {n} intentos; después solo sigue la cuenta.', en: 'The first {n} attempts are kept; after that only the count goes on.' },
+  hwr_none: { es: 'No hay detalle guardado de estos deberes.', en: 'No detail recorded for this homework.' },
+  hwr_no_puzzles: { es: 'Este tipo de deberes no tiene puzzles que mostrar.', en: 'This kind of homework has no puzzles to show.' },
+  hwr_gone: { es: 'Esos deberes ya no están.', en: 'That homework is no longer there.' },
   // Students homework (stage 5): chapters and hand-picked lists.
   hw_kind_chapter: { es: '📖 Capítulo', en: '📖 Chapter' },
   hw_kind_list: { es: '🎯 Lista', en: '🎯 List' },
