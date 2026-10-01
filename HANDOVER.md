@@ -406,8 +406,14 @@
     `31:65:2A:79:91:5C:30:D8:29:54:2D:C6:FA:9C:0F:88:FE:4E:24:E6:16:A5:F3:16:9F:A0:94:1B:3D:F6:C3:AB`
     (confirmed against Adrian's pasted text). Now in
     `assetlinks.json` with the other three. **Lesson: take the fingerprint
-    from the "Digital Asset Links JSON" box, not the key tiles.** Phone
-    confirmation still pending.
+    from the "Digital Asset Links JSON" box, not the key tiles.**
+  - **CONFIRMED ON ADRIAN'S PHONE (2026-09-30): "perfect. now is
+    working"** after the `31:65…` fingerprint went live (Play build 1.0.5,
+    Brave as default browser). Basis: his report; he did not itemise
+    address bar / PDF / PGN separately. **CLOSED.** No Android change, no
+    new AAB, `LauncherActivity` untouched, no Chrome pin. Only
+    `.well-known/assetlinks.json` changed (4 fingerprints: upload `4D:50…`,
+    Play snippet `31:65…`, classical `CD:C1…`, post-quantum `AC:D4…`).
 
 - **"OPEN WITH" / SHARE A PDF OR PGN FROM ANOTHER APP NOW REACHES CTC
   (2026-09-29).** `sw.js` v112 → **v113**. Web side committed on `main` (NOT
