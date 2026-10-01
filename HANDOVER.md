@@ -404,7 +404,7 @@
     fingerprint — the one Google says to use (presumably the original
     signing key from 26 Jul 2026, still first in the rotation lineage):
     `31:65:2A:79:91:5C:30:D8:29:54:2D:C6:FA:9C:0F:88:FE:4E:24:E6:16:A5:F3:16:9F:A0:94:1B:3D:F6:C3:AB`
-    (read off a screenshot — confirm against pasted text). Now in
+    (confirmed against Adrian's pasted text). Now in
     `assetlinks.json` with the other three. **Lesson: take the fingerprint
     from the "Digital Asset Links JSON" box, not the key tiles.** Phone
     confirmation still pending.
