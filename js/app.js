@@ -2773,8 +2773,7 @@ const Base = {
     for (const g of page) {
       const item = document.createElement('button');
       item.className = 'list-item';
-      const sub = [g.event, g.date].filter(x => x && x !== '?').join(' · ');
-      item.innerHTML = `<b>${esc(g.white)} – ${esc(g.black)}  <span class="result">${esc(g.result ?? '*')}</span></b><span class="sub">${esc(sub)}</span>`;
+      item.innerHTML = gameRowHtml(g);
       item.onclick = () => this.openGame(g);
       item.oncontextmenu = (e) => { e.preventDefault(); this.gameMenu(g); };
       // long-press for mobile
@@ -2922,6 +2921,14 @@ function normalizeSearch(s) {
 
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// One game as a .list-item's contents: "White – Black  result" over
+// "event · date". Shared by the Bases game list and the Openings game picker so
+// a game reads the same wherever it is listed.
+function gameRowHtml(g) {
+  const sub = [g.event, g.date].filter(x => x && x !== '?').join(' · ');
+  return `<b>${esc(g.white)} – ${esc(g.black)}  <span class="result">${esc(g.result ?? '*')}</span></b><span class="sub">${esc(sub)}</span>`;
 }
 
 // ═════════════════════ LIMITS & STORAGE ═════════════════════
@@ -3511,13 +3518,17 @@ function treeFromHistory(startFen, sanList) {
 
 // ═════════════════════ OPENING TRAINER ═════════════════════
 
-const Trainer = {
+export const Trainer = {
   board: null,
   chess: null,
   playerColor: 'w',
   level: 2,
   book: null,        // Map fenKey -> {san: count}
-  bookBaseId: null,
+  bookKey: null,     // what `book` was built from: "baseId|gameId" (gameId empty = whole base)
+  oneGame: false,    // "practice one game only" toggle
+  game: null,        // summary of the chosen game while oneGame is on
+  restored: false,   // the remembered base/toggle/game is read back once per launch
+  previewSeq: 0,
   inBook: true,
   over: false,
   thinking: false,
@@ -3531,7 +3542,9 @@ const Trainer = {
     segInit($('trainer-color'));
     segInit($('trainer-level'));
     this.board = new Board($('trainer-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
-    $('trainer-base').addEventListener('change', () => this.previewBook());
+    $('trainer-base').addEventListener('change', () => this.baseChanged());
+    $('trainer-one').addEventListener('change', () => this.toggleOneGame());
+    $('trainer-game-pick').onclick = () => this.pickGame();
     $('trainer-start').onclick = () => this.start();
     // Leaving mid-game must drop a queued pre-move, or it outlives the game:
     // the abandoned computerMove() still runs its finally, and a guess that
@@ -3655,27 +3668,158 @@ const Trainer = {
   async refreshBases() {
     const bases = (await db.listBases()).filter(b => b.count > 0);
     const sel = $('trainer-base');
-    const prev = sel.value;
+    // The last base / toggle / game, remembered on this device only
+    // ('trainerPick' is not a synced key — game ids mean nothing elsewhere).
+    const saved = this.restored ? null : await db.kvGet('trainerPick', null);
+    this.restored = true;
+    const prev = saved ? String(saved.baseId) : sel.value;
     sel.innerHTML = '';
     if (!bases.length) {
       const o = document.createElement('option');
       o.textContent = t('no_book_bases'); o.value = '';
       sel.appendChild(o);
       $('trainer-book-info').textContent = '';
+      this.game = null;
+      this.renderPick();
       return;
     }
     for (const b of bases) {
       const o = document.createElement('option');
       o.value = b.id; o.textContent = `${b.name} (${b.count} ${tn('games', b.count)})`;
+      o.dataset.count = b.count;
       sel.appendChild(o);
     }
     if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+    if (saved && sel.value === String(saved.baseId)) {
+      this.oneGame = !!saved.oneGame;
+      if (saved.gameId) this.game = { id: saved.gameId };
+    }
+    await this.syncGame({ fallBack: true });
+    this.renderPick();
     this.previewBook();
   },
 
-  async buildBook(baseId) {
-    if (this.book && this.bookBaseId === baseId) return this.book;
-    const games = await db.listGames(baseId);
+  // Makes `game` agree with the selected base. The chosen game may have been
+  // deleted, or its base removed, since it was picked — then it is dropped. A
+  // base holding a single game needs no picking at all.
+  async syncGame({ fallBack = false } = {}) {
+    const sel = $('trainer-base');
+    const baseId = +sel.value;
+    if (this.game) {
+      const g = await db.getGame(this.game.id);
+      this.game = g && g.baseId === baseId ? db.gameSummary(g) : null;
+      // Coming back to a game that no longer exists: return to the whole base
+      // rather than quietly practising some other game in its place.
+      if (!this.game && fallBack) { this.oneGame = false; this.savePick(); }
+    }
+    if (this.oneGame && !this.game && sel.selectedOptions[0]?.dataset.count === '1') {
+      this.game = (await db.listGameSummaries(baseId))[0] ?? null;
+    }
+  },
+
+  renderPick() {
+    const hasBase = !!+$('trainer-base').value;
+    const cb = $('trainer-one');
+    // No base, nothing to toggle: the whole line goes, as the empty count did.
+    $('trainer-one-row').classList.toggle('hidden', !hasBase);
+    cb.disabled = !hasBase;
+    cb.checked = hasBase && this.oneGame;
+    const btn = $('trainer-game-pick');
+    btn.classList.toggle('hidden', !cb.checked);
+    btn.classList.toggle('empty', !this.game);
+    btn.innerHTML = this.game ? gameRowHtml(this.game) : esc(t('trainer_pick_game'));
+  },
+
+  savePick() {
+    db.kvSet('trainerPick', { baseId: +$('trainer-base').value, oneGame: this.oneGame, gameId: this.game?.id ?? null });
+  },
+
+  // A game belongs to one base, so a new base always starts with none chosen.
+  async baseChanged() {
+    this.game = null;
+    await this.syncGame();
+    this.renderPick();
+    this.savePick();
+    this.previewBook();
+  },
+
+  async toggleOneGame() {
+    this.oneGame = $('trainer-one').checked;
+    await this.syncGame();
+    this.renderPick();
+    this.savePick();
+    this.previewBook();
+    if (this.oneGame && !this.game) this.pickGame();
+  },
+
+  // The Bases tab's game list in a sheet: same rows, same paging, plus a search
+  // box. Event and date are searched too — in a repertoire file they are often
+  // the only thing that tells one chapter from the next.
+  async pickGame() {
+    const baseId = +$('trainer-base').value;
+    if (!baseId) return;
+    const games = (await db.listGameSummaries(baseId)).sort((a, b) => b.updatedAt - a.updatedAt);
+    const picked = await modal((box, close) => {
+      box.innerHTML = `<h3>${esc(t('trainer_pick_title'))}</h3>`;
+      const search = document.createElement('input');
+      search.type = 'text'; search.className = 'input'; search.placeholder = t('search');
+      search.style.margin = '0';
+      const list = document.createElement('div');
+      list.className = 'list trainer-pick-list';
+      const PAGE = 200;
+      let shown = PAGE;
+      const draw = () => {
+        const q = normalizeSearch(search.value);
+        const hits = games.filter(g =>
+          !q || normalizeSearch([g.white, g.black, g.event, g.date].filter(Boolean).join(' ')).includes(q));
+        list.innerHTML = '';
+        if (!hits.length) {
+          list.innerHTML = `<p class="hint">${esc(t('trainer_pick_none'))}</p>`;
+          return;
+        }
+        const page = hits.slice(0, shown);
+        for (const g of page) {
+          const item = document.createElement('button');
+          item.className = 'list-item' + (g.id === this.game?.id ? ' on' : '');
+          item.innerHTML = gameRowHtml(g);
+          item.onclick = () => close(g);
+          list.appendChild(item);
+        }
+        if (hits.length > page.length) {
+          const more = document.createElement('button');
+          more.className = 'btn';
+          more.style.cssText = 'margin-top:8px; width:100%';
+          more.textContent = `${t('load_more')} (${t('games_shown')
+            .replace('{n}', page.length).replace('{total}', hits.length)})`;
+          more.onclick = () => { shown = page.length + PAGE; draw(); };
+          list.appendChild(more);
+        }
+      };
+      search.addEventListener('input', debounce(() => { shown = PAGE; draw(); }, 250));
+      const cancel = document.createElement('button');
+      cancel.className = 'btn'; cancel.textContent = t('cancel');
+      cancel.style.width = '100%';
+      cancel.onclick = () => close(null);
+      box.append(search, list, cancel);
+      draw();
+    });
+    // The base can have been switched while the sheet was open.
+    if (!picked || +$('trainer-base').value !== picked.baseId) return;
+    this.game = picked;
+    this.renderPick();
+    this.savePick();
+    this.previewBook();
+  },
+
+  // gameId = build from that one game; null = the whole base (its first 500).
+  // The cache key carries both, so going from the whole base to one game, or
+  // from one game to another, can never hand back the previous book.
+  async buildBook(baseId, gameId = null) {
+    const bookKey = `${baseId}|${gameId ?? ''}`;
+    if (this.book && this.bookKey === bookKey) return this.book;
+    const games = gameId
+      ? [await db.getGame(gameId)].filter(g => g && g.baseId === baseId)
+      : await db.listGames(baseId);
     const book = new Map();
     const bookComments = new Map();
     for (const g of games.slice(0, 500)) {
@@ -3700,7 +3844,7 @@ const Trainer = {
     }
     this.book = book;
     this.bookComments = bookComments;
-    this.bookBaseId = baseId;
+    this.bookKey = bookKey;
     return book;
   },
 
@@ -3708,14 +3852,19 @@ const Trainer = {
     const id = +$('trainer-base').value;
     if (!id) return;
     this.book = null;
-    const book = await this.buildBook(id);
-    $('trainer-book-info').textContent = `${book.size} ${t('book_moves')}`;
+    // Quick changes overlap; only the newest one may write the count.
+    const seq = ++this.previewSeq;
+    const info = $('trainer-book-info');
+    if (this.oneGame && !this.game) { info.textContent = t('trainer_pick_first'); return; }
+    const book = await this.buildBook(id, this.oneGame ? this.game.id : null);
+    if (seq === this.previewSeq) info.textContent = `${book.size} ${t('book_moves')}`;
   },
 
   async start() {
     const id = +$('trainer-base').value;
     if (!id) { toast(t('no_book_bases')); return; }
-    await this.buildBook(id);
+    if (this.oneGame && !this.game) { toast(t('trainer_pick_first')); this.pickGame(); return; }
+    await this.buildBook(id, this.oneGame ? this.game.id : null);
     this.playerColor = segValue($('trainer-color'));
     this.level = +segValue($('trainer-level'));
     this.chess = new Chess();

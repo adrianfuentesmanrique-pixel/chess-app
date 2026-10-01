@@ -808,6 +808,27 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .lvgrid button.on .lv-elo { color: var(--text); }
 .option-group { margin: 14px 0; }
 .option-group > label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 14px; }
+/* Openings: the "practice one game only" toggle, the chosen-game row under it,
+   and the picker's list (panel2 so the rows show on the sheet's panel colour).
+   The toggle shares ONE line with the book-move count, where the count alone
+   used to sit: a row of its own made this group ~48px taller, and the tour's
+   trainerSet frame (base → level) then no longer cleared Kael's card at 812px.
+   The label's bottom padding is cancelled by its margin, so the tap target is
+   taller than the line it occupies. */
+.trainer-one-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 0 12px; margin-top: 2px;
+}
+.trainer-one {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 0 10px; margin-bottom: -10px;
+  color: var(--text); font-size: 14px; line-height: 19px; cursor: pointer;
+}
+.trainer-one input { width: 16px; height: 16px; accent-color: var(--accent); flex: 0 0 auto; margin: 0; }
+#trainer-game-pick { width: 100%; margin: 10px 0 0; background: var(--panel2); }
+#trainer-game-pick.empty { color: var(--accent); font-weight: 700; }
+.trainer-pick-list .list-item { background: var(--panel2); }
+.trainer-pick-list .list-item.on { outline: 2px solid var(--accent); }
 
 /* ── move list ─────────────────────────── */
 .movelist {

@@ -279,6 +279,12 @@ const DICT = {
   out_of_book: { es: '🧠 Fuera de la base (motor)', en: '🧠 Out of book (engine)' },
   no_book_bases: { es: 'Primero crea una base con partidas en la pestaña Bases.', en: 'First create a database with games in the Databases tab.' },
   book_moves: { es: 'jugadas en el libro', en: 'book moves' },
+  // Short on purpose: it shares one line with "N jugadas en el libro" at 375px.
+  trainer_one_game: { es: 'Solo una partida', en: 'Practice one game only' },
+  trainer_pick_game: { es: 'Elegir partida…', en: 'Choose a game…' },
+  trainer_pick_title: { es: 'Elige una partida', en: 'Choose a game' },
+  trainer_pick_first: { es: 'Elige una partida para practicar.', en: 'Choose a game to practice.' },
+  trainer_pick_none: { es: 'Ninguna partida coincide con la búsqueda.', en: 'No game matches your search.' },
   variation_started: { es: 'Nueva variante desde aquí.', en: 'New variation from here.' },
   // Puzzles
   puzzles_title: { es: 'Puzzles', en: 'Puzzles' },

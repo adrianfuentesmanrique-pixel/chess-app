@@ -2,6 +2,58 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **OPENINGS: PRACTISE ONE CHOSEN GAME (2026-10-01).** Committed on `main`,
+  NOT pushed, NOT deployed. No rules change, no IndexedDB schema change.
+  `sw.js` v123 → **v124**.
+  - **What it does:** under the database select on the Openings tab, a toggle
+    "Practice one game only" / "Solo una partida" (off by default = the whole
+    database, exactly as before). On: a row shows the chosen game; tapping it
+    opens a sheet with a search box and the base's games (same rows and
+    200-at-a-time paging as the Bases tab; search matches White, Black, event
+    and date). The book is then built from that ONE game, variations and
+    comments included, and the count next to the toggle is that game's.
+  - **Adrian's two decisions:** one game only (not several ticked games); the
+    last database / toggle / game ARE remembered, on this device only — kv key
+    `trainerPick` `{baseId, oneGame, gameId}`, deliberately not in
+    `SYNCED_KEYS` because game ids are local.
+  - **Code (`js/app.js`, `Trainer`, now exported for the verify script):**
+    `bookBaseId` is GONE, replaced by `bookKey` = `"baseId|gameId"` (gameId
+    empty = whole base) — that was the cache trap. `buildBook(baseId, gameId)`,
+    `syncGame()`, `renderPick()`, `savePick()`, `baseChanged()`,
+    `toggleOneGame()`, `pickGame()`. `gameRowHtml(g)` is the one game-row
+    markup, shared by `Bases.renderGames()` and the picker.
+  - **Rules it follows:** changing the database clears the game (the toggle
+    stays on and asks for one); a one-game database picks its game by itself;
+    toggling off and on keeps the game; Start with nothing chosen opens the
+    picker instead of starting; a remembered game that has since been deleted
+    drops back to the whole database rather than swapping in another game.
+  - **Layout trap, measured:** the toggle shares ONE line with the "N book
+    moves" count (`.trainer-one-row`). A row of its own made the group 48px
+    taller and Kael's card then covered part of the tour's `trainerSet` frame
+    (`#trainer-base` → `#trainer-level`) at 375x812. Now the default screen is
+    the same height as before and the card clears the level buttons by 1px —
+    there is NO spare room; anything added inside that frame breaks the step.
+    The Spanish label is short for the same reason.
+  - **Verified** by `tools/cdp-verify-onegame.mjs` (headless Chrome, 375px,
+    EN/ES × light/dark, 42/42): SEEDED straight into IndexedDB — four bases
+    (Morphy's Opera Game, Anderssen's Immortal Game, a Queen's Gambit study
+    with two variations and two comments; a one-game base; 450 synthetic
+    games). Really clicked: the toggle, the game rows, Start, Back; the search
+    box got real input events; the select was set and fired `change`. The
+    player's own moves went in through `Trainer.userMove`, not taps. Results:
+    whole base 81 positions; Opera 33; Immortal 41; study 11; as Black against
+    game A the computer played 1.e4 2.Nf3 six times of six, against game B
+    1.e4 2.f4 six of six; leaving the game's moves hands over to the engine;
+    reload and offline reload (service worker) keep the choice.
+    `npm.cmd run test:tree` 45/45.
+  - **Known, not new:** the book builder stops 40 plies deep (the 45-ply
+    Immortal Game counts 41), so the tail of a long game is never played from
+    the book — more visible now that one long game can be the whole book.
+    Restarting the tour from Settings WITH a game chosen makes the frame taller
+    than the space left, and the card then covers the database select; a
+    first-time user never sees that state.
+  - **Not tested:** a real phone, and real finger taps on the board.
+
 - **LIVE SEARCH: ONE CHANGED GAME NO LONGER RE-READS THE BASE (2026-10-01).**
   Committed on `main`, NOT pushed, NOT deployed. No rules change. **No
   IndexedDB schema change** (`DB_VER` stays 5 — one more hand-written key in
