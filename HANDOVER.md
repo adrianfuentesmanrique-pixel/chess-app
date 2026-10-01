@@ -398,6 +398,16 @@
     `CD:C1:9C:AD:D3:64:0C:7F:47:0B:C6:B5:E3:9B:A4:03:F3:84:86:BF:77:10:AF:10:BC:5B:B9:9E:9D:3C:FD:D0`.
     `assetlinks.json` now lists all three (upload `4D:50…`, classical
     `CD:C1…`, post-quantum `AC:D4…`). Phone confirmation still pending.
+  - **SECOND CORRECTION (same day): address bar still there with those
+    three.** The current app signing key shows "Install base 0.0%"; the
+    Play page's own **Digital Asset Links JSON** box gives a FOURTH
+    fingerprint — the one Google says to use (presumably the original
+    signing key from 26 Jul 2026, still first in the rotation lineage):
+    `31:65:2A:79:91:5C:30:D8:29:54:2D:C6:FA:9C:0F:88:FE:4E:24:E6:16:A5:F3:16:9F:A0:94:1B:3D:F6:C3:AB`
+    (read off a screenshot — confirm against pasted text). Now in
+    `assetlinks.json` with the other three. **Lesson: take the fingerprint
+    from the "Digital Asset Links JSON" box, not the key tiles.** Phone
+    confirmation still pending.
 
 - **"OPEN WITH" / SHARE A PDF OR PGN FROM ANOTHER APP NOW REACHES CTC
   (2026-09-29).** `sw.js` v112 → **v113**. Web side committed on `main` (NOT
