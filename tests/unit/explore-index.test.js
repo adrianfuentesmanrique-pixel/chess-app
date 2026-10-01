@@ -16,6 +16,7 @@ const PGN = {
   2: '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 *',                // Italian
   3: '1. d4 d5 2. c4 e6 (2... c6 3. Nf3) 3. Nc3 *',     // QGD, Slav as a variation
   4: '1. Nf3 Nc6 2. e4 e5 3. Bb5 *',                    // Ruy Lopez by another move order
+  5: '1. c4 e5 *',                                      // only the stored-index tests use this one
 };
 const summaries = ids => ids.map(id => ({ id, baseId: 7, white: 'W' + id, black: 'B' + id, updatedAt: 100 }));
 const fenAfter = moves => { const tr = parsePgn(moves + ' *'); tr.toEnd(); return tr.fen(); };
@@ -148,6 +149,66 @@ test('13. fast reader = parsePgn on 30 random games with side lines', () => {
     assert.deepEqual(viaFast(pgn), want, 'game ' + g + ': ' + pgn.slice(0, 200));
   }
   assert.ok(positions > 3000, 'the comparison covered ' + positions + ' positions');
+});
+
+// --- the index kept on disk ----------------------------------------------
+// sync() hands out the index in blocks of games as it goes (onBlock); load()
+// takes them back. `disk` stands in for the IndexedDB store.
+const START = fenAfter('');
+async function stored(gameIds, disk = new Map(), idx = new PositionIndex(), sums = summaries(gameIds)) {
+  const calls = [], written = [];
+  await idx.sync(sums, async id => { calls.push(id); return PGN[id]; }, {
+    blockSize: 2,
+    onBlock: (n, block) => { written.push(n); if (block) disk.set(n, block); else disk.delete(n); },
+  });
+  return { idx, disk, calls, written };
+}
+const reopen = disk => { const idx = new PositionIndex(); idx.load([...disk].map(([n, b]) => ({ n, ...b }))); return idx; };
+
+test('14. an index written in blocks reopens with the same answers and reads no game', async () => {
+  const { idx, disk, written } = await stored([1, 2, 3, 4]);
+  assert.deepEqual(written, [0, 1]);
+  const again = reopen(disk);
+  for (const moves of ['', '1. e4 e5 2. Nf3 Nc6', '1. e4 e5 2. Nf3 Nc6 3. Bb5', '1. d4 d5 2. c4 c6 3. Nf3', '1. h4']) {
+    assert.deepEqual(ids(again.find(fenAfter(moves))), ids(idx.find(fenAfter(moves))), moves);
+  }
+  assert.equal(again.bytes, idx.bytes);
+  const next = await stored([1, 2, 3, 4], disk, again);
+  assert.deepEqual(next.calls, []);
+  assert.deepEqual(next.written, []);
+});
+
+test('15. after reopening, an edit or a delete rewrites only its own block', async () => {
+  const { disk } = await stored([1, 2, 3, 4]);
+  const sums = summaries([1, 2, 3]);                     // game 4 deleted...
+  sums[0].updatedAt = 200;                               // ...and game 1 edited
+  const next = await stored(null, disk, reopen(disk), sums);
+  assert.deepEqual(next.calls, [1]);
+  assert.deepEqual(next.written.sort(), [0, 1]);
+  assert.deepEqual(ids(reopen(disk).find(START)), [1, 2, 3]);
+  // deleting the only game left in a block removes the block
+  const last = await stored([1, 2], disk, reopen(disk), sums.slice(0, 2));
+  assert.deepEqual(last.written, [1]);
+  assert.deepEqual([...disk.keys()], [0]);
+});
+
+test('16. an added game goes into the last block until it is full, then a new one', async () => {
+  const { disk } = await stored([1, 2, 3]);              // blocks: [1,2] [3]
+  const a = await stored([1, 2, 3, 4], disk, reopen(disk));
+  assert.deepEqual(a.calls, [4]);
+  assert.deepEqual(a.written, [1]);
+  const b = await stored([1, 2, 3, 4, 5], disk, reopen(disk));
+  assert.deepEqual(b.calls, [5]);
+  assert.deepEqual(b.written, [2]);
+  assert.deepEqual(ids(reopen(disk).find(START)), [1, 2, 3, 4, 5]);
+});
+
+test('17. a build that was cut short carries on from the blocks it saved', async () => {
+  const { disk } = await stored([1, 2, 3, 4]);
+  disk.delete(1);                                        // the app closed before block 1 was written
+  const next = await stored([1, 2, 3, 4], disk, reopen(disk));
+  assert.deepEqual(next.calls, [3, 4]);
+  assert.deepEqual(ids(reopen(disk).find(fenAfter('1. d4 d5'))), [3]);
 });
 
 test('11. the move counters do not matter, the side to move does', () => {

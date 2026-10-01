@@ -4,7 +4,9 @@ const DB_NAME = 'mi-ajedrez';
 // database instead of scanning every record in memory.
 // v3 adds the playHistory store for games played against the engine.
 // v4 adds the books store for the Read tab (PDF chess books, device-only).
-const DB_VER = 4;
+// v5 adds the posIndex store: the Analysis position search's index, kept so it
+// is built once per base instead of once per app start.
+const DB_VER = 5;
 
 let dbPromise = null;
 
@@ -46,6 +48,14 @@ function open() {
         const books = db.createObjectStore('books', { keyPath: 'id', autoIncrement: true });
         books.createIndex('openedAt', 'openedAt');
       }
+      if (e.oldVersion < 5) {
+        // A new, empty store — nothing is backfilled, so the upgrade is instant
+        // however large the bases are. Keys are written out by hand:
+        //   [baseId, 'block', n]  one block of the index (see explore-index.js)
+        //   [baseId, 'rev']       counts every write to that base's games
+        //   [baseId, 'built']     the 'rev' the stored blocks were built at
+        db.createObjectStore('posIndex');
+      }
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -61,6 +71,8 @@ function tx(store, mode, fn) {
     const out = fn(s);
     t.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
     t.onerror = () => reject(t.error);
+    // A full device aborts the transaction without an error event.
+    t.onabort = () => reject(t.error || new Error('aborted'));
   }));
 }
 
@@ -93,9 +105,10 @@ export function renameBase(id, name) {
 }
 
 export async function deleteBase(id) {
-  const games = await listGames(id);
-  gamesRev++;
-  await tx('games', 'readwrite', s => { for (const g of games) s.delete(g.id); });
+  const db = await open();
+  const ids = await reqToPromise(db.transaction('games').objectStore('games').index('baseId').getAllKeys(id));
+  // The base's stored position index goes in the same transaction as its games.
+  await gamesWrite((s, touch, pos) => { for (const k of ids) s.delete(k); pos.delete(posRange(id)); });
   await tx('bases', 'readwrite', s => s.delete(id));
 }
 
@@ -110,6 +123,32 @@ export async function getBase(id) {
 // anything, whether that index can still be trusted.
 export let gamesRev = 0;
 
+// gamesRev is forgotten when the app closes, and the position index is kept on
+// disk, so each base also has a counter ON DISK ([baseId, 'rev'] in posIndex).
+// Every write to the games store goes through here and bumps the counter of the
+// base it touches IN THE SAME TRANSACTION — the game and the bump land together
+// or not at all. A stored index is trusted only while its 'built' number equals
+// that counter, which is what lets an app start skip re-reading the base.
+// fn(games, touch, posIndex): call touch(baseId) for every base written to.
+function gamesWrite(fn) {
+  gamesRev++;
+  return open().then(database => new Promise((resolve, reject) => {
+    const t = database.transaction(['games', 'posIndex'], 'readwrite');
+    const pos = t.objectStore('posIndex');
+    const bumped = new Set();
+    const touch = baseId => {
+      if (typeof baseId !== 'number' || bumped.has(baseId)) return;
+      bumped.add(baseId);
+      const req = pos.get([baseId, 'rev']);
+      req.onsuccess = () => pos.put((req.result || 0) + 1, [baseId, 'rev']);
+    };
+    const out = fn(t.objectStore('games'), touch, pos);
+    t.oncomplete = () => resolve(out);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  }));
+}
+
 export async function listGames(baseId) {
   const db = await open();
   const idx = db.transaction('games').objectStore('games').index('baseId');
@@ -117,18 +156,24 @@ export async function listGames(baseId) {
 }
 
 export function addGame(game) {
-  gamesRev++;
-  return tx('games', 'readwrite', s => reqToPromise(s.add(game)));
+  return gamesWrite((s, touch) => { touch(game.baseId); return reqToPromise(s.add(game)); });
 }
 
 export function updateGame(game) {
-  gamesRev++;
-  return tx('games', 'readwrite', s => reqToPromise(s.put(game)));
+  return gamesWrite((s, touch) => {
+    // The base the game was in before, in case the edit moved it.
+    const old = s.get(game.id);
+    old.onsuccess = () => { if (old.result) touch(old.result.baseId); };
+    touch(game.baseId);
+    return reqToPromise(s.put(game));
+  });
 }
 
 export function deleteGame(id) {
-  gamesRev++;
-  return tx('games', 'readwrite', s => s.delete(id));
+  return gamesWrite((s, touch) => {
+    const old = s.get(id);
+    old.onsuccess = () => { if (old.result) touch(old.result.baseId); s.delete(id); };
+  });
 }
 
 export async function getGame(id) {
@@ -137,8 +182,44 @@ export async function getGame(id) {
 }
 
 export async function addGames(games) {
-  gamesRev++;
-  return tx('games', 'readwrite', s => { for (const g of games) s.add(g); });
+  return gamesWrite((s, touch) => { for (const g of games) { touch(g.baseId); s.add(g); } });
+}
+
+// --- the stored position index (see explore-index.js) ---
+// Everything stored for one base: its blocks, 'built' and 'rev'.
+function posRange(baseId) { return IDBKeyRange.bound([baseId], [baseId, []]); }
+
+// { blocks: [{ n, summaries, counts, hashes }], built, rev } — the index is up
+// to date exactly when built === rev.
+export async function loadPosIndex(baseId) {
+  const database = await open();
+  const s = database.transaction('posIndex').objectStore('posIndex');
+  const [keys, values] = await Promise.all([reqToPromise(s.getAllKeys(posRange(baseId))), reqToPromise(s.getAll(posRange(baseId)))]);
+  const out = { blocks: [], built: null, rev: 0 };
+  keys.forEach((k, i) => {
+    if (k[1] === 'block') out.blocks.push({ n: k[2], ...values[i] });
+    else out[k[1]] = values[i];
+  });
+  return out;
+}
+
+export async function posIndexRev(baseId) {
+  const database = await open();
+  return (await reqToPromise(database.transaction('posIndex').objectStore('posIndex').get([baseId, 'rev']))) || 0;
+}
+
+// block === null removes it. Rejects (QuotaExceededError) when the device is full.
+export function savePosBlock(baseId, n, block) {
+  return tx('posIndex', 'readwrite', s => { if (block) s.put(block, [baseId, 'block', n]); else s.delete([baseId, 'block', n]); });
+}
+
+export function markPosIndexBuilt(baseId, rev) {
+  return tx('posIndex', 'readwrite', s => { s.put(rev, [baseId, 'built']); });
+}
+
+// Drops the stored blocks but keeps the 'rev' counter counting.
+export function clearPosIndex(baseId) {
+  return tx('posIndex', 'readwrite', s => { s.delete(IDBKeyRange.bound([baseId, 'block'], [baseId, 'built'])); });
 }
 
 // Lightweight list for the games view: every field EXCEPT the PGN text.
@@ -204,15 +285,7 @@ export async function findGamesBy(baseId, field, { equals, prefix, from, to } = 
 // can await each chunk instead of opening a single transaction over the whole
 // file — which grows unboundedly and can time out.
 export function addGamesBatch(games) {
-  gamesRev++;
-  return open().then(database => new Promise((resolve, reject) => {
-    const t = database.transaction('games', 'readwrite');
-    const s = t.objectStore('games');
-    for (const g of games) s.add(g);
-    t.oncomplete = () => resolve(games.length);
-    t.onerror = () => reject(t.error);
-    t.onabort = () => reject(t.error);
-  }));
+  return gamesWrite((s, touch) => { for (const g of games) { touch(g.baseId); s.add(g); } return games.length; });
 }
 
 // --- play history (games against the engine) ---
@@ -354,7 +427,7 @@ export async function kvSet(key, value) {
 // once the cloud account and its data are gone.
 export async function clearAllLocalData() {
   const database = await open();
-  await Promise.all(['bases', 'games', 'kv', 'playHistory', 'books'].map(store => new Promise((resolve, reject) => {
+  await Promise.all(['bases', 'games', 'kv', 'playHistory', 'books', 'posIndex'].map(store => new Promise((resolve, reject) => {
     const t = database.transaction(store, 'readwrite');
     t.objectStore(store).clear();
     t.oncomplete = resolve;

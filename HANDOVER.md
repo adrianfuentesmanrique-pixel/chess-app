@@ -2,6 +2,78 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **LIVE SEARCH: THE POSITION INDEX IS NOW KEPT ON DISK (2026-10-01).**
+  Committed on `main`, NOT pushed, NOT deployed. No rules change.
+  **IndexedDB schema change: `DB_VER` 4 → 5** (one new empty store, `posIndex`;
+  nothing is backfilled, so the upgrade is instant — a real v4 database with a
+  game in it was upgraded in place in the preview pane and searched fine).
+  `sw.js` v121 → **v122**. This closes the "OPEN DECISION" in the entry below.
+  - **What it does:** the index is built once per base and reopened on later
+    app starts. Before / after, first search of a base **after an app start**
+    (`tools/measure-livesearch.mjs`, real app, headless Chrome, this PC;
+    slowdown 4 ≈ a phone):
+
+    | Base | Games | Before x1 / x4 | After (2nd start) x1 / x4 | 2nd start after 1 game was added x1 / x4 | First ever build x1 / x4 | On disk |
+    |---|---|---|---|---|---|---|
+    | `Base Panama.pgn` | 27,129 | 20.9 s / 83.7 s | **0.05 s / 0.20 s** | 0.5 s / 1.6 s | 18.3 s / 89.7 s | 15.1 MB, 14 blocks |
+    | `2024 - 27 UPDATES.pgn` | 177,139 | 137 s / 677 s | **0.34 s / 1.6 s** | 3.7 s / 11.2 s | 140 s / 680 s | 121.1 MB, 89 blocks |
+
+    On a normal second start the base is NOT read at all (the tool counts it:
+    "none — the base was not read"). The first ever build costs the same as
+    before; saving it adds under a second.
+  - **Adrian's decision (he left the call to me: keep the app's capacity,
+    keep it fast, and above all do not bother the user):** the index is ALWAYS
+    stored, for every base, with NO question, setting or message. The safety
+    valve is silent: `Analysis.roomForIndex()` checks free space before each
+    sync, and with under 300 MB free (or if a save fails) the stored copy of
+    that base is dropped and the search works in memory exactly as in v121.
+    Why not a size cut-off: the index is ~40–60% on top of a base already on
+    the phone (browser estimate: 177k base 222 MB + index ~136 MB; Panama
+    41.5 MB + ~16 MB), and the big base is where it matters most.
+  - **Layout — blocks of 2,000 games** (`BLOCK` in `js/explore-index.js`), not
+    a record per game. Measured on the 177k base before choosing: blocks reopen
+    in 0.39 s / 1.28 s (x1 / x4) and save in 0.6 s; a record per game reopens in
+    2.1 s / 4.1 s and saves in 12.7 s. A block = `{ summaries, counts, hashes }`
+    (the games' summaries, and their position lists laid end to end).
+  - **`js/explore-index.js`:** `PositionIndex.load(blocks)`; `sync()` takes
+    `onBlock(n, block)` — called for each block whose games changed, as soon as
+    it is complete (null = block now empty), so a long first build is saved as
+    it goes and a build cut short carries on from the saved blocks. An edited
+    game stays in its block; a new game fills the last block, then opens a new
+    one. Entries gained a `block` number. Tests 14–17 cover this
+    (`npm.cmd run test:tree` = **41** green).
+  - **`js/db.js`:** store `posIndex`, hand-written keys `[baseId,'block',n]`,
+    `[baseId,'rev']`, `[baseId,'built']`. **`gamesWrite()`** — every write to
+    the games store (`addGame`, `updateGame`, `deleteGame`, `addGames`,
+    `addGamesBatch`, `deleteBase`) now goes through it and bumps that base's
+    `rev` counter IN THE SAME TRANSACTION. The stored index is trusted only
+    when `built === rev`; otherwise the per-game `updatedAt` check runs as
+    before. **Any new code that writes games MUST use `gamesWrite()`**, or a
+    stored index will be trusted when it is stale. New: `loadPosIndex`,
+    `posIndexRev`, `savePosBlock`, `markPosIndexBuilt`, `clearPosIndex`.
+    `deleteBase` deletes the base's index with its games (and no longer loads
+    every game's PGN just to delete them). `clearAllLocalData` clears the new
+    store. `tx()` now rejects on abort (a full device aborts with no error
+    event — it used to hang).
+  - **`js/app.js`:** only `Analysis.syncExplore()` changed, plus
+    `roomForIndex()` and `stopStoringIndex()`. `Analysis.explore` gained
+    `opened` / `noStore`.
+  - **Verified:** `tools/cdp-verify-livesearch.mjs` — ALL PASSED at 375px,
+    EN/ES × light/dark, now **41 checks each**, 0 page errors. New checks 11–14
+    (page really reloaded = a new app start; the delete/edit are SEEDED through
+    `js/db.js`): restart → same results with 0 index builds; game deleted +
+    restart → gone, noticed by one check that re-read 0 games; game edited →
+    found by re-reading 1 game, and still right after another restart with 0
+    builds; base deleted → none of its index left, the other base's intact.
+    The no-room path was run by hand in the pane (`roomForIndex` forced false):
+    stored copy dropped, search still right, stored again once there is room.
+    NOT tested: a real full device (the save-fails branch itself).
+  - **Not done, follows from this:** with the app open, adding or editing ONE
+    game still makes the next search re-read the base's game list
+    (`db.listGameSummaries()` — 0.5 s / 1.5 s Panama, 3.4 s / 10.0 s on the 177k base),
+    and so does the first start after any change. Nothing is re-parsed; it is
+    the walk over whole game records.
+
 - **LIVE DATABASE SEARCH ON THE ANALYSIS TAB (2026-10-01).** Committed on
   `main`, NOT pushed, NOT deployed. No rules change, no IndexedDB schema
   change. `sw.js` v120 → **v121**.
@@ -66,10 +138,9 @@
     not free on a big base (0.6–10 s): that is `db.listGameSummaries()` re-reading
     the whole base's list, not parsing. Which of the three Adrian keeps in the
     app was not established — he asked for all three.
-  - **OPEN DECISION (Adrian's, not built):** store the index on disk so it is
-    built once per base, not once per app start. Recommended: yes.
-  - **Not done, on purpose:** the index is rebuilt once per app start per base
-    (not stored on disk); a result still opens at the END of the game, as before.
+  - **DECIDED AND BUILT (see the entry above):** the index is stored on disk,
+    built once per base, not once per app start.
+  - **Not done, on purpose:** a result still opens at the END of the game, as before.
   - **Pre-existing, untouched:** offline, the Internet search shows the raw
     English "⚠️ Failed to fetch" in both languages.
 

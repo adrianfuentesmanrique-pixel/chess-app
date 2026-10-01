@@ -1,7 +1,9 @@
 // Measures the live database search on a REAL PGN file, inside the real app in
 // headless Chrome: how long the first search takes (reading + indexing every
-// game), how much memory the index holds, how long a move takes afterwards, and
-// what adding one game costs. Dev tool, not shipped.
+// game), how much memory the index holds, how long a move takes afterwards,
+// what adding one game costs, and — after a reload, i.e. a second app start —
+// how long the first search takes when the index is reopened from disk.
+// Dev tool, not shipped.
 //
 //   node tools/measure-livesearch.mjs http://localhost:9185 "C:\path\to\base.pgn" [cpuSlowdown]
 //
@@ -115,6 +117,36 @@ const r = await evalP(`const { Analysis } = await import('/js/app.js'); const db
   out.afterAdd = Analysis.explore.index.find(Analysis.tree.fen()).length;
   return out;`);
 
+// A second app start: the page is reloaded, so everything in memory is gone and
+// only what was stored on disk is left. `changed` writes one more game first, so
+// the stored index cannot be taken as it is and the base has to be checked.
+async function restart(changed) {
+  if (changed) await evalP(`const db = await import('/js/db.js');
+    await db.addGame({ baseId: window.__baseId, white: 'C', black: 'D', event: '', date: '', result: '*', pgn: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *', updatedAt: Date.now() });`);
+  await send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  await send('Page.reload', {}); await sleep(4000);
+  await evalP(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());`);
+  if (SLOW > 1) await send('Emulation.setCPUThrottlingRate', { rate: SLOW });
+  return evalP(`const { Analysis } = await import('/js/app.js'); const db = await import('/js/db.js');
+    const { PositionIndex } = await import('/js/explore-index.js'); const { GameTree } = await import('/js/tree.js');
+    window.__baseId = (await db.listBases()).find(b => b.name === 'Measured base').id;
+    const out = { parsed: 'none — the base was not read' };
+    const sync = PositionIndex.prototype.sync;
+    PositionIndex.prototype.sync = async function () { const s = await sync.apply(this, arguments); out.parsed = s.parsed + ' game(s) re-read'; return s; };
+    Analysis.loadTree(new GameTree());
+    Analysis.explore = { baseId: window.__baseId, name: '', index: new PositionIndex(), rev: -1, syncing: null };
+    Analysis.showGamesTab();
+    const t0 = performance.now(); await Analysis.searchLive(); out.ms = performance.now() - t0;
+    PositionIndex.prototype.sync = sync;
+    out.matches = Analysis.explore.index.find(Analysis.tree.fen()).length; out.games = Analysis.explore.index.size;
+    out.stored = !Analysis.explore.noStore;
+    const st = await db.loadPosIndex(window.__baseId);
+    out.blocks = st.blocks.length; out.diskBytes = st.blocks.reduce((n, b) => n + b.hashes.byteLength + b.counts.byteLength, 0);
+    return out;`);
+}
+const again = await restart(false);
+const afterChange = await restart(true);
+
 const mb = b => (b / 1048576).toFixed(1) + ' MB';
 const s = ms => ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : ms.toFixed(1) + ' ms';
 console.log(`file: ${path.basename(FILE)} · ${mb(text.length)} · ${imported.games} games · CPU slowdown x${SLOW}`);
@@ -124,5 +156,8 @@ console.log(`whole-page memory change while indexing (noisy — the browser tidi
 console.log(`a move with results showing (lookup + redraw): ${r.moveMs.map(s).join(', ')}`);
 console.log(`lookup alone: ${s(r.lookupOnlyMs)} · matches at start ${r.startMatches}, after 1.e4 e5 2.Nf3 Nc6 3.Bb5 a6 ${r.afterSixMoves} (${r.afterAdd} after adding one)`);
 console.log(`next search after ONE game was added: ${s(r.afterAddingOneGameMs)}`);
+console.log(`SECOND APP START, first search: ${s(again.ms)}  (${again.parsed}; ${again.games} games, ${again.matches} at the start position)`);
+console.log(`second start after ONE game was added while the index was not in use: ${s(afterChange.ms)}  (${afterChange.parsed}; ${afterChange.games} games)`);
+console.log(`index stored on disk: ${afterChange.stored ? 'yes' : 'NO (no room)'} · ${afterChange.blocks} blocks · ${mb(afterChange.diskBytes)} of position lists`);
 ws.close(); chrome.kill();
 process.exit(0);

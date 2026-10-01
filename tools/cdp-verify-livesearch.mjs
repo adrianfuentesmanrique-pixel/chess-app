@@ -254,6 +254,41 @@ async function run(lang, scheme, first) {
   await resetCounts();
   await click('#ana-prev'); await click('#ana-prev'); await click('#ana-next'); v = await view();
   check('Masterclass chapter: opens on its moves, stepping calls the search 0 times', !v.gamesShowing && await counts() === '{"live":0,"find":0,"sync":0,"parsed":[]}', await counts());
+
+  // 11. the index is kept on disk: a new app start reopens it and reads no game
+  const restart = async () => {
+    await send('Page.reload', {}); await sleep(3500);
+    await evalP(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());`);
+    await evalP(SPY);
+  };
+  const pickBase = async name => { await click('#ana-explore'); await click('.modal-box .sheet-btn'); await click('.modal-box .sheet-btn', name); await sleep(500); return view(); };
+  await restart(); v = await pickBase('One game');
+  check('app restarted: the base is searched again → 2', count(v, 'One game', 2), v.status);
+  check('…from the stored index: the base was not read (0 index builds)', JSON.parse(await counts()).sync === 0, await counts());
+  await move('d2', 'd4'); v = await view();
+  check('…and it still follows the board: 1.d4 → Gibaud', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud'), v.rows);
+
+  // 12. a game deleted, then the app restarted: the stored index is not trusted blindly (SEEDED delete)
+  const oneId = v.base;
+  await evalP(`const db = await import('/js/db.js'); const g = (await db.listGameSummaries(${oneId})).find(x => x.white === 'Gibaud'); await db.deleteGame(g.id);`);
+  await restart(); v = await pickBase('One game');
+  check('game deleted + restart: it is gone from the results → 1', count(v, 'One game', 1) && v.rows[0].startsWith('Reti'), v.rows);
+  check('…noticed by one check of the base that re-read 0 games', JSON.parse(await counts()).sync === 1 && JSON.parse(await counts()).parsed.join() === '0', await counts());
+
+  // 13. a game edited (SEEDED edit), found at once and still right after a restart with no rebuild
+  await evalP(`const db = await import('/js/db.js'); const g = await db.getGame((await db.listGameSummaries(${oneId}))[0].id);
+    await db.updateGame({ ...g, white: 'Gibaud', black: 'Lazard', pgn: ${JSON.stringify(G.gibaud[6])}, updatedAt: Date.now() });`);
+  await move('d2', 'd4'); await sleep(500); v = await view();
+  check('game edited into a 1.d4 game → found, by re-reading 1 game', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud') && JSON.parse(await counts()).parsed.join() === '0,1', await counts());
+  await restart(); v = await pickBase('One game');
+  await move('d2', 'd4'); v = await view();
+  check('restart after the edit: 1.d4 → the edited game, 0 index builds', count(v, 'One game', 1) && v.rows[0].startsWith('Gibaud') && JSON.parse(await counts()).sync === 0, await counts());
+
+  // 14. deleting a base removes its stored index
+  const left = await evalP(`const db = await import('/js/db.js'); await db.deleteBase(${oneId});
+    const s = await db.loadPosIndex(${oneId}); const other = await db.loadPosIndex(${oneId} - 1);
+    return { blocks: s.blocks.length, built: s.built, rev: s.rev, otherBlocks: other.blocks.length };`);
+  check('base deleted: nothing of its index is left, the other base keeps its own', left.blocks === 0 && left.built === null && left.rev === 0 && left.otherBlocks === 1, left);
 }
 
 let first = true;

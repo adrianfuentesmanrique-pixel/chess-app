@@ -1946,7 +1946,7 @@ export const Analysis = {
   // change looks the new position up (refresh() calls searchLive()). There is
   // no off switch: with the moves showing it costs one check, and 🔎 brings
   // the results back for the same base. The Internet search stays one-shot.
-  explore: null,        // { baseId, name, index, rev, syncing }
+  explore: null,        // { baseId, name, index, rev, syncing } + opened, noStore (syncExplore)
   exploreSource: null,  // what the results list holds: 'local' | 'lichess'
   exploreSeq: 0,        // newest search wins when an index build is still running
 
@@ -2030,13 +2030,37 @@ export const Analysis = {
     this.renderGameResults(ex.index.find(this.tree.fen()), 'local');
   },
 
-  // Brings the index in line with the base: the first time that reads every
-  // game, afterwards only the ones added or edited since. False = base gone.
+  // Brings the index in line with the base. False = base gone.
+  //
+  // The index is kept on disk (db.js posIndex), so reading every game happens
+  // once per base, not once per app start: the first search after a start
+  // reopens the stored index, and if no game of the base was written since it
+  // was saved (built === rev) that is all — the base itself is not read.
+  // Otherwise the games' updatedAt decide which few are read again, and the
+  // blocks they sit in are saved as they are finished.
   async syncExplore(ex) {
     const rev = db.gamesRev;
     const base = await db.getBase(ex.baseId);
     if (!base) return false;
     ex.name = base.name;
+    if (!ex.opened) {
+      ex.opened = true;
+      try {
+        const stored = await db.loadPosIndex(ex.baseId);
+        ex.index.load(stored.blocks);
+        if (stored.built === stored.rev) { ex.rev = rev; return true; }
+      } catch {
+        // Unreadable: start again rather than build on top of it.
+        ex.index = new PositionIndex();
+        await db.clearPosIndex(ex.baseId).catch(() => {});
+      }
+    }
+    // Storing is silent and optional: when the device is short of space the
+    // stored copy is dropped and the search carries on in memory, as it did
+    // before the index was kept. Once off, it stays off until the next start,
+    // because the blocks on disk would no longer match the ones in memory.
+    const diskRev = await db.posIndexRev(ex.baseId).catch(() => null);
+    if (!ex.noStore && (diskRev === null || !(await this.roomForIndex()))) await this.stopStoringIndex(ex);
     const summaries = await db.listGameSummaries(ex.baseId);
     await ex.index.sync(summaries, async id => (await db.getGame(id)).pgn, {
       onProgress: (done, total) => {
@@ -2044,9 +2068,30 @@ export const Analysis = {
           $('ana-games-status').textContent = `${t('explore_indexing')} ${done} / ${total}`;
         }
       },
+      onBlock: async (n, block) => {
+        if (ex.noStore) return;
+        try { await db.savePosBlock(ex.baseId, n, block); } catch { await this.stopStoringIndex(ex); }
+      },
     });
+    // diskRev was read BEFORE the games were: a game written meanwhile leaves
+    // the counter ahead of it, so the next start checks the base again.
+    if (!ex.noStore) await db.markPosIndexBuilt(ex.baseId, diskRev).catch(() => {});
     ex.rev = rev;
     return true;
+  },
+
+  // The largest index measured is 120 MB (177,000 games). Keep well clear of a
+  // full device: the user's bases and books matter more than a faster search.
+  async roomForIndex() {
+    try {
+      const { quota, usage } = await navigator.storage.estimate();
+      return quota - usage > 300 * 1048576;
+    } catch { return true; }
+  },
+
+  async stopStoringIndex(ex) {
+    ex.noStore = true;
+    await db.clearPosIndex(ex.baseId).catch(() => {});
   },
 
   async exploreInternet() {
