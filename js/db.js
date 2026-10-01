@@ -94,6 +94,7 @@ export function renameBase(id, name) {
 
 export async function deleteBase(id) {
   const games = await listGames(id);
+  gamesRev++;
   await tx('games', 'readwrite', s => { for (const g of games) s.delete(g.id); });
   await tx('bases', 'readwrite', s => s.delete(id));
 }
@@ -104,6 +105,11 @@ export async function getBase(id) {
 }
 
 // --- games ---
+// Counts every write to the games store. The Analysis position search keeps an
+// index of a base in memory and compares this number to know, without reading
+// anything, whether that index can still be trusted.
+export let gamesRev = 0;
+
 export async function listGames(baseId) {
   const db = await open();
   const idx = db.transaction('games').objectStore('games').index('baseId');
@@ -111,14 +117,17 @@ export async function listGames(baseId) {
 }
 
 export function addGame(game) {
+  gamesRev++;
   return tx('games', 'readwrite', s => reqToPromise(s.add(game)));
 }
 
 export function updateGame(game) {
+  gamesRev++;
   return tx('games', 'readwrite', s => reqToPromise(s.put(game)));
 }
 
 export function deleteGame(id) {
+  gamesRev++;
   return tx('games', 'readwrite', s => s.delete(id));
 }
 
@@ -128,6 +137,7 @@ export async function getGame(id) {
 }
 
 export async function addGames(games) {
+  gamesRev++;
   return tx('games', 'readwrite', s => { for (const g of games) s.add(g); });
 }
 
@@ -194,6 +204,7 @@ export async function findGamesBy(baseId, field, { equals, prefix, from, to } = 
 // can await each chunk instead of opening a single transaction over the whole
 // file — which grows unboundedly and can time out.
 export function addGamesBatch(games) {
+  gamesRev++;
   return open().then(database => new Promise((resolve, reject) => {
     const t = database.transaction('games', 'readwrite');
     const s = t.objectStore('games');

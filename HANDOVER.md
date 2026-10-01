@@ -2,6 +2,60 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **LIVE DATABASE SEARCH ON THE ANALYSIS TAB (2026-10-01).** Committed on
+  `main`, NOT pushed, NOT deployed. No rules change, no IndexedDB schema
+  change. `sw.js` v120 → **v121**.
+  - **Adrian's decisions:** the Internet (Lichess) search is NOT live — it
+    stays one-shot; there is NO off switch — the search only works while the
+    results list is on screen, and the base stays remembered until another is
+    picked or the app is closed (leaving the Analysis tab keeps it).
+  - **Behaviour:** first 🔎 = as before (Database / Internet, then which base).
+    With the results showing, every board change updates the list. 🔎 with the
+    MOVES showing = straight back to the results, same base, current position,
+    no chooser. 🔎 with the RESULTS showing = the chooser (the base in use is
+    ticked ✓). The "Games" switch does the same as 🔎. Status line:
+    `📚 <base name> · N games`; over 200 matches draws the first 200 and says so.
+  - **New module `js/explore-index.js`** (imports only `vendor/chess.js`,
+    precached in `sw.js`). `PositionIndex`: each game is read ONCE and kept as a
+    sorted `Float64Array` of 53-bit position hashes (8 bytes a position, no FEN
+    text, no PGN). `sync(summaries, getPgn)` re-reads only games that are new
+    or whose `updatedAt` changed; `find(fen)` is a binary search per game.
+    `fenKey()` now lives here — its definition is GONE from `js/app.js`, which imports it.
+  - **`pgnPositions()` — the fast reader.** `parsePgn()` costs 3–4 ms a game
+    (measured: `chess.move(san)` writes the SAN of every candidate move).
+    `pgnPositions()` matches the SAN by its squares using chess.js internals
+    (`_moves`, `_makeMove`, `_undoMove`, `_isKingAttacked`) — ~10x faster. It is
+    held to `parsePgn()`'s exact positions by tests 12–13 in
+    `tests/unit/explore-index.test.js`. **If `vendor/chess.js` is ever
+    upgraded, run `npm.cmd run test:tree` — those tests say whether it still
+    holds.** `Analysis.treeHasFen` is GONE.
+  - **`db.gamesRev`** (`js/db.js`): a counter bumped by every write to the games
+    store. `Analysis.searchLive()` compares it with the index's and re-syncs
+    only when they differ — a normal move touches no database at all.
+  - **In `js/app.js` (`Analysis`):** state `explore` / `exploreSource` /
+    `exploreSeq`; `gamesShowing()`, `exploreLive()`, `searchLive()`,
+    `syncExplore()`. The hook is ONE line at the end of `refresh()`.
+    `loadTree()` now calls `showMovesTab()` first, so any newly opened game
+    (a Masterclass chapter included) starts on its moves with the search parked.
+    The remembered base is in `Analysis.explore`, deliberately NOT in `ctx`.
+  - **Verified** with `tools/cdp-verify-livesearch.mjs` (headless CDP, 375px,
+    EN/ES × light/dark, 33 checks each, all pass, 0 page errors). SEEDED: two
+    bases of real games written through `js/db.js`, the game added mid-run, and
+    the Masterclass `ctx`. REALLY CLICKED: 🔎, every sheet/chooser button, every
+    move on the board, ⏮ ◀ ▶, the result that is opened, the Moves switch.
+    Search off / moves showing / Masterclass chapter: the search is called 0
+    times (counted). `npm.cmd run test:tree` = 37 green.
+  - **Measured** with `tools/measure-livesearch.mjs <url> <file.pgn> [slowdown]`
+    (real app, headless Chrome, this PC) on a 2,000-game TEST file of short
+    games: first search 0.7 s (was 6.0 s before the fast reader), 3.5 s at a
+    4x "phone" slowdown; index 0.6 MB; a move 3 ms; one game added 31 ms.
+    **Adrian's own biggest base is NOT measured yet** — it lives in his browser;
+    he is to supply the .pgn and the tool is run on it.
+  - **Not done, on purpose:** the index is rebuilt once per app start per base
+    (not stored on disk); a result still opens at the END of the game, as before.
+  - **Pre-existing, untouched:** offline, the Internet search shows the raw
+    English "⚠️ Failed to fetch" in both languages.
+
 - **MOVE LIST REDESIGN — ONE MOVE PAIR PER ROW + VARIATION COLOUR
   (2026-10-01).** Committed on `main`, NOT pushed, NOT deployed. No rules
   change, nothing to deploy but the push itself. `sw.js` v119 → **v120**.

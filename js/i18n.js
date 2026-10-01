@@ -81,6 +81,8 @@ const DICT = {
   explore_internet: { es: 'Buscar en internet', en: 'Search the internet' },
   explore_need_base: { es: 'Necesitas subir una base primero para poder explorar.', en: 'You need to upload a database before you can explore.' },
   explore_no_results: { es: 'No se encontraron partidas con esta posición.', en: 'No games found with this position.' },
+  explore_indexing: { es: 'Leyendo la base…', en: 'Reading the database...' },
+  explore_first_shown: { es: 'se muestran las primeras {n}', en: 'showing the first {n}' },
   explore_searching: { es: 'Buscando partidas…', en: 'Searching for games...' },
   explore_lichess_unavailable: { es: 'La búsqueda en internet no está disponible en este momento. Prueba a buscar en tu propia base.', en: 'Internet search isn\'t available right now. Try searching your own database instead.' },
   play_from_here: { es: 'Jugar contra el motor desde aquí', en: 'Play against the engine from here' },

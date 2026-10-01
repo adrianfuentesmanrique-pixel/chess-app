@@ -21,6 +21,7 @@ import * as Read from './read.js';
 import { Sound } from './sound.js';
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
+import { fenKey, PositionIndex } from './explore-index.js';
 import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
@@ -1689,7 +1690,7 @@ export const Analysis = {
     $('ana-view-tab').addEventListener('click', e => {
       const b = e.target.closest('button[data-v]');
       if (!b) return;
-      if (b.dataset.v === 'games') this.showGamesTab(); else this.showMovesTab();
+      if (b.dataset.v === 'games') { this.showGamesTab(); this.searchLive(); } else this.showMovesTab();
     });
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-new-game-btn').onclick = () => this.loadTree(new GameTree());
@@ -1775,6 +1776,10 @@ export const Analysis = {
     this.tree = tree;
     this.ctx = ctx;
     this.undoStack = [];
+    // A newly opened game starts on its moves. That also parks the live
+    // database search (it only runs while its results are on screen), so a
+    // Masterclass chapter never searches unless 🔎 is pressed on it.
+    this.showMovesTab();
     this.tree.toStart();
     this.tree.toEnd();
     this.refresh();
@@ -1908,6 +1913,9 @@ export const Analysis = {
     if (this.ctx && this.ctx.fromMasterclass) {
       Masterclass.onBoardChange(this.ctx.fromMasterclass, this.tree);
     }
+    // The live database search, on the same choke point. One check and nothing
+    // else unless a base's results are on screen right now.
+    if (this.exploreLive()) this.searchLive();
   },
 
   updateNagBar() {
@@ -1932,7 +1940,24 @@ export const Analysis = {
     $('ana-view-tab').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === 'games'));
   },
 
+  // The database search is LIVE. The chosen base is remembered in
+  // `this.explore` — deliberately not in `this.ctx`, which loadTree() replaces
+  // when a result is opened — and while its results are on screen every board
+  // change looks the new position up (refresh() calls searchLive()). There is
+  // no off switch: with the moves showing it costs one check, and 🔎 brings
+  // the results back for the same base. The Internet search stays one-shot.
+  explore: null,        // { baseId, name, index, rev, syncing }
+  exploreSource: null,  // what the results list holds: 'local' | 'lichess'
+  exploreSeq: 0,        // newest search wins when an index build is still running
+
+  gamesShowing() { return !$('ana-games-view').classList.contains('hidden'); },
+  exploreLive() { return !!this.explore && this.exploreSource === 'local' && this.gamesShowing(); },
+
   async openExplore() {
+    // Moves showing and a base already chosen: straight back to its results
+    // for the position on the board. Changing base (or going to the Internet)
+    // is only offered from the results themselves.
+    if (this.explore && !this.gamesShowing()) { this.showGamesTab(); this.searchLive(); return; }
     sheet([
       { label: '📚 ' + t('explore_database'), action: () => this.exploreDatabase() },
       { label: '🌐 ' + t('explore_internet'), action: () => this.exploreInternet() },
@@ -1962,7 +1987,7 @@ export const Analysis = {
         for (const b of bases) {
           const btn = document.createElement('button');
           btn.className = 'sheet-btn';
-          btn.textContent = `${b.name} (${b.count ?? 0} ${tn('games', b.count ?? 0)})`;
+          btn.textContent = `${this.explore && this.explore.baseId === b.id ? '✓ ' : ''}${b.name} (${b.count ?? 0} ${tn('games', b.count ?? 0)})`;
           btn.onclick = () => close(b.id);
           box.appendChild(btn);
         }
@@ -1973,29 +1998,60 @@ export const Analysis = {
       });
       if (!baseId) return;
     }
-    this.showGamesTab();
-    $('ana-games-status').textContent = t('explore_searching');
-    $('ana-games-list').innerHTML = '';
-    const key = fenKey(this.tree.fen());
-    const games = await db.listGames(baseId);
-    const matches = [];
-    for (const g of games) {
-      let tree;
-      try { tree = parsePgn(g.pgn); } catch { continue; }
-      if (this.treeHasFen(tree.root, key)) matches.push(g);
+    // Same base as before keeps its index; another base starts a fresh one.
+    if (!this.explore || this.explore.baseId !== baseId) {
+      this.explore = { baseId, name: '', index: new PositionIndex(), rev: -1, syncing: null };
     }
-    this.renderGameResults(matches, 'local');
+    this.showGamesTab();
+    this.searchLive();
   },
 
-  // Walks every branch (including side variations) looking for a matching position.
-  treeHasFen(node, key, depth = 0) {
-    if (depth > 300) return false;
-    if (fenKey(node.fen) === key) return true;
-    for (const c of node.children) if (this.treeHasFen(c, key, depth + 1)) return true;
-    return false;
+  // Shows the remembered base's games for the position on the board. The index
+  // is (re)read only when the games store has been written to since it was
+  // built — db.gamesRev — so the normal case, a move on the board, is a lookup
+  // with no database access at all.
+  async searchLive() {
+    const ex = this.explore;
+    if (!ex) return;
+    this.exploreSource = 'local';
+    const seq = ++this.exploreSeq;
+    if (ex.rev !== db.gamesRev) {
+      $('ana-games-status').textContent = t('explore_searching');
+      $('ana-games-list').innerHTML = '';
+      if (!ex.syncing) ex.syncing = this.syncExplore(ex).finally(() => { ex.syncing = null; });
+      let found;
+      try { found = await ex.syncing; }
+      catch (e) { if (seq === this.exploreSeq) $('ana-games-status').textContent = '⚠️ ' + (e.message || e); return; }
+      // A newer search (another move, another base, the Internet) owns the list now.
+      if (seq !== this.exploreSeq || this.explore !== ex) return;
+      // The remembered base was deleted: forget it and ask again.
+      if (!found) { this.explore = null; this.showMovesTab(); this.openExplore(); return; }
+    }
+    this.renderGameResults(ex.index.find(this.tree.fen()), 'local');
+  },
+
+  // Brings the index in line with the base: the first time that reads every
+  // game, afterwards only the ones added or edited since. False = base gone.
+  async syncExplore(ex) {
+    const rev = db.gamesRev;
+    const base = await db.getBase(ex.baseId);
+    if (!base) return false;
+    ex.name = base.name;
+    const summaries = await db.listGameSummaries(ex.baseId);
+    await ex.index.sync(summaries, async id => (await db.getGame(id)).pgn, {
+      onProgress: (done, total) => {
+        if (total > 1 && this.explore === ex && this.exploreLive()) {
+          $('ana-games-status').textContent = `${t('explore_indexing')} ${done} / ${total}`;
+        }
+      },
+    });
+    ex.rev = rev;
+    return true;
   },
 
   async exploreInternet() {
+    this.exploreSource = 'lichess';
+    this.exploreSeq++;
     this.showGamesTab();
     $('ana-games-status').textContent = t('explore_searching');
     $('ana-games-list').innerHTML = '';
@@ -2011,17 +2067,28 @@ export const Analysis = {
   },
 
   renderGameResults(list, source) {
-    $('ana-games-status').textContent = list.length ? '' : t('explore_no_results');
+    const SHOWN = 200;   // the start position matches the whole base; draw a screenful
+    if (source === 'local') {
+      // Which base is being searched, and how many of its games reach this position.
+      $('ana-games-status').innerHTML = `<b>📚 ${esc(this.explore.name)}</b> · ${list.length} ${tn('games', list.length)}`
+        + (list.length > SHOWN ? ` · ${esc(t('explore_first_shown').replace('{n}', SHOWN))}` : '')
+        + (list.length ? '' : `<br>${esc(t('explore_no_results'))}`);
+    } else {
+      $('ana-games-status').textContent = list.length ? '' : t('explore_no_results');
+    }
     const el = $('ana-games-list');
     el.innerHTML = '';
-    for (const item of list) {
+    for (const item of list.slice(0, SHOWN)) {
       const btn = document.createElement('button');
       btn.className = 'list-item';
       if (source === 'local') {
         btn.innerHTML = `<b>${esc(item.white)} — ${esc(item.black)}</b><span class="sub">${esc(item.event || '')} ${esc(item.date || '')} · ${esc(item.result)}</span>`;
-        btn.onclick = () => {
-          try { this.loadTree(parsePgn(item.pgn), { baseId: item.baseId, gameId: item.id }); this.showMovesTab(); }
-          catch { toast(t('import_failed')); }
+        // The index keeps no PGN, so the game is fetched when it is opened.
+        btn.onclick = async () => {
+          try {
+            const full = await db.getGame(item.id);
+            this.loadTree(parsePgn(full.pgn), { baseId: full.baseId, gameId: full.id });
+          } catch { toast(t('import_failed')); }
         };
       } else {
         const w = item.white?.name ?? '?', b = item.black?.name ?? '?';
@@ -3758,8 +3825,6 @@ const Trainer = {
     Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
   },
 };
-
-function fenKey(fen) { return fen.split(' ').slice(0, 4).join(' '); }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
