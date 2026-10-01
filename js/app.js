@@ -3814,9 +3814,13 @@ export const Trainer = {
   // gameId = build from that one game; null = the whole base (its first 500).
   // The cache key carries both, so going from the whole base to one game, or
   // from one game to another, can never hand back the previous book.
+  // A whole base stops 40 half-moves deep — it is an openings book, and that
+  // keeps a 500-game base small. One chosen game is walked to its last move;
+  // its limit is only there so a damaged PGN can never run away.
   async buildBook(baseId, gameId = null) {
     const bookKey = `${baseId}|${gameId ?? ''}`;
     if (this.book && this.bookKey === bookKey) return this.book;
+    const maxDepth = gameId ? 1000 : 40;
     const games = gameId
       ? [await db.getGame(gameId)].filter(g => g && g.baseId === baseId)
       : await db.listGames(baseId);
@@ -3827,7 +3831,7 @@ export const Trainer = {
       try { tree = parsePgn(g.pgn); } catch { continue; }
       // walk ALL branches (variations are part of the study!)
       const walk = (node, depth) => {
-        if (depth > 40) return;
+        if (depth > maxDepth) return;
         for (const child of node.children) {
           const key = fenKey(node.fen);
           let entry = book.get(key);

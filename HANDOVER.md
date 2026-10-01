@@ -2,6 +2,46 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **OPENINGS: ONE CHOSEN GAME PLAYS TO ITS LAST MOVE (2026-10-01).** Committed
+  on `main`, NOT pushed, NOT deployed. No rules change, no IndexedDB change, no
+  new control, no new string. `sw.js` v124 → **v125**.
+  - **What it does:** with "Practice one game only" on, the book is now the
+    WHOLE game — main line and every variation, however late — so the computer
+    stays "in book" to the final move. The count next to the toggle is the
+    game's real length (the 45-half-move Immortal Game says 45, it said 41).
+  - **Adrian's decision, taken as his stated default:** the WHOLE-database book
+    is unchanged — still the first 500 games, 40 half-moves deep. It is an
+    openings book; nobody asked for it to go deeper.
+  - **Code (`js/app.js`, `Trainer.buildBook`):** one line —
+    `const maxDepth = gameId ? 1000 : 40;` and `walk()` tests `depth > maxDepth`.
+    1000 half-moves is only a safety stop for a damaged PGN (the longest
+    tournament game ever played is 538). This supersedes the "Known, not new"
+    40-ply note in the entry below.
+  - **Build time, measured** (headless Chrome on this PC, median of 9): a
+    300-half-move game builds in ~19 ms, of which ~17 ms is reading the PGN —
+    which the app did in full even under the old limit. The Immortal Game
+    ~5 ms. So the deeper walk itself costs about 2 ms; nothing to feel.
+  - **Verified** by `tools/cdp-verify-onegame.mjs` (headless Chrome, 375px,
+    EN/ES × light/dark, now **47/47**). SEEDED straight into IndexedDB: the
+    four old bases plus "Verify Long" — the Immortal Game with one extra
+    variation on its last black move (22...Ne7 23.Qxe7#), and a 300-half-move
+    SYNTHETIC game of seeded-random legal moves. Really clicked: toggle, game
+    rows, Black, Start, Back; the select was set and fired `change`. The
+    player's moves went in through `Trainer.userMove`, not taps. Results:
+    Immortal alone 45 positions, and played to the end as Black the computer
+    made all 23 White moves from the book, badge "in book" on 23.Be7#; the late
+    variation counts 46, offers both 22...Nxf6 and 22...Ne7, and answers
+    22...Ne7 with 23.Qxe7# from the book; the 300-half-move game counts 295
+    (5 positions repeat — cross-checked against a count made with chess.js at
+    seed time, not hand-counted); whole base still 81, 51 after the Opera Game
+    is deleted; toggle off/on, switching games, changing database, reload and
+    offline all still pass. `npm.cmd run test:tree` 45/45.
+  - **Script trap, fixed:** a play-out helper that read `Trainer.chess` straight
+    after clicking Start saw the PREVIOUS game for one tick and moved on it.
+    `playOutAsBlack` now waits 300 ms first.
+  - **Not tested:** a real phone, real finger taps on the board, and a real
+    imported long game (both long games here were seeded).
+
 - **OPENINGS: PRACTISE ONE CHOSEN GAME (2026-10-01).** Committed on `main`,
   NOT pushed, NOT deployed. No rules change, no IndexedDB schema change.
   `sw.js` v123 → **v124**.

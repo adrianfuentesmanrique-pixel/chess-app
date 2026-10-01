@@ -89,14 +89,45 @@ await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, devi
 // ── the seed ──
 // "Verify Repertoire": two real games (Morphy's Opera Game; Anderssen's Immortal
 // Game) and one opening study with variations and comments.
-// The book builder walks 40 plies deep, so the 45-ply Immortal Game counts 41.
 // "Verify Single": the Opera Game alone. "Verify Big": 450 SYNTHETIC one-move
 // games, only there to exercise the picker's search and paging.
+// "Verify Long": the Immortal Game with one extra variation on its LAST black
+// move (22...Ne7 23.Qxe7#, half-moves 44-45), and a 300-half-move SYNTHETIC
+// game of seeded-random legal moves, there for the depth and the build time.
+//
+// The expected book sizes, counted by hand — a book entry is a position that
+// has a next move, so a game with N half-moves and no repeated position has N:
+//   Opera 33 · Immortal 45 · study 11 · late variation 45 + 1 (the position
+//   after 22...Ne7) = 46.
+//   Study: main line d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 = 8 positions with a next
+//   move; 2...dxc4 3.Nf3 Nf6 adds 2; 2...c6 3.Nf3 adds 1 → 11.
+// ONE chosen game is walked to its end. The WHOLE base still stops 40
+// half-moves deep, so there the Immortal Game gives only 41:
+//   whole base = 33 + 41 + 11 − 4 shared (the start ×2, after 1.e4, after
+//   1.e4 e5) = 81; with the Opera Game deleted = 41 + 11 − 1 (the start) = 51.
 const OPERA = `[Event "Paris Opera"]\n[Date "1858.??.??"]\n[White "Morphy, Paul"]\n[Black "Duke Karl / Count Isouard"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0`;
 const IMMORTAL = `[Event "London"]\n[Date "1851.06.21"]\n[White "Anderssen, Adolf"]\n[Black "Kieseritzky, Lionel"]\n[Result "1-0"]\n\n1. e4 e5 2. f4 exf4 3. Bc4 Qh4+ 4. Kf1 b5 5. Bxb5 Nf6 6. Nf3 Qh6 7. d3 Nh5 8. Nh4 Qg5 9. Nf5 c6 10. g4 Nf6 11. Rg1 cxb5 12. h4 Qg6 13. h5 Qg5 14. Qf3 Ng8 15. Bxf4 Qf6 16. Nc3 Bc5 17. Nd5 Qxb2 18. Bd6 Bxg1 19. e5 Qxa1+ 20. Ke2 Na6 21. Nxg7+ Kd8 22. Qf6+ Nxf6 23. Be7# 1-0`;
 const STUDY = `[Event "Queen's Gambit study"]\n[Date "2026.10.01"]\n[White "Study"]\n[Black "Queen's Gambit"]\n[Result "*"]\n\n1. d4 {Queen's pawn first.} d5 2. c4 e6 (2... dxc4 {The Queen's Gambit Accepted.} 3. Nf3 Nf6) (2... c6 3. Nf3) 3. Nc3 Nf6 4. Bg5 Be7 *`;
+const LATEVAR = IMMORTAL.replace('[White "Anderssen, Adolf"]', '[White "Late Variation"]').replace('22. Qf6+ Nxf6 23. Be7#', '22. Qf6+ Nxf6 (22... Ne7 23. Qxe7#) 23. Be7#');
+// The game's moves as plain SAN, straight from the PGN text above.
+const sans = pgn => pgn.split('\n\n')[1].replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(x => x && !/^\d+\.+$/.test(x) && !/^(1-0|0-1|\*|1\/2-1\/2)$/.test(x));
+const IMMORTAL_SANS = sans(IMMORTAL);
+const LONG_PLIES = 300;
 const SEED = `
   const db = await import('/js/db.js');
+  const { Chess } = await import('/vendor/chess.js');
+  // Seeded-random legal moves, never one that ends the game.
+  const c = new Chess(); let seed = 20261001; const longKeys = new Set();
+  const rnd = n => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  while (c.history().length < ${LONG_PLIES}) {
+    const key = c.fen().split(' ').slice(0, 4).join(' ');
+    const ms = c.moves(); let done = false;
+    for (let tries = 0; tries < 40 && !done; tries++) { c.move(ms[rnd(ms.length)]); if (c.isGameOver()) c.undo(); else done = true; }
+    if (!done) break;
+    longKeys.add(key);
+  }
+  const longPgn = '[Event "Synthetic"]\\n[Date "2026.10.01"]\\n[White "Synthetic Long"]\\n[Black "Random legal moves"]\\n[Result "*"]\\n\\n'
+    + c.history().map((m, i) => (i % 2 ? '' : (i / 2 + 1) + '. ') + m).join(' ') + ' *';
   const hdr = (pgn, k) => (pgn.match(new RegExp('\\\\[' + k + ' "([^"]*)"')) || [])[1] || '';
   const rec = (baseId, pgn, i) => ({ baseId, white: hdr(pgn, 'White'), black: hdr(pgn, 'Black'), event: hdr(pgn, 'Event'),
     date: hdr(pgn, 'Date'), result: hdr(pgn, 'Result'), pgn, updatedAt: Date.now() - i * 1000 });
@@ -109,7 +140,9 @@ const SEED = `
   for (let i = 1; i <= 450; i++) many.push(rec(big,
     '[Event "Synthetic ' + (i % 9) + '"]\\n[Date "2026.01.01"]\\n[White "Player ' + i + '"]\\n[Black "Opponent ' + i + '"]\\n[Result "*"]\\n\\n1. e4 *', i));
   await db.addGames(many);
-  return { rep, single, big };`;
+  const long = await db.createBase('Verify Long');
+  await db.addGames([rec(long, ${JSON.stringify(LATEVAR)}, 0), rec(long, longPgn, 1)]);
+  return { rep, single, big, long, longPlies: c.history().length, longDistinct: longKeys.size };`;
 
 // ── helpers that act through the page's own controls ──
 const openTrainer = () => evalP(`document.querySelector('#tabbar button[data-screen="trainer"]').click(); await new Promise(r => setTimeout(r, 700));`);
@@ -149,6 +182,28 @@ const playAsBlack = reply => evalP(`const { Trainer } = await import('/js/app.js
   await sl(200);
   return { first, second, badge };`);
 const E5 = { from: 'e7', to: 'e5' };
+// Plays a whole game as Black: clicks Black + Start, then answers every
+// computer move with the next of `blackSans`. Records, after each computer
+// move, whether it came from the book.
+const playOutAsBlack = blackSans => evalP(`const { Trainer } = await import('/js/app.js'); const sl = ms => new Promise(r => setTimeout(r, ms));
+  document.querySelector('#trainer-color button[data-v="b"]').click();
+  document.getElementById('trainer-start').click();
+  const settle = async () => { await sl(50); for (let i = 0; i < 150 && Trainer.thinking; i++) await sl(100); };
+  await sl(300);   // Start swaps in the new game a tick later — never read the previous one
+  for (let i = 0; i < 100 && !(Trainer.chess && Trainer.chess.history().length === 1 && !Trainer.thinking); i++) await sl(100);
+  const inBook = [Trainer.inBook];
+  for (const san of ${JSON.stringify(blackSans)}) {
+    if (Trainer.over) break;
+    await Trainer.userMove(san);
+    await settle();
+    inBook.push(Trainer.inBook);
+  }
+  const out = { history: Trainer.chess.history(), inBook, mate: Trainer.chess.isCheckmate(), over: Trainer.over,
+    badge: document.getElementById('trainer-book-status').className, status: document.getElementById('trainer-status').textContent };
+  document.getElementById('trainer-back').click();
+  await sl(200);
+  return out;`);
+const blackOf = list => list.filter((_, i) => i % 2 === 1);
 // Walks the real tour to the Openings set-up step and measures frame and card.
 const tourStep = () => evalP(`const app = await import('/js/app.js'); const db = await import('/js/db.js'); const Tour = (await import('/js/tour.js')).default;
   Tour.start({ db, modal: app.modal, toast: app.toast, showScreen: app.showScreen,
@@ -208,7 +263,7 @@ check('game A: computer only plays A (1.e4 … 2.Nf3, never 2.f4)', aSeconds.eve
 await openPicker();
 await pickRow('Anderssen');
 s = await state(); log('game B', s);
-check('game B: book rebuilt, not the cached A book', s.pick.includes('Anderssen') && s.bookSize === 41 && s.bookKey !== ids.rep + '|', 'book ' + s.bookSize);
+check('game B: book rebuilt, not the cached A book — all 45 positions of the 45-half-move game', s.pick.includes('Anderssen') && s.bookSize === 45 && s.info.startsWith('45 ') && s.bookKey !== ids.rep + '|', 'book ' + s.bookSize);
 let bSeconds = [];
 for (let i = 0; i < 6; i++) { const r = await playAsBlack(E5); bSeconds.push(r.first + ' ' + r.second); }
 log('game B, computer as White ×6', bSeconds);
@@ -217,6 +272,15 @@ check('game B: computer only plays B (2.f4, never 2.Nf3)', bSeconds.every(x => x
 const off = await playAsBlack({ from: 'c7', to: 'c5', slow: true });
 log('game B, 1...c5 (not in B)', off);
 check('out of the game\'s moves → engine takes over, badge says out of book', !!off.second && /\bout\b/.test(off.badge || ''));
+// The whole game, to mate: the computer (White) must take every move from the
+// book, including the last one, 23.Be7#.
+const full = await playOutAsBlack(blackOf(IMMORTAL_SANS));
+log('game B played to the end', { moves: full.history.length, last: full.history.at(-1), inBook: full.inBook.join(','), badge: full.badge, status: full.status });
+check('game B to the end: all 45 half-moves are the game\'s, computer in book on every move incl. 23.Be7#',
+  full.history.join(' ') === IMMORTAL_SANS.join(' ') && full.history.length === 45 && full.history.at(-1) === 'Be7#'
+  && full.inBook.length === 23 && full.inBook.every(Boolean) && /\bin\b/.test(full.badge) && full.mate && full.over,
+  full.history.length + ' moves, last ' + full.history.at(-1));
+await closeModals();
 
 // The game with variations and comments.
 await openPicker();
@@ -269,6 +333,46 @@ await selectBase(ids.single);
 s = await state(); log('single-game base', s);
 check('one-game base: its game is chosen by itself', s.toggle && s.pick.includes('Morphy') && s.bookSize === 33);
 
+// A variation that starts on half-move 44 — past the old 40 limit.
+await selectBase(ids.long);
+await closeModals();
+await openPicker();
+await pickRow('Late Variation');
+s = await state(); log('late variation', s);
+check('late variation: 46 positions (45 + the one inside the variation)', s.pick.includes('Late Variation') && s.bookSize === 46, 'book ' + s.bookSize);
+const late = await evalP(`const { Trainer } = await import('/js/app.js');
+  return [...Trainer.book.values()].map(e => Object.keys(e).sort().join(',')).filter(x => x.includes(','));`);
+log('late branch points', late);
+check('late variation: 22...Nxf6 and 22...Ne7 both offered at the branch', late.length === 1 && late[0] === 'Ne7,Nxf6');
+const lateSans = [...blackOf(IMMORTAL_SANS).slice(0, 21), 'Ne7'];
+const lateGame = await playOutAsBlack(lateSans);
+log('late variation played', { moves: lateGame.history.length, last: lateGame.history.at(-1), inBook: lateGame.inBook.join(',') });
+check('late variation: after 22...Ne7 the computer answers 23.Qxe7# from the book',
+  lateGame.history.length === 45 && lateGame.history.at(-1) === 'Qxe7#' && lateGame.inBook.every(Boolean) && lateGame.mate);
+await closeModals();
+
+// The 300-half-move synthetic game: depth and build time.
+log('synthetic long game', { plies: ids.longPlies, distinctPositions: ids.longDistinct });
+await openPicker();
+await pickRow('Synthetic Long');
+s = await state(); log('long game', s);
+check('300-half-move game: every position with a next move is in the book', ids.longPlies === LONG_PLIES && s.bookSize === ids.longDistinct && s.bookSize > 250, 'book ' + s.bookSize + ' of ' + ids.longDistinct);
+const timing = await evalP(`const { Trainer } = await import('/js/app.js'); const db = await import('/js/db.js'); const { parsePgn } = await import('/js/tree.js');
+  const baseId = Trainer.game.baseId, gameId = Trainer.game.id;
+  const med = a => a.sort((x, y) => x - y)[a.length >> 1];
+  const time = async fn => { const a = []; for (let i = 0; i < 9; i++) { const t0 = performance.now(); await fn(); a.push(performance.now() - t0); } return +med(a).toFixed(1); };
+  const pgn = (await db.getGame(gameId)).pgn;
+  const out = {
+    oneLongGame_ms: await time(async () => { Trainer.book = null; await Trainer.buildBook(baseId, gameId); }),
+    ofWhich_readingThePgn_ms: await time(async () => parsePgn(pgn)),
+  };
+  const games = await db.listGames(${ids.rep}); const imm = games.find(g => g.white.startsWith('Anderssen'));
+  out.immortal_ms = await time(async () => { Trainer.book = null; await Trainer.buildBook(${ids.rep}, imm.id); });
+  out.wholeRepBase_ms = await time(async () => { Trainer.book = null; await Trainer.buildBook(${ids.rep}); });
+  Trainer.book = null; await Trainer.buildBook(baseId, gameId);
+  return out;`);
+log('BUILD TIME (median of 9)', timing);
+
 // Remembered across a reload.
 await selectBase(ids.rep);
 await closeModals();
@@ -278,7 +382,7 @@ await send('Page.reload', {});
 await sleep(3500);
 await openTrainer();
 s = await state(); log('after reload', s);
-check('reload: base, toggle and game remembered', s.base.startsWith('Verify Repertoire') && s.toggle && s.pick.includes('Anderssen') && s.bookSize === 41);
+check('reload: base, toggle and game remembered', s.base.startsWith('Verify Repertoire') && s.toggle && s.pick.includes('Anderssen') && s.bookSize === 45);
 
 // Offline: cut the network, then use the whole thing again.
 await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
