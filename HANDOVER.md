@@ -2,6 +2,81 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — DIAGRAM READER FINDS A HATCHED BOARD WHEREVER IT IS PRESSED (2026-10-02).**
+  Committed on `main`, NOT pushed, NOT deployed. `sw.js` v129 → **v130**. One
+  shipped file changed, `js/diagram.js` (already in sw ASSETS); one new dev tool,
+  `tools/cdp-verify-hatched.mjs`. Closes the "FOUND, NOT FIXED" bullet at the end
+  of the Training-mode entry below.
+  - **How bad it was (measured before the fix, headless Chrome, 375px, page canvas
+    1065 px):** a 16x16 grid of presses inside each board. Dvoretsky, 9 pages /
+    11 boards: **about 4 presses in 10 missed** (p160's board was never found from
+    anywhere; lower boards on p205/p350 found only from a couple of strips). The
+    boards it did find were often a little off (squares read as 48 px instead of
+    47, so the far side drifted 8 px; some 48x56). Hellsten, 4 pages: 14% missed
+    (the bottom rank and lower corners). A press on BLANK white margin came back as
+    a tiny "board" (findGrid's gate compared 0 with 0 and passed).
+  - **Cause, two parts:** (1) hatching is all edges, so every row and column of a
+    hatched board is busy and the square boundaries barely stand out — `findGrid`
+    (almost always on the horizontal lines) passed or failed depending on how much
+    white margin the window happened to include, i.e. on finger height; (2) the
+    window is centred on the finger, so a press near a board's edge needs a
+    board-sized window, which is then half full of the text next to the diagram.
+  - **The fix (`js/diagram.js`):** `detectBoard` now first runs
+    `detectFromBand` on a **tone map** (`toneMap`: the page box-blurred twice,
+    radius `W/355` ≈ 3 px at 1065 — hatching, wood grain and scan speckle average
+    to flat grey). Files from a low band of rows through the finger (whole page
+    width); ranks from only those columns; then `placeByTone` picks which 8x8 block
+    of the lattice is the board by the strength of its light/dark alternation (the
+    comb can sit up to 7 squares off), `fitBoard` re-finds the grid from exactly
+    that block and `refineAxis` fits period and origin to a fraction of a pixel on
+    the 7 INNER lines. The same guards as before (`accept`: squareness,
+    `lineContrast` ≥ 1.35 both axes, `validateCheckerboard`). The old tap-centred
+    window search (`detectInWindow`) is kept as the **fallback** (Adrian chose
+    this), but its result is now checked against the tone pattern: if the pattern
+    says the board is elsewhere on that lattice, the fitted board is returned, or
+    nothing. `findGrid` now rejects a window with no edges at all (blank paper).
+    Board coordinates can now be fractional; `cellRect`/`cropBoardCanvas` already
+    took floats.
+  - **After the fix (same probe, same pages):** Dvoretsky 16 pages / 19 boards +
+    Hellsten 4 pages / 7 boards = **6,656 presses on 26 boards, 0 missed, and every
+    board gives ONE grid from all 256 points** (Dvoretsky 47x47 exact, matching the
+    470-px picture = 10 squares incl. border; Hellsten 41.5 = 332/8 exact).
+    **False boards on presses OFF the boards (text and margins), 13 pages, final
+    code: 2 of 2,966** (both Hellsten p60, both from the old fallback, a
+    pre-existing kind). Before the fix the same pages gave 254 on Dvoretsky
+    (nearly all blank white margin) and 26 on Hellsten. A 2x-zoom
+    render (2130 px) gave the same result. The two
+    SCANNED books (Silman, Fundamental Chess Endings — also hatched) went from
+    almost nothing found to every diagram found on the 6 scan pages tried, one grid
+    per board in nearly all presses (3 of 132 presses on FCE p200 gave a grid 1 px
+    off in period).
+  - **Verified** — `tools/cdp-verify-hatched.mjs` (headless, 375px, EN/ES ×
+    light/dark, **56/56**): Dvoretsky p395 + Hellsten p102. REALLY PRESSED with CDP
+    touch input (finger held 1.1 s, dialog read while the finger is still down): on
+    Dvoretsky at 20%, 28% and 70% of the page height — the heights that were missed
+    — with Training off AND on → the diagram dialog opens with the board; on plain
+    text (50%) → "Couldn't find a board there" / "No encontré un tablero ahí" and no
+    dialog; on the bottom rank of a Hellsten board → dialog. The Training button
+    REALLY TAPPED. CALLED, not pressed: `detectBoard` on the reader's own page
+    canvas — 16x16 inside each of the four boards, all 256 give the same grid;
+    280-point grid over the rest of both pages → no board. CLICKED with
+    `element.click()`: Read tab, shelf cards, Back. SCROLLED by setting `scrollTop`.
+    SEEDED: the two books via `db.addBook()`. Run:
+    `node tools/cdp-verify-hatched.mjs <outDir> "<Dvoretsky.pdf>" 395 "<Hellsten.pdf>" 102`.
+    Also green: `node tools/cdp-verify-stage2.mjs http://localhost:<port>` (all
+    checks, incl. the blank-area and no-board-on-text ones),
+    `tools/cdp-verify-training.mjs` **65/65**, `npm.cmd run test:tree` **53/53**.
+  - **Book templates:** a book already calibrated on the phone was taught from
+    the OLD, slightly-off grid. If Dvoretsky reads pieces worse than before, clear
+    its templates (the reader's re-teach option) and teach it once more.
+  - **Not tested:** a real phone and finger; reading the PIECES on a real
+    Dvoretsky board after this change (only finding the board was checked;
+    stage-2 reading is checked on synthetic boards); time on a slow phone (a miss
+    costs ~40 ms in desktop headless, ~1.5x the old path); memory at deep zoom
+    (the tone map adds two page-sized float arrays, ~60 MB at the 2400-px cap).
+  - **Dev-only probe** (pages 30–395 of Dvoretsky, Hellsten 60/102/150/200, the
+    scans) was throwaway, not committed; the committed tool covers p395 and p102.
+
 - **READ TAB — TRAINING MODE: "!" MOVES ARE COVERED, TAP TO REVEAL (2026-10-02).**
   Committed on `main` (`cd92abb`), NOT pushed, NOT deployed. Main is ONE commit
   ahead of origin: origin is at `a32e801`, so the tab-swipe entry below saying
@@ -81,7 +156,7 @@
   - **Not tested:** a real phone and a real finger; any book other than those
     three; a book whose text is an invisible OCR layer over a scan (none on hand —
     blocks there would only be as accurate as the OCR).
-  - **FOUND, NOT FIXED (pre-existing, nothing to do with Training):** the diagram
+  - **FIXED 2026-10-02 (entry above)** — was: **FOUND, NOT FIXED (pre-existing, nothing to do with Training):** the diagram
     reader misses Dvoretsky's hatched boards at some finger heights. Probing
     `detectBoard` directly on p395 at 375px: inside the first board it finds the
     board at 8%, 12%, 16% and 24% of the page height but NOT at 20% or 28%; in the
