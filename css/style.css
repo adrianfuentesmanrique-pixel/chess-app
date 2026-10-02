@@ -1796,7 +1796,27 @@ body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
 }
 .stu-theme span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stu-theme b { font-variant-numeric: tabular-nums; }
+/* A weak spot: gold edge + ▼, so it reads without colour too. */
+.stu-theme.weak { box-shadow: inset 3px 0 0 var(--gold); background: var(--gold-bg); font-weight: 600; }
+.stu-theme.weak i { font-style: normal; font-size: 10px; align-self: center; }
+.stu-theme.weak span { flex: 1; }
+.stu-weak-key { margin: 6px 0 0; font-size: 12px; }
 .stu-more { margin-top: 8px; }
+/* Students tab: hardest topics across my students. Name + "3 of 4 students",
+   a bar for the share, then who. */
+.stu-hard-list { display: grid; gap: 5px; }
+.stu-hard-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: baseline;
+  background: var(--panel2); border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.stu-hard-row > b { font-size: 14px; overflow-wrap: anywhere; }
+.stu-hard-row em { font-style: normal; font-size: 12px; font-variant-numeric: tabular-nums; }
+.stu-hard-row i { grid-column: 1 / -1; height: 6px; background: var(--panel); border-radius: 3px; overflow: hidden; }
+.stu-hard-row i b { display: block; height: 100%; background: var(--gold); border-radius: 3px; }
+.stu-hard-row span { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.stu-hard-note { margin: 6px 0 0; font-size: 12px; }
+.stu-hard-list:empty + .stu-hard-note { margin-top: 0; }
 .stu-page-actions { display: flex; gap: 8px; margin-top: 18px; }
 .stu-page-actions .btn { flex: 1; margin-top: 0; }
 

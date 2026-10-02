@@ -2,6 +2,58 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS: HARDEST TOPICS + WEAK-SPOT MARKS (2026-10-01).** Committed on
+  `main`, NOT pushed, NOT deployed. No rules change, no change to what a
+  student shares, no IndexedDB change. `sw.js` v125 → **v126**.
+  - **What it does:** (1) on a student's page, the puzzle themes that are a
+    weak spot get a gold edge, a tint and a ▼ (with a "Weak spot" label for
+    screen readers), and a line under the grid says what the mark means.
+    (2) At the top of the Students tab, "Hardest topics for your students" /
+    "Temas más difíciles para tus alumnos": the themes that are a weak spot for
+    the most students — rank, "3 of 4 students", a bar, and the names.
+  - **Adrian's two decisions:** scope A (existing data only — NOT real mistake
+    counts); and "weak" = judged against the student's OWN puzzle rating, not
+    simply the three lowest.
+  - **The rule, exactly:** a named theme is a weak spot when its rounded rating
+    is **75 or more below the student's rounded puzzle rating**, the lowest
+    **3** at most (`WEAK_GAP`, `WEAK_MAX`). The class block counts students per
+    weak theme, lists only themes shared by **two or more**, most students
+    first, ties broken by the bigger total shortfall, top 5 (`HARD_SHOWN`).
+    Only students with a puzzle rating AND at least one named theme take part;
+    the note says "N of M students share themes". Fewer than two such students:
+    a plain sentence with the count, no ranking. No accepted student: no block.
+  - **Honest limit — it is ratings, not mistakes.** Checked in the code:
+    nothing a student shares counts mistakes or attempts per theme
+    (`buildStudentReport`, js/firebase.js). A theme gets a rating only once one
+    puzzle of it is tried, and in a student's first 10 puzzles one result moves
+    a theme about 100 points — so a mark on a brand-new student can be one
+    unlucky puzzle. The app cannot tell "tried once" from "tried 200 times".
+  - **Code (`js/students.js`):** `namedThemes(themes)` (the one meta-tag
+    filter, now shared), `weakThemes(r)`, `renderHard()` (called from
+    `render()`), and `themesBlock(r)` — it now takes the whole summary, not
+    just `puzzleThemeElo`. Markup `#stu-hard` in `index.html`; CSS
+    `.stu-theme.weak`, `.stu-hard-*`; 8 strings `stu_weak_*` / `stu_hard_*`.
+    The Assign-homework sheet's weakest-first chips are untouched.
+  - **Verified** by `tools/cdp-verify-hardtopics.mjs` (headless Chrome, 375px,
+    EN/ES × light/dark, **169/169**), preview `chess-app73` = port 9188.
+    SEEDED: nobody was signed in — the teacher uid, the coaching links and
+    seven students' summaries were written straight into the live `Students`
+    object, `Students.load` was replaced by a no-op, and the tab was opened by
+    calling `showScreen('students')`, not by a tap. REALLY CLICKED: every
+    student card, "Show all", and Close. The expected ranking was counted by
+    hand in the script's comments (fork 3, pin 2, skewer 2 of 4 sharing
+    students; two one-student themes left out) and the page matched it; also
+    checked: exactly −75 is marked and −74 is not, a 4th theme at −75 is left
+    out by the cap, meta-tags never show, a student sharing nothing, a student
+    with only meta-tags, a student with no summary, one student only, two
+    students with nothing in common, no accepted student, no sideways scroll.
+    `npm.cmd run test:tree` 45/45.
+  - **Not tested:** a real signed-in teacher with real students, and a real
+    phone. Offered and NOT built: per-theme first-try misses from homework
+    results (data already arrives, no rules change), and scope B (count real
+    failures per theme on the student's device — needs a summary + rules
+    change and a rules deploy).
+
 - **OPENINGS: ONE CHOSEN GAME PLAYS TO ITS LAST MOVE (2026-10-01).** Committed
   on `main`, NOT pushed, NOT deployed. No rules change, no IndexedDB change, no
   new control, no new string. `sw.js` v124 → **v125**.

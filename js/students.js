@@ -61,6 +61,13 @@ const TICK_S = 30;
 // summary carries, the 8 weakest themes before "Show all".
 const BAR_DAYS = 14;
 const THEMES_SHOWN = 8;
+// A theme is a weak spot when it is rated this far under the student's OWN
+// puzzle rating — at most WEAK_MAX per student, the lowest ones. The Students
+// tab's "hardest topics" block counts students per weak theme and shows the
+// HARD_SHOWN themes that the most students share (two students at least).
+const WEAK_GAP = 75;
+const WEAK_MAX = 3;
+const HARD_SHOWN = 5;
 // Homework (stage 4). Progress is saved in bundles (plan 3.2): every 5 counted
 // puzzles, when leaving Puzzles (or the chapter) or the app, on Exit and on
 // completion.
@@ -471,6 +478,7 @@ export const Students = {
     note.classList.toggle('hidden', !noteText);
     if (!signedIn) { paintCapCounter('stu-count', null, MAX_STUDENTS); return; }
     this.renderFinished();
+    this.renderHard();
     this.renderTeachers();
     this.renderHomework();
     this.renderStudents();
@@ -521,6 +529,69 @@ export const Students = {
     this.writeCache();
     this.paintDot();
     if (activeScreen === 'students') { this.renderFinished(); this.renderStudents(); }
+  },
+
+  // ── Hardest topics (I am the teacher) ──
+  // The themes that are a weak spot (weakThemes) for the most students. Built
+  // only from the per-theme RATINGS the summaries carry: nothing a student
+  // shares counts mistakes or attempts per theme. Only students with a puzzle
+  // rating and at least one named theme take part; under two of them there is
+  // nothing to compare, so the block says so and ranks nothing.
+  renderHard() {
+    const wrap = $('stu-hard');
+    const active = this.asTeacher.filter(l => l.status === 'active').map(l => this.who(l.studentUid));
+    wrap.classList.toggle('hidden', !active.length);
+    if (!active.length) return;
+    const el = $('stu-hard-list');
+    const note = $('stu-hard-note');
+    el.innerHTML = '';
+    const sharing = active.filter(p => {
+      const r = this.reports[p.uid];
+      return r && typeof r.puzzleElo === 'number' && this.namedThemes(r.puzzleThemeElo).length;
+    });
+    if (sharing.length < 2) {
+      note.textContent = t('stu_hard_few').replace('{n}', sharing.length);
+      return;
+    }
+    const by = {};
+    for (const p of sharing) {
+      const r = this.reports[p.uid];
+      for (const [id, v] of this.weakThemes(r)) {
+        const x = by[id] || (by[id] = { id, who: [], gap: 0 });
+        x.who.push(p.profileName);
+        x.gap += Math.round(r.puzzleElo) - v;
+      }
+    }
+    // Most students first; between equals, the bigger total shortfall.
+    const rows = Object.values(by).filter(x => x.who.length >= 2)
+      .sort((a, b) => b.who.length - a.who.length || b.gap - a.gap || this.themeName(a.id).localeCompare(this.themeName(b.id)))
+      .slice(0, HARD_SHOWN);
+    note.textContent = (rows.length ? '' : t('stu_hard_none') + ' ') + t('stu_hard_hint')
+      .replace('{g}', WEAK_GAP).replace('{n}', sharing.length).replace('{m}', active.length);
+    el.innerHTML = rows.map((x, i) =>
+      `<div class="stu-hard-row"><b>${i + 1}. ${esc(this.themeName(x.id))}</b>` +
+      `<em>${esc(t('stu_hard_count').replace('{c}', x.who.length).replace('{n}', sharing.length))}</em>` +
+      `<i aria-hidden="true"><b style="width:${Math.round(x.who.length / sharing.length * 100)}%"></b></i>` +
+      `<span>${esc(x.who.sort((a, b) => a.localeCompare(b)).join(', '))}</span></div>`).join('');
+  },
+
+  // [[id, rounded rating]] for the themes the app has a name for.
+  // puzzleThemeElo also rates the puzzle set's meta-tags (endgame, short,
+  // crushing…), which the app never offers as a theme.
+  namedThemes(themes) {
+    return Object.entries(themes && typeof themes === 'object' ? themes : {})
+      .filter(([k, v]) => typeof v === 'number' && Number.isFinite(v) && t('theme_' + k) !== 'theme_' + k)
+      .map(([k, v]) => [k, Math.round(v)]);
+  },
+
+  // A student's weak spots, lowest first: [[id, rating]]. Judged against the
+  // student's own puzzle rating, on the rounded numbers the page prints, so a
+  // 1900 player and a 1000 player are each measured against themselves.
+  weakThemes(r) {
+    if (!r || typeof r.puzzleElo !== 'number') return [];
+    return this.namedThemes(r.puzzleThemeElo)
+      .filter(([, v]) => v <= Math.round(r.puzzleElo) - WEAK_GAP)
+      .sort((a, b) => a[1] - b[1]).slice(0, WEAK_MAX);
   },
 
   // "0:42" / "12:05".
@@ -779,7 +850,7 @@ export const Students = {
       box.appendChild(counts);
 
       box.append(this.pageHead('stu_time'), this.minutesBlock(r.activeTime));
-      box.append(this.pageHead('stu_themes', 'stu_themes_hint'), this.themesBlock(r.puzzleThemeElo));
+      box.append(this.pageHead('stu_themes', 'stu_themes_hint'), this.themesBlock(r));
 
       // Teacher only: what I gave this student, and Assign. Opening the page
       // also clears the "finished since last time" dot for this student.
@@ -1516,26 +1587,34 @@ export const Students = {
   },
 
   // Per-theme puzzle ratings, weakest first — what a teacher would assign.
-  // puzzleThemeElo also rates the puzzle set's meta-tags (endgame, short,
-  // crushing…), which the app never offers as a theme; only named themes show.
-  themesBlock(themes) {
+  // Only named themes show (namedThemes). The student's weak spots
+  // (weakThemes) carry a gold edge and a ▼, and a line under the grid says
+  // what the mark means.
+  themesBlock(r) {
     const wrap = document.createElement('div');
-    const rows = Object.entries(themes && typeof themes === 'object' ? themes : {})
-      .filter(([k, v]) => typeof v === 'number' && Number.isFinite(v) && t('theme_' + k) !== 'theme_' + k)
-      .map(([k, v]) => [t('theme_' + k), Math.round(v)])
-      .sort((a, b) => a[1] - b[1]);
+    const rows = this.namedThemes(r.puzzleThemeElo).sort((a, b) => a[1] - b[1]);
     if (!rows.length) {
       wrap.innerHTML = `<p class="hint">${esc(t('stu_no_themes'))}</p>`;
       return wrap;
     }
+    const weak = new Set(this.weakThemes(r).map(([k]) => k));
+    const mark = `<i role="img" aria-label="${esc(t('stu_weak_mark'))}">▼</i>`;
     const grid = document.createElement('div');
     grid.className = 'stu-themes';
     const draw = n => {
-      grid.innerHTML = rows.slice(0, n).map(([label, v]) =>
-        `<div class="stu-theme"><span>${esc(label)}</span><b>${v}</b></div>`).join('');
+      grid.innerHTML = rows.slice(0, n).map(([k, v]) =>
+        `<div class="stu-theme${weak.has(k) ? ' weak' : ''}">${weak.has(k) ? mark : ''}` +
+        `<span>${esc(t('theme_' + k))}</span><b>${v}</b></div>`).join('');
     };
     draw(THEMES_SHOWN);
     wrap.appendChild(grid);
+    if (typeof r.puzzleElo === 'number') {
+      const key = document.createElement('p');
+      key.className = 'hint stu-weak-key';
+      key.textContent = t(weak.size ? 'stu_weak_key' : 'stu_weak_none')
+        .replace('{g}', WEAK_GAP).replace('{e}', Math.round(r.puzzleElo));
+      wrap.appendChild(key);
+    }
     if (rows.length > THEMES_SHOWN) {
       const more = document.createElement('button');
       more.className = 'btn small stu-more';
