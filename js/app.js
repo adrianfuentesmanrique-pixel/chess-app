@@ -1324,11 +1324,18 @@ function navigateFromMenu(name) {
 
 const TAB_ORDER = [...document.querySelectorAll('#tabbar button')].map(b => b.dataset.screen);
 
+// Rush and Blind are modes of the Puzzles tab, reached by its chip strip with
+// no Back button of their own, so they swipe as their home tab does. The other
+// sub-screens (a leaderboard, Friends, a public profile, Masterclass, Setup)
+// are deliberately left out: each is left by its Back button, and a sideways
+// swipe there would walk away from the screen Back is meant to return to.
+const SWIPE_AS_HOME = new Set(['rush', 'blind']);
+
 // The tab beside `screen` in the drawer's order (dir +1 = next, -1 = previous),
-// or null at either end and on a sub-screen (Rush, Blind, a public profile),
+// or null at either end and on a sub-screen that is not in SWIPE_AS_HOME,
 // which has no neighbours.
 function neighbourTab(screen, dir) {
-  const i = TAB_ORDER.indexOf(screen);
+  const i = TAB_ORDER.indexOf(SWIPE_AS_HOME.has(screen) ? MENU_AREA[screen] : screen);
   return i === -1 ? null : TAB_ORDER[i + dir] || null;
 }
 
@@ -1345,7 +1352,8 @@ function goAdjacentTab(dir) {
 // and not the next is worse than one that never fires there. The walk below
 // then catches any other real horizontal scroller.
 const SWIPE_SAFE = '.modal-back, .drag-ghost, input, textarea, select, ' +
-  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .movelist, #read-stage';
+  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .movelist, #read-stage, ' +
+  '#rush-countdown'; // Rush's count-in lies over its board, which keeps every touch (boardOwnsTouch)
 
 // The board acts the moment a finger lands (board.js _tap runs on pointerdown),
 // so it keeps the touch whenever that landing means something: a piece you can
@@ -1354,11 +1362,15 @@ const SWIPE_SAFE = '.modal-back, .drag-ghost, input, textarea, select, ' +
 // tap cancels it), arrow drawing, a drag already running, and the Setup
 // editor. Anywhere else — an empty square, a piece that is not yours to move —
 // the touch does nothing on the board, so a sideways drag there swipes tabs.
+// Two boards keep every touch, because a swipe that slipped there would cost
+// something: Blindfold's, where the pieces are hidden and nobody can tell an
+// empty square from their own piece, and Rush's, which is only on screen during
+// a run that leaving the screen ends.
 // Read before the board handles the touch: see the capture flag on pointerdown.
 function boardOwnsTouch(el) {
   const board = el.closest('.board');
   if (!board) return false;
-  return board.id === 'setup-board' ||
+  return board.id === 'setup-board' || board.id === 'blind-board' || board.id === 'rush-board' ||
     board.matches('.drawing, .dragging') ||
     !!el.closest('.sq.grabbable') ||
     !!board.querySelector('.sq.selected, .sq.premove');

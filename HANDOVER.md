@@ -2,6 +2,47 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **TAB SWIPE WORKS IN PUZZLE RUSH AND BLINDFOLD (2026-10-02).** Committed on
+  `main`, NOT pushed, NOT deployed (main is now two commits ahead of origin
+  `5cdeae6`). Behaviour only — no rules change, no data change, no new text.
+  `sw.js` v127 → **v128**.
+  - **What it does:** a sideways swipe on Puzzle Rush or Blindfold now goes to
+    the same neighbours as Puzzles — Openings one way, Play the other. Swiping
+    back towards Puzzles from either side lands on plain Puzzles, as the drawer
+    does. Android Back after a swipe returns to the Rush / Blindfold screen that
+    was left, the same as after a drawer tap.
+  - **Leaving mid-run is the drawer's behaviour, unchanged:** a Rush run is
+    dropped (clock stopped, no result card, no score saved, no dialog); a
+    Blindfold puzzle is abandoned (countdown and peek timers cancelled, no
+    rating change, no dialog). The swipe goes through the same `showScreen()`.
+  - **Added on purpose, beyond the bare fix:** the Blindfold board and the Rush
+    board (and Rush's 5…1 count-in lying over it) keep EVERY touch — a drag that
+    starts anywhere on them never switches tabs, not even from an empty square.
+    On the Puzzles board an empty square still swipes, as before. Reason: with
+    hidden pieces nobody can tell an empty square from their own piece, and a
+    slipped swipe in Rush would silently end the run. To swipe away from those
+    two screens, start the drag above or below the board.
+  - **Left alone on purpose:** Leaderboard, Friends, Blocked, Friends
+    leaderboard, a public profile, Masterclass and Set up position still have
+    no swipe neighbours — each is left by its Back button.
+  - **Code:** `js/app.js` only — `SWIPE_AS_HOME` (rush, blind) and
+    `neighbourTab()`, which looks those two up under their home tab through the
+    existing `MENU_AREA`; `boardOwnsTouch()` (the two board ids); `SWIPE_SAFE`
+    (`#rush-countdown`). The mode chips were already covered (`.seg.scroll`).
+  - **Verified** by `tools/cdp-verify-swipe-modes.mjs` (headless Chrome, 375px,
+    EN/ES × light/dark, **161/161**), preview `chess-app75` = port 9190.
+    REALLY SWIPED with touch input (CDP `Input.dispatchTouchEvent`): every tab
+    swipe, every drag on the chips, every drag on a board (a piece, an empty
+    square, hidden Blindfold pieces after the countdown, the Rush count-in).
+    CLICKED with `element.click()`, not a finger: ☰ and drawer destinations,
+    the mode chips, Rush Start, Leaderboard, Friends. CALLED, not tapped:
+    `history.back()` stands in for Android Back; `showScreen()` opened Blocked,
+    Friends leaderboard, a public profile, Masterclass and Set up position, with
+    no data behind them. SEEDED: nothing. `npm.cmd run test:tree` 45/45.
+  - **Not tested:** a real phone (a real finger is less straight than the
+    test's), a signed-in account, and an OPEN base — the fresh test profile has
+    no bases, so only the Bases list was swiped; its code path was not touched.
+
 - **TAB HEADERS: NO SECOND TITLE (2026-10-02).** Committed on `main`, NOT
   pushed, NOT deployed (main was level with origin at `5cdeae6` before this).
   Looks only — no rules change, no data change. `sw.js` v126 → **v127**.
@@ -49,7 +90,7 @@
   - **Not tested:** a real phone, a signed-in account, the Rush result card
     (untouched markup, not opened), and the +10/−10 badge appearing after a
     solved puzzle (present in the page, not triggered).
-  - **Found, not fixed (next task):** swiping sideways to the neighbouring tab
+  - **Found here, FIXED since (v128, entry above):** swiping sideways to the neighbouring tab
     does nothing in Puzzle Rush and Blindfold. `neighbourTab()` in `js/app.js`
     looks the screen up in `TAB_ORDER`, which holds only the drawer's nine
     screens; `rush` and `blind` are not in it, so it returns null.
