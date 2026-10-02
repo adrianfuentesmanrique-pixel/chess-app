@@ -3,8 +3,9 @@
 ## Already done and pushed — do NOT redo these
 
 - **READ TAB — TRAINING MODE: "!" MOVES ARE COVERED, TAP TO REVEAL (2026-10-02).**
-  Committed on `main`, NOT pushed, NOT deployed (main is now three commits ahead
-  of origin `5cdeae6`). No rules change. `sw.js` v128 → **v129**; one new shipped
+  Committed on `main` (`cd92abb`), NOT pushed, NOT deployed. Main is ONE commit
+  ahead of origin: origin is at `a32e801`, so the tab-swipe entry below saying
+  "NOT pushed" is out of date — v127 and v128 are on origin. No rules change. `sw.js` v128 → **v129**; one new shipped
   file, `js/read-training.js`, added to the sw ASSETS.
   - **What it does:** a new button in the reader header (crossed-out eye, left of
     full-screen). On: every move marked "!" or "!!" on the page is hidden under a
