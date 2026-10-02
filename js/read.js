@@ -23,6 +23,7 @@ import { getPieceSet } from './board.js';
 import { START_FEN } from './tree.js';
 import { detectBoard, buildTemplates, buildTemplatesFromGrid, classifyBoard,
          cropBoardCanvas, gridToFen } from './diagram.js';
+import { findCovers, textChars } from './read-training.js';
 
 const MAX_ZOOM = 4;
 const TAP_SLOP = 10;        // px a "tap" may move before it stops being a tap
@@ -311,6 +312,8 @@ const R = {
   scrollRaf: 0, reRenderTimer: null,
   saveTimer: null,
   templates: null,              // per-book piece templates, calibrated on first use
+  training: false,              // Training mode: "!" moves are covered (per book)
+  hasText: null,                // false = a scan (no text to cover); null = not checked yet
 };
 
 async function openBook(id) {
@@ -338,6 +341,9 @@ async function openBook(id) {
     // (a shelf of phantom queens). Discarding them makes the next long-press
     // re-learn the book with the current method instead of reusing a broken read.
     R.templates = (book.templates && book.templates.ver >= 3) ? book.templates : null;
+    R.training = !!book.training;
+    R.hasText = typeof book.hasText === 'boolean' ? book.hasText : null;
+    syncTrainBtn();
     R.zoom = 1;
     // Page-1 aspect ratio sets every slot's height so the column (and scrollbar)
     // is the whole book's height without pre-measuring all pages. Chess books are
@@ -354,6 +360,7 @@ async function openBook(id) {
     updatePageInd();
     // Wait for the first page to paint before dropping the spinner.
     await (R.slots.get(R.page)?.render);
+    checkHasText();   // not awaited: only decides whether the Training button is live
   } catch (err) {
     console.error('[read] open failed', err);
     toast(t('read_open_failed'));
@@ -431,7 +438,8 @@ function ensureSlot(n) {
   el.querySelector('.read-blank').classList.add('hidden');
   $('read-col').appendChild(el);
   slot = { n, el, canvas: el.querySelector('canvas'), token: 0, scale: 0,
-           task: null, rendered: false, render: null };
+           task: null, rendered: false, render: null,
+           covers: null, covering: false };   // Training mode's layer of covers
   R.slots.set(n, slot);
   slot.render = renderSlot(n);
   return slot;
@@ -442,6 +450,7 @@ function releaseSlot(n) {
   if (!slot) return;
   if (slot.task) { try { slot.task.cancel(); } catch {} slot.task = null; }
   slot.token++;                                   // invalidate any in-flight render
+  clearCovers(slot);                              // the element is reused for another page
   slot.el.remove();
   slot.canvas.width = 0; slot.canvas.height = 0;  // free the bitmap
   R.slots.delete(n);
@@ -484,6 +493,119 @@ async function renderSlot(n) {
   slot.task = null; slot.rendered = true; slot.scale = targetW;
   slot.el.querySelector('.read-blank').classList.add('hidden');
   maybeFlagUndecodable(page, slot, token);
+  buildCovers(slot);
+}
+
+// ── Training mode ───────────────────────────────────────────────────────────
+// For training alone with a book: every move marked "!" or "!!" is covered, and
+// a tap on a cover reveals that one move. The pages are pictures, so this is the
+// one place the reader asks pdf.js for the page's TEXT (getTextContent) — only
+// for where the words are; nothing is drawn from it. js/read-training.js decides
+// which words are covered. A scanned book has no text, so the button is dimmed
+// and says so (no OCR: it would break the self-hosted, light-first-launch rules).
+//
+// The covers live in a layer over the page's canvas and are placed in
+// percentages of the page, so zoom, pinch, rotation and the crisp re-render all
+// carry them along with no extra work. They are built once per slot, which is
+// also what makes a revealed move stay revealed until its page is scrolled away
+// (releaseSlot) or the book is closed. With Training off there is no layer.
+let measureCtx = null;
+function measureText(str, fontName, family) {
+  measureCtx = measureCtx || document.createElement('canvas').getContext('2d');
+  // pdf.js registers each embedded font under the name it reports for the text
+  // (document.fonts), so once the page has rendered this measures with the
+  // book's own font; the generic family is the fallback if it did not.
+  measureCtx.font = `100px "${fontName}", ${family}`;
+  return measureCtx.measureText(str).width;
+}
+
+async function buildCovers(slot) {
+  if (!R.training || R.hasText === false || slot.covers || slot.covering || !slot.rendered) return;
+  slot.covering = true;
+  try {
+    const page = await R.doc.getPage(slot.n);
+    const tc = await page.getTextContent();
+    if (R.slots.get(slot.n) !== slot || !R.training) return;   // recycled, or switched off meanwhile
+    const layer = document.createElement('div');
+    layer.className = 'train-covers';
+    for (const b of findCovers(tc, page.getViewport({ scale: 1 }), measureText)) {
+      const c = document.createElement('div');
+      c.className = 'train-cover';
+      c.style.cssText = `left:${b.l * 100}%;top:${b.t * 100}%;width:${b.w * 100}%;height:${b.h * 100}%`;
+      layer.appendChild(c);
+    }
+    slot.el.appendChild(layer);
+    slot.covers = layer;
+  } catch (e) {
+    console.warn('[read] covers', e);
+  } finally {
+    slot.covering = false;
+  }
+}
+
+function clearCovers(slot) {
+  if (slot.covers) { slot.covers.remove(); slot.covers = null; }
+}
+
+// A cover is only a few millimetres wide on a phone, so a tap counts if it lands
+// on the cover or within a fingertip of it; the nearest one wins, so two moves
+// printed side by side are still revealed one at a time.
+const COVER_SLOP = 12;
+function coverAtClient(clientX, clientY) {
+  const slot = slotAtClient(clientX, clientY);
+  if (!slot || !slot.covers) return null;
+  let best = null, bestD = COVER_SLOP;
+  for (const c of slot.covers.children) {
+    const r = c.getBoundingClientRect();
+    const dx = Math.max(r.left - clientX, 0, clientX - r.right);
+    const dy = Math.max(r.top - clientY, 0, clientY - r.bottom);
+    const d = Math.hypot(dx, dy);
+    if (d <= bestD) { best = c; bestD = d; }
+  }
+  return best;
+}
+
+// Is this a text book? Looks at the open page and a few spread through the book;
+// the answer is stored on the book record so it is asked once per book.
+async function checkHasText() {
+  const doc = R.doc, id = R.id;
+  if (!doc || R.hasText !== null) return;
+  const pages = new Set([R.page]);
+  for (let i = 1; i <= 5; i++) pages.add(clampPage(Math.round(R.pageCount * i / 6)));
+  let has = false;
+  try {
+    for (const n of pages) {
+      const tc = await (await doc.getPage(n)).getTextContent();
+      if (R.doc !== doc) return;
+      if (textChars(tc) >= 150) { has = true; break; }
+    }
+  } catch (e) { console.warn('[read] text check', e); return; }
+  R.hasText = has;
+  db.updateBookMeta(id, { hasText: has });
+  syncTrainBtn();
+  if (has) for (const slot of R.slots.values()) buildCovers(slot);
+}
+
+function syncTrainBtn() {
+  const btn = $('read-training');
+  if (!btn) return;
+  const scan = R.hasText === false;
+  btn.classList.toggle('on', R.training && !scan);
+  btn.classList.toggle('unavailable', scan);
+  btn.setAttribute('aria-pressed', String(R.training && !scan));
+  btn.setAttribute('aria-disabled', String(scan));
+}
+
+async function toggleTraining() {
+  if (!R.doc) return;
+  if (R.hasText === null) await checkHasText();
+  if (!R.doc) return;
+  if (R.hasText === false) { toast(t('read_training_scan'), 3200); return; }
+  R.training = !R.training;
+  db.updateBookMeta(R.id, { training: R.training });
+  syncTrainBtn();
+  for (const slot of R.slots.values()) R.training ? buildCovers(slot) : clearCovers(slot);
+  toast(t(R.training ? 'read_training_on' : 'read_training_off'), R.training ? 3200 : 2200);
 }
 
 // A page can render cleanly yet paint nothing when its only content is a
@@ -588,6 +710,7 @@ export function closeBook(remember = false) {
   const col = $('read-col'); if (col) { col.innerHTML = ''; col.style.height = '0px'; }
   if (R.doc) { try { R.doc.destroy(); } catch {} R.doc = null; }
   R.id = null; R.templates = null; R.zoom = 1;
+  R.training = false; R.hasText = null;
   const stage = $('read-stage');
   if (stage) { stage.scrollTop = 0; stage.style.touchAction = 'pan-y'; }
   document.body.classList.remove('reading');
@@ -692,6 +815,10 @@ function onCancel(e) {
 }
 
 function handleTap(e) {
+  // Training mode: a tap on a cover reveals that move and is used up — it is not
+  // also the first (or second) half of a double-tap zoom.
+  const cover = coverAtClient(e.clientX, e.clientY);
+  if (cover) { cover.remove(); lastTap = 0; return; }
   const now = Date.now();
   if (now - lastTap < DBLTAP_MS && Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 40) {
     toggleZoom(e.clientX, e.clientY);
@@ -1014,6 +1141,7 @@ export function init() {
   // Immersive reading: hide the app header + tab bar so the page fills the screen.
   // The reader's own bar stays, so this same button (and Back) always gets you out.
   $('read-fullscreen').onclick = () => document.body.classList.toggle('read-immersive');
+  $('read-training').onclick = toggleTraining;
 
   const stage = $('read-stage');
   stage.addEventListener('scroll', onScroll, { passive: true });

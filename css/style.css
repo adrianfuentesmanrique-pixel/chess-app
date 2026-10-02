@@ -1643,7 +1643,19 @@ body.reading main { overflow: hidden; }
    The reader's own bar (with this button and Back) stays, so exit is always one tap. */
 body.read-immersive #topbar,
 body.read-immersive #tabbar { display: none; }
-body.read-immersive .read-fs-btn { color: var(--accent, var(--text)); }
+body.read-immersive #read-fullscreen { color: var(--accent, var(--text)); }
+/* Training mode toggle: a gold ring when on; dimmed on a scanned book, where it
+   still takes a tap to say why. */
+.read-train-btn.on { color: var(--text); background: var(--gold-bg); box-shadow: inset 0 0 0 1.5px var(--gold); }
+.read-train-btn.unavailable { opacity: .4; }
+/* The covers over "!" moves. Placed in % of the page by js/read.js so they follow
+   zoom; taps are hit-tested by the stage's own gesture code, hence no pointer
+   events. Fixed navy and gold: the paper is white in either app theme. */
+.train-covers { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.train-cover {
+  position: absolute; box-sizing: border-box;
+  background: #102a43; border-bottom: 1px solid #f5b942; border-radius: 2px;
+}
 /* Native vertical scroller holding the page column. touch-action starts at
    pan-y (one finger scrolls); js/read.js switches it to pan-x pan-y once zoomed
    so a finger can also pan a widened page horizontally. */

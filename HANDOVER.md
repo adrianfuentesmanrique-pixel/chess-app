@@ -2,6 +2,92 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — TRAINING MODE: "!" MOVES ARE COVERED, TAP TO REVEAL (2026-10-02).**
+  Committed on `main`, NOT pushed, NOT deployed (main is now three commits ahead
+  of origin `5cdeae6`). No rules change. `sw.js` v128 → **v129**; one new shipped
+  file, `js/read-training.js`, added to the sw ASSETS.
+  - **What it does:** a new button in the reader header (crossed-out eye, left of
+    full-screen). On: every move marked "!" or "!!" on the page is hidden under a
+    navy block; one tap on a block reveals that one move. For training alone with
+    a book. Off: nothing is added to the page at all.
+  - **Decided with Adrian:** "!" and "!!" only — "!?", "?!", "?", "??" stay
+    visible. The block hides the move, its mark and any sign glued to it
+    ("Rd2!+–", "g5+!=", "Ke3!ʘ"); the move NUMBER stays ("34." then a block), and
+    so does a closing bracket or comma. On/off is remembered PER BOOK. A revealed
+    move stays revealed until its page is scrolled well away, the mode is turned
+    off, or the book/Read tab is left — then it is covered again; nothing about
+    reveals is stored. Prose with an exclamation mark ("error!") is never covered.
+  - **Scanned books cannot do this** (no text in the file, and no OCR — it would
+    break the self-hosted / light-first-launch rules). On a scan the button is
+    dimmed; tapping it says, in one line, that the book is a scan.
+  - **Adrian's five PDFs in `ChessPuzzleImport\` (30 pages sampled each):**
+    Dvoretsky and Hellsten have real text (about 5–8 "!" moves a page) → Training
+    works. Silman and both copies of Fundamental Chess Endings are pure scans →
+    dimmed button. **CORRECTION to the 2026-08-31 entry below:** Dvoretsky is NOT
+    "a true scan with 0 embedded fonts" — its text is real, visible, positioned
+    text (only the diagrams are pictures).
+  - **How it works (`js/read.js`, section "Training mode"):** the pages are still
+    pictures. With Training on, `buildCovers(slot)` asks pdf.js for the page's
+    text — `page.getTextContent()`, the first and only use of it in the app — and
+    hands it to `findCovers()` in `js/read-training.js`, which returns boxes as
+    fractions of the page. They are drawn as `.train-cover` divs in a
+    `.train-covers` layer inside the page's slot, sized in %, so zoom, pinch,
+    rotation and the crisp re-render carry them with no extra work. Built once per
+    slot (that is what keeps a reveal until the page is left); removed in
+    `releaseSlot`. Taps: `handleTap` asks `coverAtClient()` first — a hit removes
+    the cover and uses the tap up (`lastTap = 0`), so it is never half a
+    double-tap. The covers take no pointer events; the long-press path is untouched.
+  - **The rule itself (`js/read-training.js`, imports nothing):** pdf.js returns
+    text in chunks that ignore words — one chunk holds several moves ("f4! g5!
+    7."), and one move is split across two (the figurine in its own font, then
+    "f4!"). So chunks are laid out as one character stream, words are cut from it,
+    and `coverSpan()` decides. It never reads piece letters (figurines come back
+    as private characters, e.g. U+E026): it needs a square (`e4`) or castling
+    before the mark. A move's place inside a chunk is measured with the book's own
+    embedded font, which pdf.js registers in `document.fonts` under the chunk's
+    `fontName` once the page has rendered.
+  - **Stored on the book record (IndexedDB `books`):** `training` (true/false) and
+    `hasText` (true/false, worked out once per book by `checkHasText()` from the
+    open page plus five spread through the book; a page counts at 150+ characters).
+    New fields only; nothing renamed.
+  - **Name trap:** `.read-cover` is the SHELF's cover thumbnail. The training
+    blocks are `.train-cover` for that reason.
+  - **Strings:** `read_training`, `read_training_on`, `read_training_off`,
+    `read_training_scan` (EN + ES).
+  - **Verified** by `tools/cdp-verify-training.mjs` (headless Chrome, 375px, EN/ES
+    × light/dark, **65/65**; it serves the repo and the books itself, no preview
+    port). Books: Hellsten p102 (figurine), Dvoretsky p395, Silman p60 (scan).
+    Run: `node tools/cdp-verify-training.mjs <outDir> <figurine.pdf> 102 <text.pdf> 395 <scan.pdf>`.
+    Checked: off = no layer and a screenshot byte-identical to before it was ever
+    on; covers = the "!"/"!!" moves counted separately under Node (12 and 7); every
+    cover has print under it and both edges in white space, read from the page's
+    own pixels — at 1x, after double-tap zoom, after pinch (2.6x), after scrolling
+    six pages away and back, sideways (812x375) and upright again, in full screen.
+    REALLY TAPPED with touch input (CDP `Input.dispatchTouchEvent`): the Training
+    button, every reveal, the taps beside and away from a cover, reveal-then-quick-
+    tap (no zoom), double-tap zoom, the pinch, long-press on a cover (not a
+    reveal), long-press on a diagram with Training off and on (dialog opens).
+    CLICKED with `element.click()`: the Read tab, shelf cards, Back, full-screen,
+    the Puzzles tab. CALLED: scrolling (`scrollTop` set), rotation (emulated
+    screen resized). SEEDED: the three books, put on the shelf with
+    `db.addBook()` and a starting page. `npm.cmd run test:tree` 53/53 (8 new in
+    `tests/unit/read-training.test.js`).
+  - **Known limits:** a move broken across two lines is not covered; rotated text
+    is ignored. The padding on a block can rest on the dot of the move number. A
+    tap within 12px of a block counts as a tap on it (blocks are ~4mm wide on a
+    phone), so a double-tap that starts that close to one reveals instead of
+    zooming.
+  - **Not tested:** a real phone and a real finger; any book other than those
+    three; a book whose text is an invisible OCR layer over a scan (none on hand —
+    blocks there would only be as accurate as the OCR).
+  - **FOUND, NOT FIXED (pre-existing, nothing to do with Training):** the diagram
+    reader misses Dvoretsky's hatched boards at some finger heights. Probing
+    `detectBoard` directly on p395 at 375px: inside the first board it finds the
+    board at 8%, 12%, 16% and 24% of the page height but NOT at 20% or 28%; in the
+    second board it misses at 70%. Hellsten's boards were found at every spot
+    tried. On a phone this is "Couldn't find a board there" on a press that is
+    plainly on the diagram.
+
 - **TAB SWIPE WORKS IN PUZZLE RUSH AND BLINDFOLD (2026-10-02).** Committed on
   `main`, NOT pushed, NOT deployed (main is now two commits ahead of origin
   `5cdeae6`). Behaviour only — no rules change, no data change, no new text.
