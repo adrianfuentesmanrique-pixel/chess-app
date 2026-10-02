@@ -124,7 +124,9 @@
   <button id="tabmenu-btn" class="icon-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="tabbar" data-i18n-aria="menu_open">
     <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
   </button>
-  <span id="app-title"><span id="app-title-ico" aria-hidden="true"></span><span id="app-title-name"></span></span>
+  <!-- The page's one <h1>: the tabs no longer repeat their name in an <h2>
+       below, so this is the heading a screen reader lands on. -->
+  <h1 id="app-title"><span id="app-title-ico" aria-hidden="true"></span><span id="app-title-name"></span></h1>
   <div class="row topbar-right" style="gap:10px; margin:0;">
     <span id="streak-badge" class="streak-badge" title="Racha diaria"></span>
     <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
@@ -253,17 +255,16 @@
   <section id="screen-base" class="screen hidden">
     <div id="base-list-view">
       <img src="icons/logo-mark.png" class="watermark" alt="">
-      <div class="row screen-head">
-        <div class="head-with-count">
-          <h2 data-i18n="tab_base"></h2>
-          <!-- Live "used/cap" so the 10-database limit is watched, not hit blind.
-               Painted by Base.renderBases() in js/app.js. -->
-          <span id="base-count" class="cap-counter" aria-live="polite"></span>
+      <!-- No title here: the top bar already says "Bases". Both ways to make a
+           base share the row, with the counter at the right edge. -->
+      <div class="row wrap screen-head tab-head">
+        <div class="row wrap tab-head-btns">
+          <button id="base-new" class="btn primary" data-i18n="new_base"></button>
+          <button id="base-import-new" class="btn" data-i18n="import_pgn"></button>
         </div>
-        <button id="base-new" class="btn primary" data-i18n="new_base"></button>
-      </div>
-      <div class="row wrap" style="margin-top:0">
-        <button id="base-import-new" class="btn" data-i18n="import_pgn"></button>
+        <!-- Live "used/cap" so the 10-database limit is watched, not hit blind.
+             Painted by Base.renderBases() in js/app.js. -->
+        <span id="base-count" class="cap-counter" aria-live="polite"></span>
       </div>
       <input type="file" id="pgn-file-new" accept=".pgn,.txt,application/x-chess-pgn,text/plain" hidden>
       <!-- Masterclass sits ABOVE the local base list and is a separate thing:
@@ -312,8 +313,7 @@
   <section id="screen-play" class="screen hidden">
     <div id="play-setup">
       <img src="icons/logo-mark.png" class="watermark" alt="">
-      <h2 data-i18n="play_title"></h2>
-      <div class="option-group">
+      <div class="option-group tab-lead">
         <label data-i18n="color"></label>
         <div class="seg" id="play-color">
           <button data-v="w" class="on" data-i18n="white"></button>
@@ -382,11 +382,10 @@
   <section id="screen-read" class="screen hidden">
     <!-- Shelf: the user's books as cards, most recently opened first. -->
     <div id="read-shelf">
-      <div class="screen-head">
-        <h2 data-i18n="read_title"></h2>
+      <div class="screen-head tab-head">
+        <p id="read-storage" class="hint read-storage"></p>
         <button id="read-add" class="btn primary small" data-i18n="read_add"></button>
       </div>
-      <p id="read-storage" class="hint read-storage"></p>
       <p id="read-persist-warn" class="hint read-persist-warn hidden" data-i18n="read_persist_warn"></p>
       <div id="read-grid" class="read-grid"></div>
       <div id="read-empty" class="empty-note hidden">
@@ -426,8 +425,7 @@
   <section id="screen-trainer" class="screen hidden">
     <div id="trainer-setup">
       <img src="icons/logo-mark.png" class="watermark" alt="">
-      <h2 data-i18n="trainer_title"></h2>
-      <p class="hint" data-i18n="trainer_explain"></p>
+      <p class="hint tab-lead" data-i18n="trainer_explain"></p>
       <div class="option-group">
         <label data-i18n="book_base"></label>
         <select id="trainer-base" class="input"></select>
@@ -482,13 +480,6 @@
 
   <!-- ══════════ PUZZLES ══════════ -->
   <section id="screen-puzzles" class="screen hidden">
-    <div class="row screen-head">
-      <h2 data-i18n="puzzles_title"></h2>
-      <span id="puzzle-elo" class="elo-badge"></span>
-      <!-- The rating the last attempt moved (+10 / -10). Filled by
-           Puzzles.showEloDelta the moment the result is scored. -->
-      <span id="puzzle-elo-delta" class="elo-delta hidden" aria-live="polite"></span>
-    </div>
     <div class="seg puzzle-modes scroll" data-mode="puzzles">
       <button data-v="puzzles" class="on" data-i18n="mode_puzzles"></button>
       <button data-v="blind" data-i18n="mode_blind"></button>
@@ -502,9 +493,15 @@
       <button id="puzzle-hw-exit" class="btn small" data-i18n="hw_exit"></button>
       <i class="puzzle-hw-bar"><b class="puzzle-hw-fill"></b></i>
     </div>
-    <div class="row" style="justify-content:space-between">
+    <div class="row wrap" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
-      <span id="puzzle-timer" class="elo-badge"></span>
+      <span class="row wrap badge-group">
+        <!-- The rating the last attempt moved (+10 / -10). Filled by
+             Puzzles.showEloDelta the moment the result is scored. -->
+        <span id="puzzle-elo-delta" class="elo-delta hidden" aria-live="polite"></span>
+        <span id="puzzle-elo" class="elo-badge"></span>
+        <span id="puzzle-timer" class="elo-badge"></span>
+      </span>
     </div>
     <!-- One row: theme picker plus icon-only actions. Labels were pushing the
          board below the fold on a phone; the icons carry a title/aria-label so
@@ -533,9 +530,9 @@
   <section id="screen-rush" class="screen hidden">
     <div id="rush-intro">
       <img src="icons/logo-mark.png" class="watermark" alt="">
-      <div class="row screen-head">
-        <h2 data-i18n="rush_title"></h2>
-      </div>
+      <!-- The top bar says "Puzzles" here and the lit chip says which mode, so
+           the title is kept for screen readers only. -->
+      <h2 class="sr-only" data-i18n="rush_title"></h2>
       <div class="seg puzzle-modes scroll" data-mode="rush">
         <button data-v="puzzles" data-i18n="mode_puzzles"></button>
         <button data-v="blind" data-i18n="mode_blind"></button>
@@ -586,10 +583,7 @@
 
   <!-- ══════════ BLINDFOLD PUZZLES ══════════ -->
   <section id="screen-blind" class="screen hidden">
-    <div class="row screen-head">
-      <h2 data-i18n="blind_title"></h2>
-      <span id="blind-elo" class="elo-badge"></span>
-    </div>
+    <h2 class="sr-only" data-i18n="blind_title"></h2>
     <div class="seg puzzle-modes scroll" data-mode="blind">
       <button data-v="puzzles" data-i18n="mode_puzzles"></button>
       <button data-v="blind" class="on" data-i18n="mode_blind"></button>
@@ -597,7 +591,11 @@
     </div>
     <p class="hint" data-i18n="blind_explain"></p>
     <div id="blind-status" class="status-bar"></div>
-    <div id="blind-turn" class="hint blind-turn"></div>
+    <!-- Whose move it is, with the blindfold rating at the right edge. -->
+    <div class="row blind-head">
+      <div id="blind-turn" class="hint blind-turn"></div>
+      <span id="blind-elo" class="elo-badge"></span>
+    </div>
     <div id="blind-countdown" class="blind-countdown hidden"></div>
     <div id="blind-board" class="board-wrap"></div>
     <div class="row" id="blind-actions">
@@ -617,10 +615,7 @@
   <section id="screen-endgame" class="screen hidden">
     <div id="endgame-sections-view">
       <img src="icons/logo-mark.png" class="watermark" alt="">
-      <div class="row screen-head">
-        <h2 data-i18n="tab_endgame"></h2>
-      </div>
-      <div id="endgame-section-list" class="list"></div>
+      <div id="endgame-section-list" class="list tab-lead"></div>
     </div>
 
     <!-- ── Sections 1 & 2: lessons (no progress is persisted, by design) ── -->
@@ -711,11 +706,8 @@
 
   <!-- ══════════ PROFILE ══════════ -->
   <section id="screen-profile" class="screen hidden">
-    <div class="row screen-head">
-      <h2 data-i18n="tab_profile"></h2>
-    </div>
-    <!-- Two-up. At 375px a second button will not fit beside the heading, so
-         both entry points get their own row below it, half width each. The
+    <!-- Two-up, half width each, straight under the top bar (which already
+         says "Profile"). The
          label sits in a child span because data-i18n overwrites textContent
          and would eat the count badge. -->
     <div class="btn-duo">
@@ -884,13 +876,9 @@
        with the full consent list, End, Clear) and "My students" (always, since
        Invite is how anyone becomes a teacher). Rows reuse .fr-row. -->
   <section id="screen-students" class="screen hidden">
-    <div class="row screen-head">
-      <h2 data-i18n="tab_students"></h2>
-      <button id="stu-refresh" class="fr-more" data-i18n-aria="stu_refresh">⟳</button>
-    </div>
     <p id="stu-note" class="stu-note hidden" aria-live="polite"></p>
     <div id="stu-signedout" class="hidden">
-      <p class="hint empty-note" data-i18n="stu_signedout"></p>
+      <p class="hint empty-note tab-lead" data-i18n="stu_signedout"></p>
       <button id="stu-signin" class="btn primary btn-wide" data-i18n="sign_in_or_up"></button>
     </div>
     <div id="stu-body">
@@ -926,6 +914,8 @@
             <h3 data-i18n="stu_my_students"></h3>
             <span id="stu-count" class="cap-counter" aria-live="polite"></span>
           </div>
+          <!-- Reloads the whole tab; it sat beside the old "Students" title. -->
+          <button id="stu-refresh" class="fr-more" data-i18n-aria="stu_refresh">⟳</button>
         </div>
         <div class="stu-buttons">
           <button id="stu-invite" class="btn primary" data-i18n="stu_invite_btn_main"></button>

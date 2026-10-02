@@ -1,6 +1,58 @@
-# Chess app — where things stand (updated 2026-10-01)
+# Chess app — where things stand (updated 2026-10-02)
 
 ## Already done and pushed — do NOT redo these
+
+- **TAB HEADERS: NO SECOND TITLE (2026-10-02).** Committed on `main`, NOT
+  pushed, NOT deployed (main was level with origin at `5cdeae6` before this).
+  Looks only — no rules change, no data change. `sw.js` v126 → **v127**.
+  - **What it does:** the top bar already names the tab, so the ten top-level
+    tabs no longer repeat it in a second title underneath (Bases, Play, Read,
+    Openings, Puzzles, Puzzle Rush, Blindfold, Learn, Profile, Students).
+    Every tab's first content now starts 10px under the top bar, the same as
+    Analysis.
+  - **Where each stranded control went:** Bases — **New base** and **Import
+    PGN** share one row, counter at the right edge. Read — the storage line
+    sits left of **Add book**. Puzzles — the rating and +/− badges joined the
+    progress/timer row. Blindfold — the rating badge sits right of the
+    "White to move" line. Students — ⟳ moved to the right end of the "My
+    students" heading (so it is not shown signed out, where there is nothing
+    to reload).
+  - **Kept on purpose:** every sub-screen title, because there the top bar only
+    names the parent tab — an open base, a Masterclass, Game History, the Rush
+    result, Learn's lists/lessons/endings, Leaderboard, Friends, Blocked,
+    Friends leaderboard, a public profile, Set up position.
+  - **Screen readers:** `#app-title` in the top bar is now the page's one
+    `<h1>` (it was a `<span>`). Rush and Blindfold keep their title as an
+    invisible `<h2 class="sr-only">`, because the top bar says only "Puzzles".
+  - **Code:** `index.html` head rows; `css/style.css` — `.tab-head`,
+    `.tab-head-btns`, `.tab-lead`, `.badge-group`, `.sr-only`, `.blind-head`,
+    and a first-visible-section rule for `#stu-body`. Three strings that
+    nothing else used were deleted from `js/i18n.js`: `play_title`,
+    `read_title`, `trainer_title` (`docs/EN-REVIEW-PLAN.md` still lists them).
+    `puzzles_title`, `rush_title`, `blind_title` stay — still used.
+  - **Older fault fixed on the way:** with an empty bookshelf the Read tab
+    scrolled sideways by 30px — its watermark had no positioned parent and
+    hung off the page. `#read-shelf` joined the watermark-container rule and
+    got a `min-height` so the watermark is not cut short.
+  - **Verified** by `tools/cdp-verify-tabheads.mjs` (headless Chrome, 375px,
+    EN/ES × light/dark, **301/301**), preview `chess-app74` = port 9189.
+    REALLY CLICKED: ☰ and every drawer destination, the three puzzle-mode
+    chips, New base, Import PGN, Add book, ⟳, Leaderboard, Friends, a base,
+    Game History, Learn down to a lesson and an ending position, every Back,
+    and the whole guided tour started from Settings (33 steps, every target
+    found and ringed, finished). SEEDED: nobody was signed in — the signed-in
+    Students tab was faked the same way as the hardest-topics check, with
+    `Students.load` swapped for a counter to see ⟳ call it once; Blocked,
+    Friends leaderboard, Masterclass and a public profile were opened by
+    calling `showScreen()`, the last two with no data, so only the heading's
+    place in the row was checked there. `npm.cmd run test:tree` 45/45.
+  - **Not tested:** a real phone, a signed-in account, the Rush result card
+    (untouched markup, not opened), and the +10/−10 badge appearing after a
+    solved puzzle (present in the page, not triggered).
+  - **Found, not fixed (next task):** swiping sideways to the neighbouring tab
+    does nothing in Puzzle Rush and Blindfold. `neighbourTab()` in `js/app.js`
+    looks the screen up in `TAB_ORDER`, which holds only the drawer's nine
+    screens; `rush` and `blind` are not in it, so it returns null.
 
 - **STUDENTS: HARDEST TOPICS + WEAK-SPOT MARKS (2026-10-01).** Committed on
   `main`, NOT pushed, NOT deployed. No rules change, no change to what a

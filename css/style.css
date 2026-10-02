@@ -95,7 +95,8 @@ body { display: flex; flex-direction: column; height: 100dvh; }
 }
 #tabmenu-btn svg { display: block; }
 #topbar .topbar-right { justify-self: end; }
-#app-title { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; color: var(--text); }
+/* An <h1> (the tabs carry no second title), so its browser defaults are undone. */
+#app-title { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; margin: 0; font: inherit; color: var(--text); }
 #app-title-ico { flex: 0 0 auto; display: flex; }
 #app-title-ico .tab-ico { width: 22px; height: 22px; }
 #app-title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -165,9 +166,13 @@ body { display: flex; flex-direction: column; height: 100dvh; }
   pointer-events: none;
 }
 body.mode-light .watermark { filter: none; }
-#play-setup, #trainer-setup, #rush-intro, #base-list-view, #endgame-sections-view {
+#play-setup, #trainer-setup, #rush-intro, #base-list-view, #endgame-sections-view, #read-shelf {
   position: relative; isolation: isolate; overflow: hidden;
 }
+/* The empty shelf is only a few lines tall; without a floor the watermark would
+   be cut off at its waist. (Before #read-shelf was in the list above, the
+   watermark hung off the page's right edge and the Read tab scrolled sideways.) */
+#read-shelf { min-height: 62vh; }
 /* Screens with a single "start" action: keep the button anchored to the
    same spot near the bottom of the viewport no matter how much option
    content sits above it, so switching between these tabs feels uniform. */
@@ -346,6 +351,20 @@ body.menu-open #tabsheet-backdrop { opacity: 1; pointer-events: auto; }
 
 h2 { margin: 4px 0 10px; font-size: 20px; }
 .screen-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* A top-level tab has no title of its own -- the top bar names it -- so its
+   first row sits straight under the bar. .tab-head is a head row that holds
+   only controls; .tab-lead is a first block that would otherwise bring its own
+   top margin. .sr-only keeps a heading for screen readers where the top bar
+   names the parent tab (Puzzle Rush, Blindfold). */
+.screen-head.tab-head { margin: 0 0 8px; }
+.row.tab-head-btns { margin: 0; }
+.tab-lead, .list.tab-lead, .option-group.tab-lead { margin-top: 0; }
+.row.badge-group { margin: 0 0 0 auto; justify-content: flex-end; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 
 /* Keeps a header title and its live "used/cap" counter together as one unit on
    the left, so the New button stays on the right. */
@@ -1050,6 +1069,9 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
 }
 .empty-note { text-align: center; padding: 26px 18px; }
+/* Students: whichever section shows first starts straight under the top bar,
+   so its small-caps heading drops the gap it keeps between sections. */
+#stu-body > .mc-section:not(.hidden):not(.mc-section:not(.hidden) ~ .mc-section) .group-head { margin-top: 0; }
 .friends-search-row .input { flex: 1 1 auto; min-width: 0; }
 .friends-search-row .btn { flex: 0 0 auto; }
 /* Signed out, both halves of the search row are dead — the hint underneath
@@ -1210,9 +1232,9 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   text-align: center; font-size: 46px; font-weight: 800; color: var(--accent);
   padding: 4px 0;
 }
-.blind-turn {
-  text-align: center; margin: -4px 0 6px; font-weight: 600;
-}
+.blind-turn { font-weight: 600; }
+.blind-head { justify-content: space-between; margin: 0 0 6px; min-height: 28px; }
+.blind-head .elo-badge { margin-left: auto; }
 
 /* ── comment box ───────────────────────── */
 .comment-box { margin-top: 8px; }
@@ -1555,7 +1577,7 @@ body.tour-on #kael-corner { opacity: 0; pointer-events: none; }
 
 /* ══════════ READ (PDF books) ══════════ */
 /* Shelf: the user's books as cover cards, most-recently-opened first. */
-.read-storage { margin: 2px 0 4px; font-variant-numeric: tabular-nums; }
+.read-storage { margin: 0; min-width: 0; font-variant-numeric: tabular-nums; }
 .read-persist-warn {
   margin: 0 0 8px; padding: 8px 10px;
   background: var(--gold-bg); border-radius: 8px;

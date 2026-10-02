@@ -146,7 +146,6 @@ const DICT = {
   restore_cap_body: { es: 'Solo puedes tener {max} bases. Tienes {have} y esta copia añadiría {want}. Puedo traer solo las que quepan.', en: 'You can only have {max} databases. You have {have}, and this backup would add {want}. I can bring in only the ones that fit.' },
   restore_cap_fit: { es: 'Traer solo las que quepan', en: 'Bring in only what fits' },
   // ── Read tab (PDF books, device-only) ──
-  read_title: { es: 'Leer', en: 'Read' },
   read_add: { es: '＋ Añadir libro', en: '＋ Add book' },
   read_books: { es: 'Libros', en: 'Books' },
   read_empty: { es: 'Aún no has añadido ningún libro. Pulsa «Añadir libro» y elige un PDF de tu teléfono. Se guarda solo en este dispositivo.', en: "You haven't added any books yet. Tap \"Add book\" and pick a PDF from your phone. It is saved on this device only." },
@@ -216,7 +215,6 @@ const DICT = {
   cbh_note: { es: 'Los archivos .cbh de ChessBase no se pueden leer directamente. En ChessBase: Archivo → Exportar → Partidas a PGN, y luego importa ese PGN aquí.', en: 'ChessBase .cbh files cannot be read directly. In ChessBase: File → Export → Games to PGN, then import that PGN here.' },
   search: { es: 'Buscar…', en: 'Search...' },
   // Play
-  play_title: { es: 'Jugar contra el motor', en: 'Play against the engine' },
   start_game: { es: '¡A jugar!', en: 'Start game' },
   thinking: { es: 'Pensando…', en: 'Thinking...' },
   your_turn: { es: 'Te toca', en: 'Your move' },
@@ -272,7 +270,6 @@ const DICT = {
   hist_delete_game: { es: '🗑 Borrar partida', en: '🗑 Delete game' },
   hist_export_pgn: { es: '📤 Exportar PGN', en: '📤 Export PGN' },
   // Trainer
-  trainer_title: { es: 'Entrenar aperturas', en: 'Opening training' },
   trainer_explain: { es: 'Elige una base con tus estudios de apertura. El motor jugará las jugadas de esa base mientras pueda; cuando se salga de la teoría, seguirá jugando sola.', en: 'Choose a database with your opening studies. The engine plays the moves it finds there while it can; once out of theory it plays on its own.' },
   book_base: { es: 'Base de aperturas', en: 'Opening database' },
   in_book: { es: '📖 En la base', en: '📖 In book' },
