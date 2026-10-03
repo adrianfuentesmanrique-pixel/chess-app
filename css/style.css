@@ -1774,6 +1774,14 @@ body.read-immersive #read-fullscreen { color: var(--accent, var(--text)); }
 }
 .read-teach-grid button:active { background: rgba(0, 0, 0, .12); }
 .read-teach-grid img { width: 92%; height: 92%; pointer-events: none; }
+/* A square the reader saw a piece on but was not sure which: left empty, marked.
+   Fixed colour — the board under it is the book's own image on the white mat, in
+   either theme. */
+.read-teach-grid button.doubt { outline: 2px dashed #d9480f; outline-offset: -3px; }
+.read-teach-note {
+  background: var(--gold-bg); color: var(--text); border-radius: var(--radius);
+  padding: 8px 12px; font-size: 13px; margin: 8px 0 0;
+}
 .read-teach-pal {
   display: flex; flex-wrap: wrap; gap: 5px;
   margin: 10px 0 4px; justify-content: center;

@@ -776,141 +776,328 @@ export function buildTemplates(imageData, board) {
 // type the user never taught can't match, so it reads as uncertain (honest
 // degradation) rather than a confident wrong guess.
 export function buildTemplatesFromGrid(imageData, board, grid) {
+  return templatesFromCells(boardCells(imageData, board), grid);
+}
+
+// The 64 per-square measurements of a board, row by row from a8: everything the
+// template builder and the classifier need, so both are plain functions of this
+// list and can be tested and measured without an image.
+export function boardCells(imageData, board) {
   const { g, W, H } = toGray(imageData);
-  const acc = {}, cnt = {};
-  // Empty-square templates, kept separate per square colour (parity 0 = the
-  // a8-coloured squares, 1 = the other). An empty square's own edge texture —
-  // the diagonal hatching many books shade dark squares with, or flat paper —
-  // is a signature the classifier can match against, which lumStd alone cannot
-  // do when the hatching is bold enough to spread luminance as much as a piece.
-  const empAcc = { 0: new Float32Array(N * N), 1: new Float32Array(N * N) };
-  const empCnt = { 0: 0, 1: 0 };
-  const emptyStd = [], pieceStd = [], pieceCol = [];
+  const cells = [];
   for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-    const code = grid[r][c];
     const { feat, lumStd, colorScore } = cellFeature(g, W, H, board, r, c);
-    const par = (r + c) % 2;
-    if (!code) {
-      emptyStd.push(lumStd);
-      for (let i = 0; i < feat.length; i++) empAcc[par][i] += feat[i];
-      empCnt[par]++;
-      continue;
-    }
+    cells.push({ feat, lumStd, colorScore });
+  }
+  return cells;
+}
+
+// Templates are SAMPLES, not averages (ver 4): every taught square is kept as it
+// was seen, pieces per code and empty squares per square colour. One average per
+// piece blurs a pawn on a light square with a pawn on a hatched one into a shape
+// neither matches closely; the nearest real sample matches a later copy almost
+// exactly, which is what lets the classifier demand a tight match. Measured with
+// tools/measure-pieces.mjs: same zero wrong pieces, far fewer left out.
+export function templatesFromCells(cells, grid) {
+  const t = { n: N, ver: 4, samples: {}, empties: { 0: [], 1: [] }, emptyThresh: 0, colorRef: null, fills: { w: [], b: [] } };
+  return addToTemplates(t, cells, grid);
+}
+
+// Adds a confirmed position's squares to a book's templates (the first teach,
+// and every later correction the user confirms). Returns the same object.
+// A square that already has a near-identical sample adds nothing, so the
+// templates stop growing once a book's diagram styles are covered.
+// `skip` (optional, 8×8 bool) leaves squares out. With `learning`, the samples
+// of the first teaching are the anchor: they are never dropped, only the learned
+// ones behind them rotate, CAP per list — so no run of later confirmations can
+// push out what the book was taught on purpose.
+const SAME = 0.004, CAP = 12, CAP_FILL = 60;
+export function addToTemplates(t, cells, grid, skip = null, learning = false) {
+  let added = 0;
+  const base = t.base || (t.base = { samples: {}, empties: { 0: 0, 1: 0 } });
+  const push = (list, feat, anchored) => {
+    for (const s of list) if (cosDist(feat, s) < SAME) return anchored;
+    list.push(Array.from(feat, v => Math.round(v * 1e4) / 1e4));
+    added++;
+    if (!learning) return list.length;                  // teaching: all of it is anchor
+    if (list.length - anchored > CAP) list.splice(anchored, 1);
+    return anchored;
+  };
+  const emptyStd = [], pieceStd = [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    if (skip && skip[r][c]) continue;
+    const code = grid[r][c], par = (r + c) % 2;
+    const { feat, lumStd, colorScore } = cells[r * 8 + c];
+    if (!code) { emptyStd.push(lumStd); base.empties[par] = push(t.empties[par], feat, base.empties[par] || 0); continue; }
     pieceStd.push(lumStd);
-    pieceCol.push({ code, colorScore });
-    if (!acc[code]) { acc[code] = new Float32Array(N * N); cnt[code] = 0; }
-    for (let i = 0; i < feat.length; i++) acc[code][i] += feat[i];
-    cnt[code]++;
+    base.samples[code] = push(t.samples[code] || (t.samples[code] = []), feat, base.samples[code] || 0);
+    const fills = code === code.toUpperCase() ? t.fills.w : t.fills.b;
+    fills.push(+colorScore.toFixed(3));
+    if (fills.length > CAP_FILL) fills.shift();
   }
-  const normalize = f => { let n = 0; for (let i = 0; i < f.length; i++) n += f[i] * f[i]; n = Math.sqrt(n) || 1; for (let i = 0; i < f.length; i++) f[i] /= n; };
-  const pieces = {};
-  for (const code of Object.keys(acc)) {
-    const f = acc[code];
-    for (let i = 0; i < f.length; i++) f[i] /= cnt[code];
-    normalize(f);   // re-normalize the average so distances stay comparable
-    pieces[code] = Array.from(f);
-  }
-  // Per-colour empty templates need at least two samples to average out a stray
-  // square; a colour with too few empties simply gets none (classification then
-  // falls back to the lumStd threshold for that colour).
-  const empties = {};
-  for (const par of [0, 1]) {
-    if (empCnt[par] < 2) continue;
-    const f = empAcc[par];
-    for (let i = 0; i < f.length; i++) f[i] /= empCnt[par];
-    normalize(f);
-    empties[par] = Array.from(f);
-  }
-  // lumStd threshold retained as the ver-2 fallback for classification (legacy
-  // templates, or a colour with too few empties to build an empty pattern).
+  // lumStd threshold: the occupancy test for a square colour that has no empty
+  // sample yet (a board with no empty square of that colour).
   const pct = (arr, p) => arr.length ? arr[Math.min(arr.length - 1, Math.max(0, Math.round((arr.length - 1) * p)))] : null;
   emptyStd.sort((a, b) => a - b); pieceStd.sort((a, b) => a - b);
   const emptyHi = pct(emptyStd, 0.95), pieceLo = pct(pieceStd, 0.05);
-  let emptyThresh;
-  if (emptyHi == null) emptyThresh = (pieceLo ?? 20) * 0.5;
-  else if (pieceLo == null) emptyThresh = emptyHi * 1.5 + 4;
-  else emptyThresh = pieceLo > emptyHi ? (emptyHi + pieceLo) / 2 : (emptyHi + pieceLo) / 2 + 2;
+  if (learning && t.emptyThresh) { /* the taught threshold stands */ }
+  else if (emptyHi == null) t.emptyThresh = t.emptyThresh || (pieceLo ?? 20) * 0.5;
+  else if (pieceLo == null) t.emptyThresh = t.emptyThresh || emptyHi * 1.5 + 4;
+  else t.emptyThresh = pieceLo > emptyHi ? (emptyHi + pieceLo) / 2 : (emptyHi + pieceLo) / 2 + 2;
   // Piece COLOUR from fill. Edge shape alone can't tell a hollow white piece from
-  // a solid black one of the same type, so classification kept swapping colours.
-  // colorScore (0 = dark centre, 1 = light centre, measured against the cell's own
-  // range so the square shade cancels) separates them: learn each colour's average
-  // so classification takes the TYPE from the shape and the COLOUR from the fill —
-  // but only when the two colours clearly separate in this book.
-  const wC = [], bC = [];
-  for (const p of pieceCol) (p.code === p.code.toUpperCase() ? wC : bC).push(p.colorScore);
+  // a solid black one of the same type. colorScore (0 = dark centre, 1 = light
+  // centre, measured against the cell's own range so the square shade cancels)
+  // separates them: keep each colour's average — but only when the two colours
+  // clearly separate in this book.
   const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
-  let colorRef = null;
-  if (wC.length && bC.length) {
-    const white = mean(wC), black = mean(bC);
-    if (white - black > 0.15) colorRef = { white, black };  // clearly separable
+  t.colorRef = null;
+  if (t.fills.w.length && t.fills.b.length) {
+    const white = mean(t.fills.w), black = mean(t.fills.b);
+    if (white - black > 0.15) t.colorRef = { white, black };  // clearly separable
   }
-  return { n: N, ver: 3, pieces, emptyThresh, empties, colorRef };
+  t.lastAdded = added;
+  return t;
 }
 
-// ── classification ──────────────────────────────────────────────────────────
-// Returns { grid:8×8 codes, fen, confident:bool, uncertain:int, kingsOk:bool }.
-export function classifyBoard(imageData, board, templates, turn = 'w') {
-  const { g, W, H } = toGray(imageData);
-  const codes = Object.keys(templates.pieces);
-  const tmpl = {};
-  for (const c of codes) tmpl[c] = Float32Array.from(templates.pieces[c]);
-  // Per-colour empty templates (ver ≥ 3) drive the occupancy test below —
-  // robust to bold hatching, which the lumStd threshold (the ver-2 fallback,
-  // still used for legacy templates or a colour with too few empties) reads as
-  // a piece.
-  const empVec = {};
-  if (templates.empties) for (const p of Object.keys(templates.empties)) empVec[p] = Float32Array.from(templates.empties[p]);
-
-  const grid = [];
-  let uncertain = 0, wk = 0, bk = 0, maxD1 = 0, minMargin = Infinity;
+// LEARNING (v137). A position the user corrected and confirmed in "Check the
+// position" is added to the book's samples, so the next diagram of that style
+// is read more fully. One careless confirmation must not poison the book, so:
+//   · a square that CONTRADICTS what the book already knows well is not learned —
+//     a near-exact copy of a known piece labelled as another type or as empty, a
+//     near-exact copy of a known empty square labelled as a piece, a fill that is
+//     decisively the other colour;
+//   · an inked square left empty that matches no known empty square is not
+//     learned either (a piece the user forgot, or an arrow drawn on the board) —
+//     without counting against the board;
+//   · more than LEARN_MAX_CONTRA contradictions and NOTHING is learned from the board;
+//   · the first teaching's samples are the anchor and are never dropped.
+// "Re-learn the pieces" in the book menu remains the full reset.
+// Mutates and returns nothing learned as { learned:false }. Legacy (ver 3)
+// templates are first turned into ver 4 with their averages as the anchor.
+export const LEARN_MAX_CONTRA = 3;
+export function learnFromCells(t, cells, grid) {
+  if (boardSanity(grid)) return { learned: false, added: 0, contradictions: 0, skipped: 0 };
+  if (!t.samples) {
+    const samples = {}, base = { samples: {}, empties: { 0: 0, 1: 0 } }, empties = { 0: [], 1: [] };
+    for (const code of Object.keys(t.pieces)) { samples[code] = [t.pieces[code]]; base.samples[code] = 1; }
+    for (const p of [0, 1]) if (t.empties && t.empties[p]) { empties[p] = [t.empties[p]]; base.empties[p] = 1; }
+    t.samples = samples; t.empties = empties; t.base = base; t.ver = 4; delete t.pieces;
+    t.fills = t.colorRef ? { w: [t.colorRef.white], b: [t.colorRef.black] } : { w: [], b: [] };
+  }
+  const model = modelOf(t), cr = t.colorRef, near = STRICT.partial.match, lead = STRICT.partial.lead;
+  const skip = [];
+  let contradictions = 0, skipped = 0;
   for (let r = 0; r < 8; r++) {
     const row = [];
     for (let c = 0; c < 8; c++) {
-      const { feat, lumStd, colorScore } = cellFeature(g, W, H, board, r, c);
-      let d1 = Infinity, d2 = Infinity, best = '';
-      for (const code of codes) {
-        const d = cosDist(feat, tmpl[code]);
-        if (d < d1) { d2 = d1; d1 = d; best = code; }
-        else if (d < d2) { d2 = d; }
+      const code = grid[r][c], { feat, lumStd, colorScore } = cells[r * 8 + c];
+      const { byType, dEmp } = nearest(feat, model, (r + c) % 2);
+      let contra = false, leave = false;
+      if (code) {
+        const own = byType[code.toLowerCase()] ?? Infinity;
+        for (const ty of Object.keys(byType)) if (ty !== code.toLowerCase() && byType[ty] <= near && own - byType[ty] >= lead) contra = true;
+        if (dEmp !== null && dEmp <= near && own - dEmp >= lead) contra = true;
+        if (cr) {
+          const mid = (cr.white + cr.black) / 2, band = (cr.white - cr.black) * STRICT.partial.band, white = code === code.toUpperCase();
+          if (white ? colorScore < mid - band : colorScore > mid + band) contra = true;
+        }
+      } else {
+        const known = dEmp !== null && dEmp <= near;
+        for (const ty of Object.keys(byType)) if (byType[ty] <= near && (dEmp === null || dEmp - byType[ty] >= lead)) contra = true;
+        if (!contra && !known && lumStd >= t.emptyThresh) leave = true;
       }
-      // Shape gives the TYPE but can't tell a hollow white piece from a solid
-      // black one. Use fill (colorScore) as a tie-breaker for the COLOUR — but
-      // only when it lands DECISIVELY on the light or dark side of the two learned
-      // averages. A fill near the midpoint is ambiguous, so trust the shape rather
-      // than risk flipping a colour the shape already had right.
-      const cr = templates.colorRef;
-      if (best && cr) {
-        const mid = (cr.white + cr.black) / 2, band = (cr.white - cr.black) * 0.25;
-        if (colorScore > mid + band) best = best.toUpperCase();
-        else if (colorScore < mid - band) best = best.toLowerCase();
+      if (contra) contradictions++; else if (leave) skipped++;
+      row.push(contra || leave);
+    }
+    skip.push(row);
+  }
+  if (contradictions > LEARN_MAX_CONTRA) return { learned: false, added: 0, contradictions, skipped };
+  addToTemplates(t, cells, grid, skip, true);
+  return { learned: t.lastAdded > 0, added: t.lastAdded, contradictions, skipped };
+}
+
+// ── classification ──────────────────────────────────────────────────────────
+// STRICT PLACEMENT (v137). A piece is shown only when the reader is SURE of it;
+// a doubtful square is left EMPTY — an empty square costs the user one tap, a
+// wrong piece costs a look, a delete and a tap. The numbers come from
+// tools/measure-pieces.mjs on diagrams whose true position was read by eye
+// (tools/fixtures/piece-truth.json). The loosest values that placed no wrong
+// piece on that set were match 0.15 / lead 0.05 (full) and match 0.07 (partial);
+// these sit a step inside them, because a new book is not in the set.
+//   shift  the cell is also tried slid up to this many feature cells each way. A
+//          later board never lands on the exact pixels of the taught one, and a
+//          one-pixel slide was what made a king look like a queen.
+//   match  the nearest piece TYPE must be at least this close;
+//   lead   and the next-nearest TYPE at least this much further off;
+//   clear  and the square's empty pattern further off still by this much;
+//   band   and the fill must sit this far (as a fraction of the gap between the
+//          book's white and black fills) to one side of their midpoint.
+// `full` applies once a book has been taught all six piece types, `partial`
+// until then (see classifyCells).
+export const STRICT = {
+  shift: 2,
+  full:    { match: 0.13, lead: 0.06, clear: 0, band: 0.10 },
+  partial: { match: 0.06, lead: 0.04, clear: 0, band: 0.10 },
+};
+
+function shiftFeat(f, dx, dy) {
+  const o = new Float32Array(N * N);
+  let n = 0;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const yy = y + dy, xx = x + dx;
+    if (yy < 0 || yy >= N || xx < 0 || xx >= N) continue;
+    const v = f[yy * N + xx];
+    o[y * N + x] = v; n += v * v;
+  }
+  n = Math.sqrt(n) || 1;
+  for (let i = 0; i < o.length; i++) o[i] /= n;
+  return o;
+}
+
+// Returns { grid:8×8 codes, doubt:8×8 bool (ink is there but no piece was sure
+// enough to show), fen, confident, uncertain:int, kingsOk, refused:''|reason }.
+export function classifyBoard(imageData, board, templates, turn = 'w') {
+  return classifyCells(boardCells(imageData, board), templates, turn);
+}
+
+// The templates as vectors ready to compare against: every piece sample with its
+// type and colour, the empty samples per square colour, the set of taught types.
+function modelOf(templates) {
+  // ver 4: lists of samples. ver 3 (a book taught before v137): one average per
+  // code and per empty colour — read as a list of one, so it keeps working.
+  const pieces = [], types = new Set();
+  const src = templates.samples || templates.pieces;
+  for (const code of Object.keys(src)) {
+    const list = templates.samples ? src[code] : [src[code]];
+    for (const v of list) pieces.push({ type: code.toLowerCase(), white: code === code.toUpperCase(), vec: Float32Array.from(v) });
+    if (list.length) types.add(code.toLowerCase());
+  }
+  // Per-colour empty patterns drive the occupancy test below — robust to bold
+  // hatching, which the lumStd threshold (the fallback for a colour with no
+  // empty pattern) reads as a piece.
+  const empVec = { 0: [], 1: [] };
+  if (templates.empties) for (const p of [0, 1]) {
+    const e = templates.empties[p];
+    if (e) for (const v of (templates.samples ? e : [e])) empVec[p].push(Float32Array.from(v));
+  }
+  return { pieces, types, empVec };
+}
+
+// One square against the model: the distance to the nearest sample of each TYPE
+// (over both colours, every sample and every slide), the same split by colour,
+// and to the nearest empty sample of its square colour (null if none is known).
+// Colour is not part of the type race: shape cannot tell a hollow white piece
+// from a solid black one, so R against r is no evidence.
+function nearest(feat, model, par) {
+  const emps = model.empVec[par];
+  const byType = {}, byColour = {};   // byColour: type → [nearest white, nearest black]
+  let dEmp = emps.length ? Infinity : null;
+  for (let dy = -STRICT.shift; dy <= STRICT.shift; dy++) for (let dx = -STRICT.shift; dx <= STRICT.shift; dx++) {
+    const v = dx || dy ? shiftFeat(feat, dx, dy) : feat;
+    for (const p of model.pieces) {
+      const d = cosDist(v, p.vec);
+      if (!(p.type in byType) || d < byType[p.type]) byType[p.type] = d;
+      const bc = byColour[p.type] || (byColour[p.type] = [Infinity, Infinity]);
+      if (d < bc[p.white ? 0 : 1]) bc[p.white ? 0 : 1] = d;
+    }
+    for (const e of emps) { const d = cosDist(v, e); if (d < dEmp) dEmp = d; }
+  }
+  return { byType, byColour, dEmp };
+}
+
+export function classifyCells(cells, templates, turn = 'w') {
+  const model = modelOf(templates), types = model.types;
+  // A book that has not been taught all six piece types cannot tell an untaught
+  // one from its nearest taught look-alike (a queen from a king) by comparing
+  // them, so until it has, only a near-exact copy of a taught piece is shown.
+  const S = types.size === 6 ? STRICT.full : STRICT.partial;
+  const cr = templates.colorRef;
+
+  let grid = [];
+  const doubt = [], detail = [];   // detail: the raw numbers per square, for the measuring tool
+  let uncertain = 0, maxD1 = 0, minMargin = Infinity;
+  for (let r = 0; r < 8; r++) {
+    const row = [], drow = [];
+    for (let c = 0; c < 8; c++) {
+      const { feat, lumStd, colorScore } = cells[r * 8 + c];
+      const { byType, byColour, dEmp } = nearest(feat, model, (r + c) % 2);
+      let type = '', d1 = Infinity, d2 = Infinity;
+      for (const ty of Object.keys(byType)) {
+        const d = byType[ty];
+        if (d < d1) { d2 = d1; d1 = d; type = ty; }
+        else if (d < d2) d2 = d;
       }
-      // Occupied only when the cell sits closer to some piece template than to
-      // its colour's empty pattern. A real piece hugs its own template (d1≈0)
-      // while standing well clear of the empty pattern — including a dark piece
-      // on a dark hatched square, which is nearly uniform and so fools the
-      // luminance-spread test. An empty square, hatched or not, sits at least as
-      // close to the empty pattern as to any piece, so it stays empty instead of
-      // turning into a spurious queen. Legacy templates and colours with no empty
-      // pattern fall back to the lumStd threshold.
-      const empP = empVec[(r + c) % 2];
-      const isEmpty = empP ? d1 >= cosDist(feat, empP)
-                           : lumStd < templates.emptyThresh;
-      if (isEmpty) { row.push(''); continue; }
-      row.push(best);
-      if (best === 'K') wk++; else if (best === 'k') bk++;
+      // Plainly empty: the cell sits at least as close to its colour's empty
+      // pattern as to any piece (hatched or not). Legacy templates and colours
+      // with no empty pattern fall back to the luminance-spread threshold.
+      detail.push({ type, d1, d2, dEmp, colorScore });
+      const isEmpty = !type || (dEmp !== null ? d1 >= dEmp : lumStd < templates.emptyThresh);
+      if (isEmpty) { row.push(''); drow.push(false); continue; }
+      // Something is on the square. Show it only if every test is passed.
+      let white = null;
+      if (cr) {
+        const mid = (cr.white + cr.black) / 2, band = (cr.white - cr.black) * S.band;
+        if (colorScore > mid + band) white = true;
+        else if (colorScore < mid - band) white = false;
+      }
+      // A fill near the middle (some fonts' queens and knights are half inked)
+      // says nothing; then the SHAPE may decide, but only if the book was taught
+      // this piece in both colours and one of them leads as clearly as a type must.
+      if (white === null && type) {
+        const [dw, db] = byColour[type];
+        if (dw < Infinity && db < Infinity && Math.abs(dw - db) >= S.lead) white = dw < db;
+      }
+      const sure = white !== null && d1 <= S.match && d2 - d1 >= S.lead &&
+                   (dEmp === null || dEmp - d1 >= S.clear);
+      if (!sure) {
+        // Left empty. It is MARKED as doubtful only if the square carries as much
+        // ink as this book's pieces do: an empty square whose border lines happen to
+        // look a little like a rook is simply empty, and marking it would send the
+        // user to check 20 squares that hold nothing (measured: every real piece left
+        // out sat above this line, every empty square below it).
+        const inked = lumStd >= templates.emptyThresh;
+        row.push(''); drow.push(inked); if (inked) uncertain++;
+        continue;
+      }
+      row.push(white ? type.toUpperCase() : type);
+      drow.push(false);
       if (d1 > maxD1) maxD1 = d1;
       if (d2 - d1 < minMargin) minMargin = d2 - d1;
-      // Absolute match is the trustworthy signal (within a book, a piece is
-      // pixel-identical to its template, so a good match sits near 0). A very
-      // tight race with the runner-up is a weaker warning sign on top of that.
-      if (d1 > 0.3 || (d2 - d1) < 0.015) uncertain++;
     }
-    grid.push(row);
+    grid.push(row); doubt.push(drow);
   }
-  const kingsOk = wk === 1 && bk === 1;
-  const confident = uncertain === 0 && kingsOk;
-  return { grid, fen: gridToFen(grid, turn), confident, uncertain, kingsOk,
+  // Whole-board gate: a position that cannot happen means the read went wrong
+  // as a whole (wrong templates, a board that is not a diagram), so its "sure"
+  // squares are not to be trusted either — show nothing.
+  const refused = boardSanity(grid), ungated = grid;   // ungated: for the measuring tool only
+  if (refused) { grid = grid.map(row => row.map(() => '')); for (const row of doubt) row.fill(false); }
+  const flat = grid.flat();
+  const kingsOk = flat.filter(x => x === 'K').length === 1 && flat.filter(x => x === 'k').length === 1;
+  const confident = uncertain === 0 && kingsOk && !refused;
+  return { grid, doubt, fen: gridToFen(grid, turn), confident, uncertain, kingsOk, refused, ungated, detail,
            maxD1: +maxD1.toFixed(3), minMargin: +(minMargin === Infinity ? 0 : minMargin).toFixed(3) };
+}
+
+// '' when the position could stand on a real board, else a short reason code.
+// Missing pieces are fine (a doubtful square is left empty, kings included);
+// only what no game can produce is refused.
+export function boardSanity(grid) {
+  for (const white of [true, false]) {
+    const n = { k: 0, q: 0, r: 0, b: 0, n: 0, p: 0 };
+    let total = 0;
+    for (let r = 0; r < 8; r++) for (const code of grid[r]) {
+      if (!code || (code === code.toUpperCase()) !== white) continue;
+      n[code.toLowerCase()]++; total++;
+      if (code.toLowerCase() === 'p' && (r === 0 || r === 7)) return 'pawn-on-end-rank';
+    }
+    if (n.k > 1) return 'kings';
+    if (total > 16) return 'too-many';
+    if (n.p > 8) return 'pawns';
+    // every queen past the first, rook/bishop/knight past the second, is a promoted pawn
+    const promoted = Math.max(0, n.q - 1) + Math.max(0, n.r - 2) + Math.max(0, n.b - 2) + Math.max(0, n.n - 2);
+    if (promoted > 8 - n.p) return 'promotions';
+  }
+  return '';
 }
 
 // ── FEN ─────────────────────────────────────────────────────────────────────

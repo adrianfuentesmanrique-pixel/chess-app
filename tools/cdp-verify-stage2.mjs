@@ -321,7 +321,7 @@ async function main() {
     return { screen:app.activeScreen, setupPlacement:fen?fen.split(' ')[0]:null,
              startPlacement:'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR',
              placementOk: fen && fen.split(' ')[0]==='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR',
-             templatesSaved: !!(rec && rec.templates && rec.templates.pieces) };
+             templatesSaved: !!(rec && rec.templates && rec.templates.samples) };
   `);
   await shot('setup-after-calib');
 
@@ -339,8 +339,8 @@ async function main() {
     const bs=diag.detectBoard(simg,s.cx,s.cy);
     const res=(bs&&tpl)?diag.classifyBoard(simg,bs,tpl):null;
     const expectStart='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
-    return { taught:!!tpl, codesLearned: tpl?Object.keys(tpl.pieces).sort().join(''):null,
-             allTwelve: tpl?Object.keys(tpl.pieces).length===12:false,
+    return { taught:!!tpl, codesLearned: tpl?Object.keys(tpl.samples).sort().join(''):null,
+             allTwelve: tpl?Object.keys(tpl.samples).length===12:false,
              startFromTaught: res&&res.fen, laterDiagramOk: !!res&&res.fen===expectStart,
              confident: res&&res.confident };
   `);
@@ -428,7 +428,7 @@ async function main() {
     const expect='r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R';
     return { screen:app.activeScreen, placement: fen?fen.split(' ')[0]:null, expected:expect,
              placementOk: !!fen && fen.split(' ')[0]===expect,
-             templatesSaved: !!(rec && rec.templates && rec.templates.pieces) };
+             templatesSaved: !!(rec && rec.templates && rec.templates.samples) };
   `);
   await shot('setup-after-teach');
 

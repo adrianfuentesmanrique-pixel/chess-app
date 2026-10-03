@@ -22,7 +22,7 @@ import { $, esc, toast, modal, askConfirm, askText, sheet, Setup } from './app.j
 import { getPieceSet } from './board.js';
 import { START_FEN } from './tree.js';
 import { detectBoard, buildTemplates, buildTemplatesFromGrid, classifyBoard,
-         cropBoardCanvas, gridToFen } from './diagram.js';
+         boardCells, learnFromCells, cropBoardCanvas, gridToFen } from './diagram.js';
 import { findCovers, textChars } from './read-training.js';
 
 const MAX_ZOOM = 4;
@@ -924,7 +924,10 @@ async function onLongPress(clientX, clientY) {
   let res;
   try { res = classifyBoard(img, board, R.templates); }
   catch (e) { console.error('[read] classify failed', e); toast(t('read_diagram_none')); return; }
-  await teachPieces(img, board, canvas, { review: true, initialGrid: res.grid });
+  // Only pieces the reader is SURE of arrive here (classifyCells); a doubtful
+  // square comes empty and marked, and an impossible position comes as an empty
+  // board with a line saying so — an empty square is one tap, a wrong piece three.
+  await teachPieces(img, board, canvas, { review: true, initialGrid: res.grid, doubt: res.doubt, refused: !!res.refused });
 }
 
 // The page slot whose on-screen box contains the client point.
@@ -989,8 +992,9 @@ const CODE_TO_IMG = { K: 'wK', Q: 'wQ', R: 'wR', B: 'wB', N: 'wN', P: 'wP',
 // `opts.review` reuses this same board as a confirm-and-correct step: it starts
 // PRE-FILLED with a position the classifier already read (opts.initialGrid), the
 // user fixes any wrong squares against the image, and "Open" hands the corrected
-// position to Setup WITHOUT rebuilding the book's templates. Without `review` it
-// is the from-scratch tap-to-teach that also (re)builds the templates.
+// position to Setup and ADDS it to the book's templates (learning, v137) without
+// rebuilding them. Without `review` it is the from-scratch tap-to-teach that
+// (re)builds the templates.
 async function teachPieces(img, board, canvas, opts = {}) {
   const review = !!opts.review;
   const grid = opts.initialGrid ? opts.initialGrid.map(row => row.slice())
@@ -1008,6 +1012,16 @@ async function teachPieces(img, board, canvas, opts = {}) {
     overlay.className = 'read-teach-grid';
     boardWrap.append(crop, overlay);
 
+    // Review only: say what was left out, so an empty square is not taken for
+    // "nothing there".
+    const doubtN = opts.doubt ? opts.doubt.flat().filter(Boolean).length : 0;
+    let note = null;
+    if (opts.refused || doubtN) {
+      note = document.createElement('p');
+      note.className = 'read-teach-note';
+      note.textContent = opts.refused ? t('read_review_refused') : tn('read_review_doubt', doubtN);
+    }
+
     let selected = 'P';   // start on white pawn — the most-tapped piece
     const cells = [];
     for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
@@ -1017,8 +1031,10 @@ async function teachPieces(img, board, canvas, opts = {}) {
       cell.onclick = () => {
         if (!selected || grid[r][c] === selected) grid[r][c] = '';   // eraser or toggle-off
         else grid[r][c] = selected;
+        cell.classList.remove('doubt');   // the user has now decided this square
         paintCell(r, c);
       };
+      if (opts.doubt && opts.doubt[r][c]) cell.classList.add('doubt');
       cells.push(cell);
       overlay.appendChild(cell);
     }
@@ -1060,7 +1076,9 @@ async function teachPieces(img, board, canvas, opts = {}) {
     palBtns.push(eraser); pal.appendChild(eraser);
     palBtns[TEACH_CODES.indexOf('P')].classList.add('on');   // reflect the default
 
-    box.append(boardWrap, pal);
+    box.append(boardWrap);
+    if (note) box.append(note);
+    box.append(pal);
 
     const row = document.createElement('div'); row.className = 'row';
     const done = document.createElement('button');
@@ -1075,7 +1093,16 @@ async function teachPieces(img, board, canvas, opts = {}) {
     const cancel = document.createElement('button');
     cancel.className = 'btn'; cancel.textContent = t('cancel');
     cancel.onclick = () => close(false);
-    row.append(done, cancel);
+    // One tap to wipe a bad read (or start over) instead of erasing square by square.
+    const clear = document.createElement('button');
+    clear.className = 'btn'; clear.textContent = t('clear_board');
+    clear.onclick = () => {
+      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+        grid[r][c] = ''; cells[r * 8 + c].classList.remove('doubt'); paintCell(r, c);
+      }
+      if (note) note.remove();
+    };
+    row.append(done, clear, cancel);
     box.appendChild(row);
   });
 
@@ -1088,9 +1115,19 @@ async function teachPieces(img, board, canvas, opts = {}) {
     return;
   }
 
-  // Review mode already has the book's templates — just open the corrected
-  // position. Teach mode (re)builds this book's templates from what was placed.
-  if (review) { openInSetup(gridToFen(grid), true); return; }
+  // Review: the user has just confirmed this position against the image, so the
+  // book LEARNS from it (learnFromCells adds the squares as samples, refusing
+  // what contradicts the book — see its comment) and the next diagram of this
+  // style reads more fully. Silent; a failure here must never block the Open.
+  // Teach mode (below) builds this book's templates from scratch instead.
+  if (review) {
+    try {
+      const rep = learnFromCells(R.templates, boardCells(img, board), grid);
+      if (rep.learned) await db.updateBookMeta(R.id, { templates: R.templates });
+    } catch (e) { console.error('[read] learn failed', e); }
+    openInSetup(gridToFen(grid), true);
+    return;
+  }
 
   let templates;
   try { templates = buildTemplatesFromGrid(img, board, grid); }

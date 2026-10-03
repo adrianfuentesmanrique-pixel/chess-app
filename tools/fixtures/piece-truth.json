@@ -1,0 +1,50 @@
+{
+ "note": "True positions for tools/measure-pieces.mjs, read BY EYE from the crops that tool's `find` mode saves. `press` is a point on the 1065-px page canvas that detectBoard turns into the board. `teach` diagrams also serve as the one diagram a book's templates are built from.",
+ "books": [
+  {
+   "name": "ChessLife",
+   "file": "D:\\2. Chess\\2. Material\\2. CBH and PDF\\Chess Life Magazine 2026-09 Septmber.pdf",
+   "diagrams": [
+    { "id": "p20a", "page": 20, "press": [725, 475], "fen": "5k2/1R3p2/1P5p/6p1/4P2P/4K3/6r1/8", "teach": true },
+    { "id": "p20b", "page": 20, "press": [125, 825], "fen": "6k1/5pp1/7p/8/4P3/1R5P/1P3rPK/8" },
+    { "id": "p20c", "page": 20, "press": [975, 925], "fen": "8/1PR2p2/6kp/4P1pP/8/4K3/1r6/8" },
+    { "id": "p30", "page": 30, "press": [375, 975], "fen": "r2qk1nr/pp1b1pbp/2npp1p1/2p5/2B1PP2/2NP1N2/PPP3PP/R1BQK2R", "teach": true },
+    { "id": "p22", "page": 22, "press": [725, 575], "fen": "r1b2rk1/pp2bppp/3qp3/n7/1n1PB3/5N2/PP2QPPP/RNBR2K1", "teach": true },
+    { "id": "p36a", "page": 36, "press": [725, 575], "fen": "5k2/2p2p2/5QP1/1p1P4/4B2P/7K/1P1q4/4r3" },
+    { "id": "p36b", "page": 36, "press": [125, 625], "fen": "3r2k1/p4p2/2p1p1p1/7p/2P4R/6PK/Pr3P2/5R2" },
+    { "id": "p36c", "page": 36, "press": [425, 1025], "fen": "8/2p1kp2/5p2/1pqPP3/6PP/5B1K/1P2Q3/6r1" },
+    { "id": "p17a", "page": 17, "press": [75, 425], "fen": "1q4k1/5ppp/4p3/1P1p1b2/3P4/2Q1P3/1P3PPP/2R2nK1", "teach": true },
+    { "id": "p17e", "page": 17, "press": [75, 725], "fen": "2n5/1k4p1/1p2N1p1/1P2r2p/2R4P/4P3/5K2/8" }
+   ]
+  },
+  {
+   "name": "Dvoretsky",
+   "file": "C:\\Users\\Adrian\\ChessPuzzleImport\\1. Dvoretsky's Endgame Manual - 5th Edition.pdf",
+   "diagrams": [
+    { "id": "p395a", "page": 395, "press": [330, 90], "fen": "8/P1B2k2/4p1pp/3b1p2/3Pp2P/4P1K1/5PP1/8", "teach": true },
+    { "id": "p395b", "page": 395, "press": [330, 810], "fen": "8/P4k2/4p3/3b1pP1/3Pp3/4P1K1/5PP1/8" },
+    { "id": "p396", "page": 396, "press": [330, 330], "fen": "8/P7/4pkP1/2Kb4/3PpP2/4P3/8/8" },
+    { "id": "p150", "page": 150, "press": [330, 90], "fen": "8/6p1/8/5p1P/5P2/6P1/8/5K1k", "teach": true }
+   ]
+  },
+  {
+   "name": "Hellsten",
+   "file": "C:\\Users\\Adrian\\ChessPuzzleImport\\3. Hellsten,_Johan_Mastering_endgame_strategy_2013,_Everyman_Chess.pdf",
+   "diagrams": [
+    { "id": "p102a", "page": 102, "press": [90, 150], "fen": "8/6pk/7p/R7/7P/5P1K/2r3P1/8", "teach": true },
+    { "id": "p102b", "page": 102, "press": [570, 150], "fen": "8/5R2/4p3/4P3/6pk/4r3/6K1/8" },
+    { "id": "p103a", "page": 103, "press": [630, 150], "fen": "8/8/8/8/1Rp5/8/1K1k4/2r5" },
+    { "id": "p103b", "page": 103, "press": [90, 690], "fen": "8/8/4KPk1/8/8/6R1/8/2r5" },
+    { "id": "p250a", "page": 250, "press": [90, 150], "fen": "8/2b1p2p/6p1/3k2P1/P5P1/3K1N2/7P/8", "teach": true },
+    { "id": "p250b", "page": 250, "press": [570, 150], "fen": "8/8/1R4p1/4rk1p/4p2P/4K1P1/8/8" }
+   ] },
+  {
+   "name": "Silman",
+   "file": "C:\\Users\\Adrian\\ChessPuzzleImport\\5. Silman's Complete Endgame Course - Jeremy Silman.pdf",
+   "diagrams": [
+    { "id": "p120", "page": 120, "press": [390, 570], "fen": "8/5k2/8/8/P7/8/8/7K", "teach": true },
+    { "id": "p121a", "page": 121, "press": [330, 150], "fen": "8/5k2/8/8/P7/8/8/7K" },
+    { "id": "p121b", "page": 121, "press": [330, 630], "fen": "8/5k2/8/P7/8/8/8/7K" }
+   ] }
+ ]
+}

@@ -2,6 +2,91 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — "CHECK THE POSITION" SHOWS ONLY PIECES IT IS SURE OF, AND LEARNS
+  FROM CORRECTIONS (2026-10-03).** Committed on `main`, NOT pushed, NOT deployed.
+  `sw.js` v136 → **v137**. `js/diagram.js` (everything from `buildTemplatesFromGrid`
+  down; board FINDING untouched — the diff starts at line 778), `js/read.js`
+  (`onLongPress`, `teachPieces`), `js/i18n.js` (3 strings), `css/style.css` (2 rules).
+  New: `tools/measure-pieces.mjs`, `tools/cdp-verify-pieces.mjs`,
+  `tools/fixtures/piece-truth.json`, `tests/unit/diagram.test.js` (21 tests).
+  - **Adrian's report:** Chess Life p20 came back with ~50 pieces, nearly all rooks
+    and queens. "I prefer an empty square to a wrong piece, every time."
+  - **Diagnosis, measured before any fix** (true positions read BY EYE from crops,
+    19 diagrams, 4 books): NOT the board rectangle (p20's three boards are found
+    exactly). The real pieces were matched fine; the extra ~30 per board were
+    GHOSTS ON EMPTY SQUARES. An empty square has no ink, so its normalised edge
+    map is just its border lines, which look like a rook, and the old test
+    (`d1 < distance to the averaged empty pattern`) let them through. Second
+    cause behind it: a later board never lands on the taught one's exact pixels,
+    and a one-pixel slide made a king read as a queen (19 wrong types → 1 once
+    the cell is also tried slid ±2 feature cells). Third: a book never taught a
+    queen read every queen as a king (endgame books are taught from K+R+P).
+  - **The rule now** (`classifyCells`, thresholds in `STRICT`): nearest TYPE over
+    every stored sample and every slide; shown only if match ≤ 0.13, next type
+    ≥ 0.06 further, fill decisively white/black (or, fill unclear, the shape
+    leads one colour by the same margin). A book not yet taught all six types
+    uses match ≤ 0.06. Anything else → EMPTY, and marked (dashed) only if the
+    square carries a piece's worth of ink. The loosest zero-wrong values measured
+    were 0.15/0.05 and 0.07; the shipped ones sit a step inside.
+  - **Templates are SAMPLES now (ver 4), not one average per piece** — measured
+    better (partial books: 220 vs 189 correct at zero wrong). ver-3 books keep
+    working (read as a list of one) and are upgraded on their first lesson.
+    `boardCells` / `templatesFromCells` / `classifyCells` are pure, so the tool
+    measures the real code in Node from cached square features (`REUSE=1`).
+  - **Whole-board gate** `boardSanity`: two kings of a colour, >16 of a colour,
+    >8 pawns, a pawn on rank 1/8, more promoted pieces than missing pawns →
+    EMPTY board + "I could not read this diagram reliably…". On the measured set
+    it never fires (0 wrong before the gate); it is the net for a mis-taught book.
+  - **Clear board** button in the dialog (string `clear_board` already existed).
+  - **Learning** (Adrian chose: build it, SILENT). Open in review mode calls
+    `learnFromCells`: the confirmed board's squares are added as samples. Guards:
+    a square that contradicts what the book knows well is not learned (known
+    piece called another type / left empty, known empty called a piece, fill
+    decisively the other colour); inked squares left empty that match no known
+    empty are skipped (arrows, forgotten pieces); more than 3 contradictions →
+    nothing learned; the first teaching's samples are the anchor and never
+    rotate out (12 learned per list rotate behind them). "Re-learn the pieces"
+    is still the full reset.
+  - **Numbers** (`measure-pieces.mjs`, every diagram read with every teaching
+    diagram of its book, 723 real pieces): v136 → v137 —
+    wrong pieces placed **456 → 0** (Chess Life 425, Dvoretsky 3, Hellsten 12,
+    Silman 16 → all 0), wrong colour only **6 → 0**, correct 627 → 558, real
+    pieces left empty 22 → 165 (Chess Life 138/579, Dvoretsky 9/66, Hellsten
+    16/72, Silman 2/6). With ONE confirmed correction per book (`LEARN=1`):
+    still 0 wrong; read correctly Chess Life 76% → 81%, Dvoretsky 86% → 95%,
+    Hellsten 78% → 92%. With that confirmation deliberately WRONG
+    (`POISON=swap|colour|forgot`): still **0 wrong pieces** — a bad lesson costs
+    more empty squares, never a wrong piece.
+  - **Honest limit:** 100% cannot be promised. The thresholds were chosen ON these
+    19 diagrams; a book outside the set can still produce a wrong piece, and the
+    gate only catches impossible boards. What is promised is the direction: when
+    unsure, empty.
+  - **Verified (headless CDP, 375px, EN/ES × light/dark):** `cdp-verify-pieces`
+    **47/47** — REAL long-press on Chess Life p20, REAL taps on a square, Clear
+    board, Open; then (EN/light) the board corrected by 2 REAL taps, Open, and the
+    same diagram pressed again reads 10 of 10 (9 before). SEEDED: the book
+    (`db.addBook`) and its templates (`buildTemplatesFromGrid` on the p30 diagram
+    with its true position — not tapped in "Teach me the pieces"); the refused
+    board uses templates seeded wrong on purpose. `cdp-verify-hatched` **92/92**,
+    `cdp-verify-stage2` green (two checks there now read `templates.samples`),
+    `cdp-verify-training` **65/65**, `test:tree` **86/86** (65 + 21).
+    `measure-fallback.mjs` NOT re-run: no line of board finding changed.
+  - **The CDP long-press trap, now written down:** in headless Chrome, lifting the
+    finger "taps" what the dialog put under it and drops a pawn on that square.
+    Read the dialog WHILE THE FINGER IS DOWN (`cdp-verify-pieces` does).
+  - Run: `node tools/measure-pieces.mjs find <outDir> 50 "<pdf>:20,30"` (crops to
+    read by eye), `node tools/measure-pieces.mjs measure <outDir> tools/fixtures/piece-truth.json`
+    (env `REUSE=1`, `NOGATE=1`, `LIST=all`, `LEARN=1`, `POISON=…`, `STRICT='{…}'`,
+    `DIAGRAM=<file>`), `node tools/cdp-verify-pieces.mjs <outDir> "<Chess Life.pdf>"`.
+    The books are in `C:\Users\Adrian\ChessPuzzleImport\` (Chess Life in
+    `D:\2. Chess\2. Material\2. CBH and PDF\`).
+  - **Open:** a book taught before v137 (Adrian's Chess Life) still has ONE
+    averaged shape per piece until it learns — "Re-learn the pieces" once gives it
+    the full benefit. One read takes 56 ms on this PC after teaching, 169 ms after
+    nine lessons; NOT timed on a phone. Hatched books (Dvoretsky, Silman): only
+    3 + 3 diagrams measured, no rook/queen/knight among them. Not tested on a
+    real phone.
+
 - **BLINDFOLD — START PANEL WITH GO, TIME LOCKED WHILE A PUZZLE RUNS, PAID-AT
   LINE, CHANGE TIME BUTTON (2026-10-03).** Committed on `main`, NOT deployed.
   `sw.js` v135 → **v136**. No `firestore.rules` change, no new storage keys,
