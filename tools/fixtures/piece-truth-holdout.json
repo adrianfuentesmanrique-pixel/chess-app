@@ -1,0 +1,87 @@
+{
+ "note": "HOLD-OUT set for tools/measure-pieces.mjs: diagrams the STRICT thresholds in js/diagram.js were NEVER chosen on. Same format as piece-truth.json; true positions read BY EYE from `find` crops. Do NOT tune thresholds on this file and then quote its numbers as a test — measure with the shipped values first. Keep it separate from piece-truth.json.",
+ "books": [
+  {
+   "name": "ChessLife",
+   "file": "D:\\2. Chess\\2. Material\\2. CBH and PDF\\Chess Life Magazine 2026-09 Septmber.pdf",
+   "diagrams": [
+    { "id": "p18", "page": 18, "press": [125, 825], "fen": "r2q1rk1/pp3ppp/2n1p3/2n1Pb2/2N5/5N2/PP2BPPP/R2Q1RK1", "teach": true },
+    { "id": "p19g", "page": 19, "press": [725, 675], "fen": "7r/8/8/6R1/6b1/6k1/8/5K2" },
+    { "id": "p19h", "page": 19, "press": [375, 775], "fen": "8/6R1/8/8/6b1/4r1k1/8/5K2" },
+    { "id": "p21b", "page": 21, "press": [75, 675], "fen": "4R3/5p2/2K4p/7k/6p1/8/8/8" },
+    { "id": "p23a", "page": 23, "press": [675, 425], "fen": "r2q1rk1/3n1pp1/p1p1bb1p/1p1p4/PP1P4/1QN1PN2/4BPPP/R4RK1", "teach": true },
+    { "id": "p24a", "page": 24, "press": [425, 125], "fen": "5rk1/6p1/p1pbr3/Pp1p4/1P1Pp2q/4P1n1/3QBNRP/1R2N1K1" },
+    { "id": "p25", "page": 25, "press": [375, 225], "fen": "8/p1bBnk2/Pp4p1/1K1p1p1p/3P3B/5PPP/1P6/8" },
+    { "id": "p26b", "page": 26, "press": [425, 675], "fen": "5r1k/p3n3/5b1p/2p3pP/Q7/4P2q/PP1N1Pb1/2R1K1R1" },
+    { "id": "p27a", "page": 27, "press": [75, 425], "fen": "2rr1qk1/5ppp/1pnb4/p2p4/3P4/PP1Q1N2/1BR2PPP/2R3K1", "teach": true },
+    { "id": "p29b", "page": 29, "press": [675, 275], "fen": "r4rk1/1ppB1p1b/7p/pQ2q2P/1b1p4/2N5/PP1N1PP1/R2K3R" },
+    { "id": "p31b", "page": 31, "press": [425, 375], "fen": "3r4/pp3k2/5b1p/1Qp5/8/8/PPP3PP/6K1" },
+    { "id": "p32c", "page": 32, "press": [475, 975], "fen": "1r1r2k1/5ppp/2B3n1/7q/Q2p1P2/P1pK2P1/2P1R2P/1N2R3" }
+   ]
+  },
+  {
+   "name": "Dvoretsky",
+   "file": "C:\\Users\\Adrian\\ChessPuzzleImport\\1. Dvoretsky's Endgame Manual - 5th Edition.pdf",
+   "diagrams": [
+    { "id": "p272", "page": 272, "press": [350, 150], "fen": "8/6pp/8/1N6/2n2P2/4k1P1/P1Kp3P/8" },
+    { "id": "p300", "page": 300, "press": [350, 150], "fen": "2N1k3/4P1K1/7p/7P/4n3/8/8/8" },
+    { "id": "p440", "page": 440, "press": [750, 50], "fen": "8/6p1/8/p2kbp1p/Pp6/1P2P2P/4K1P1/2B5" },
+    { "id": "p470", "page": 470, "press": [350, 250], "fen": "8/4nKP1/3k4/8/7p/p4P2/8/B7" },
+    { "id": "p500", "page": 500, "press": [350, 150], "fen": "8/8/p2k1p2/1p1p2pp/1P1P3P/P3NPP1/5K2/1b6", "teach": true },
+    { "id": "p540a", "page": 540, "press": [350, 150], "fen": "8/5K1k/1R5p/8/8/p7/1p4P1/8" },
+    { "id": "p540b", "page": 540, "press": [350, 750], "fen": "8/8/4K3/8/8/4k3/1p4p1/6R1" },
+    { "id": "p580", "page": 580, "press": [750, 50], "fen": "4r3/8/8/7k/4P3/4K3/8/6R1" },
+    { "id": "p640", "page": 640, "press": [350, 150], "fen": "8/8/8/5kp1/R7/5p1P/6r1/7K", "teach": true },
+    { "id": "p860", "page": 860, "press": [350, 150], "fen": "7k/R7/8/4K3/7b/8/8/8" },
+    { "id": "p900", "page": 900, "press": [350, 150], "fen": "6k1/3R4/4K1Pp/6b1/8/8/8/8" },
+    { "id": "p940", "page": 940, "press": [750, 50], "fen": "6k1/2q2p2/4p1p1/4p2p/7P/1P3QP1/P4PK1/8", "teach": true }
+   ]
+  },
+  {
+   "name": "Hellsten",
+   "file": "C:\\Users\\Adrian\\ChessPuzzleImport\\3. Hellsten,_Johan_Mastering_endgame_strategy_2013,_Everyman_Chess.pdf",
+   "diagrams": [
+    { "id": "p20", "page": 20, "press": [650, 150], "fen": "8/8/1k4p1/5p1p/1PK1pP1P/6P1/8/8" },
+    { "id": "p45", "page": 45, "press": [150, 250], "fen": "8/7p/6pk/P2n1p2/5P2/8/7P/5BK1" },
+    { "id": "p80a", "page": 80, "press": [150, 250], "fen": "4r3/pp3p1p/2pb2k1/6pn/2PP1pN1/2B2P2/PPK3PP/3R4", "teach": true },
+    { "id": "p80b", "page": 80, "press": [650, 650], "fen": "2kr4/pp2bppp/2n1p3/2prP3/P1N2P2/2B1P1P1/1P3K1P/2R4R" },
+    { "id": "p140", "page": 140, "press": [650, 250], "fen": "4r3/4rp2/p2p1k2/Pp1P1B1p/1Pn1P1pP/5pP1/2R2P2/4R2K" },
+    { "id": "p180", "page": 180, "press": [150, 150], "fen": "2r1r1k1/1p3p1p/p2n2p1/3p4/3N4/1P2P2P/P4PP1/R1R2K2", "teach": true },
+    { "id": "p300", "page": 300, "press": [150, 950], "fen": "n5k1/4nppp/2p1p3/1pPp2P1/1P1P2B1/8/3BPP1P/6K1" },
+    { "id": "p340", "page": 340, "press": [150, 150], "fen": "5k2/7p/4KP1P/8/5P2/8/8/8" },
+    { "id": "p400a", "page": 400, "press": [150, 150], "fen": "2k4r/p1n2p1p/2B1p3/6p1/1P2P3/4PP2/7P/2R3K1" },
+    { "id": "p400b", "page": 400, "press": [650, 350], "fen": "8/p7/4Np2/Pb3p1k/4pP2/4P2P/5K2/8" }
+   ]
+  },
+  {
+   "name": "Silman",
+   "file": "C:\\Users\\Adrian\\ChessPuzzleImport\\5. Silman's Complete Endgame Course - Jeremy Silman.pdf",
+   "diagrams": [
+    { "id": "p320b", "page": 320, "press": [450, 850], "fen": "8/5b2/8/4k3/8/3PP3/3K2B1/8" },
+    { "id": "p400a", "page": 400, "press": [450, 250], "fen": "8/p1p4p/8/1p2k3/1P3pPP/2P2K2/P7/8" },
+    { "id": "p400b", "page": 400, "press": [450, 1050], "fen": "8/p1p4p/8/1p5P/1P2kpP1/2P5/P4K2/8" },
+    { "id": "p440", "page": 440, "press": [350, 750], "fen": "8/5Qpk/8/8/1q5P/2p1P3/P4PP1/6K1", "teach": true },
+    { "id": "p480", "page": 480, "press": [450, 1150], "fen": "r1b3k1/p1p3pp/2p5/8/3pP3/6P1/PPP4P/RN3K2", "teach": true },
+    { "id": "p420", "page": 420, "press": [450, 150], "fen": "3rr3/k4p1p/p1p3b1/PpN2p2/3P4/2P2P2/1K4PP/3RR3" },
+    { "id": "p460", "page": 460, "press": [450, 350], "fen": "2r2k2/6pp/1p1q1pn1/p1nB4/2P5/B3Q1P1/P4P1P/4R1K1", "teach": true }
+   ]
+  },
+  {
+   "name": "FCE",
+   "file": "C:\\Users\\Adrian\\ChessPuzzleImport\\2. Fundamental Chess Endings - Frank Lamprecht.pdf",
+   "diagrams": [
+    { "id": "p70", "page": 70, "press": [150, 550], "fen": "8/8/5pp1/5k1p/5N2/5KP1/2p4P/8" },
+    { "id": "p100a", "page": 100, "press": [150, 750], "fen": "8/5Bp1/3k2p1/8/p7/2K4P/8/8" },
+    { "id": "p100b", "page": 100, "press": [550, 950], "fen": "8/7p/8/7k/4P2P/b1K5/5P2/8" },
+    { "id": "p150a", "page": 150, "press": [150, 150], "fen": "8/2b5/p1k4p/1p2p3/4N3/3K2P1/PPP2P2/8", "teach": true },
+    { "id": "p150b", "page": 150, "press": [550, 150], "fen": "5bk1/7p/3p4/2pPp2P/2P1N1P1/8/5K2/8" },
+    { "id": "p200a", "page": 200, "press": [550, 150], "fen": "8/5K2/kP5R/6rP/8/8/8/8" },
+    { "id": "p200b", "page": 200, "press": [150, 250], "fen": "7r/8/8/3k4/8/2PK1R1P/8/8" },
+    { "id": "p250", "page": 250, "press": [650, 850], "fen": "r5k1/p2R3p/1p4p1/4R3/8/1KP5/1P3rPP/8", "teach": true },
+    { "id": "p300", "page": 300, "press": [350, 550], "fen": "4k3/R7/8/4K3/4B3/8/4r3/8" },
+    { "id": "p350", "page": 350, "press": [150, 150], "fen": "8/3qNQ2/7K/k7/8/8/8/8", "teach": true },
+    { "id": "p380", "page": 380, "press": [150, 150], "fen": "4R3/5K2/4P3/5k2/8/8/8/r7" }
+   ]
+  }
+ ]
+}

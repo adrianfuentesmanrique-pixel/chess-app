@@ -179,14 +179,54 @@ test('learned samples rotate, 12 per piece; what was TAUGHT is never pushed out'
   assert.equal(JSON.stringify(t.samples.P[0]), taught);
 });
 
-test('a confirmed board that calls a known king a queen does not teach that', () => {
+test('a confirmed board that calls a known rook a queen does not teach that', () => {
   const t = JSON.parse(JSON.stringify(FULL));
-  const wrong = put({ e1: 'Q', e8: 'k', a2: 'P' });           // the piece on e1 is the king glyph
-  const cells = cellsFor(put({ e1: 'K', e8: 'k', a2: 'P' }));
+  const wrong = put({ e1: 'K', e8: 'k', a2: 'Q' });           // the piece on a2 is the rook glyph
+  const cells = cellsFor(put({ e1: 'K', e8: 'k', a2: 'R' }));
   const rep = learnFromCells(t, cells, wrong);
   assert.equal(rep.contradictions, 1);
-  assert.equal(t.samples.Q.length, FULL.samples.Q.length, 'no king shape was filed under queen');
-  assert.equal(classifyCells(cells, t).grid[7][4], 'K');
+  assert.equal(t.samples.Q.length, FULL.samples.Q.length, 'no rook shape was filed under queen');
+  assert.equal(classifyCells(cells, t).grid[6][0], 'R');
+});
+
+// Found on the hold-out set (tools/fixtures/piece-truth-holdout.json): a book
+// that has not met the queen cannot contradict "the king is a queen", so the
+// kings themselves are the guard — as in the dialog, which will not Open without them.
+test('a confirmed board without a king of each colour teaches nothing', () => {
+  for (const pos of [{ e1: 'Q', e8: 'q', d5: 'N' }, { e1: 'K', d5: 'N' }, { e8: 'k', d5: 'N' }]) {
+    const t = JSON.parse(JSON.stringify(PARTIAL)), before = JSON.stringify(t.samples);
+    const real = put({ e1: 'K', e8: 'k', d5: 'N' });           // the knight is new to this book
+    assert.equal(learnFromCells(t, cellsFor(real), put(pos)).learned, false);
+    assert.equal(JSON.stringify(t.samples), before);
+  }
+});
+
+// Hold-out, Dvoretsky p580: a hollow rook on a hatched square sat exactly as
+// close to the hatched EMPTY pattern as to a pawn on a hatched square, and the
+// tie went to the pawn. A piece must now beat "empty" by STRICT.*.clear.
+test('a square as close to its empty pattern as to a piece is left empty', () => {
+  const pos = put({ e1: 'K', e8: 'k', a2: 'P' });
+  const tie = mix(SHAPE.p, EMPTY[(4 + 3) % 2], 0.5);          // d4: halfway between a pawn and bare d4
+  const cells = cellsFor(pos, { '4,3': { feat: tie, lumStd: 60, colorScore: WHITE } });
+  for (const t of [FULL, PARTIAL]) {
+    const res = classifyCells(cells, t), x = res.detail[4 * 8 + 3];
+    assert.ok(Math.abs(x.dEmp - x.d1) < STRICT.full.clear, 'the made-up square really is a tie');
+    assert.equal(res.grid[4][3], '');
+    assert.equal(res.grid[6][0], 'P', 'a clean pawn is still read');
+  }
+});
+
+// Hold-out, Silman p400: the black king is drawn half hollow, so its fill says
+// nothing, and the book had a white king on a light square but a black one only
+// on a dark square — the "shape" lead was the square, not the colour.
+test('an unclear fill is settled by shape only when BOTH colours of the piece match well', () => {
+  const t = JSON.parse(JSON.stringify(FULL));
+  const far = mix(SHAPE.q, glyph(90), 0.5);                   // near the white queen sample only
+  t.samples.Q = [Array.from(far)];
+  assert.ok(dist(far, SHAPE.q) > STRICT.full.match, 'the black queen sample is a poor match');
+  const pos = put({ e1: 'K', e8: 'k', d4: 'q' });
+  const cells = cellsFor(pos, { '4,3': { feat: far, lumStd: 60, colorScore: (WHITE + BLACK) / 2 } });
+  assert.equal(classifyCells(cells, t).grid[4][3], '');
 });
 
 test('a known piece the user forgot to place is not learned as an empty square', () => {

@@ -2,6 +2,85 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — THE STRICT PIECE READER MEASURED ON DIAGRAMS IT HAD NEVER SEEN;
+  THREE HOLES FOUND AND CLOSED (2026-10-03).** Committed on `main`, NOT pushed,
+  NOT deployed. `sw.js` v137 → **v138**. `js/diagram.js` (3 small changes, board
+  FINDING untouched), `tests/unit/diagram.test.js` (21 → 24), `tools/measure-pieces.mjs`
+  (`POISON=one`, wrong-colour squares now listed), new
+  `tools/fixtures/piece-truth-holdout.json`.
+  - **The hold-out set:** 52 new diagrams, true positions read BY EYE from `find`
+    crops — Chess Life 12 (pages 18–32, none of 17/20/22/30/36), Dvoretsky 12
+    (knights, rooks, queens, bishops: pages 272–940), Hellsten 10 (middlegame-like,
+    up to 26 pieces), Silman 7 (queens, rooks, knights; two diagram sizes), FCE 11
+    (never measured before). 132 reads, **1,607 real pieces**. Kept SEPARATE from
+    `piece-truth.json` (which holds **23** diagrams, not 19 as v137 wrote).
+  - **Measured with the SHIPPED v137 numbers first, before touching anything:**
+
+    | book | real | correct | WRONG | wrong colour | left empty |
+    |---|---|---|---|---|---|
+    | Chess Life | 567 | 521 | 0 | 0 | 46 |
+    | Dvoretsky | 275 | 172 | **1** | 0 | 102 |
+    | Hellsten | 282 | 266 | 0 | 0 | 16 |
+    | Silman | 248 | 134 | 0 | 0 | 114 |
+    | FCE | 235 | 98 | 0 | 0 | 137 |
+
+    That is before the whole-board gate. WITH the gate: 0 wrong — the one wrong
+    piece was a white pawn on rank 1, so the gate refused that board (shown empty).
+  - **Hole 1 — the wrong piece** (Dvoretsky p580, g1): a hollow white rook on a
+    HATCHED square, in a book taught its rook on a plain square. The hatching
+    drowns the piece: the square was exactly as close to "empty hatched square"
+    (0.055) as to "pawn on a hatched square" (0.055), and the rule had no margin
+    there (`clear: 0`), so the tie went to the pawn. Fix: `STRICT.*.clear` 0 →
+    **0.01**. With `LEARN=1` (correct lessons) v137 made the same mistake 14 times.
+  - **Hole 2 — a correct lesson turned a black king white** (Silman p400b, e4,
+    `LEARN=1`): Silman's black king is drawn half hollow, so its fill says nothing;
+    the book then held a white king on a light square and a black one only on a
+    dark square, and "shape decides the colour" was really the square deciding.
+    Fix: shape may settle the colour only if BOTH colours of that piece match well
+    (`Math.max(dw, db) <= S.match`).
+  - **Hole 3 — v137's "a wrong lesson never places a wrong piece" was false off the
+    first set:** `POISON=swap` (kings confirmed as queens, bishops as pawns) gave
+    Dvoretsky 76, Silman 2, FCE 238 wrong pieces. A book that has not met the queen
+    cannot contradict "this king is a queen". But that lesson has no kings, and the
+    dialog already refuses to Open without them (`read_teach_need_kings`) — the
+    tool was testing what the app cannot do. `learnFromCells` now enforces it
+    itself: no king of each colour → nothing learned.
+  - **After the three fixes (v138), before the gate, BOTH sets:** wrong pieces **0**,
+    wrong colour **0**, in base, `LEARN=1`, and `POISON=swap|colour|forgot`.
+    Cost in real pieces left empty: hold-out 415 → 420 (Dvoretsky +3, Silman +1,
+    FCE +1), first set 165 → 166 (Chess Life +1). Read correctly on the hold-out:
+    Chess Life 92%, Hellsten 94%, Dvoretsky 62%, Silman 54%, FCE 41%.
+  - **STILL OPEN, measured, NOT fixed — one slip in a confirmed board
+    (`POISON=one`, new):** ONE piece confirmed as the wrong type (a rook as a
+    pawn), kings in place, so the app accepts it. Hold-out: **40 wrong pieces** in
+    1,164 reads (Dvoretsky 22, FCE 17, Silman 1; 27 after the gate); first set 6
+    (Hellsten). Chess Life: 0. It only bites when the book was never taught that
+    piece on that kind of square — then nothing contradicts the slip, the book
+    files a rook under "pawn", and later rooks on hatched squares come back as
+    pawns. No threshold fixes this (in hatched books the square outweighs the
+    piece: a king is 0.14 from the same king on the other shade, a rook 0.055 from
+    a pawn on the same shade). It needs a design choice — see the handover prompt.
+  - **How far "zero wrong" can be trusted:** with a book taught once and no
+    corrections, on these five books: 0 wrong in 2,330 real pieces after the fix,
+    and v137 itself had 1 in 1,607 on diagrams it had never seen. But the hold-out
+    is no longer unseen for `clear`, the colour rule and the kings rule — they
+    were chosen ON it. The next honest test needs new diagrams again.
+  - **Unmeasured:** any Chess Life issue other than 2026-09 (the hold-out pages are
+    the same issue, same font, as the first set); any sixth book; scans or photos
+    (all five are born-digital PDFs); a book taught before v137 (one averaged shape
+    per piece); a real phone (speed and screen); more than one lesson per book.
+  - **Verified:** `test:tree` **89/89** (65 + 24; the 3 new tests FAIL on the v137
+    code, checked against `git show HEAD:js/diagram.js`). Headless CDP at 375px,
+    EN/ES × light/dark: `cdp-verify-pieces` **47/47** (REAL long-press, REAL taps;
+    SEEDED: the book and its templates, as before), `cdp-verify-hatched` **92/92**
+    (with puzzle page 17; without that last argument it reports 82/82),
+    `cdp-verify-stage2` green (exit 0; its one `confident:false` is the
+    degrades-honestly case). The hold-out itself is NOT tapped: it is the real
+    `classifyCells`/`learnFromCells` run in Node on square measurements taken in
+    headless Chrome from the real pages.
+  - Run: `node tools/measure-pieces.mjs measure <outDir> tools/fixtures/piece-truth-holdout.json`
+    (~3 min the first time; `REUSE=1` afterwards is seconds).
+
 - **READ TAB — "CHECK THE POSITION" SHOWS ONLY PIECES IT IS SURE OF, AND LEARNS
   FROM CORRECTIONS (2026-10-03).** Committed on `main`, NOT pushed, NOT deployed.
   `sw.js` v136 → **v137**. `js/diagram.js` (everything from `buildTemplatesFromGrid`

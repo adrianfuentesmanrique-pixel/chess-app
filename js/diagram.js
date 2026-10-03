@@ -876,7 +876,11 @@ export function addToTemplates(t, cells, grid, skip = null, learning = false) {
 // templates are first turned into ver 4 with their averages as the anchor.
 export const LEARN_MAX_CONTRA = 3;
 export function learnFromCells(t, cells, grid) {
-  if (boardSanity(grid)) return { learned: false, added: 0, contradictions: 0, skipped: 0 };
+  // One king a side, as the dialog demands before Open: a board without them was
+  // not a confirmed position, and "kings confirmed as queens" is the one mistake
+  // the guards below cannot see in a book that has not met the piece yet.
+  const flat = grid.flat();
+  if (boardSanity(grid) || !flat.includes('K') || !flat.includes('k')) return { learned: false, added: 0, contradictions: 0, skipped: 0 };
   if (!t.samples) {
     const samples = {}, base = { samples: {}, empties: { 0: 0, 1: 0 } }, empties = { 0: [], 1: [] };
     for (const code of Object.keys(t.pieces)) { samples[code] = [t.pieces[code]]; base.samples[code] = 1; }
@@ -924,6 +928,11 @@ export function learnFromCells(t, cells, grid) {
 // (tools/fixtures/piece-truth.json). The loosest values that placed no wrong
 // piece on that set were match 0.15 / lead 0.05 (full) and match 0.07 (partial);
 // these sit a step inside them, because a new book is not in the set.
+// v138: measured on 52 diagrams the numbers were NOT chosen on
+// (tools/fixtures/piece-truth-holdout.json): one wrong piece in 1,607 — a hollow
+// rook on a hatched square, exactly as close to the hatched empty pattern as to a
+// pawn — so `clear` went 0 → 0.01 (cost: 4 real pieces more left empty there, none
+// on the first set). A thing that looks as much like nothing as like a piece is nothing.
 //   shift  the cell is also tried slid up to this many feature cells each way. A
 //          later board never lands on the exact pixels of the taught one, and a
 //          one-pixel slide was what made a king look like a queen.
@@ -936,8 +945,8 @@ export function learnFromCells(t, cells, grid) {
 // until then (see classifyCells).
 export const STRICT = {
   shift: 2,
-  full:    { match: 0.13, lead: 0.06, clear: 0, band: 0.10 },
-  partial: { match: 0.06, lead: 0.04, clear: 0, band: 0.10 },
+  full:    { match: 0.13, lead: 0.06, clear: 0.01, band: 0.10 },
+  partial: { match: 0.06, lead: 0.04, clear: 0.01, band: 0.10 },
 };
 
 function shiftFeat(f, dx, dy) {
@@ -1042,10 +1051,13 @@ export function classifyCells(cells, templates, turn = 'w') {
       }
       // A fill near the middle (some fonts' queens and knights are half inked)
       // says nothing; then the SHAPE may decide, but only if the book was taught
-      // this piece in both colours and one of them leads as clearly as a type must.
+      // this piece in both colours, BOTH match well, and one leads as clearly as a
+      // type must. (Both: a book holding the white king on a light square and the
+      // black one only on a dark square "led" by the square, and a half-hollow
+      // black king came back white — hold-out set, Silman.)
       if (white === null && type) {
         const [dw, db] = byColour[type];
-        if (dw < Infinity && db < Infinity && Math.abs(dw - db) >= S.lead) white = dw < db;
+        if (Math.max(dw, db) <= S.match && Math.abs(dw - db) >= S.lead) white = dw < db;
       }
       const sure = white !== null && d1 <= S.match && d2 - d1 >= S.lead &&
                    (dEmp === null || dEmp - d1 >= S.clear);

@@ -20,8 +20,10 @@
 //     LIST=all also every real piece left empty, with its numbers.
 //     env LEARN=1 measures learning: one more diagram is confirmed after the
 //     teaching one, then the others are read.
-//     env POISON=swap|colour|forgot (with LEARN=1) confirms that extra diagram
+//     env POISON=swap|colour|forgot|one (with LEARN=1) confirms that extra diagram
 //     WRONG, to check that a bad confirmation cannot make the book place wrong pieces.
+//     ('swap' leaves a board with no kings unless it holds both queens; the app's
+//     dialog and learnFromCells both refuse that, so 'one' is the test that bites.)
 //     env STRICT='{"full":{"match":0.1}}' tries other thresholds.
 //     env DIAGRAM=<file> measures a candidate copy instead of js/diagram.js.
 import { spawn } from 'node:child_process';
@@ -174,6 +176,10 @@ if (MODE === 'find') {
         if (process.env.POISON === 'swap') g = g.map(r => r.map(c => { const x = sw[c.toLowerCase()]; return !c || !x ? c : c === c.toUpperCase() ? x.toUpperCase() : x; }));
         if (process.env.POISON === 'colour') g = g.map(r => r.map(c => c ? flip(c) : c));
         if (process.env.POISON === 'forgot') g = g.map(r => r.map(c => c && !'kK'.includes(c) && k++ % 2 ? '' : c));
+        // 'one': a single slip — the first piece that is not a king is confirmed as
+        // another type (a pawn as a knight, anything else as a pawn). Kings stay, so
+        // the lesson is one the app's dialog would accept.
+        if (process.env.POISON === 'one') g = g.map(r => r.map(c => { if (!c || 'kK'.includes(c) || k++) return c; const x = c.toLowerCase() === 'p' ? 'n' : 'p'; return c === c.toUpperCase() ? x.toUpperCase() : x; }));
         const rep = D.learnFromCells(tm, cellsOf(book.name + '/' + extra.id), g);
         tot.lessons = (tot.lessons || 0) + 1; if (rep.learned) tot.took = (tot.took || 0) + 1;
       }
@@ -188,7 +194,7 @@ if (MODE === 'find') {
           if (got && got === t) tot.ok++;
           else if (got && !t) { tot.ghost++; bad.push(book.name + ' ' + teach.id + '->' + d.id + ' ' + sq + ': ' + got + ' on an empty square'); }
           else if (got && lc(got) !== lc(t)) { tot.type++; bad.push(book.name + ' ' + teach.id + '->' + d.id + ' ' + sq + ': ' + got + ' for ' + t); }
-          else if (got) tot.colour++;
+          else if (got) { tot.colour++; bad.push(book.name + ' ' + teach.id + (extra ? '+' + extra.id : '') + '->' + d.id + ' ' + sq + ': ' + got + ' for ' + t + ' (colour only)'); }
           else if (t) { tot.miss++; const x = res.detail && res.detail[r * 8 + c]; if (x) missed.push(book.name + ' ' + teach.id + '->' + d.id + ' ' + sq + ' ' + t + ': nearest ' + x.type + ' ' + x.d1.toFixed(3) + ', lead ' + (x.d2 - x.d1).toFixed(3) + ', empty ' + (x.dEmp == null ? '-' : (x.dEmp - x.d1).toFixed(3)) + ', fill ' + x.colorScore.toFixed(2) + (tm.colorRef ? ' (white ' + tm.colorRef.white.toFixed(2) + ' black ' + tm.colorRef.black.toFixed(2) + ')' : ' (no colour reference)')); }
         }
       }
