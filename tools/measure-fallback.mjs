@@ -3,14 +3,17 @@
 // FALSE one? Renders pages exactly as the reader does on a 375px phone (1065-px
 // canvas), presses a dense grid over the WHOLE page, and replays detectBoard's
 // steps one by one (the module's internals are re-exported from a blob copy, so
-// js/diagram.js itself is untouched). A fallback board that matches a board the
-// tone search found on the same page is "confirmed"; every other one is saved as a
-// crop (grid in red) to judge by eye.
+// js/diagram.js itself is untouched). Of two grids that overlap on a page, the
+// one with less checker contrast is SLID, whichever search gave it. A fallback
+// board that matches a tone-search board that is not slid is "confirmed". Every
+// slid grid and every other unconfirmed fallback grid is saved as a crop (grid in
+// red, the board a slid one slid off in green) to judge by eye.
 //
 //   node tools/measure-fallback.mjs <outDir> <step px> <workers> <pdf>:<pages> [...]
 //   pages: "all" | "a-b/s" (every s-th page from a to b) | "1,5,9"
 //   env GATE=80: the fallback must reach that checkerVotes score, as detectBoard
-//   does since v132 (GATE=0 replays the v131 fallback). Every 40th press is also
+//   does since v132 (GATE=0 replays the v131 fallback). env DIAGRAM=<file>
+//   measures a candidate copy instead of js/diagram.js. Every 40th press is also
 //   run through the real detectBoard; probe!=detectBoard must read 0/N.
 import { spawn } from 'node:child_process';
 import http from 'node:http';
@@ -32,7 +35,7 @@ const server = http.createServer((req, res) => {
   const p = decodeURIComponent(req.url.split('?')[0]);
   if (p === '/__probe') { res.writeHead(200, { 'Content-Type': 'text/html' }).end('<!doctype html><title>p</title>'); return; }
   const m = /^\/__book\/(\d+)$/.exec(p);
-  const file = m ? BOOKS[+m[1]].file : path.join(ROOT, p);
+  const file = m ? BOOKS[+m[1]].file : p === '/__diagram' ? (process.env.DIAGRAM || path.join(ROOT, 'js/diagram.js')) : path.join(ROOT, p);
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404).end(); return; }
     const t = file.endsWith('.pdf') ? 'application/pdf' : file.endsWith('.wasm') ? 'application/wasm' : /\.m?js$/.test(file) ? 'text/javascript' : 'application/octet-stream';
@@ -56,8 +59,8 @@ async function worker(k) {
   const evalP = async expr => { const r = await send('Runtime.evaluate', { expression: `(async()=>{ ${expr} })()`, awaitPromise: true, returnByValue: true }); if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails).slice(0, 900)); return r.result.value; };
   await send('Page.navigate', { url: `http://127.0.0.1:${WEB}/__probe` }); await sleep(1200);
   await evalP(`
-    const src = await (await fetch('/js/diagram.js')).text();
-    window.D = await import(URL.createObjectURL(new Blob([src + '\\nexport { toGray, toneMap, detectFromBand, detectInWindow, placeByTone, accept, fitBoard, checkerVotes, isSlid };'], { type: 'text/javascript' })));
+    const src = await (await fetch('/__diagram')).text();
+    window.D = await import(URL.createObjectURL(new Blob([src + '\\nexport { toGray, toneMap, detectFromBand, detectInWindow, placeByTone, accept, fitBoard, checkerVotes, isSlid, cellTone };'], { type: 'text/javascript' })));
     window.lib = await import('/vendor/pdf.min.mjs');
     lib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
     window.docs = {}; window.GATE = ${+(process.env.GATE || 0)};
@@ -100,23 +103,59 @@ const PAGE_JOB = (bi, n, step, noFb) => `
     if (res.length % 40 === 0) { checked++; const d = D.detectBoard(img, x, y); if (JSON.stringify(d && [d.x0, d.y0, d.cw]) !== JSON.stringify(p && [p.b.x0, p.b.y0, p.b.cw])) mismatch++; }
     res.push({ x, y, k: p ? p.k : null, b: p && { x0: +p.b.x0.toFixed(1), y0: +p.b.y0.toFixed(1), cw: +p.b.cw.toFixed(2), ch: +p.b.ch.toFixed(2) }, votes: p && p.votes, frac: p && p.frac });
   }
-  const tones = res.filter(q => q.k === 'tone').map(q => q.b);
   const same = (a, b) => Math.abs(a.x0 - b.x0) < 0.35 * b.cw && Math.abs(a.y0 - b.y0) < 0.35 * b.ch && Math.abs(a.cw / b.cw - 1) < 0.06;
-  // a press is ON a known board if it is inside one the tone search found
   const inside = (q, b) => q.x >= b.x0 && q.x <= b.x0 + 8 * b.cw && q.y >= b.y0 && q.y <= b.y0 + 8 * b.ch;
-  for (const q of res) { q.onTone = tones.some(b => inside(q, b)); if (q.k === 'asis' || q.k === 'moved') q.confirmed = tones.some(b => same(q.b, b)); }
-  // crops of the unconfirmed fallback boards, one per distinct grid
-  const crops = [];
+  // every distinct grid any press gave (tone search included) and how many gave it
+  const grids = [], of = new Map();
   for (const q of res) {
-    if (!(q.k === 'asis' || q.k === 'moved') || q.confirmed) continue;
-    if (crops.some(c => same(q.b, c.b))) { crops.find(c => same(q.b, c.b)).n++; continue; }
-    const b = q.b, pad = b.cw, sx = Math.max(0, b.x0 - pad), sy = Math.max(0, b.y0 - pad), sw = Math.min(W - sx, 8 * b.cw + 2 * pad), sh = Math.min(H - sy, 8 * b.ch + 2 * pad);
-    const c2 = document.createElement('canvas'); c2.width = sw; c2.height = sh; const x2 = c2.getContext('2d');
-    x2.drawImage(cv, sx, sy, sw, sh, 0, 0, sw, sh); x2.strokeStyle = 'rgba(255,0,0,0.7)'; x2.lineWidth = 1;
-    for (let i = 0; i <= 8; i++) { x2.beginPath(); x2.moveTo(b.x0 - sx + i * b.cw, b.y0 - sy); x2.lineTo(b.x0 - sx + i * b.cw, b.y0 - sy + 8 * b.ch); x2.stroke(); x2.beginPath(); x2.moveTo(b.x0 - sx, b.y0 - sy + i * b.ch); x2.lineTo(b.x0 - sx + 8 * b.cw, b.y0 - sy + i * b.ch); x2.stroke(); }
-    x2.fillStyle = 'blue'; x2.beginPath(); x2.arc(q.x - sx, q.y - sy, 4, 0, 7); x2.fill();
-    crops.push({ b, k: q.k, votes: q.votes, frac: q.frac, n: 1, press: [q.x, q.y], onTone: q.onTone, url: c2.toDataURL('image/jpeg', 0.8) });
+    if (!q.b) continue;
+    let G = grids.find(G => same(q.b, G.b));
+    if (!G) grids.push(G = { b: q.b, n: 0, tone: 0, k: q.k, votes: q.votes, press: [q.x, q.y] });
+    G.n++; if (q.k === 'tone') G.tone++; of.set(q, G);
   }
+  // SLID: two boards never overlap, so of two grids that do (corners under 7
+  // squares apart) one is the board and the other a slide of it. The slid one is
+  // the one with LESS checker contrast: the summed light/dark difference over its
+  // 112 neighbour pairs, each capped at 60 — a caption or text row that happens to
+  // alternate does so faintly (20–30 against a real rank's 50–60), which the +-1
+  // votes in diagram.js cannot see. NOT "the less-pressed one": on FCE p120 and
+  // Chess Life p52 the slid grid is the one most presses give. A rule, so the crops
+  // (slid grid red, the board it slid off green) are there to check it by eye.
+  for (const G of grids) {
+    const b = G.b; let s = 0;
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      const v = D.cellTone(g, W, b, r, c), sg = ((r + c) & 1) ? -1 : 1, cap = d => Math.max(-60, Math.min(60, d));
+      if (c < 7) s += sg * cap(v - D.cellTone(g, W, b, r, c + 1));
+      if (r < 7) s += sg * cap(v - D.cellTone(g, W, b, r + 1, c));
+    }
+    G.con = Math.round(Math.abs(s));
+  }
+  grids.forEach((A, i) => grids.forEach((B, j) => {
+    if (i === j || !(A.con < B.con || (A.con === B.con && (A.n < B.n || (A.n === B.n && i > j))))) return;
+    const off = Math.max(Math.abs(A.b.x0 - B.b.x0) / B.b.cw, Math.abs(A.b.y0 - B.b.y0) / B.b.ch);
+    if (off < 7 && (!A.of || B.con > A.of.con)) { A.of = B; A.off = +off.toFixed(2); }
+  }));
+  // a REAL board: one the tone search found that is not a slide of another
+  const real = grids.filter(G => G.tone && !G.of);
+  for (const q of res) {
+    const G = of.get(q), on = real.find(R => inside(q, R.b));
+    q.onTone = !!on; q.gaveIt = !!on && G === on; q.slid = !!(G && G.of);
+    if (q.k === 'asis' || q.k === 'moved') q.confirmed = real.includes(G);
+  }
+  const crops = [];
+  const crop = (G, kind) => {
+    const b = G.b, pad = 2 * b.cw, sx = Math.max(0, b.x0 - pad), sy = Math.max(0, b.y0 - pad), sw = Math.min(W - sx, 8 * b.cw + 2 * pad), sh = Math.min(H - sy, 8 * b.ch + 2 * pad);
+    const z = Math.max(1, Math.round(700 / sw));   // small magazine boards enlarged, to be judged by eye
+    const c2 = document.createElement('canvas'); c2.width = sw * z; c2.height = sh * z; const x2 = c2.getContext('2d');
+    x2.scale(z, z); x2.drawImage(cv, sx, sy, sw, sh, 0, 0, sw, sh); x2.lineWidth = 1;
+    const grid = (b, col) => { x2.strokeStyle = col; for (let i = 0; i <= 8; i++) { x2.beginPath(); x2.moveTo(b.x0 - sx + i * b.cw, b.y0 - sy); x2.lineTo(b.x0 - sx + i * b.cw, b.y0 - sy + 8 * b.ch); x2.stroke(); x2.beginPath(); x2.moveTo(b.x0 - sx, b.y0 - sy + i * b.ch); x2.lineTo(b.x0 - sx + 8 * b.cw, b.y0 - sy + i * b.ch); x2.stroke(); } };
+    if (G.of) grid(G.of.b, 'rgba(0,160,0,0.8)');
+    grid(b, 'rgba(255,0,0,0.7)');
+    x2.fillStyle = 'blue'; x2.beginPath(); x2.arc(G.press[0] - sx, G.press[1] - sy, 4, 0, 7); x2.fill();
+    crops.push({ kind, b, k: G.k, votes: G.votes, n: G.n, tone: G.tone, con: G.con, press: G.press, of: G.of && { b: G.of.b, n: G.of.n, con: G.of.con }, off: G.off, url: c2.toDataURL('image/jpeg', 0.8) });
+  };
+  // a crop of every slid grid, and of every other fallback grid no real board confirms
+  for (const G of grids) { if (G.of) crop(G, 'slid'); else if (!G.tone) crop(G, 'unconfirmed'); }
   return { W, H, numPages: doc.numPages, ms: Math.round(performance.now() - t0), checked, mismatch, res, crops };
 `;
 
@@ -139,7 +178,7 @@ await Promise.all(wk.map(async w => {
     try {
       const r = await w.evalP(PAGE_JOB(j.bi, j.p, +STEP));
       if (r.skip) continue;
-      r.crops.forEach((c, i) => { const f = `b${j.bi}-p${j.p}-${i}.jpg`; fs.writeFileSync(path.join(OUT, 'crops', f), Buffer.from(c.url.split(',')[1], 'base64')); c.file = f; delete c.url; });
+      r.crops.forEach((c, i) => { const f = `${c.kind}-b${j.bi}-p${j.p}-${i}.jpg`; fs.writeFileSync(path.join(OUT, 'crops', f), Buffer.from(c.url.split(',')[1], 'base64')); c.file = f; delete c.url; });
       results.push({ ...j, book: path.basename(BOOKS[j.bi].file), ...r });
       process.stderr.write(`.${j.bi}:${j.p}`);
     } catch (e) { console.error(`\nERR ${j.bi}:${j.p} ${e.message}`); }
@@ -148,13 +187,16 @@ await Promise.all(wk.map(async w => {
 fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results));
 
 // -- summary per book --
-console.log('\nbook | pages | presses | tone | fb confirmed (on board tone missed from here) | fb unconfirmed (to judge) | distinct unconfirmed grids | probe!=detectBoard');
+console.log('\nbook | pages | presses | tone | fb confirmed (a real board the tone search missed from here) | fb unconfirmed, not slid (to judge) | their grids | SLID grids | SLID presses (tone / fallback) | inside a real board: gave it / presses | probe!=detectBoard');
 BOOKS.forEach((b, bi) => {
-  const R = results.filter(r => r.bi === bi); const all = R.flatMap(r => r.res);
-  const fb = all.filter(q => q.k === 'asis' || q.k === 'moved');
+  const R = results.filter(r => r.bi === bi); const all = R.flatMap(r => r.res), crops = R.flatMap(r => r.crops);
+  const fb = all.filter(q => q.k === 'asis' || q.k === 'moved'), slid = all.filter(q => q.slid);
   console.log([path.basename(b.file).slice(0, 40), R.length, all.length, all.filter(q => q.k === 'tone').length,
-    fb.filter(q => q.confirmed).length, fb.filter(q => !q.confirmed).length, R.reduce((s, r) => s + r.crops.length, 0),
+    fb.filter(q => q.confirmed).length, fb.filter(q => !q.confirmed && !q.slid).length, crops.filter(c => c.kind === 'unconfirmed').length,
+    crops.filter(c => c.kind === 'slid').length, `${slid.length} (${slid.filter(q => q.k === 'tone').length} / ${slid.filter(q => q.k !== 'tone').length})`,
+    all.filter(q => q.gaveIt).length + ' / ' + all.filter(q => q.onTone).length,
     R.reduce((s, r) => s + r.mismatch, 0) + '/' + R.reduce((s, r) => s + r.checked, 0)].join(' | '));
 });
+for (const r of results) for (const c of r.crops) if (c.kind === 'slid') console.log(`slid ${c.file}: ${c.b.x0},${c.b.y0} cw ${c.b.cw}, ${c.n} presses (${c.tone} tone), contrast ${c.con}, ${c.off} sq off ${c.of.b.x0},${c.of.b.y0} cw ${c.of.b.cw} (${c.of.n} presses, contrast ${c.of.con})`);
 wk.forEach(w => w.chrome.kill()); server.close();
 process.exit(0);

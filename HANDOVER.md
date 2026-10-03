@@ -1,6 +1,63 @@
-# Chess app — where things stand (updated 2026-10-02)
+# Chess app — where things stand (updated 2026-10-03)
 
 ## Already done and pushed — do NOT redo these
+
+- **READ TAB — SLID BOARDS JUDGED BY EYE, THE FAINT-CAPTION SLIDE FIXED (2026-10-03).**
+  Committed on `main`, NOT pushed, NOT deployed. `sw.js` v133 → **v134**.
+  `js/diagram.js` (`slidBlock` only, ~10 lines), `tools/measure-fallback.mjs`
+  (counts slides itself). Follows the v133 entry below and CORRECTS it.
+  - **The v133 counting rule was wrong.** "Of two grids one square apart, the
+    less-pressed is the slid one" points the wrong way on the two pages that
+    matter. Judged by eye from crops (15 slid grids, 12 opened, all genuine slides,
+    none a second real board):
+    **FCE p120** — the grid 123.8,647.8 that v133 called slid is the REAL board;
+    the slid one is 124,604 (one rank up, into the text line), given by 77 presses
+    against 71 for the true one. **Chess Life p52** — board 459,864.3 slid one rank
+    DOWN into its blue "POSITION AFTER…" caption on 35 presses, incl. presses
+    INSIDE the board; the true board came back only from its top rank (5).
+    Chess Life p29 (8 presses, two ranks down), p45 (two boards, 6 + 6), p10 (2),
+    p39 (6); Silman p20 (2); FCE pp. 20, 60, 180 (two boards), 220, 280 (59).
+    Also: slides of TWO squares exist, which the 1.6-square rule never counted.
+  - **True count on v133** (133 pages, 40-px grid, ~129,000 presses): slid presses
+    Chess Life 63, Dvoretsky 0, Hellsten 0, Silman 2, FCE 136 = **201** (v133's
+    entry said 20 / 0 / 0 / 2 / 122).
+  - **Why:** a caption or text row can alternate light/dark by chance, but
+    FAINTLY (FCE p120: all 7 pairs, by ~20 shades against the board's ~50; p52:
+    the caption scored 3, the same as the true top rank with its two pieces).
+    `slidBlock` only counted WHETHER each pair alternates (±1 past 3 shades).
+  - **The fix:** each line also gets `w` — every pair as a share of the block's own
+    light/dark step (median neighbour difference), capped at 1. Slid if the v133
+    test says so OR `beyond.w >= 4 && outer.w <= beyond.w - 2.5`.
+  - **After, every press compared one by one:** slid **201 → 7**. Of the 199 that
+    stopped sliding, 137 now give the true board, 62 "no board". **No press that
+    gave a true board lost it or changed board.** 116 presses that gave "no board"
+    now give the true one (Hellsten 60, Chess Life 33, Dvoretsky 12, Silman 9,
+    FCE 2). Inside a real board, gave it: Chess Life 3,301 → 3,321 of 3,415;
+    FCE 2,579 → 2,627 of 2,627; Dvoretsky 1,968 of 1,972, Hellsten 1,432 of 1,432,
+    Silman 837 of 837 unchanged. probe ≠ `detectBoard`: 0 in both runs, no ERR.
+  - **Left, deliberately not chased (7 presses, all OUTSIDE the board):** Chess
+    Life p10, 2 presses, two ranks down (unchanged); Chess Life p53, 5 presses in
+    the text below board 96.3,825 give it one rank down — NEW, those presses gave
+    "no board" before. The one "unconfirmed" crop (Chess Life p51, 27 presses) is
+    the real board the tone search never finds (see v132), not a false one.
+  - **The tool now:** per book — slid grids, slid presses (tone / fallback), and
+    "inside a real board: gave it / presses". SLID = of two grids that overlap on
+    a page (corners under 7 squares apart), the one with LESS checker contrast
+    (summed light/dark difference over the 112 pairs, each capped at 60). "fb
+    confirmed" now means matching a tone-search board that is NOT slid. Crops:
+    `slid-*.jpg` for every slid grid, tone search included (slid red, the board it
+    slid off green, small boards enlarged), `unconfirmed-*.jpg` for the rest.
+    `env DIAGRAM=<file>` measures a candidate copy of `diagram.js` without
+    touching the real one. A full run takes ~37 min with 4 workers; the progress
+    dots do not show through a PowerShell redirect — check the node process.
+  - **Verified (headless CDP, 375px, EN/ES × light/dark):** `cdp-verify-hatched`
+    **92/92** (REAL long-presses on Dvoretsky/Hellsten/Chess Life p30 and a p17
+    puzzle board; the p17 title-row and beside-the-board checks are CALLED),
+    `cdp-verify-stage2` green (its one `confident:false` is the honest-degradation
+    check, as intended), `cdp-verify-training` **65/65**, `test:tree` **53/53**.
+    The 129k-press grids are CALLED, not pressed. SEEDED: books via `db.addBook()`.
+    FCE p120 and Chess Life p52 were NOT long-pressed in the app, only measured.
+    Not tested on a real phone.
 
 - **READ TAB — DIAGRAM READER NO LONGER RETURNS A BOARD SLID ONE SQUARE (2026-10-02).**
   Committed on `main`, NOT pushed, NOT deployed. `sw.js` v132 → **v133**.

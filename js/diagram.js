@@ -510,16 +510,31 @@ function placeByTone(g, W, H, b, R, tapX, tapY) {
 // (measured: 106–109 of 112 against the true block's 112) — close enough for the
 // block that holds the finger to win. `T(r, c)` gives a cell's tone (NaN off the
 // page: no vote); `sign` is the block's own vote sign on T's lattice.
+//
+// Counting the pairs is not enough: a caption or a line of text can alternate by
+// chance, but FAINTLY. FCE p120: the text line above the board alternated on all
+// 7 pairs, by ~20 shades against the board's ~50; Chess Life p52: the blue caption
+// scored 3, the same as the true top rank with its two pieces — and there the
+// slid board came back even from presses inside the board. So each line is also
+// scored by HOW MUCH it alternates (`w`: every pair as a share of the block's own
+// light/dark step, capped at 1). Measured over 133 pages / ~129,000 presses:
+// slid presses 201 -> 7, no press that gave the true board lost it.
 function slidBlock(T, r, c, sign) {
+  // the block's own light/dark step: the median difference between neighbours
+  const ds = [];
+  for (let i = 0; i < 8; i++) for (let j = 0; j < 7; j++) { const d = Math.abs(T(r + i, c + j) - T(r + i, c + j + 1)); if (d === d) ds.push(d); }
+  ds.sort((a, b) => a - b);
+  const C = Math.max(4, ds[ds.length >> 1] || 0);
   const line = (r, c, dr, dc) => {           // the 7 neighbour pairs along 8 cells
-    let s = 0;
+    let s = 0, w = 0;
     for (let k = 0; k < 7; k++, r += dr, c += dc) {
       const d = (((r + c) & 1) ? -1 : 1) * (T(r, c) - T(r + dr, c + dc));
       s += d > 3 ? 1 : d < -3 ? -1 : 0;
+      if (d > 3 || d < -3) w += Math.max(-1, Math.min(1, d / C));
     }
-    return sign * s;
+    return { s: sign * s, w: sign * w };
   };
-  const weak = (outer, beyond) => beyond >= 5 && outer <= beyond - 3;
+  const weak = (outer, beyond) => (beyond.s >= 5 && outer.s <= beyond.s - 3) || (beyond.w >= 4 && outer.w <= beyond.w - 2.5);
   return weak(line(r, c, 0, 1), line(r + 8, c, 0, 1)) || weak(line(r + 7, c, 0, 1), line(r - 1, c, 0, 1)) ||
          weak(line(r, c, 1, 0), line(r, c + 8, 1, 0)) || weak(line(r, c + 7, 1, 0), line(r, c - 1, 1, 0));
 }
