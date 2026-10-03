@@ -200,10 +200,18 @@ export function detectBoard(imageData, tapX, tapY) {
     // If the pattern says the board is elsewhere on this lattice (a press on the
     // margin just outside a diagram gave a grid stretched over the text above
     // it), take the board the pattern points at, or nothing.
+    //
+    // And whatever comes back must show the same plain checker pattern the tone
+    // search demands (checkerVotes >= 80 of 112). Measured 2026-10-02 over ~144,000
+    // presses on 147 pages (Chess Life, Dvoretsky, Hellsten, Silman, FCE): every
+    // real board this search found scored >= 80 (388 presses, incl. a Chess Life
+    // board the tone search never finds); every grid over text or photos scored
+    // under 80, most under 15 (207 of 223 false boards). So line-only boards (no
+    // shades) are no longer found here — none exist in those books, and on text
+    // they cannot be told apart.
     const moved = placeByTone(g, W, H, found, 7, tapX, tapY);
-    if (!moved) return found;               // in place, or a line-only board
-    const board = accept(g, W, H, fitBoard(tone, W, H, moved, Math.max(10, 5 * r), r));
-    if (board) return board;
+    const board = moved ? accept(g, W, H, fitBoard(tone, W, H, moved, Math.max(10, 5 * r), r)) : found;
+    if (board && checkerVotes(g, W, board) >= 80) return board;
   }
   return null;
 }
@@ -218,7 +226,8 @@ export function detectBoard(imageData, tapX, tapY) {
 // middles and line contrast came out as low as 1.2. Measured over the whole
 // Chess Life issue: every real board scored 89–112 votes of 112, every false
 // one (text, or a block slid half off a board) 68 or less. A line-only board has no
-// shades: it fails here and is left to the window search, as before.
+// shades: it fails here, and since v132 the window search demands the same
+// pattern, so it is not found at all (none in any book measured).
 function accept(g, W, H, board, shaded) {
   if (!board) return null;
   const ratio = board.cw / board.ch;

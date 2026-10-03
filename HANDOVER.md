@@ -2,6 +2,46 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — DIAGRAM READER'S OLD FALLBACK NO LONGER TAKES TEXT FOR A BOARD (2026-10-02).**
+  Committed on `main`, NOT pushed, NOT deployed. `sw.js` v131 → **v132**. Only
+  `js/diagram.js` changed (the fallback block at the end of `detectBoard`), plus a
+  new dev tool `tools/measure-fallback.mjs`. Follows the v131 entry below.
+  - **Measured first, decided with Adrian.** `measure-fallback.mjs` renders pages
+    as the reader does (1065-px canvas), presses every 40 px over WHOLE pages and
+    replays `detectBoard` step by step (its cross-check against the real
+    `detectBoard` read 0 differences on every run). A fallback board equal to one
+    the tone search found on that page counts as real; every other one is saved as
+    a crop and was judged by eye. 147 pages, ~144,000 presses (Chess Life all 68,
+    Dvoretsky 21, Hellsten 15, Silman 15, FCE 14 x2 files — they are the same book):
+    the fallback found a REAL board the tone search missed from that spot on
+    **388** presses (Chess Life 247, Hellsten 131, Dvoretsky 8, Silman 2 — incl. a
+    Chess Life p51 board the tone search never finds from ANY press) and a FALSE one
+    on **223**. Dropping it would have lost the 388.
+  - **The fix:** the fallback's answer must pass the same plain-checker test the
+    tone search uses (`checkerVotes` ≥ 80 of 112), else the next window size is
+    tried. Every real fallback find scored ≥ 80; every grid over text or photos
+    scored under 80, most under 15. **After (same probe, same pages): real 388 →
+    388, false 223 → 16.** The 16 left are NOT text: they are real puzzle boards on
+    Chess Life pp. 17, 19, 26 found SLID one rank or one file (votes 100–109, so
+    the gate cannot catch them). Hellsten, Dvoretsky, Silman, FCE: 0 false.
+  - **Line-only boards (no shading) are no longer found at all** — the tone search
+    never found them, and now the fallback refuses them too. None exist in any of
+    the six books; on text a no-shading board and a text block score the same (≈0),
+    so a line-only exception would let the text back in (Adrian chose this).
+  - **Verified (headless CDP, 375px):** `cdp-verify-stage2` green (synthetic boards
+    are shaded; blank area and text still give no board), `cdp-verify-hatched`
+    with Chess Life p30 **82/82** — REAL long-presses at five spots on the magazine
+    board and on Dvoretsky/Hellsten in EN/ES × light/dark; `cdp-verify-training`
+    **65/65**; `test:tree` **53/53**. The 144k-press grids are CALLED
+    (`detectBoard` internals on a rendered canvas), not pressed. SEEDED: books via
+    `db.addBook()` in the verifiers.
+  - Run: `node tools/measure-fallback.mjs <outDir> 40 12 "<pdf>:all" "<pdf>:20-420/20"`
+    with env `GATE=80` (current code) or `GATE=0` (the v131 fallback). ~60 s per
+    page per worker; the scans need the `wasmUrl` it passes.
+  - **Open:** the 16 slid puzzle-board presses above (Chess Life puzzle pages lay
+    boards on one lattice; the p17/p66 "1–3 px off" limit in the v131 entry is the
+    same family). Not tested on a real phone.
+
 - **READ TAB — DIAGRAM READER ON MAGAZINE BOARDS (CHESS LIFE) (2026-10-02).**
   Committed on `main`, NOT pushed, NOT deployed. `sw.js` v130 → **v131**. Only
   `js/diagram.js` changed (plus `tools/cdp-verify-hatched.mjs`, which now takes
