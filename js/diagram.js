@@ -200,7 +200,7 @@ export function detectBoard(imageData, tapX, tapY) {
     // If the pattern says the board is elsewhere on this lattice (a press on the
     // margin just outside a diagram gave a grid stretched over the text above
     // it), take the board the pattern points at, or nothing.
-    const moved = placeByTone(g, W, H, found, 7);
+    const moved = placeByTone(g, W, H, found, 7, tapX, tapY);
     if (!moved) return found;               // in place, or a line-only board
     const board = accept(g, W, H, fitBoard(tone, W, H, moved, Math.max(10, 5 * r), r));
     if (board) return board;
@@ -210,13 +210,22 @@ export function detectBoard(imageData, tapX, tapY) {
 
 // The guards a fitted board must pass — the same three the window search
 // applies: square squares, lines that stand out from the cell interiors, and a
-// checkerboard (or flat paper).
-function accept(g, W, H, board) {
+// checkerboard (or flat paper). `shaded` is for the tone search, which exists
+// for SHADED boards: there the light/dark alternation itself must be plain
+// (checkerVotes) — text and photos never alternate square by square, so that is
+// what keeps them out — and the line test is relaxed, because on a small board
+// crowded with pieces (Chess Life, 22–27 px squares) the pieces fill the square
+// middles and line contrast came out as low as 1.2. Measured over the whole
+// Chess Life issue: every real board scored 89–112 votes of 112, every false
+// one (text, or a block slid half off a board) 68 or less. A line-only board has no
+// shades: it fails here and is left to the window search, as before.
+function accept(g, W, H, board, shaded) {
   if (!board) return null;
   const ratio = board.cw / board.ch;
   if (ratio < 0.85 || ratio > 1.18) return null;
-  if (board.lcV < 1.35 || board.lcH < 1.35) return null;
   if (board.x0 < 0 || board.y0 < 0 || board.x0 + 8 * board.cw > W || board.y0 + 8 * board.ch > H) return null;
+  const lc = Math.min(board.lcV, board.lcH);
+  if (shaded ? (lc < 1.1 || checkerVotes(g, W, board) < 80) : lc < 1.35) return null;
   if (!validateCheckerboard(g, W, H, board)) return null;
   return { x0: board.x0, y0: board.y0, cw: board.cw, ch: board.ch };
 }
@@ -269,12 +278,50 @@ function rowProfile(e, W, H, xLo, xHi, yLo, yHi) {
   return p;
 }
 
+// The tone search's comb. Like findGrid, but each tooth scores by how far it
+// stands ABOVE the profile half a square either side (the square middles), not
+// by its height alone. Two failures this removes, both measured on Chess Life
+// (small boards, two text columns):
+//   - text is busy everywhere, so it supports a comb at any spacing; by height
+//     alone a comb half on the board and half on the next column won;
+//   - a comb at TWICE the square size lands on every other line and also scores
+//     well by height; here its half-way points fall on the lines it skipped, so
+//     it scores nothing.
+// No mean-based gate: the guards in accept() decide.
+function findComb(prof, lo, hi, tap, minGap, maxGap) {
+  const sp = smooth(prof);
+  const win = []; for (let i = lo; i <= hi; i++) win.push(sp[i]);
+  win.sort((a, b) => a - b);
+  const cap = win[Math.floor(win.length * 0.99)] || Infinity;
+  const at = p => { p = Math.round(p); if (p < lo || p > hi) return 0; return sp[p] < cap ? sp[p] : cap; };
+  const sup = p => { let m = 0; for (let q = Math.max(lo, p - 2); q <= Math.min(hi, p + 2); q++) if (sp[q] > m) m = sp[q]; return m < cap ? m : cap; };
+  let best = null;
+  for (let s = minGap; s <= maxGap; s++) {
+    const oLo = Math.max(lo, tap - 8 * s), oHi = Math.min(hi - 8 * s, tap);
+    for (let o = oLo; o <= oHi; o++) {
+      let sum = 0, mn = Infinity;
+      for (let k = 0; k <= 8; k++) {
+        const t = o + k * s;
+        const c = sup(t) - 0.5 * (at(t - s / 2) + at(t + s / 2));
+        sum += c; if (c < mn) mn = c;
+      }
+      const score = sum + 3 * mn;
+      if (!best || score > best.score) best = { score, s, o, mn };
+    }
+  }
+  if (!best || !(best.mn > 0)) return null;
+  const lines = [];
+  for (let k = 0; k <= 8; k++) lines.push(best.o + k * best.s);
+  return { lines, s: best.s };
+}
+
 // The finger is ON the board, so:
 //   1. a low band of rows through the finger, as wide as the page, holds the
 //      board's vertical lines and (inside the board's own width) nothing else →
 //      the files;
-//   2. only the columns just found, a board-height either side of the finger →
-//      the ranks. Text beside the diagram never enters this profile;
+//   2. only the columns just found, over the rows boardRows says the board
+//      covers (or a board-height either side of the finger) → the ranks. Text
+//      beside the diagram never enters this profile;
 //   3. the comb can still sit a rank or a file off (a caption line or the rank
 //      numbers stand in for the missing boundary), so the light/dark pattern
 //      picks the 8x8 block (placeByTone), and the grid is fitted again from
@@ -285,26 +332,57 @@ function detectFromBand(e, g, W, H, tapX, tapY, h, r) {
   const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(v)));
   const minGap = Math.max(10, 5 * r);       // a square the blur would swallow is not seen here
 
-  const vx = findGrid(colProfile(e, W, 1, W - 2, cl(tapY - h, 1, H - 2), cl(tapY + h, 1, H - 2)),
+  const vx = findComb(colProfile(e, W, 1, W - 2, cl(tapY - h, 1, H - 2), cl(tapY + h, 1, H - 2)),
                       1, W - 2, tapX, minGap, Math.floor((W - 3) / 8));
   if (!vx) return null;
 
   // Squares are square to within the 0.85–1.18 allowed below, so the board lies
   // within 9.5 file-widths of the finger.
-  const yLo = cl(tapY - 9.5 * vx.s, 1, H - 2), yHi = cl(tapY + 9.5 * vx.s, 1, H - 2);
-  const hy = findGrid(rowProfile(e, W, H, cl(vx.lines[0], 1, W - 2), cl(vx.lines[8], 1, W - 2), yLo, yHi),
+  const ext = boardRows(e, W, H, vx, tapY);
+  const yLo = ext ? cl(ext[0] - 1.2 * vx.s, 1, H - 2) : cl(tapY - 9.5 * vx.s, 1, H - 2);
+  const yHi = ext ? cl(ext[1] + 1.2 * vx.s, 1, H - 2) : cl(tapY + 9.5 * vx.s, 1, H - 2);
+  const hy = findComb(rowProfile(e, W, H, cl(vx.lines[0], 1, W - 2), cl(vx.lines[8], 1, W - 2), yLo, yHi),
                       yLo, yHi, tapY, Math.max(minGap, Math.floor(vx.s * 0.85)), Math.ceil(vx.s * 1.18));
   if (!hy) return null;
 
   let board = { x0: vx.lines[0], y0: hy.lines[0], cw: vx.s, ch: hy.s };
   // Up to 7 squares off is possible while the finger is still inside the comb;
   // after the first fit the lattice is exact and one more look settles it.
-  board = fitBoard(e, W, H, placeByTone(g, W, H, board, 7) || board, minGap, r);
+  board = fitBoard(e, W, H, placeByTone(g, W, H, board, 7, tapX, tapY) || board, minGap, r);
   if (!board) return null;
-  const moved = placeByTone(g, W, H, board, 2);
+  const moved = placeByTone(g, W, H, board, 2, tapX, tapY);
   if (moved) { board = fitBoard(e, W, H, moved, minGap, r); if (!board) return null; }
 
-  return accept(g, W, H, board);
+  return accept(g, W, H, board, true);
+}
+
+// How far up and down from the finger the board goes, from the files just
+// found: inside a board every row crosses a light/dark step at each inner file
+// line, and hardly any at the square middles; text rows do not line up with
+// the files. Returns [top, bottom] rows, or null (then the ranks are searched in
+// a board-height either side of the finger). Measured on Chess Life: without
+// this the lines of bold moves just above and below a small diagram swamped
+// its pale rank lines.
+function boardRows(e, W, H, vx, tapY) {
+  const s = vx.s, L = vx.lines, lo = Math.max(3, Math.round(tapY - 9.5 * s)), hi = Math.min(H - 4, Math.round(tapY + 9.5 * s));
+  if (L[0] < 3 || L[8] > W - 4) return null;
+  const n = hi - lo + 1, a = new Float32Array(n), b = new Float32Array(n);
+  for (let y = lo; y <= hi; y++) {
+    const row = y * W; let sa = 0, sb = 0;
+    for (let k = 1; k <= 7; k++) { const x = Math.round(L[k]); sa += Math.abs(e[row + x + 2] - e[row + x - 2]); }
+    for (let k = 0; k < 8; k++) { const x = Math.round(L[k] + s / 2); sb += Math.abs(e[row + x + 2] - e[row + x - 2]); }
+    a[y - lo] = sa / 7; b[y - lo] = sb / 8;
+  }
+  const w = Math.max(2, Math.round(s / 4));
+  const ok = i => { let sa = 0, sb = 0, c = 0;
+    for (let j = Math.max(0, i - w); j <= Math.min(n - 1, i + w); j++) { sa += a[j]; sb += b[j]; c++; }
+    return sa / c > 1.5 * (sb / c) + 2; };
+  let t = tapY - lo; if (!ok(t)) return null;
+  let top = t, bot = t;
+  while (top > 0 && ok(top - 1)) top--;
+  while (bot < n - 1 && ok(bot + 1)) bot++;
+  if (bot - top < 5 * s) return null;
+  return [top + lo, bot + lo];
 }
 
 // Re-find the grid from exactly the block `b` (plus half a square of margin, so
@@ -318,10 +396,10 @@ function fitBoard(e, W, H, b, minGap, r) {
   const yLo = cl(b.y0 - 0.5 * b.ch, 1, H - 2), yHi = cl(b.y0 + 8.5 * b.ch, 1, H - 2);
 
   const vcol = colProfile(e, W, xLo, xHi, cl(b.y0, 1, H - 2), cl(b.y0 + 8 * b.ch, 1, H - 2));
-  const vx = findGrid(vcol, xLo, xHi, cx, Math.max(minGap, sx - 2), sx + 2);
+  const vx = findComb(vcol, xLo, xHi, cx, Math.max(minGap, sx - 2), sx + 2);
   if (!vx) return null;
   const hrow = rowProfile(e, W, H, cl(vx.lines[0], 1, W - 2), cl(vx.lines[8], 1, W - 2), yLo, yHi);
-  const hy = findGrid(hrow, yLo, yHi, cy, Math.max(minGap, sy - 2), sy + 2);
+  const hy = findComb(hrow, yLo, yHi, cy, Math.max(minGap, sy - 2), sy + 2);
   if (!hy) return null;
 
   const fx = refineAxis(vcol, xLo, xHi, vx, r), fy = refineAxis(hrow, yLo, yHi, hy, r);
@@ -358,44 +436,80 @@ function refineAxis(prof, lo, hi, grid, r) {
   return best;
 }
 
-// Which 8x8 block of the lattice is the board? On a shaded board the squares
-// alternate light and dark and the paper around them does not, so the block
-// with the strongest alternation is the board: slid one square off, it trades a
-// real rank or file for a strip of paper and loses an eighth of its score.
+// Which 8x8 block of the lattice is the board? On a shaded board neighbouring
+// squares alternate light/dark and the paper around them does not, so the
+// block with the most neighbour pairs that alternate the right way is the
+// board: slid one square off, it trades a real rank or file for a strip of
+// paper. Each pair is a VOTE (+1/−1/0), not a sum of brightness differences, so
+// a photo next to a pale magazine board cannot outweigh it by contrast alone.
+// Only blocks within two squares of the finger count, and one that holds the
+// finger wins unless another scores clearly (5%) higher — on a page of puzzle
+// boards laid out on one grid, a neighbouring board fits the lattice just as
+// well; a block slid one square off a board scores ~1/8 lower.
 // Looks up to R squares each way. Returns the moved board, or null to stay put
 // (already right, or a line-only board with no shades to go by).
-function placeByTone(g, W, H, b, R) {
+function placeByTone(g, W, H, b, R, tapX, tapY) {
   const n = 8 + 2 * R, t = new Float32Array(n * n).fill(NaN);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = b.x0 + (i - R) * b.cw, y = b.y0 + (j - R) * b.ch;
     if (x < 1 || y < 1 || x + b.cw > W - 1 || y + b.ch > H - 1) continue;   // off the page
     t[j * n + i] = cellTone(g, W, b, j - R, i - R);
   }
-  let best = null, here = 0;
+  const T = (r, c) => t[r * n + c];
+  let best = null, held = null, here = 0;
   for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
-    let s = 0;
-    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-      const v = t[(r + dy + R) * n + (c + dx + R)];
-      s += ((r + c) & 1) ? -v : v;
+    const bx = b.x0 + dx * b.cw, by = b.y0 + dy * b.ch;
+    if (tapX < bx - 2 * b.cw || tapX > bx + 10 * b.cw || tapY < by - 2 * b.ch || tapY > by + 10 * b.ch) continue;
+    const holds = tapX >= bx && tapX <= bx + 8 * b.cw && tapY >= by && tapY <= by + 8 * b.ch;
+    let s = 0, bad = false;
+    for (let r = 0; r < 8 && !bad; r++) for (let c = 0; c < 8; c++) {
+      const v = T(r + dy + R, c + dx + R);
+      if (v !== v) { bad = true; break; }
+      const sg = ((r + c) & 1) ? -1 : 1;
+      if (c < 7) { const d = sg * (v - T(r + dy + R, c + 1 + dx + R)); s += d > 3 ? 1 : d < -3 ? -1 : 0; }
+      if (r < 7) { const d = sg * (v - T(r + 1 + dy + R, c + dx + R)); s += d > 3 ? 1 : d < -3 ? -1 : 0; }
     }
-    if (s !== s) continue;                   // block runs off the page
+    if (bad) continue;                       // block runs off the page
     s = Math.abs(s);
     if (dx === 0 && dy === 0) here = s;
     if (!best || s > best.s) best = { s, dx, dy };
+    if (holds && (!held || s > held.s)) held = { s, dx, dy };
   }
+  if (held && held.s >= 0.95 * best.s) best = held;
   if (!best || (best.dx === 0 && best.dy === 0) || best.s <= here) return null;
-  if (best.s / 32 < 12) return null;         // under 12 grey levels between the shades: no shades
+  if (best.s < 40) return null;              // under 40 of 112 pairs: no shades to go by
   return { x0: b.x0 + best.dx * b.cw, y0: b.y0 + best.dy * b.ch, cw: b.cw, ch: b.ch };
 }
 
-// Mean luminance of one cell's core. r/c may be outside 0–7 (placeByTone looks
-// around the board).
+// placeByTone's vote for one block, as a count of the 112 neighbour pairs.
+function checkerVotes(g, W, b) {
+  const t = [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) t.push(cellTone(g, W, b, r, c));
+  let s = 0;
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const v = t[r * 8 + c], sg = ((r + c) & 1) ? -1 : 1;
+    if (c < 7) { const d = sg * (v - t[r * 8 + c + 1]); s += d > 3 ? 1 : d < -3 ? -1 : 0; }
+    if (r < 7) { const d = sg * (v - t[r * 8 + c + 8]); s += d > 3 ? 1 : d < -3 ? -1 : 0; }
+  }
+  return Math.abs(s);
+}
+
+// Shade of one square's background: the median of four small patches near its
+// corners, where a centred piece glyph does not reach. (The cell's mean was
+// measured wrong on Chess Life: a black piece on a light square made it darker
+// than an empty dark square.) r/c may be outside 0–7 (placeByTone looks around
+// the board).
 function cellTone(g, W, board, r, c) {
-  const R = cellRect(board, r, c);
-  const x1 = Math.round(R.x0), x2 = Math.round(R.x0 + R.w), y1 = Math.round(R.y0), y2 = Math.round(R.y0 + R.h);
-  let s = 0, n = 0;
-  for (let y = y1; y < y2; y++) { const row = y * W; for (let x = x1; x < x2; x++) { s += g[row + x]; n++; } }
-  return n ? s / n : 255;
+  const x0 = board.x0 + c * board.cw, y0 = board.y0 + r * board.ch;
+  const patch = (fx, fy) => {
+    const xa = Math.round(x0 + fx * board.cw), xb = Math.round(x0 + (fx + 0.15) * board.cw);
+    const ya = Math.round(y0 + fy * board.ch), yb = Math.round(y0 + (fy + 0.15) * board.ch);
+    let s = 0, n = 0;
+    for (let y = ya; y < yb; y++) { const row = y * W; for (let x = xa; x < xb; x++) { s += g[row + x]; n++; } }
+    return n ? s / n : 255;
+  };
+  const p = [patch(0.1, 0.1), patch(0.75, 0.1), patch(0.1, 0.75), patch(0.75, 0.75)].sort((a, b) => a - b);
+  return (p[1] + p[2]) / 2;
 }
 
 // One coarse-to-fine attempt: build the edge profiles inside a tap-centred window

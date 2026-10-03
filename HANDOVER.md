@@ -2,6 +2,49 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — DIAGRAM READER ON MAGAZINE BOARDS (CHESS LIFE) (2026-10-02).**
+  Committed on `main`, NOT pushed, NOT deployed. `sw.js` v130 → **v131**. Only
+  `js/diagram.js` changed (plus `tools/cdp-verify-hatched.mjs`, which now takes
+  an optional magazine page). Follows the v130 entry below.
+  - **Adrian's report:** in `D:\2. Chess\2. Material\2. CBH and PDF\Chess Life
+    Magazine 2026-09 Septmber.pdf` a long-press on a diagram under the red
+    players' lines gave a board grid shifted up over the red text and the rule
+    (6 ranks of board + text). Boards there: small (22–27 px squares at 1065 px),
+    pale grey dark squares, two text columns, photos close by.
+  - **Measured on the whole issue (68 pages, 8x8 presses per diagram), v130 →
+    v131: presses missed 37% → 3%; false boards on ~16,700 presses over text and
+    photos 18 → 35 (0.1% → 0.2%). The remaining ones are integer grids from the
+    OLD window search (the fallback), which now runs on presses the tone search
+    rightly turns down — a follow-up could drop or tighten that fallback.** Dvoretsky + Hellsten re-checked: still 0
+    missed, one grid per board.
+  - **Causes and fixes (all in the tone search, `detectFromBand`):**
+    a. `findComb` replaces `findGrid` there: a tooth scores by how far it stands
+       above the profile half a square either side. Text is busy everywhere, and a
+       comb at twice the square size half on the next text column won by height.
+    b. `boardRows`: the board's top and bottom from the files just found, so the
+       rank search is not swamped by the bold move lines above and below.
+    c. `placeByTone` counts neighbour-pair VOTES (not summed brightness), judges a
+       square by its corners (`cellTone`; a black piece on a light square made the
+       cell mean darker than a dark square), and only looks within two squares of
+       the finger, preferring the block that holds it (on p17's 12 puzzle boards a
+       neighbouring board fits the same lattice).
+    d. `accept(…, shaded)`: the tone search must show a plain checker pattern
+       (`checkerVotes` ≥ 80 of 112; every real board in the issue scored 89–112,
+       every false one ≤ 68), line contrast relaxed to 1.1 (crowded small boards
+       came out ~1.2). Line-only boards fail this and go to the window search, as
+       before.
+  - **Verified:** `tools/cdp-verify-hatched.mjs` with Chess Life p30 (the page in
+    Adrian's screenshot, printed 28): the grid found is the drawn board to within
+    3 px, ≥240/256 inner points give it; REAL long-presses at five spots on the
+    board open the dialog in EN/ES × light/dark; Dvoretsky/Hellsten checks as in
+    the v130 entry. `cdp-verify-stage2` green, `cdp-verify-training` 65/65,
+    `test:tree` 53/53.
+  - **Known limits:** on p30, 16 of 256 inner points (top-right corner, under the
+    black rook/knight) still miss; boards on p17/p66 (puzzle pages) sometimes give
+    a grid 1–3 px off from a few presses; the scans (Silman/FCE) give a board
+    shifted one square for presses JUST OUTSIDE a board (inside presses are fine).
+    Not tested on a real phone.
+
 - **READ TAB — DIAGRAM READER FINDS A HATCHED BOARD WHEREVER IT IS PRESSED (2026-10-02).**
   Committed on `main`, NOT pushed, NOT deployed. `sw.js` v129 → **v130**. One
   shipped file changed, `js/diagram.js` (already in sw ASSETS); one new dev tool,

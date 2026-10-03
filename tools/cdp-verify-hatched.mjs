@@ -3,8 +3,8 @@
 // used to say "Couldn't find a board there" at some heights. Harness copied from
 // cdp-verify-training.mjs (the in-app pane does not composite). Dev tool, not shipped.
 //
-//   node tools/cdp-verify-hatched.mjs <outDir> <hatched.pdf> <page> <wood.pdf> <page>
-//   e.g. Dvoretsky's Endgame Manual 395, Hellsten 102
+//   node tools/cdp-verify-hatched.mjs <outDir> <hatched.pdf> <page> <wood.pdf> <page> [<magazine.pdf> <page>]
+//   e.g. Dvoretsky's Endgame Manual 395, Hellsten 102, Chess Life 2026-09 30
 //
 // It serves the repo itself (plus the two PDFs, which live outside it) on a
 // throwaway port, so no preview server is needed.
@@ -28,11 +28,12 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [OUT, HAT_PDF, HAT_PAGE, WOOD_PDF, WOOD_PAGE] = process.argv.slice(2);
+const [OUT, HAT_PDF, HAT_PAGE, WOOD_PDF, WOOD_PAGE, MAG_PDF, MAG_PAGE] = process.argv.slice(2);
 if (!WOOD_PAGE) { console.error('usage: node tools/cdp-verify-hatched.mjs <outDir> <hatched.pdf> <page> <wood.pdf> <page>'); process.exit(1); }
 const BOOKS = [
   { name: 'Hatched Book', file: HAT_PDF, page: +HAT_PAGE },
   { name: 'Wood Book', file: WOOD_PDF, page: +WOOD_PAGE },
+  ...(MAG_PDF ? [{ name: 'Magazine', file: MAG_PDF, page: +MAG_PAGE }] : []),
 ];
 // Where to press, as fractions of the page. Dvoretsky p395: the first board spans
 // about 6–34% of the page height and the second 61–89%; 20%, 28% and 70% are the
@@ -43,6 +44,13 @@ const HAT_TEXT = [0.5, 0.50];
 const HAT_BOARDS = [[0.5, 0.20], [0.5, 0.70]];
 const WOOD_PRESS = [0.27, 0.278];
 const WOOD_BOARDS = [[0.27, 0.18], [0.72, 0.18]];
+// Chess Life 2026-09 p30 (printed 28): one small diagram (27-px squares at
+// 1065 px) with pale grey dark squares, under a photo, beside the red players'
+// lines. Before the fix a press there found nothing or a grid stretched up over
+// the red text. The drawn picture is 440,1022 217x217 on the 1065x1388 canvas.
+const MAG_PRESSES = [[0.515, 0.75], [0.515, 0.81], [0.515, 0.88], [0.43, 0.81], [0.60, 0.81]];
+const MAG_BOARDS = [[0.515, 0.81]];
+const MAG_RECT = { x: 440 / 1065, y: 1022 / 1388, w: 217 / 1065, h: 217 / 1388 };
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const PORT = 9300 + Math.floor(Math.random() * 600);
@@ -217,7 +225,10 @@ const pressGrid = (n, seeds) => evalP(`
     if (boards.some(b => x > b.x0 - b.cw && x < b.x0 + 9 * b.cw && y > b.y0 - b.ch && y < b.y0 + 9 * b.ch)) continue;
     out.offBoard++;
     const r = detectBoard(img, x, y);
-    if (r && !boards.some(b => same(r, b))) out.falseBoards.push([Math.round(x), Math.round(y), Math.round(r.x0), Math.round(r.y0), +r.cw.toFixed(1)]);
+    // The nearby diagram, found from just beside it (its centre inside a board),
+    // is fine; anything else is a false board.
+    const onBoard = r && boards.some(b => { const cx = r.x0 + 4 * r.cw, cy = r.y0 + 4 * r.ch; return cx > b.x0 && cx < b.x0 + 8 * b.cw && cy > b.y0 && cy < b.y0 + 8 * b.ch; });
+    if (r && !onBoard) out.falseBoards.push([Math.round(x), Math.round(y), Math.round(r.x0), Math.round(r.y0), +r.cw.toFixed(1)]);
   }
   return out;`);
 
@@ -238,9 +249,9 @@ const seeded = await evalP(`
   }
   const read = await import('/js/read.js'); await read.refresh();
   return document.querySelectorAll('#read-grid .read-card').length;`);
-check('seed: two books on the shelf', seeded === 2, seeded);
+check(`seed: ${BOOKS.length} books on the shelf`, seeded === BOOKS.length, seeded);
 
-const [HAT, WOOD] = BOOKS;
+const [HAT, WOOD, MAG] = BOOKS;
 for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], ['es', 'dark']]) {
   const tag = `${lang}/${scheme}`;
   console.error(`\n== ${tag}`);
@@ -279,6 +290,26 @@ for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], 
   }
   const w = await longPress(WOOD.page, ...WOOD_PRESS, `${lang}-${scheme}-wood-bottom-rank`);
   check(`${tag}: a real long-press on the bottom rank of a wood board (missed before) opens the diagram dialog`, !!w.dialog && w.dialog.img, w);
+
+  if (MAG) {
+    await openBook(MAG.name);
+    check(`${tag}: magazine is open with page ${MAG.page} drawn`, await drawn(MAG.page));
+    if (tag === 'en/light') {
+      const g = await pressGrid(MAG.page, MAG_BOARDS);
+      const b = g.boards[0];
+      const fits = b.found && Math.abs(b.x0 / g.W - MAG_RECT.x) * g.W <= 3 && Math.abs(b.y0 / g.H - MAG_RECT.y) * g.H <= 3 &&
+        Math.abs(8 * b.cw / g.W - MAG_RECT.w) * g.W <= 4 && Math.abs(8 * b.ch / g.H - MAG_RECT.h) * g.H <= 4;
+      check(`${tag}: magazine board — the grid is the drawn board itself (not shifted into the red text)`, fits, b);
+      // Known limit: 16 points in the top-right corner (g8/h8, under the black
+      // rook and knight) still miss — 240/256 when this was written.
+      check(`${tag}: magazine board — at least 240 of 256 points inside it give that same grid, none a different one`, b.found && b.hit >= 240 && b.other === 0, b);
+      console.error(`  NOTE magazine page — boards found off the board: ${g.falseBoards.length} of ${g.offBoard} points ` + JSON.stringify(g.falseBoards.slice(0, 5)));
+    }
+    for (const [fx, fy] of MAG_PRESSES) {
+      const r = await longPress(MAG.page, fx, fy, fx === 0.515 && fy === 0.81 ? `${lang}-${scheme}-magazine` : null);
+      check(`${tag}: a real long-press on the magazine board at ${Math.round(fx * 100)}%,${Math.round(fy * 100)}% opens the diagram dialog`, !!r.dialog && r.dialog.img, r);
+    }
+  }
 }
 
 const appErrors = errors.filter(e => !/AppCheck|app-check|403/i.test(e));
