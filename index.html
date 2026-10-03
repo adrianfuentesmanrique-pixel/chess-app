@@ -603,6 +603,7 @@
       <div id="blind-turn" class="hint blind-turn"></div>
       <span id="blind-elo" class="elo-badge"></span>
     </div>
+    <div id="blind-bonus" class="blind-bonus" aria-live="polite"></div>
     <div id="blind-countdown" class="blind-countdown hidden"></div>
     <div id="blind-board" class="board-wrap"></div>
     <div class="row" id="blind-actions">
@@ -610,6 +611,11 @@
       <button id="blind-solution" class="btn" data-i18n="show_solution"></button>
       <button id="blind-share" class="btn hidden">📤</button>
       <button id="blind-next" class="btn primary" data-i18n="next_puzzle"></button>
+    </div>
+    <div class="blind-time">
+      <label id="blind-time-label" for="blind-time-range"></label>
+      <input id="blind-time-range" type="range" min="1" max="20" step="1" value="10">
+      <p class="hint" data-i18n="blind_time_hint"></p>
     </div>
     <div id="blind-log" class="plog"></div>
   </section>

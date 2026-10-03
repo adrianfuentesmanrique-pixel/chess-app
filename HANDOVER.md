@@ -2,6 +2,57 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD — CHOOSE THE MEMORISING TIME (1-20 s), TIME EXTRA, NEW PEEK RULE,
+  FAST START (2026-10-03).** Committed on `main`, NOT pushed, NOT deployed.
+  `sw.js` v134 → **v135**. No `firestore.rules` change, so NO rules deploy.
+  - **All the rating maths is in the new `js/blind-elo.js`** (imports nothing;
+    `blindEloResult`, `blindExtraPreview`, `blindExtraFactor`,
+    `blindLongLookFactor`, `clampBlindSeconds`). `Blind.recordResult` only calls it.
+    Numbers Adrian approved (table shown to him first), for a puzzle at the
+    player's own level after the first ten — normal points 16:
+    1 s +34 · 2 s +32 · 5 s +26 · 10 s +16 · 15 s +12 · 20 s +8; loss always −16.
+    - Under 10 s: extra = normal × (10 − s) ÷ 8, clean wins only. The extra is
+      always sized off K 32, never the fast-start K.
+    - Over 10 s: a win pays 75% at 15 s, 50% at 20 s (linear). Losses unchanged.
+    - **Peek cancels ONLY the extra.** A win after a peek pays the full normal
+      points (it used to pay K 12 instead of K 32). A loss after a peek is the
+      full normal loss too (it used to be softened). At 10 s or more a peek is
+      free — Adrian's choice.
+    - **Fast start:** K 192 for the first 10 blindfold puzzles, then K 32 — the
+      confirmed cause of "Blindfold ELO rises slower than Puzzles". After the
+      first ten Blindfold was already FASTER per puzzle (32 vs Puzzles' 24).
+      Counted from this update for EVERYONE (Adrian's choice: the app never
+      counted blindfold puzzles, so existing users get ten fast ones too).
+  - **Leaderboard effect, simulated** (same player, 100 puzzles, vs playing at
+    10 s): always 1 s ≈ +130, 2 s ≈ +120, 5 s ≈ +85, 15 s ≈ −50, 20 s ≈ −115.
+    It is reached inside 100 puzzles and does not grow after (same at 1,000);
+    50% or 70% solved ends in the same place.
+  - **Screen:** `#blind-bonus` (gold line under the turn/ELO row: the extra on
+    offer and that a peek forfeits it, or the 10 s / over-10 s message; empty once
+    the puzzle is scored) and `.blind-time` (label + native range 1-20 under the
+    buttons). `Blind.seconds` is the choice, `Blind.secondsThis` is what the
+    CURRENT puzzle was shown for — a change mid-puzzle applies from the next one.
+  - **New kv keys:** `blindfoldSeconds`, `blindfoldAttemptCount`, both added to
+    `SYNCED_KEYS` in `js/firebase.js`. `/users/{uid}` has deliberately NO
+    `hasOnly()` allowlist (firestore.rules line 23), so no rules change was
+    needed — the handover prompt's "needs the allowlists at ~101 and ~601" was
+    wrong: those are `/leaderboard` and `/studentReports`, and neither key goes there.
+  - `KAEL_HINT_WARNING` (EN + ES) and `blind_explain` rewritten for the new rule.
+    Users who already dismissed the old warning will not see the new one
+    (`blindfoldHintWarningSeen` is already true for them) — the gold line tells them.
+  - `Blind` is now `export`ed from `js/app.js` (like `Puzzles`) so the harness can
+    read the puzzle's solution.
+  - **Tests:** `tests/unit/blind-elo.test.js` (12) — `npm run test:tree` is now
+    **65** (was 53), all green. `tools/cdp-verify-blind.mjs <outDir>` — 40/40 at
+    375px, EN/ES × light/dark. REALLY TAPPED: the Blindfold button, Next, Peek,
+    Kael's "Got it", Show solution, every chess move. CALLED: the slider (value
+    set + input/change events), the reload. CLICKED: the Puzzles tab. SEEDED: the
+    attempt count set to 10 before the peek/loss checks. Countdowns measured:
+    1.02 s, 1.99 s, 3.0 s, 10.01 s, 20.00 s.
+  - **Not done:** not tested on a real phone; the slider was never dragged by a
+    finger. `countdownTimer` is still a setInterval cleared with clearTimeout
+    (works; left alone on purpose).
+
 - **READ TAB — SLID BOARDS JUDGED BY EYE, THE FAINT-CAPTION SLIDE FIXED (2026-10-03).**
   Committed on `main`, NOT pushed, NOT deployed. `sw.js` v133 → **v134**.
   `js/diagram.js` (`slidBlock` only, ~10 lines), `tools/measure-fallback.mjs`

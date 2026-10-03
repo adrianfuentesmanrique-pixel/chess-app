@@ -306,8 +306,8 @@ export const KAEL_BLINDFOLD = {
 
 // First-time warning before using a hint (peek) in Blindfold mode.
 export const KAEL_HINT_WARNING = {
-  es: { text: 'Un aviso de Kael: si usas la pista, el ELO que ganes al resolver este puzzle será menor. ¡Inténtalo de memoria primero!', okBtn: 'Entendido', dismissBtn: 'Cancelar' },
-  en: { text: "A note from Kael: if you use the hint, the ELO you earn for solving this puzzle will be lower. Try it from memory first!", okBtn: 'Got it', dismissBtn: 'Cancel' },
+  es: { text: 'Un aviso de Kael: un vistazo te hace perder los puntos extra por memorizar en poco tiempo. Si resuelves el puzzle, igual ganas sus puntos normales completos. ¡Inténtalo de memoria primero!', okBtn: 'Entendido', dismissBtn: 'Cancelar' },
+  en: { text: "A note from Kael: a peek gives up the extra points for a short memorising time. Solve the puzzle and you still earn its normal points in full. Try it from memory first!", okBtn: 'Got it', dismissBtn: 'Cancel' },
 };
 
 // Shown when a player deviates from an endgame study's exact move but the

@@ -38,6 +38,7 @@ const SYNCED_KEYS = [
   'rushBestScore', 'rushBest180', 'rushBest300',
   'rushMonth180', 'rushMonth300', 'rushMonthKey', 'puzzleAttemptCount', 'radarThemes',
   'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
+  'blindfoldAttemptCount', 'blindfoldSeconds',
 ];
 
 // Profile visibility is stored as a WORD, not a yes/no, so further levels

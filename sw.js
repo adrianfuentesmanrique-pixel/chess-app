@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v134';
+const CACHE = 'chess-training-center-v135';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -32,6 +32,7 @@ const ASSETS = [
   'js/chapter-order.js',
   'js/read.js',
   'js/read-training.js',
+  'js/blind-elo.js',
   'js/diagram.js',
   // Only the band a new account starts in (ELO 1200). The other nine are
   // fetched on demand and cached by the network-first handler below — bundling

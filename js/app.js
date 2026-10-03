@@ -10,6 +10,7 @@ import { PUZZLES, PUZZLE_THEMES, PUZZLE_PATTERNS, TRACKED_THEMES,
          puzzlesInBand } from './puzzles.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
+import { blindEloResult, blindExtraPreview, blindLongLookFactor, clampBlindSeconds, BLIND_SECONDS_DEFAULT } from './blind-elo.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard,
          MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS,
@@ -5103,11 +5104,12 @@ const Rush = {
 };
 
 // ═════════════════════ BLIND PUZZLES ═════════════════════
-// Look at the position for 10s, then the pieces vanish — moves still work
-// normally (Board only hides the <img>, it never gates interaction on
-// visibility). "Peek" is the equivalent of a hint: reveal pieces for 5s.
+// Look at the position for the chosen time (1-20 s, default 10), then the
+// pieces vanish — moves still work normally (Board only hides the <img>, it
+// never gates interaction on visibility). "Peek" is the equivalent of a hint:
+// reveal pieces for 5s. The rating maths lives in js/blind-elo.js.
 
-const Blind = {
+export const Blind = {
   board: null,
   current: null,
   chess: null,
@@ -5122,11 +5124,19 @@ const Blind = {
   loaded: false,
   logged: false,
   elo: 1200,
+  attemptCount: 0,                       // blindfold puzzles rated so far — the first 10 calibrate fast
+  seconds: BLIND_SECONDS_DEFAULT,        // the player's chosen memorising time
+  secondsThis: BLIND_SECONDS_DEFAULT,    // the time the CURRENT puzzle was shown for
   hintWarningSeen: false,
   greetedThisOpen: false,
 
   init() {
     this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    const range = $('blind-time-range');
+    // Changing the time mid-puzzle would change what that puzzle pays after
+    // the look has already happened, so it applies from the next puzzle.
+    range.oninput = () => { this.seconds = clampBlindSeconds(range.value); this.updateTimeControl(); };
+    range.onchange = () => db.kvSet('blindfoldSeconds', this.seconds);
     $('blind-peek').onclick = () => this.peek();
     $('blind-solution').onclick = () => this.showSolution();
     $('blind-next').onclick = () => this.nextPuzzle();
@@ -5137,18 +5147,53 @@ const Blind = {
     if (this.loaded) return;
     this.elo = await db.kvGet('blindfoldElo', 1200);
     this.hintWarningSeen = await db.kvGet('blindfoldHintWarningSeen', false);
+    await this.loadTimeSettings();
     await ensureForRating(this.elo);
     this.loaded = true;
+  },
+
+  async loadTimeSettings() {
+    this.attemptCount = await db.kvGet('blindfoldAttemptCount', 0);
+    this.seconds = clampBlindSeconds(await db.kvGet('blindfoldSeconds', BLIND_SECONDS_DEFAULT));
+    this.updateTimeControl();
   },
 
   updateEloBadge() {
     $('blind-elo').textContent = `${t('blindfold_elo')}: ${Math.round(this.elo)}`;
   },
 
+  updateTimeControl() {
+    $('blind-time-range').value = this.seconds;
+    $('blind-time-label').textContent = t('blind_time_label').replace('{n}', this.seconds);
+  },
+
+  // What the current puzzle's look is worth, shown before the player solves:
+  // the extra a clean solve earns, and that a peek gives it up.
+  updateBonus() {
+    const el = $('blind-bonus');
+    const s = this.secondsThis;
+    let msg = '';
+    if (this.current && !this.eloRecorded) {
+      if (s > BLIND_SECONDS_DEFAULT) {
+        msg = t('blind_bonus_reduced').replace('{s}', s).replace('{p}', Math.round(blindLongLookFactor(s) * 100));
+      } else if (s === BLIND_SECONDS_DEFAULT) {
+        msg = t('blind_bonus_none');
+      } else if (this.peekedThis) {
+        msg = t('blind_bonus_lost');
+      } else {
+        const extra = Math.max(1, Math.round(blindExtraPreview({ elo: this.elo, rating: this.current.rating, seconds: s })));
+        msg = t('blind_bonus_extra').replace('{s}', s).replace('{n}', extra);
+      }
+    }
+    el.textContent = msg;
+    el.classList.toggle('lost', this.peekedThis && s < BLIND_SECONDS_DEFAULT);
+  },
+
   async open() {
     showScreen('blind');
     await this.ensureLoaded();
     this.updateEloBadge();
+    this.updateTimeControl();
     this.greetedThisOpen = false;
     this.nextPuzzle();
   },
@@ -5162,16 +5207,19 @@ const Blind = {
   recordResult(win) {
     if (this.eloRecorded || !this.current) return;
     this.eloRecorded = true;
-    // Using a peek (hint) still earns ELO on a win, just less of it — the
-    // point is to nudge people toward solving from memory, not punish them.
-    const K = this.peekedThis ? 12 : 32;
-    const expected = 1 / (1 + Math.pow(10, (this.current.rating - this.elo) / 400));
-    const score = win ? 1 : 0;
+    // A peek gives up only the extra for a short look; the puzzle's normal
+    // points are still paid in full. All the maths is in js/blind-elo.js.
     const before = this.elo;
-    this.elo = Math.max(600, this.elo + K * (score - expected));
+    this.elo = blindEloResult({
+      elo: this.elo, rating: this.current.rating, win,
+      seconds: this.secondsThis, peeked: this.peekedThis, attemptCount: this.attemptCount,
+    }).elo;
+    this.attemptCount++;
+    db.kvSet('blindfoldAttemptCount', this.attemptCount);
     this.lastDelta = Math.round(this.elo) - Math.round(before);
     db.kvSet('blindfoldElo', this.elo);
     this.updateEloBadge();
+    this.updateBonus();
     recordEloHistory('blindfoldEloHistory', this.elo);
   },
 
@@ -5206,6 +5254,8 @@ const Blind = {
     this.eloRecorded = false;
     this.lastDelta = null;
     this.logged = false;
+    this.secondsThis = this.seconds;
+    this.updateBonus();
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
     this.board.setPiecesHidden(false);
@@ -5223,7 +5273,7 @@ const Blind = {
       this.moveIdx = 1;
       this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
       this.updateTurnIndicator();
-      this.startCountdown(10, () => this.hidePieces());
+      this.startCountdown(this.secondsThis, () => this.hidePieces());
     }, 500);
   },
 
@@ -5284,6 +5334,7 @@ const Blind = {
     this.peeksUsed++;
     this.peekedThis = true;
     this.updatePeekBtn();
+    this.updateBonus();
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     clearTimeout(this.peekTimer);
@@ -7235,6 +7286,7 @@ async function main() {
     Endgame.elo = await db.kvGet('endgameElo', {});
     if (Blind.loaded) {
       Blind.elo = await db.kvGet('blindfoldElo', 1200);
+      await Blind.loadTimeSettings();
       Blind.updateEloBadge();
     }
     if (activeScreen === 'endgame') Endgame.refreshLists();

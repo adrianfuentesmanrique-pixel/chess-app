@@ -1235,6 +1235,23 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .blind-turn { font-weight: 600; }
 .blind-head { justify-content: space-between; margin: 0 0 6px; min-height: 28px; }
 .blind-head .elo-badge { margin-left: auto; }
+/* What the current look is worth: gold chip with a gold edge (text stays the
+   normal text colour so it reads in light mode too). Empty = takes no room. */
+.blind-bonus {
+  margin: 0 0 6px; padding: 6px 10px; border-radius: 8px;
+  background: var(--gold-bg); border-left: 3px solid var(--gold);
+  color: var(--text); font-size: 13px; font-weight: 600; line-height: 1.3;
+}
+.blind-bonus:empty { display: none; }
+.blind-bonus.lost { border-left-color: var(--muted); background: var(--panel2); color: var(--muted); }
+/* The memorising-time choice, 1-20 s. */
+.blind-time {
+  margin: 10px 0 6px; padding: 10px 12px; border-radius: var(--radius);
+  background: var(--panel); border: 1px solid var(--input-border);
+}
+.blind-time label { display: block; font-weight: 700; margin-bottom: 4px; }
+.blind-time input[type=range] { width: 100%; height: 32px; margin: 0; accent-color: var(--gold); }
+.blind-time .hint { margin: 2px 0 0; }
 
 /* ── comment box ───────────────────────── */
 .comment-box { margin-top: 8px; }
