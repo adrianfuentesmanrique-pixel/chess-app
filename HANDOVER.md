@@ -2,6 +2,47 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD — START PANEL WITH GO, TIME LOCKED WHILE A PUZZLE RUNS, PAID-AT
+  LINE, CHANGE TIME BUTTON (2026-10-03).** Committed on `main`, NOT deployed.
+  `sw.js` v135 → **v136**. No `firestore.rules` change, no new storage keys,
+  `js/blind-elo.js` untouched (its 12 tests unchanged).
+  - **Why:** Adrian lowered the slider to 2 s during a 10 s countdown and could
+    not tell afterwards which time he was paid for. The maths was already right
+    (`secondsThis`); the screen did not say so.
+  - **Start panel** `#blind-start` (index.html; styled like `#rush-intro`):
+    ELO card, the slider, `#blind-pays` (what the time pays, as a rule — % extra
+    under 10 s), `#blind-last-paid`, `#blind-go`. The board lives in
+    `#blind-game`. `Blind.open()` → `Blind.showStart()`; `Blind.go()` starts the
+    first puzzle. **Shown EVERY time Blindfold opens** (Adrian's choice). There
+    is ONE `.blind-time` box; `showStart()`/`go()` move it between the two panels.
+  - **Lock:** `Blind.timeLocked` is true from `nextPuzzle` until `recordResult`
+    (solve, first wrong move, Show solution). The range is `disabled`, the box
+    gets `.locked`, the label gets 🔒, the hint reads "Locked until this puzzle
+    is scored", and `oninput` refuses the change even if an event gets through.
+  - **Paid-at line:** after scoring `#blind-bonus` no longer empties — it shows
+    `Blind.paidLine`, e.g. "2 s look: +52 normal, +9 extra", "… no extra (you
+    peeked)", or "2 s look: −10 — a miss costs the same at any time". The two
+    parts are rounded so they add up to `lastDelta` (the badge / log number).
+  - **Change time** `#blind-change-time` (Adrian's choice, for auto-next's 1.4 s
+    gap): between puzzles it opens the start panel at once; during a puzzle it
+    changes nothing and sets `Blind.changeArmed`, so the next `nextPuzzle()`
+    (Next or auto-next) opens the panel instead. `nextPuzzle()` also returns
+    early while the start panel is up, so a late auto-next starts nothing.
+  - **Bug found and fixed (was real):** two quick taps on Next left two 500 ms
+    timers pending → two countdowns, and the orphaned one then hid the pieces
+    every second for good (measured: 4 hides in 5 s; now 1). The timer is now
+    `Blind.startTimer`, cleared in `cleanup()` and before it is set.
+  - **Verified:** `npm.cmd run test:tree` 65/65. `tools/cdp-verify-blind.mjs`
+    rewritten for the Go step: **75/75** at 375px, EN/ES × light/dark — Go
+    measured at 1, 10 and 20 s. Its header lists what was really tapped
+    (Go, Next, Change time, moves, a finger on the slider locked and unlocked),
+    what was called (other slider changes: events dispatched, not a drag) and
+    what was seeded (attempt count 10; `Puzzles.autoNext` set in memory).
+    `node tools/cdp-verify-blind.mjs <dir> double-next` runs only the Next repro.
+  - **Not done:** not tested on a real phone; a real finger DRAG of the slider
+    is not reproducible over CDP. The paid line is not re-translated if the
+    language is switched while it is on screen (it is rebuilt on the next puzzle).
+
 - **BLINDFOLD — CHOOSE THE MEMORISING TIME (1-20 s), TIME EXTRA, NEW PEEK RULE,
   FAST START (2026-10-03).** Committed on `main`, NOT pushed, NOT deployed.
   `sw.js` v134 → **v135**. No `firestore.rules` change, so NO rules deploy.

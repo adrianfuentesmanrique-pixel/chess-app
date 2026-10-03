@@ -166,7 +166,7 @@ body { display: flex; flex-direction: column; height: 100dvh; }
   pointer-events: none;
 }
 body.mode-light .watermark { filter: none; }
-#play-setup, #trainer-setup, #rush-intro, #base-list-view, #endgame-sections-view, #read-shelf {
+#play-setup, #trainer-setup, #rush-intro, #blind-start, #base-list-view, #endgame-sections-view, #read-shelf {
   position: relative; isolation: isolate; overflow: hidden;
 }
 /* The empty shelf is only a few lines tall; without a floor the watermark would
@@ -176,11 +176,11 @@ body.mode-light .watermark { filter: none; }
 /* Screens with a single "start" action: keep the button anchored to the
    same spot near the bottom of the viewport no matter how much option
    content sits above it, so switching between these tabs feels uniform. */
-#play-setup, #trainer-setup, #rush-intro {
+#play-setup, #trainer-setup, #rush-intro, #blind-start {
   display: flex; flex-direction: column;
   min-height: calc(100dvh - 190px);
 }
-#play-setup .btn.big, #trainer-setup .btn.big, #rush-intro .btn.big { margin-top: auto; }
+#play-setup .btn.big, #trainer-setup .btn.big, #rush-intro .btn.big, #blind-start .btn.big { margin-top: auto; }
 /* List-style landing screens don't have a single bottom button to anchor,
    but still need full-viewport height so the watermark isn't clipped short
    like it would be if it only sized to the (short) list content. */
@@ -1252,6 +1252,15 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .blind-time label { display: block; font-weight: 700; margin-bottom: 4px; }
 .blind-time input[type=range] { width: 100%; height: 32px; margin: 0; accent-color: var(--gold); }
 .blind-time .hint { margin: 2px 0 0; }
+/* From Go until the puzzle is scored the time cannot be changed. */
+.blind-time.locked label, .blind-time.locked input[type=range] { opacity: .45; }
+.blind-time.locked input[type=range] { cursor: not-allowed; }
+.blind-time .btn { margin-top: 8px; }
+/* The start panel: the mode chips and the help text sit above it, so it is
+   shorter than the other set-up screens. */
+#blind-start { min-height: calc(100dvh - 330px); }
+#blind-start #blind-change-time { display: none; }
+#blind-last-paid:empty { display: none; }
 
 /* ── comment box ───────────────────────── */
 .comment-box { margin-top: 8px; }

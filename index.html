@@ -597,27 +597,43 @@
       <button data-v="rush" data-i18n="mode_rush"></button>
     </div>
     <p class="hint" data-i18n="blind_explain"></p>
-    <div id="blind-status" class="status-bar"></div>
-    <!-- Whose move it is, with the blindfold rating at the right edge. -->
-    <div class="row blind-head">
-      <div id="blind-turn" class="hint blind-turn"></div>
-      <span id="blind-elo" class="elo-badge"></span>
+    <!-- Start panel: the memorising time is chosen here, before the first
+         board. Blind.showStart() / Blind.go() move the one .blind-time box
+         between this panel and the game below. -->
+    <div id="blind-start">
+      <img src="icons/logo-mark.png" class="watermark" alt="">
+      <div class="row wrap profile-elo-row">
+        <div class="elo-card"><span data-i18n="blindfold_elo"></span><b id="blind-start-elo"></b></div>
+      </div>
+      <div class="blind-time">
+        <label id="blind-time-label" for="blind-time-range"></label>
+        <input id="blind-time-range" type="range" min="1" max="20" step="1" value="10">
+        <p id="blind-time-hint" class="hint"></p>
+        <button id="blind-change-time" class="btn"></button>
+      </div>
+      <div id="blind-pays" class="blind-bonus" aria-live="polite"></div>
+      <p id="blind-last-paid" class="hint"></p>
+      <button id="blind-go" class="btn primary big" data-i18n="blind_go"></button>
     </div>
-    <div id="blind-bonus" class="blind-bonus" aria-live="polite"></div>
-    <div id="blind-countdown" class="blind-countdown hidden"></div>
-    <div id="blind-board" class="board-wrap"></div>
-    <div class="row" id="blind-actions">
-      <button id="blind-peek" class="btn"></button>
-      <button id="blind-solution" class="btn" data-i18n="show_solution"></button>
-      <button id="blind-share" class="btn hidden">📤</button>
-      <button id="blind-next" class="btn primary" data-i18n="next_puzzle"></button>
+    <div id="blind-game" class="hidden">
+      <div id="blind-status" class="status-bar"></div>
+      <!-- Whose move it is, with the blindfold rating at the right edge. -->
+      <div class="row blind-head">
+        <div id="blind-turn" class="hint blind-turn"></div>
+        <span id="blind-elo" class="elo-badge"></span>
+      </div>
+      <!-- Before scoring: what the look is worth. After: what it paid. -->
+      <div id="blind-bonus" class="blind-bonus" aria-live="polite"></div>
+      <div id="blind-countdown" class="blind-countdown hidden"></div>
+      <div id="blind-board" class="board-wrap"></div>
+      <div class="row" id="blind-actions">
+        <button id="blind-peek" class="btn"></button>
+        <button id="blind-solution" class="btn" data-i18n="show_solution"></button>
+        <button id="blind-share" class="btn hidden">📤</button>
+        <button id="blind-next" class="btn primary" data-i18n="next_puzzle"></button>
+      </div>
+      <div id="blind-log" class="plog"></div>
     </div>
-    <div class="blind-time">
-      <label id="blind-time-label" for="blind-time-range"></label>
-      <input id="blind-time-range" type="range" min="1" max="20" step="1" value="10">
-      <p class="hint" data-i18n="blind_time_hint"></p>
-    </div>
-    <div id="blind-log" class="plog"></div>
   </section>
 
   <!-- ══════════ LEARN ══════════

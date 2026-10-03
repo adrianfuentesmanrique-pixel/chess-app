@@ -10,7 +10,7 @@ import { PUZZLES, PUZZLE_THEMES, PUZZLE_PATTERNS, TRACKED_THEMES,
          puzzlesInBand } from './puzzles.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
-import { blindEloResult, blindExtraPreview, blindLongLookFactor, clampBlindSeconds, BLIND_SECONDS_DEFAULT } from './blind-elo.js';
+import { blindEloResult, blindExtraPreview, blindExtraFactor, blindLongLookFactor, clampBlindSeconds, BLIND_SECONDS_DEFAULT } from './blind-elo.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard,
          MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS,
@@ -5120,7 +5120,11 @@ export const Blind = {
   eloRecorded: false,
   lastDelta: null,        // ELO the current puzzle has moved, for the badge and the strip
   countdownTimer: null,
+  startTimer: null,       // the half-second beat before the countdown begins
   peekTimer: null,
+  timeLocked: false,      // true from Go / Next until the puzzle is scored
+  changeArmed: false,     // "Change time" tapped mid-puzzle: start panel instead of the next puzzle
+  paidLine: '',           // what the last scored puzzle paid, and at what time
   loaded: false,
   logged: false,
   elo: 1200,
@@ -5133,10 +5137,16 @@ export const Blind = {
   init() {
     this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
     const range = $('blind-time-range');
-    // Changing the time mid-puzzle would change what that puzzle pays after
-    // the look has already happened, so it applies from the next puzzle.
-    range.oninput = () => { this.seconds = clampBlindSeconds(range.value); this.updateTimeControl(); };
-    range.onchange = () => db.kvSet('blindfoldSeconds', this.seconds);
+    // The time is chosen on the start panel or between puzzles. While a puzzle
+    // is running the slider is disabled, so what is on screen is what is paid.
+    range.oninput = () => {
+      if (this.timeLocked) { range.value = this.seconds; return; }
+      this.seconds = clampBlindSeconds(range.value);
+      this.updateTimeControl();
+    };
+    range.onchange = () => { if (!this.timeLocked) db.kvSet('blindfoldSeconds', this.seconds); };
+    $('blind-go').onclick = () => this.go();
+    $('blind-change-time').onclick = () => this.changeTime();
     $('blind-peek').onclick = () => this.peek();
     $('blind-solution').onclick = () => this.showSolution();
     $('blind-next').onclick = () => this.nextPuzzle();
@@ -5163,17 +5173,63 @@ export const Blind = {
   },
 
   updateTimeControl() {
-    $('blind-time-range').value = this.seconds;
-    $('blind-time-label').textContent = t('blind_time_label').replace('{n}', this.seconds);
+    const range = $('blind-time-range');
+    range.value = this.seconds;
+    range.disabled = this.timeLocked;
+    range.closest('.blind-time').classList.toggle('locked', this.timeLocked);
+    $('blind-time-label').textContent = (this.timeLocked ? '🔒 ' : '') + t('blind_time_label').replace('{n}', this.seconds);
+    $('blind-time-hint').textContent = t(this.timeLocked ? 'blind_time_locked' : 'blind_time_hint');
+    $('blind-change-time').textContent = t(this.changeArmed ? 'blind_change_time_armed' : 'blind_change_time');
+    // Start panel: what the chosen time pays, as a rule — there is no puzzle yet
+    // to work the points out from.
+    const s = this.seconds;
+    $('blind-pays').textContent =
+      s > BLIND_SECONDS_DEFAULT ? t('blind_bonus_reduced').replace('{s}', s).replace('{p}', Math.round(blindLongLookFactor(s) * 100))
+      : s === BLIND_SECONDS_DEFAULT ? t('blind_bonus_none')
+      : t('blind_pays_extra').replace('{s}', s).replace('{p}', Math.round(blindExtraFactor(s) * 100));
   },
 
-  // What the current puzzle's look is worth, shown before the player solves:
-  // the extra a clean solve earns, and that a peek gives it up.
+  // The start panel: choose the time, see what it pays, then Go. Shown every
+  // time Blindfold opens, and again from "Change time".
+  showStart() {
+    this.cleanup();
+    this.timeLocked = false;
+    this.changeArmed = false;
+    $('blind-pays').before($('blind-time-range').closest('.blind-time'));
+    $('blind-start-elo').textContent = Math.round(this.elo);
+    $('blind-last-paid').textContent = this.paidLine ? t('blind_last_paid').replace('{x}', this.paidLine) : '';
+    $('blind-game').classList.add('hidden');
+    $('blind-start').classList.remove('hidden');
+    this.updateTimeControl();
+  },
+
+  go() {
+    if ($('blind-start').classList.contains('hidden')) return;
+    $('blind-log').before($('blind-time-range').closest('.blind-time'));
+    $('blind-start').classList.add('hidden');
+    $('blind-game').classList.remove('hidden');
+    this.nextPuzzle();
+  },
+
+  // With auto-next on there are only 1.4 s between puzzles. Between puzzles
+  // this opens the start panel at once; during a puzzle it changes nothing now
+  // and books the panel for when Next (or auto-next) would have run.
+  changeTime() {
+    if (!this.timeLocked) { this.showStart(); return; }
+    this.changeArmed = !this.changeArmed;
+    this.updateTimeControl();
+    if (this.changeArmed) toast(t('blind_change_time_toast'));
+  },
+
+  // Before scoring: what the current puzzle's look is worth — the extra a clean
+  // solve earns, and that a peek gives it up. After scoring: what was paid.
   updateBonus() {
     const el = $('blind-bonus');
     const s = this.secondsThis;
     let msg = '';
-    if (this.current && !this.eloRecorded) {
+    if (this.current && this.eloRecorded) {
+      msg = this.paidLine;
+    } else if (this.current) {
       if (s > BLIND_SECONDS_DEFAULT) {
         msg = t('blind_bonus_reduced').replace('{s}', s).replace('{p}', Math.round(blindLongLookFactor(s) * 100));
       } else if (s === BLIND_SECONDS_DEFAULT) {
@@ -5186,19 +5242,21 @@ export const Blind = {
       }
     }
     el.textContent = msg;
-    el.classList.toggle('lost', this.peekedThis && s < BLIND_SECONDS_DEFAULT);
+    el.classList.toggle('lost', !this.eloRecorded && this.peekedThis && s < BLIND_SECONDS_DEFAULT);
   },
 
   async open() {
     showScreen('blind');
+    this.paidLine = '';
+    this.showStart();
     await this.ensureLoaded();
     this.updateEloBadge();
-    this.updateTimeControl();
     this.greetedThisOpen = false;
-    this.nextPuzzle();
+    this.showStart();
   },
 
   cleanup() {
+    clearTimeout(this.startTimer);
     clearTimeout(this.countdownTimer);
     clearTimeout(this.peekTimer);
     $('blind-countdown').classList.add('hidden');
@@ -5210,14 +5268,24 @@ export const Blind = {
     // A peek gives up only the extra for a short look; the puzzle's normal
     // points are still paid in full. All the maths is in js/blind-elo.js.
     const before = this.elo;
-    this.elo = blindEloResult({
+    const res = blindEloResult({
       elo: this.elo, rating: this.current.rating, win,
       seconds: this.secondsThis, peeked: this.peekedThis, attemptCount: this.attemptCount,
-    }).elo;
+    });
+    this.elo = res.elo;
     this.attemptCount++;
     db.kvSet('blindfoldAttemptCount', this.attemptCount);
     this.lastDelta = Math.round(this.elo) - Math.round(before);
     db.kvSet('blindfoldElo', this.elo);
+    // The paid-at line. The two parts are rounded so they add up to the move
+    // the badge and the log show (lastDelta).
+    const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
+    const extra = Math.round(res.extra);
+    const key = !win ? 'blind_paid_loss' : extra > 0 ? 'blind_paid_extra' : this.peekedThis && blindExtraFactor(this.secondsThis) > 0 ? 'blind_paid_peeked' : 'blind_paid_normal';
+    this.paidLine = t(key).replace('{s}', this.secondsThis)
+      .replace('{a}', signed(this.lastDelta - extra)).replace('{b}', signed(extra));
+    this.timeLocked = false;
+    this.updateTimeControl();
     this.updateEloBadge();
     this.updateBonus();
     recordEloHistory('blindfoldEloHistory', this.elo);
@@ -5237,7 +5305,10 @@ export const Blind = {
   },
 
   async nextPuzzle() {
+    // Nothing starts behind the start panel: a late auto-next lands here.
+    if (!$('blind-start').classList.contains('hidden')) return;
     if (this.current && !this.logged && this.failedThis) this.log(false);
+    if (this.changeArmed) { this.showStart(); return; }
     this.cleanup();
     $('blind-share').classList.add('hidden');
     const target = this.targetRating();
@@ -5255,6 +5326,8 @@ export const Blind = {
     this.lastDelta = null;
     this.logged = false;
     this.secondsThis = this.seconds;
+    this.timeLocked = true;
+    this.updateTimeControl();
     this.updateBonus();
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
@@ -5268,7 +5341,10 @@ export const Blind = {
       this.greetedThisOpen = true;
       setTimeout(() => KaelQuotes.chatter(pickKael(KAEL_BLINDFOLD), 5000), 900);
     }
-    setTimeout(() => {
+    // Two quick taps on Next used to leave two of these pending, and so two
+    // countdowns — one of which then hid the pieces every second, for good.
+    clearTimeout(this.startTimer);
+    this.startTimer = setTimeout(() => {
       const m = this.applyUci(this.current.moves[0]);
       this.moveIdx = 1;
       this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
