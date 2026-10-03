@@ -57,7 +57,7 @@ async function worker(k) {
   await send('Page.navigate', { url: `http://127.0.0.1:${WEB}/__probe` }); await sleep(1200);
   await evalP(`
     const src = await (await fetch('/js/diagram.js')).text();
-    window.D = await import(URL.createObjectURL(new Blob([src + '\\nexport { toGray, toneMap, detectFromBand, detectInWindow, placeByTone, accept, fitBoard, checkerVotes };'], { type: 'text/javascript' })));
+    window.D = await import(URL.createObjectURL(new Blob([src + '\\nexport { toGray, toneMap, detectFromBand, detectInWindow, placeByTone, accept, fitBoard, checkerVotes, isSlid };'], { type: 'text/javascript' })));
     window.lib = await import('/vendor/pdf.min.mjs');
     lib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
     window.docs = {}; window.GATE = ${+(process.env.GATE || 0)};
@@ -82,10 +82,14 @@ const PAGE_JOB = (bi, n, step, noFb) => `
     for (const frac of [0.16, 0.22, 0.30, 0.40, 0.48]) {
       const S = Math.round(frac * minDim); if (S < 40) continue;
       const found = D.detectInWindow(g, W, H, tapX, tapY, S); if (!found) continue;
-      const moved = D.placeByTone(g, W, H, found, 7, tapX, tapY);
-      const board = moved ? D.accept(g, W, H, D.fitBoard(tone, W, H, moved, Math.max(10, 5 * r), r)) : found;
+      const minGap = Math.max(10, 5 * r);
+      let moved = D.placeByTone(g, W, H, found, 7, tapX, tapY);
+      let board = moved ? D.fitBoard(tone, W, H, moved, minGap, r) : found;
+      const again = board && D.placeByTone(g, W, H, board, 2, tapX, tapY);
+      if (again) { moved = again; board = D.fitBoard(tone, W, H, again, minGap, r); }
+      if (moved) board = D.accept(g, W, H, board);
       const votes = board ? D.checkerVotes(g, W, board) : 0;
-      if (board && votes >= (window.GATE || 0)) return { k: moved ? 'moved' : 'asis', b: board, votes, frac };
+      if (board && votes >= (window.GATE || 0) && !D.isSlid(g, W, H, board)) return { k: moved ? 'moved' : 'asis', b: board, votes, frac };
     }
     return null;
   }

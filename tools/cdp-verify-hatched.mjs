@@ -3,7 +3,7 @@
 // used to say "Couldn't find a board there" at some heights. Harness copied from
 // cdp-verify-training.mjs (the in-app pane does not composite). Dev tool, not shipped.
 //
-//   node tools/cdp-verify-hatched.mjs <outDir> <hatched.pdf> <page> <wood.pdf> <page> [<magazine.pdf> <page>]
+//   node tools/cdp-verify-hatched.mjs <outDir> <hatched.pdf> <page> <wood.pdf> <page> [<magazine.pdf> <page> [<puzzle page>]]
 //   e.g. Dvoretsky's Endgame Manual 395, Hellsten 102, Chess Life 2026-09 30
 //
 // It serves the repo itself (plus the two PDFs, which live outside it) on a
@@ -28,12 +28,13 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [OUT, HAT_PDF, HAT_PAGE, WOOD_PDF, WOOD_PAGE, MAG_PDF, MAG_PAGE] = process.argv.slice(2);
+const [OUT, HAT_PDF, HAT_PAGE, WOOD_PDF, WOOD_PAGE, MAG_PDF, MAG_PAGE, PUZ_PAGE] = process.argv.slice(2);
 if (!WOOD_PAGE) { console.error('usage: node tools/cdp-verify-hatched.mjs <outDir> <hatched.pdf> <page> <wood.pdf> <page>'); process.exit(1); }
 const BOOKS = [
   { name: 'Hatched Book', file: HAT_PDF, page: +HAT_PAGE },
   { name: 'Wood Book', file: WOOD_PDF, page: +WOOD_PAGE },
   ...(MAG_PDF ? [{ name: 'Magazine', file: MAG_PDF, page: +MAG_PAGE }] : []),
+  ...(PUZ_PAGE ? [{ name: 'Puzzle Page', file: MAG_PDF, page: +PUZ_PAGE }] : []),
 ];
 // Where to press, as fractions of the page. Dvoretsky p395: the first board spans
 // about 6–34% of the page height and the second 61–89%; 20%, 28% and 70% are the
@@ -51,6 +52,13 @@ const WOOD_BOARDS = [[0.27, 0.18], [0.72, 0.18]];
 const MAG_PRESSES = [[0.515, 0.75], [0.515, 0.81], [0.515, 0.88], [0.43, 0.81], [0.60, 0.81]];
 const MAG_BOARDS = [[0.515, 0.81]];
 const MAG_RECT = { x: 440 / 1065, y: 1022 / 1388, w: 217 / 1065, h: 217 / 1388 };
+// Chess Life 2026-09 p17: twelve puzzle boards under "TACTIC n." titles, on paper
+// tinted between the two square shades. A press on a title, or just right of a
+// board, used to give that board slid one rank up into the title / one file
+// right (v133). Board 2 of the top row is at 528.8,424.5 with 25.4-px squares.
+const PUZ_IN = [580 / 1065, 500 / 1388];
+const PUZ_OUT = [[580 / 1065, 420 / 1388], [740 / 1065, 620 / 1388]];
+const PUZ_Y0 = 424.5;
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const PORT = 9300 + Math.floor(Math.random() * 600);
@@ -251,7 +259,7 @@ const seeded = await evalP(`
   return document.querySelectorAll('#read-grid .read-card').length;`);
 check(`seed: ${BOOKS.length} books on the shelf`, seeded === BOOKS.length, seeded);
 
-const [HAT, WOOD, MAG] = BOOKS;
+const [HAT, WOOD, MAG, PUZ] = BOOKS;
 for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], ['es', 'dark']]) {
   const tag = `${lang}/${scheme}`;
   console.error(`\n== ${tag}`);
@@ -309,6 +317,24 @@ for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], 
       const r = await longPress(MAG.page, fx, fy, fx === 0.515 && fy === 0.81 ? `${lang}-${scheme}-magazine` : null);
       check(`${tag}: a real long-press on the magazine board at ${Math.round(fx * 100)}%,${Math.round(fy * 100)}% opens the diagram dialog`, !!r.dialog && r.dialog.img, r);
     }
+  }
+
+  if (PUZ) {
+    await openBook(PUZ.name);
+    check(`${tag}: puzzle page ${PUZ.page} is drawn`, await drawn(PUZ.page));
+    if (tag === 'en/light') {
+      const g = await evalP(`
+        const { detectBoard } = await import('/js/diagram.js');
+        const cv = document.querySelector('.read-page[data-page="${PUZ.page}"] canvas');
+        const img = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height), W = cv.width, H = cv.height;
+        const at = ([fx, fy]) => { const b = detectBoard(img, W * fx, H * fy); return b && [b.x0, b.y0, b.cw, b.ch].map(v => +v.toFixed(1)); };
+        return { inside: at(${JSON.stringify(PUZ_IN)}), outside: ${JSON.stringify(PUZ_OUT)}.map(at) };`);
+      check(`${tag}: puzzle board — a press inside gives the drawn board (top at ${PUZ_Y0})`, !!g.inside && Math.abs(g.inside[1] - PUZ_Y0) <= 2, g);
+      check(`${tag}: puzzle board — a press on its title, or just right of it, gives that same board or none, never one slid a square`,
+        !!g.inside && g.outside.every(b => !b || (Math.abs(b[0] - g.inside[0]) <= 2 && Math.abs(b[1] - g.inside[1]) <= 2)), g);
+    }
+    const r = await longPress(PUZ.page, ...PUZ_IN, `${lang}-${scheme}-puzzle`);
+    check(`${tag}: a real long-press on a puzzle board opens the diagram dialog`, !!r.dialog && r.dialog.img, r);
   }
 }
 

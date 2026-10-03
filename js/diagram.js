@@ -209,9 +209,17 @@ export function detectBoard(imageData, tapX, tapY) {
     // under 80, most under 15 (207 of 223 false boards). So line-only boards (no
     // shades) are no longer found here — none exist in those books, and on text
     // they cannot be told apart.
-    const moved = placeByTone(g, W, H, found, 7, tapX, tapY);
-    const board = moved ? accept(g, W, H, fitBoard(tone, W, H, moved, Math.max(10, 5 * r), r)) : found;
-    if (board && checkerVotes(g, W, board) >= 80) return board;
+    //
+    // One more look after the fit, as detectFromBand does: the window search's
+    // lattice can be a few pixels out, and only on the fitted one does a board
+    // slid a rank into its caption show (Chess Life p19).
+    const minGap = Math.max(10, 5 * r);
+    let moved = placeByTone(g, W, H, found, 7, tapX, tapY);
+    let board = moved ? fitBoard(tone, W, H, moved, minGap, r) : found;
+    const again = board && placeByTone(g, W, H, board, 2, tapX, tapY);
+    if (again) { moved = again; board = fitBoard(tone, W, H, again, minGap, r); }
+    if (moved) board = accept(g, W, H, board);
+    if (board && checkerVotes(g, W, board) >= 80 && !isSlid(g, W, H, board)) return board;
   }
   return null;
 }
@@ -234,7 +242,7 @@ function accept(g, W, H, board, shaded) {
   if (ratio < 0.85 || ratio > 1.18) return null;
   if (board.x0 < 0 || board.y0 < 0 || board.x0 + 8 * board.cw > W || board.y0 + 8 * board.ch > H) return null;
   const lc = Math.min(board.lcV, board.lcH);
-  if (shaded ? (lc < 1.1 || checkerVotes(g, W, board) < 80) : lc < 1.35) return null;
+  if (shaded ? (lc < 1.1 || checkerVotes(g, W, board) < 80 || isSlid(g, W, H, board)) : lc < 1.35) return null;
   if (!validateCheckerboard(g, W, H, board)) return null;
   return { x0: board.x0, y0: board.y0, cw: board.cw, ch: board.ch };
 }
@@ -464,7 +472,7 @@ function placeByTone(g, W, H, b, R, tapX, tapY) {
     if (x < 1 || y < 1 || x + b.cw > W - 1 || y + b.ch > H - 1) continue;   // off the page
     t[j * n + i] = cellTone(g, W, b, j - R, i - R);
   }
-  const T = (r, c) => t[r * n + c];
+  const T = (r, c) => (r < 0 || c < 0 || r >= n || c >= n) ? NaN : t[r * n + c];
   let best = null, held = null, here = 0;
   for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
     const bx = b.x0 + dx * b.cw, by = b.y0 + dy * b.ch;
@@ -479,6 +487,8 @@ function placeByTone(g, W, H, b, R, tapX, tapY) {
       if (r < 7) { const d = sg * (v - T(r + 1 + dy + R, c + dx + R)); s += d > 3 ? 1 : d < -3 ? -1 : 0; }
     }
     if (bad) continue;                       // block runs off the page
+    // `line` signs by lattice position, `s` by position in the block
+    if (slidBlock(T, dy + R, dx + R, (s < 0 ? -1 : 1) * (((dx + dy) & 1) ? -1 : 1))) continue;
     s = Math.abs(s);
     if (dx === 0 && dy === 0) here = s;
     if (!best || s > best.s) best = { s, dx, dy };
@@ -488,6 +498,51 @@ function placeByTone(g, W, H, b, R, tapX, tapY) {
   if (!best || (best.dx === 0 && best.dy === 0) || best.s <= here) return null;
   if (best.s < 40) return null;              // under 40 of 112 pairs: no shades to go by
   return { x0: b.x0 + best.dx * b.cw, y0: b.y0 + best.dy * b.ch, cw: b.cw, ch: b.ch };
+}
+
+// Is the 8x8 block whose top-left cell is (r, c) a board slid one square? Then
+// its outer rank (or file) on one side is paper or a caption — which does not
+// alternate ALONG the line — while the line just beyond the opposite side still
+// does: the real rank it dropped. The block's total cannot tell: paper tinted
+// between the two square shades (Chess Life puzzle pages: paper 241, squares
+// 254/194) votes with every square of the rank beside it, so the slid block lost
+// only the 7 pairs along the line, and a title's letters won some of those back
+// (measured: 106–109 of 112 against the true block's 112) — close enough for the
+// block that holds the finger to win. `T(r, c)` gives a cell's tone (NaN off the
+// page: no vote); `sign` is the block's own vote sign on T's lattice.
+function slidBlock(T, r, c, sign) {
+  const line = (r, c, dr, dc) => {           // the 7 neighbour pairs along 8 cells
+    let s = 0;
+    for (let k = 0; k < 7; k++, r += dr, c += dc) {
+      const d = (((r + c) & 1) ? -1 : 1) * (T(r, c) - T(r + dr, c + dc));
+      s += d > 3 ? 1 : d < -3 ? -1 : 0;
+    }
+    return sign * s;
+  };
+  const weak = (outer, beyond) => beyond >= 5 && outer <= beyond - 3;
+  return weak(line(r, c, 0, 1), line(r + 8, c, 0, 1)) || weak(line(r + 7, c, 0, 1), line(r - 1, c, 0, 1)) ||
+         weak(line(r, c, 1, 0), line(r, c + 8, 1, 0)) || weak(line(r, c + 7, 1, 0), line(r, c - 1, 1, 0));
+}
+
+// The same test on a finished board: placeByTone only looks within two squares
+// of the finger, so a press further out (in the text above a puzzle board) can
+// still end on a slid block with nothing better in reach. Then there is no board.
+function isSlid(g, W, H, b) {
+  const t = new Map();
+  const T = (r, c) => {
+    const k = r * 16 + c;
+    if (!t.has(k)) {
+      const x = b.x0 + c * b.cw, y = b.y0 + r * b.ch;
+      t.set(k, (x < 1 || y < 1 || x + b.cw > W - 1 || y + b.ch > H - 1) ? NaN : cellTone(g, W, b, r, c));
+    }
+    return t.get(k);
+  };
+  let s = 0;
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 7; c++) {
+    const d = (((r + c) & 1) ? -1 : 1) * (T(r, c) - T(r, c + 1));
+    s += d > 3 ? 1 : d < -3 ? -1 : 0;
+  }
+  return slidBlock(T, 0, 0, s < 0 ? -1 : 1);
 }
 
 // placeByTone's vote for one block, as a count of the 112 neighbour pairs.

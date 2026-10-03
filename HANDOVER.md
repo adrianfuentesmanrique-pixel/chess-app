@@ -2,6 +2,55 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — DIAGRAM READER NO LONGER RETURNS A BOARD SLID ONE SQUARE (2026-10-02).**
+  Committed on `main`, NOT pushed, NOT deployed. `sw.js` v132 → **v133**.
+  `js/diagram.js` (new `slidBlock` + `isSlid`, used by `placeByTone`, `accept`
+  and the fallback's gate; the fallback gets the second `placeByTone` look the
+  tone search already had), `tools/measure-fallback.mjs` (replays the same
+  steps), `tools/cdp-verify-hatched.mjs` (optional puzzle page). Follows v132.
+  - **The v132 "16 slid presses" was an undercount.** The tone search slides too,
+    and `measure-fallback.mjs` counts a fallback board as "confirmed" when it
+    matches ANY tone-search board — including a slid one. Counted properly (two
+    grids on one page overlapping by under 1.6 squares; the less-pressed is the
+    slid one — a RULE, not judged by eye; only four crops from pp. 17/19/26 were
+    looked at), before the fix, 40-px grid, 133 pages, ~129,000 presses:
+    Chess Life 718 slid presses, Dvoretsky 251, Hellsten 70, Silman 158, FCE 837.
+  - **When:** a press just OUTSIDE a board (title or caption row, or beside it)
+    gave the board slid a rank/file so that it held the finger.
+    **Why:** `placeByTone` prefers the block holding the finger unless another
+    scores 5% higher. A row of plain paper whose shade lies between the two
+    square shades (Chess Life p17: paper 241, squares 254/194) votes with every
+    square of the rank beside it, so the slid block loses only the 7 pairs ALONG
+    that row, and title letters win some back: 106–109 of 112 vs the true 112.
+  - **The fix:** a block is slid if an outer rank/file does not alternate along
+    its own line (its 7 pairs) while the line just beyond the OPPOSITE side does
+    (≥ 5, and ≥ 3 more than the outer one) — the real rank it dropped. Slid blocks
+    are skipped in `placeByTone`; a finished board that still shows it is refused
+    (a press further than two squares out has no better block in reach).
+  - **After (same pages, same grid; cross-check probe vs real `detectBoard`
+    0 differences):** slid presses Chess Life 718 → 20, Dvoretsky 251 → 0,
+    Hellsten 70 → 0, Silman 158 → 2, FCE 837 → 122. Presses INSIDE a real board
+    that give it: Chess Life 3,549 → 3,548 of 3,653; Dvoretsky 2,004 → 2,004;
+    Hellsten 1,445 → 1,445; Silman 856 → 856; FCE 2,952 → 2,955. Real boards via
+    the fallback: Chess Life 247 → 266, Hellsten 68 → 69, Dvoretsky 8 → 8. About
+    390 formerly slid presses now give the true board, the rest "no board".
+    **Cost:** ~510 presses OUTSIDE a board (mostly over a square away) that used to
+    reach the true board now give nothing (Adrian accepted this).
+  - **Verified (headless CDP, 375px):** `cdp-verify-hatched` with Chess Life p30
+    and puzzle page 17 **92/92** (the new title-row check FAILS on the v132
+    `diagram.js`: 91/92) — REAL long-presses on Dvoretsky/Hellsten/the p30 board
+    and inside a p17 puzzle board in EN/ES × light/dark; the title-row and
+    beside-the-board presses on p17 are CALLED (`detectBoard` on the reader's own
+    canvas), not pressed. `cdp-verify-stage2` green, `cdp-verify-training`
+    **65/65**, `test:tree` **53/53**. The 129k-press grids are CALLED. SEEDED:
+    books via `db.addBook()`.
+    Run: `node tools/cdp-verify-hatched.mjs <outDir> "<Dvoretsky.pdf>" 395 "<Hellsten.pdf>" 102 "<Chess Life.pdf>" 30 17`.
+  - **Open, NOT looked at by eye:** FCE p120 — one grid (123.8,647.8, 41.6-px
+    squares, 120 presses, unchanged by the fix) that the counting rule calls slid;
+    it may be a real board beside another. Chess Life pp. 29, 45, 52 (14 presses)
+    and p10 (2). `measure-fallback.mjs`'s own "confirmed" column still has the
+    undercount described above. Not tested on a real phone.
+
 - **READ TAB — DIAGRAM READER'S OLD FALLBACK NO LONGER TAKES TEXT FOR A BOARD (2026-10-02).**
   Committed on `main`, NOT pushed, NOT deployed. `sw.js` v131 → **v132**. Only
   `js/diagram.js` changed (the fallback block at the end of `detectBoard`), plus a
