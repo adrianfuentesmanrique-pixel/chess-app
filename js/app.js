@@ -1187,7 +1187,7 @@ export function showScreen(name) {
   if (name === 'profile') Profile.refresh();
   if (name === 'students') Students.onEnter();
   if (name !== 'blind') Blind.cleanup();
-  if (name !== 'puzzles') Puzzles.disarmCheckin();
+  if (name !== 'puzzles') { Puzzles.disarmCheckin(); Puzzles.board?.clearPremove(); }
   // Leaving the Rush screen ends the run. Without this the clock kept ticking
   // on a hidden board and the run "finished" while the player was elsewhere.
   if (name !== 'rush') Rush.stop();
@@ -3132,7 +3132,7 @@ async function restoreBackup(file) {
 
 // ═════════════════════ PLAY vs ENGINE ═════════════════════
 
-const Play = {
+export const Play = {
   board: null,
   chess: null,
   playerColor: 'w',
@@ -4674,12 +4674,19 @@ export const Puzzles = {
     this.board.setOrientation(playerColor);
     this.place(this.chess.fen());
     this.setLiveInteractive(false);
-    setTimeout(() => {
+    // Armed from the instant the puzzle is on screen: the opponent's opening
+    // move is a wait like any other, and a tap made during it must not be lost.
+    this.board.armPremove();
+    // One opening move per puzzle — a second Next inside the 0.6 s would
+    // otherwise leave two of these pending, and the late one rewinds moveIdx.
+    clearTimeout(this.openTimer);
+    this.openTimer = setTimeout(() => {
       const m = this.applyUci(this.current.moves[0]);
       this.moveIdx = 1;
       this.place(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
       this.setLiveInteractive(true);
       this.setStatus(`${t(playerColor === 'w' ? 'white' : 'black')} ${t('to_move_find')} (${this.current.rating})`);
+      this.board.firePremove();
     }, 600);
   },
 
@@ -4792,6 +4799,8 @@ export const Puzzles = {
     this.stopTimer();
     this.markFailed();
     this.log(false);
+    clearTimeout(this.openTimer);   // the loop below plays the opening move itself
+    this.board.clearPremove();
     this.setLiveInteractive(false);
     while (this.moveIdx < this.current.moves.length) {
       const m = this.applyUci(this.current.moves[this.moveIdx]);
@@ -4835,7 +4844,7 @@ export const Puzzles = {
 
 // ═════════════════════ PUZZLE RUSH ═════════════════════
 
-const Rush = {
+export const Rush = {
   board: null,
   chess: null,
   usedIds: null,   // Set of puzzle ids already served this run
@@ -4938,6 +4947,8 @@ const Rush = {
     this.updateHud();
     // Show the first puzzle immediately but frozen, so the count-in is spent
     // reading the position rather than staring at an empty board.
+    // Flagged before loadNext(), so it does not arm a pre-move under the count-in.
+    this.countingIn = true;
     this.loadNext();
     this.countIn(() => {
       if (!this.running) return;
@@ -5000,6 +5011,9 @@ const Rush = {
     this.board.setOrientation(playerColor);
     this.board.setPosition(this.chess.fen());
     this.board.interactive = false;
+    // The opening move is a wait like any other, so a move made during it is
+    // queued — except under the count-in, when the clock has not started.
+    if (!this.countingIn) this.board.armPremove();
     // Kept so the count-in can put it back — countIn() borrows the status line
     // for "Get ready!" and must not leave the player without the prompt.
     this.prompt = t(playerColor === 'w' ? 'white' : 'black') + ' ' + t('to_move_find');
@@ -5012,6 +5026,7 @@ const Rush = {
       // Stays frozen while the count-in is on screen; countIn() hands control
       // back once the clock actually starts.
       this.board.interactive = !this.countingIn;
+      if (!this.countingIn) this.board.firePremove();
     }, 300);
   },
 
@@ -5092,6 +5107,7 @@ const Rush = {
   stop() {
     this.running = false;
     clearInterval(this.timer);
+    this.board?.clearPremove();
   },
 
   share() {
@@ -5135,7 +5151,7 @@ export const Blind = {
   greetedThisOpen: false,
 
   init() {
-    this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type) });
+    this.board = new Board($('blind-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     const range = $('blind-time-range');
     // The time is chosen on the start panel or between puzzles. While a puzzle
     // is running the slider is disabled, so what is on screen is what is paid.
@@ -5260,6 +5276,10 @@ export const Blind = {
     clearTimeout(this.countdownTimer);
     clearTimeout(this.peekTimer);
     $('blind-countdown').classList.add('hidden');
+    // Next, the start panel and leaving the screen all come through here.
+    // Never armed during the memorising countdown or a peek: the pieces are
+    // on show then, and a move queued in sight of them is not blindfold.
+    this.board?.clearPremove();
   },
 
   recordResult(win) {
@@ -5411,6 +5431,7 @@ export const Blind = {
     this.peekedThis = true;
     this.updatePeekBtn();
     this.updateBonus();
+    this.board.clearPremove();
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     clearTimeout(this.peekTimer);
@@ -5436,6 +5457,7 @@ export const Blind = {
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
       if (this.moveIdx >= this.current.moves.length || isMate) {
         clearTimeout(this.peekTimer);
+        this.board.clearPremove();
         this.board.setPiecesHidden(false);
         Sound.play('puzzle-correct');
         KaelQuotes.chatter(pickKael(KAEL_PRAISE));
@@ -5454,12 +5476,15 @@ export const Blind = {
       }
       this.setStatus(t('correct'));
       this.board.interactive = false;
+      this.board.armPremove();
       await sleep(400);
       const r = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
       this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
       this.board.interactive = true;
       this.updateTurnIndicator();
+      // Back through userMove, so a wrong pre-move is charged like a hand move.
+      this.board.firePremove();
     } else {
       const firstMistake = !this.failedThis;
       this.markFailed();
@@ -5492,6 +5517,7 @@ export const Blind = {
     clearTimeout(this.peekTimer);
     this.markFailed();
     this.log(false);
+    this.board.clearPremove();
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     while (this.moveIdx < this.current.moves.length) {
@@ -5727,7 +5753,7 @@ function createWalker(cfg) {
   };
 }
 
-const Endgame = {
+export const Endgame = {
   board: null,
   category: null,
   current: null,        // endgame position object

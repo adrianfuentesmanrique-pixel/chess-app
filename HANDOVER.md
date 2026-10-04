@@ -2,6 +2,84 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PRE-MOVE — ALWAYS AVAILABLE IN PUZZLES, RUSH AND BLINDFOLD (2026-10-04).**
+  `sw.js` v139 → **v140**. Changed `js/board.js`, `js/app.js`; new
+  `tools/cdp-verify-premove.mjs`. Web-only. Committed on `main`, NOT pushed.
+  **Not tested on a real phone — Adrian's word closes it.**
+  - **Adrian's report, reproduced with real touches before anything was changed:**
+    9 of 11 cases failed. Only a move made *entirely inside* the 0.4 s reply
+    window worked. Three separate causes, all confirmed by the failing run:
+    1. **The opening move was a dead window** — `Puzzles.loadPuzzle` and
+       `Rush.loadNext` never armed pre-move. Measured dead time 600 ms (Puzzles),
+       300 ms (Rush); a drag in it scrolled the page (`pointercancel`).
+    2. **A move that straddled the opponent's move was thrown away** — first
+       tap (or drag start) while waiting, second tap (or drop) after his move
+       landed. `Board.setPosition()` cleared the selection, so the second half
+       had nothing to move. This is the one a human hits most: 0.4 s is shorter
+       than a tap-tap.
+    3. **A recapture could not be queued at all** — a pre-move was only taken if
+       it was legal in the position *before* the opponent moved, so retaking on a
+       square my own piece stood on reselected that piece instead, and a pawn
+       capture of a piece that had not arrived yet was refused.
+  - **The fix (`js/board.js`, shared by every pre-move board):**
+    - `setPosition()` keeps `selected` across the opponent's move **only while a
+      pre-move is armed** and the piece is still there. Every other position
+      change calls `clearPremove()` first, so new puzzle / undo / history still
+      drop it. Do not make this unconditional.
+    - New module function `premoveReach(piece, from, to)`: a pre-move is accepted
+      on the piece's geometry (where it could go on an empty board), and that
+      test now comes **before** the "tap my own piece = reselect" branch.
+      `firePremove()` is unchanged and still applies the real legality test.
+    - **With the pieces hidden (Blindfold) any square is accepted.** Deliberate:
+      a tint that appeared only for reachable squares would tell you what the
+      hidden piece is. The destination dots were already off when hidden.
+  - **The fix (`js/app.js`):** `Puzzles.loadPuzzle` arms on appear and fires
+    after the opening move (the timer is now `this.openTimer`, cleared on a
+    second load and by Show solution); `Rush.loadNext` the same, skipped under
+    the count-in (`Rush.start` now sets `countingIn` **before** `loadNext()` —
+    it used to arm for the first puzzle); `Blind` built with `premove: true`,
+    armed/fired around its 0.4 s reply, cleared in `cleanup()` (Next, start
+    panel, leaving the screen), on a solve, Show solution and Peek. Leaving
+    Puzzles (`showScreen`) and `Rush.stop()` clear it too. `Play`, `Rush` and
+    `Endgame` are now `export`ed — for the harness only.
+  - **Where pre-move is deliberately OFF** — Blindfold's memorising countdown,
+    **Blindfold's 5 s Peek** (same reason: the pieces are on show — this one was
+    not on Adrian's list, he has been told), Rush's count-in (the overlay eats
+    the touch anyway), after a puzzle is finished, and while stepping back
+    through a puzzle's history.
+  - **No timing was changed.** 0.4 s / 0.3 s / 0.6 s are as they were.
+  - **Measured, `tools/cdp-verify-premove.mjs`, 84 checks, 375 px, EN/ES ×
+    light/dark, real touches (`Input.dispatchTouchEvent`):** dead time inside
+    both waiting windows 0.1–0.3 ms in all three modes (it is the same
+    JavaScript task, so no touch can fall in it); a queued move is on the board
+    0.7–1.9 ms after the opponent's; tap-tap and drag, inside and straddling,
+    plain and recapture-type; a wrong pre-move charged exactly the hand-move
+    loss (Puzzles and Blindfold ELO to 1e-6, one Rush strike); an illegal one
+    dropped free; Next / Show solution / Peek / leaving clear it; no scroll and
+    no `pointercancel` on a drag, `touch-action: none` on the piece. Play driven
+    for real (d4 queued while the engine thinks); Trainer and Endgame boards
+    checked on a **seeded** position (rook retakes on its own queen's square).
+    `node tools/cdp-verify-premove.mjs <outDir> repro` runs the 12 Puzzles
+    cases alone. `test:tree` 93/93. The header of the tool lists what is
+    tapped, clicked and seeded.
+  - **Harness facts:** Kael's bubble and toasts cover the buttons under the
+    board for seconds — `clearView()` waits them out; `tapEl()` retries. A
+    button point worked out before a 0.4 s window is the only way to tap inside
+    it.
+  - **FOUND, NOT FIXED — Show solution outlives its puzzle (pre-existing, not a
+    pre-move bug).** `Puzzles.showSolution()` loops on `this.current` with a
+    0.7 s sleep per move. Press Next before it finishes and the loop carries on
+    **in the new puzzle**, playing its moves for you, uncharged. Confirmed:
+    `node tools/cdp-verify-premove.mjs <outDir> stale` (8-move solution, new
+    4-move puzzle ends at `moveIdx` 4 untouched). `Blind.showSolution()` and the
+    `await sleep(400)` reply in `Puzzles.userMove` / `Blind.userMove` have the
+    same shape and are **read from the code, not run**.
+  - **SEEN, NOT FIXED — Blindfold shows the red check glow with the pieces
+    hidden** (pre-existing). `Board.render()` adds `.check` to the king's square
+    whether or not `piecesHidden` is set, so a check gives away where that king
+    stands. Visible in the harness screenshot `blind-premove-tint-hidden.png`.
+    Whether that is wanted is Adrian's call.
+
 - **READ TAB — v139 "TWO DIAGRAMS MUST AGREE" MEASURED OVER 1–6 LESSONS AND WITH
   THE SAME SLIP MADE TWICE (2026-10-04). MEASUREMENT ONLY — THE APP IS UNCHANGED,
   `sw.js` stays v139.** Committed on `main`, NOT pushed. Only

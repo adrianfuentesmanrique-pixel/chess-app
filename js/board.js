@@ -21,6 +21,31 @@ function pieceCount(fen) {
   return n;
 }
 
+// Where a piece could go on an empty board. A pre-move is aimed at a position
+// that does not exist yet — the recapture on a square my own piece still stands
+// on, the pawn capture of a piece that has not arrived, the line that is about
+// to open — so "legal right now" is the wrong test for queueing one.
+// firePremove() applies the real test once the opponent has moved.
+function premoveReach(piece, from, to) {
+  const df = Math.abs(to.charCodeAt(0) - from.charCodeAt(0));
+  const dr = +to[1] - +from[1];
+  const ar = Math.abs(dr);
+  if (!df && !ar) return false;
+  switch (piece.type) {
+    case 'n': return df * ar === 2;
+    case 'b': return df === ar;
+    case 'r': return !df || !ar;
+    case 'q': return df === ar || !df || !ar;
+    case 'k': return (df <= 1 && ar <= 1) || (!ar && df === 2 && from[0] === 'e');
+    case 'p': {
+      const dir = piece.color === 'w' ? 1 : -1;
+      if (dr === dir) return df <= 1;
+      return !df && dr === 2 * dir && from[1] === (piece.color === 'w' ? '2' : '7');
+    }
+  }
+  return false;
+}
+
 export class Board {
   constructor(container, opts = {}) {
     this.el = container;
@@ -185,10 +210,18 @@ export class Board {
       const wasCapture = pieceCount(fen) < pieceCount(this.fen);
       this.onSound(wasCapture ? 'capture' : 'move');
     }
+    // A piece picked up while waiting on the opponent stays picked up when his
+    // move lands, so a tap-tap or a drag that straddles that instant finishes
+    // as an ordinary move instead of being thrown away. Only while a pre-move
+    // is armed: every other position change (a new puzzle, an undo, stepping
+    // through history) clears the pre-move first and so drops the selection.
+    const held = this._premoveActive() ? this.selected : null;
+    const was = held && parsePlacement(this.fen.split(' ')[0])[held];
+    const now = held && parsePlacement(fen.split(' ')[0])[held];
     this.fen = fen;
     this.lastMove = lastMove;
     this.lastMoveColor = lastMoveColor;
-    this.selected = null;
+    this.selected = was && now && now.color === was.color ? held : null;
     this.render();
   }
 
@@ -438,13 +471,16 @@ export class Board {
       } catch { }
       if (targets) legal = targets.find(m => m.to === name);
       const ownDest = piece && piece.color === mine;
-      // With no target list at all — an illegal flipped position — a pre-move is
-      // still accepted blind. It is a guess either way, and firePremove() checks
-      // it against the real position before it is ever played.
-      if (legal || (pre && !targets && !ownDest)) {
-        const moving = grid[from];
+      const moving = grid[from];
+      // A pre-move is taken on the piece's geometry alone — see premoveReach().
+      // That is why it comes before the reselect below: retaking on a square my
+      // own piece stands on is the commonest pre-move there is. With the pieces
+      // hidden (Blindfold) any square is taken, because a tint that appeared
+      // only for reachable squares would give away what the hidden piece is.
+      const reach = pre && !!moving && (this.piecesHidden || premoveReach(moving, from, name));
+      if (legal || reach) {
         const isPromo = legal ? !!legal.promotion
-          : !!moving && moving.type === 'p' && (name[1] === '8' || name[1] === '1');
+          : moving.type === 'p' && (name[1] === '8' || name[1] === '1') && premoveReach(moving, from, name);
         let promotion;
         // Asked now, at pre-move time, rather than after the opponent moves —
         // simplest, and what every other site does.
