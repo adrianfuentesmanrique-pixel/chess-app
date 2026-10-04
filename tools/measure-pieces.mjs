@@ -18,13 +18,18 @@
 //     env NOGATE=1 counts what the reader placed BEFORE the whole-board gate
 //     emptied an impossible position; LIST=1 names every wrong square,
 //     LIST=all also every real piece left empty, with its numbers.
-//     env LEARN=1 measures learning: one more diagram is confirmed after the
-//     teaching one, then the others are read. LEARN=2 confirms TWO more (the
-//     extra one and the next diagram of the book) — since v139 a new shape
-//     counts only once two diagrams agree, so this is the run that shows learning.
+//     env LEARN=N measures learning: N more diagrams are confirmed after the
+//     teaching one (every diagram of the book in turn and the N-1 after it), then
+//     the others are read. Since v139 a new shape counts only once two diagrams
+//     agree, so N >= 2 is the run that shows learning. NOLEARN=1 skips the
+//     lessons but reads the same diagrams (the "nothing learned" line).
 //     env POISON=swap|colour|forgot|one (with LEARN=1) confirms that extra diagram
 //     WRONG, to check that a bad confirmation cannot make the book place wrong pieces.
-//     With LEARN=2 only the first lesson is wrong; POISON_BOTH=1 makes both wrong.
+//     With LEARN>=2 only the first lesson is wrong; POISON_BOTH=1 makes all wrong.
+//     POISON=same (LEARN>=2) repeats ONE slip: the same piece on the same square
+//     shade is called the same wrong type in the first two lessons (a pawn as a
+//     knight, anything else as a pawn; SLIP_TO=<type letter> picks another).
+//     env JSON_OUT=<file> TAG=<label> appends the per-book totals as JSON lines.
 //     ('swap' leaves a board with no kings unless it holds both queens; the app's
 //     dialog and learnFromCells both refuse that, so 'one' is the test that bites.)
 //     env STRICT='{"full":{"match":0.1}}' tries other thresholds.
@@ -167,14 +172,29 @@ if (MODE === 'find') {
     // as a confirmed correction (every choice of it in turn), then the rest are read.
     const known = book.diagrams.filter(d => feats[book.name + '/' + d.id]);
     const plans = [];
-    for (const teach of known.filter(d => d.teach)) for (const extra of process.env.LEARN ? known.filter(d => d !== teach) : [null]) {
-      // LEARN=2: the second lesson is the next diagram of the book after the first.
-      const rest = known.filter(d => d !== teach), extra2 = process.env.LEARN === '2' && rest.length > 1 ? rest[(rest.indexOf(extra) + 1) % rest.length] : null;
-      plans.push({ teach, extra, extra2 });
+    const N = +process.env.LEARN || 0;
+    for (const teach of known.filter(d => d.teach)) for (const extra of N ? known.filter(d => d !== teach) : [null]) {
+      // LEARN=N: the lessons are the N diagrams of the book that follow `extra`, in order.
+      const rest = known.filter(d => d !== teach), lessons = [];
+      for (let i = 0; extra && i < Math.min(N, rest.length); i++) lessons.push(rest[(rest.indexOf(extra) + i) % rest.length]);
+      plans.push({ teach, extra, lessons });
     }
-    for (const { teach, extra, extra2 } of plans) {
+    for (const { teach, extra, lessons } of plans) {
       const tm = D.templatesFromCells(cellsOf(book.name + '/' + teach.id), fenGrid(teach.fen));
-      for (const [li, lesson] of [extra, extra2].entries()) if (lesson) {
+      // POISON=same: ONE slip repeated — a piece (same type, same colour) standing on
+      // the same square shade in the first two lessons is called the same wrong type
+      // in both (POISON_BOTH=1: in every lesson that has it). Plans whose first two
+      // lessons share no such piece are run clean and not counted as slipped.
+      const wrongOf = c => { const x = process.env.SLIP_TO || (c.toLowerCase() === 'p' ? 'n' : 'p'); return c === c.toUpperCase() ? x.toUpperCase() : x; };
+      const spot = (g, key) => { for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) if (g[r][c] && g[r][c] + (r + c) % 2 === key) return [r, c]; return null; };
+      let same = null;
+      if (process.env.POISON === 'same' && lessons.length > 1) {
+        const g0 = fenGrid(lessons[0].fen), g1 = fenGrid(lessons[1].fen);
+        for (let r = 0; r < 8 && !same; r++) for (let c = 0; c < 8 && !same; c++) { const x = g0[r][c]; if (x && !'kK'.includes(x) && wrongOf(x) !== x && spot(g1, x + (r + c) % 2)) same = x + (r + c) % 2; }
+        if (same) tot.slipPlans = (tot.slipPlans || 0) + 1;
+      }
+      const slipped = [];
+      for (const [li, lesson] of (process.env.NOLEARN ? [] : lessons).entries()) {
         const extra = lesson, POISON = li && !process.env.POISON_BOTH ? '' : process.env.POISON;
         // POISON: the extra diagram is confirmed WRONG — 'swap' calls kings queens and
         // bishops pawns (and back), 'colour' flips every piece's colour, 'forgot'
@@ -188,11 +208,16 @@ if (MODE === 'find') {
         // another type (a pawn as a knight, anything else as a pawn). Kings stay, so
         // the lesson is one the app's dialog would accept.
         if (POISON === 'one') g = g.map(r => r.map(c => { if (!c || 'kK'.includes(c) || k++) return c; const x = c.toLowerCase() === 'p' ? 'n' : 'p'; return c === c.toUpperCase() ? x.toUpperCase() : x; }));
+        if (same && (li < 2 || process.env.POISON_BOTH)) { const at = spot(g, same); if (at) { g[at[0]][at[1]] = wrongOf(same[0]); slipped.push({ code: wrongOf(same[0]), feat: cellsOf(book.name + '/' + extra.id)[at[0] * 8 + at[1]].feat }); } }
         const rep = D.learnFromCells(tm, cellsOf(book.name + '/' + extra.id), g);
         tot.lessons = (tot.lessons || 0) + 1; if (rep.learned) tot.took = (tot.took || 0) + 1;
       }
+      // Did the repeated slip become a trusted sample of the wrong type?
+      const dist = (x, y) => { let t = 0; for (let i = 0; i < x.length; i++) t += x[i] * y[i]; return 1 - t; };
+      if (slipped.some(x => ((tm.samples || {})[x.code] || []).some(v => dist(x.feat, v) < 1e-3))) tot.slipTook = (tot.slipTook || 0) + 1;
+      tot.held = (tot.held || 0) + Object.values(tm.pending || {}).reduce((n, l) => n + l.length, 0);
       for (const d of book.diagrams) {
-        if (d === teach || d === extra || d === extra2 || !feats[book.name + '/' + d.id]) continue;
+        if (d === teach || lessons.includes(d) || !feats[book.name + '/' + d.id]) continue;
         const res = D.classifyCells(cellsOf(book.name + '/' + d.id), tm), truth = fenGrid(d.fen);
         tot.pairs++; if (res.refused) tot.gated++;
         for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
@@ -207,7 +232,8 @@ if (MODE === 'find') {
         }
       }
     }
-    rows.push({ book: book.name, 'reads (diagram x teacher)': tot.pairs, 'real pieces': tot.real, correct: tot.ok, 'WRONG PIECE': tot.ghost + tot.type, '(on empty sq)': tot.ghost, '(wrong type)': tot.type, 'wrong colour only': tot.colour, 'left empty': tot.miss, 'boards refused': tot.gated, ...(process.env.LEARN ? { 'lessons learned / given': (tot.took || 0) + ' / ' + (tot.lessons || 0) } : {}) });
+    rows.push({ book: book.name, 'reads (diagram x teacher)': tot.pairs, 'real pieces': tot.real, correct: tot.ok, 'WRONG PIECE': tot.ghost + tot.type, '(on empty sq)': tot.ghost, '(wrong type)': tot.type, 'wrong colour only': tot.colour, 'left empty': tot.miss, 'boards refused': tot.gated, ...(process.env.LEARN ? { 'lessons learned / given': (tot.took || 0) + ' / ' + (tot.lessons || 0) } : {}), ...(process.env.POISON === 'same' ? { 'same slip: accepted / made (plans)': (tot.slipTook || 0) + ' / ' + (tot.slipPlans || 0) } : {}) });
+    if (process.env.JSON_OUT) fs.appendFileSync(process.env.JSON_OUT, JSON.stringify({ tag: process.env.TAG, book: book.name, plans: plans.length, ...tot }) + '\n');
   }
   console.table(rows);
   if (process.env.LIST) for (const b of bad) console.log(b);

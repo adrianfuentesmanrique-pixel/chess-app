@@ -2,6 +2,74 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — v139 "TWO DIAGRAMS MUST AGREE" MEASURED OVER 1–6 LESSONS AND WITH
+  THE SAME SLIP MADE TWICE (2026-10-04). MEASUREMENT ONLY — THE APP IS UNCHANGED,
+  `sw.js` stays v139.** Committed on `main`, NOT pushed. Only
+  `tools/measure-pieces.mjs` changed: `LEARN=N` (any N), `NOLEARN=1` (same reads,
+  no lessons), `POISON=same` (+ `SLIP_TO=`), `JSON_OUT=`/`TAG=`.
+  - **Learning speed — pieces read correctly, before the gate, clean lessons.**
+    Each column is the same reads for all three lines. Hold-out (5 books; Silman
+    drops out at 6):
+
+    | lessons | 1 | 2 | 3 | 4 | 5 | 6 |
+    |---|---|---|---|---|---|---|
+    | nothing learned | 75.4% | 75.6% | 75.8% | 76.2% | 76.7% | 77.4% |
+    | v138 (learn at once) | 80.5% | 82.6% | 83.5% | 83.9% | 84.6% | 85.6% |
+    | **v139 (two diagrams)** | 75.4% | 77.5% | 79.2% | 80.2% | 81.5% | 83.1% |
+    | three diagrams (scratch only) | – | – | 76.6% | 78.1% | – | 80.7% |
+
+    First set (from 3 lessons only Chess Life + Hellsten, from 5 only Chess Life):
+
+    | lessons | 1 | 2 | 3 | 4 | 5 | 6 |
+    |---|---|---|---|---|---|---|
+    | nothing learned | 76.4% | 76.2% | 76.1% | 76.0% | 76.0% | 76.0% |
+    | v138 | 82.2% | 84.0% | 85.8% | 87.5% | 87.3% | 87.1% |
+    | **v139** | 76.4% | 77.6% | 78.6% | 80.7% | 81.6% | 82.6% |
+    | three diagrams (scratch only) | – | – | 76.5% | 76.7% | – | 77.7% |
+
+    v139 keeps 0 / 27 / 44 / 52 / 61 / 70 % of v138's gain on the hold-out after
+    1..6 lessons (first set 0 / 18 / 26 / 41 / 50 / 59 %). Held shapes do pile up
+    (hold-out 10 → 26 per book after 1 → 6 lessons; capped at 8 per piece code).
+  - **v139 IS NOT 0 WRONG WITH 3+ CLEAN LESSONS: 1 wrong piece before the gate on
+    the hold-out** (of 900 reads; 0 on the first set). FCE taught from p350, lessons
+    p100a+p100b+p150a: the black pawn is learned, the black bishop is not yet, and
+    the bishop on f8 of p150b sits 0.053–0.058 from a pawn sample (`partial.match`
+    0.06). The gate refuses that board (pawn on the back rank), so the user sees an
+    empty board, not the pawn: **0 wrong with the gate**. It is a reader-threshold
+    hole (an untaught type that looks like a taught one), not a slip. Not fixed.
+    `POISON=one POISON_BOTH=1` at 3 and 6 lessons: the same 1, nothing more.
+  - **The same slip twice (`POISON=same`: same piece, same square shade, same wrong
+    type in the first two lessons; later lessons clean) BITES, rarely.** Wrong
+    pieces before the gate, and how many slipped lesson pairs the book accepted:
+
+    | | accepted | 2 lessons | 3 | 4 | 6 |
+    |---|---|---|---|---|---|
+    | hold-out v139 | 5 of 118 | 9 | 9 | 7 | 5 |
+    | hold-out v138 | 24 of 118 | 26 | 22 | 12 | 6 |
+    | first set v139 | 1 of 52 | 5 | 4 | 4 | 0 |
+    | first set v138 | 6 of 52 | 4 | 2 | 0 | 0 |
+    | three diagrams, both sets | 0 | – | 0 | – | 0 |
+
+    Every accepted case is a book whose teaching diagram did not hold the TRUE
+    piece type (FCE p350: no pawns, a pawn called a knight → 7 pawns read as
+    knights; Chess Life p17a: no rooks; Dvoretsky: no bishop). Where the type was
+    taught, the contradiction guard already throws the slip out. Slipped in EVERY
+    lesson: v139 9 wrong at 3 lessons, 5 at 6 (hold-out); three diagrams 0 at 3
+    but 4 at 6 — no count of agreeing diagrams stops a mistake made every time.
+  - **"Three diagrams" was measured on a scratch copy only (not in the repo).**
+    It also removes the stray clean wrong piece, at about half of v139's learning.
+  - **Everything here is fitted/seen on both truth files; neither is unseen.**
+  - **STILL UNMEASURED:** a slip to other wrong types than pawn→knight /
+    anything→pawn (`SLIP_TO=` exists, not run); the same slip on DIFFERENT square
+    shades; lessons in an order other than book order; more than 6 lessons; any
+    Chess Life issue other than 2026-09; a sixth book; scans or photos; a real phone.
+  - **Verified:** `test:tree` 93/93. The changed tool reproduces v139's 77.5%
+    (hold-out, 2 lessons). No app change, so no CDP run, no `sw.js` bump. Nothing
+    tapped: real `classifyCells`/`learnFromCells` in Node on squares measured in
+    headless Chrome by the v139 session (features reused).
+  - Run: `LEARN=4 POISON=same NOGATE=1 REUSE=1 node tools/measure-pieces.mjs measure <outDir> tools/fixtures/piece-truth-holdout.json`
+    (2–6 minutes each at 3–6 lessons).
+
 - **READ TAB — ONE WRONGLY CONFIRMED PIECE NO LONGER TEACHES THE BOOK A WRONG
   SHAPE: A NEW SHAPE COUNTS ONLY AFTER TWO DIFFERENT DIAGRAMS AGREE (2026-10-04).**
   Committed on `main`, NOT pushed, NOT deployed. `sw.js` v138 → **v139**.
