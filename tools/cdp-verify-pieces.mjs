@@ -236,7 +236,8 @@ for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], 
 // ── Open hands the shown position to Setup, and the book LEARNS from it (once, EN/light) ──
 const sampleCount = () => evalP(`const db = await import('/js/db.js');
   const bk = (await db.listBookSummaries()).find(b => b.name === ${JSON.stringify(NAME)});
-  const t = (await db.getBook(bk.id)).templates; return Object.values(t.samples).reduce((s, l) => s + l.length, 0);`);
+  const t = (await db.getBook(bk.id)).templates, n = o => Object.values(o || {}).reduce((s, l) => s + l.length, 0);
+  return { samples: n(t.samples), held: n(t.pending) };`);
 await seedTemplates(width, good);
 const samplesBefore = await sampleCount();
 await load('en', 'light');
@@ -260,11 +261,12 @@ const setup = await evalP(`const D = await import('/js/diagram.js');
 check('Open closes the dialog and leaves the Read screen for Setup', !setup.modal && !/read/.test(setup.screen), setup);
 await shot('en-light-4-setup');
 const samplesAfter = await sampleCount();
-check(`Open taught the book: ${samplesBefore} piece samples before, ${samplesAfter} after`, samplesAfter > samplesBefore);
+// v139: ONE confirmed diagram only HOLDS its new shapes; they count once a second diagram agrees.
+check(`Open stored the lesson without trusting it yet: piece samples ${samplesBefore.samples} -> ${samplesAfter.samples}, shapes held ${samplesBefore.held} -> ${samplesAfter.held}`, samplesAfter.samples === samplesBefore.samples && samplesBefore.held === 0 && samplesAfter.held > 0);
 await load('en', 'light');
 await openBook();
 const again = (await longPress('en-light-5-after-learning')).down;
-check(`the same diagram pressed again is now read whole: ${again.grid.filter(Boolean).length} of ${real}, none wrong, none marked`, JSON.stringify(again.grid) === JSON.stringify(truth) && again.doubt === 0 && again.note === '');
+check(`the same diagram pressed again reads exactly as before (${again.grid.filter(Boolean).length} of ${real}, the same square still marked), nothing wrong: one diagram is not two`, JSON.stringify(again.grid) === JSON.stringify(fin.down.grid) && again.grid.every((c, i) => !c || c === truth[i]) && again.doubt === fin.down.doubt && again.note === fin.down.note, { was: fin.down.grid.join(''), now: again.grid.join(''), marked: [fin.down.doubt, again.doubt] });
 await killModals();
 check('no page errors', errors.length === 0, errors.slice(0, 3));
 

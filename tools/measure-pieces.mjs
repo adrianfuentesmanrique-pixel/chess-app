@@ -19,9 +19,12 @@
 //     emptied an impossible position; LIST=1 names every wrong square,
 //     LIST=all also every real piece left empty, with its numbers.
 //     env LEARN=1 measures learning: one more diagram is confirmed after the
-//     teaching one, then the others are read.
+//     teaching one, then the others are read. LEARN=2 confirms TWO more (the
+//     extra one and the next diagram of the book) — since v139 a new shape
+//     counts only once two diagrams agree, so this is the run that shows learning.
 //     env POISON=swap|colour|forgot|one (with LEARN=1) confirms that extra diagram
 //     WRONG, to check that a bad confirmation cannot make the book place wrong pieces.
+//     With LEARN=2 only the first lesson is wrong; POISON_BOTH=1 makes both wrong.
 //     ('swap' leaves a board with no kings unless it holds both queens; the app's
 //     dialog and learnFromCells both refuse that, so 'one' is the test that bites.)
 //     env STRICT='{"full":{"match":0.1}}' tries other thresholds.
@@ -164,27 +167,32 @@ if (MODE === 'find') {
     // as a confirmed correction (every choice of it in turn), then the rest are read.
     const known = book.diagrams.filter(d => feats[book.name + '/' + d.id]);
     const plans = [];
-    for (const teach of known.filter(d => d.teach)) for (const extra of process.env.LEARN ? known.filter(d => d !== teach) : [null]) plans.push({ teach, extra });
-    for (const { teach, extra } of plans) {
+    for (const teach of known.filter(d => d.teach)) for (const extra of process.env.LEARN ? known.filter(d => d !== teach) : [null]) {
+      // LEARN=2: the second lesson is the next diagram of the book after the first.
+      const rest = known.filter(d => d !== teach), extra2 = process.env.LEARN === '2' && rest.length > 1 ? rest[(rest.indexOf(extra) + 1) % rest.length] : null;
+      plans.push({ teach, extra, extra2 });
+    }
+    for (const { teach, extra, extra2 } of plans) {
       const tm = D.templatesFromCells(cellsOf(book.name + '/' + teach.id), fenGrid(teach.fen));
-      if (extra) {
+      for (const [li, lesson] of [extra, extra2].entries()) if (lesson) {
+        const extra = lesson, POISON = li && !process.env.POISON_BOTH ? '' : process.env.POISON;
         // POISON: the extra diagram is confirmed WRONG — 'swap' calls kings queens and
         // bishops pawns (and back), 'colour' flips every piece's colour, 'forgot'
         // leaves every second piece off the board.
         let g = fenGrid(extra.fen), k = 0;
         const sw = { k: 'q', q: 'k', b: 'p', p: 'b' }, flip = c => c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase();
-        if (process.env.POISON === 'swap') g = g.map(r => r.map(c => { const x = sw[c.toLowerCase()]; return !c || !x ? c : c === c.toUpperCase() ? x.toUpperCase() : x; }));
-        if (process.env.POISON === 'colour') g = g.map(r => r.map(c => c ? flip(c) : c));
-        if (process.env.POISON === 'forgot') g = g.map(r => r.map(c => c && !'kK'.includes(c) && k++ % 2 ? '' : c));
+        if (POISON === 'swap') g = g.map(r => r.map(c => { const x = sw[c.toLowerCase()]; return !c || !x ? c : c === c.toUpperCase() ? x.toUpperCase() : x; }));
+        if (POISON === 'colour') g = g.map(r => r.map(c => c ? flip(c) : c));
+        if (POISON === 'forgot') g = g.map(r => r.map(c => c && !'kK'.includes(c) && k++ % 2 ? '' : c));
         // 'one': a single slip — the first piece that is not a king is confirmed as
         // another type (a pawn as a knight, anything else as a pawn). Kings stay, so
         // the lesson is one the app's dialog would accept.
-        if (process.env.POISON === 'one') g = g.map(r => r.map(c => { if (!c || 'kK'.includes(c) || k++) return c; const x = c.toLowerCase() === 'p' ? 'n' : 'p'; return c === c.toUpperCase() ? x.toUpperCase() : x; }));
+        if (POISON === 'one') g = g.map(r => r.map(c => { if (!c || 'kK'.includes(c) || k++) return c; const x = c.toLowerCase() === 'p' ? 'n' : 'p'; return c === c.toUpperCase() ? x.toUpperCase() : x; }));
         const rep = D.learnFromCells(tm, cellsOf(book.name + '/' + extra.id), g);
         tot.lessons = (tot.lessons || 0) + 1; if (rep.learned) tot.took = (tot.took || 0) + 1;
       }
       for (const d of book.diagrams) {
-        if (d === teach || d === extra || !feats[book.name + '/' + d.id]) continue;
+        if (d === teach || d === extra || d === extra2 || !feats[book.name + '/' + d.id]) continue;
         const res = D.classifyCells(cellsOf(book.name + '/' + d.id), tm), truth = fenGrid(d.fen);
         tot.pairs++; if (res.refused) tot.gated++;
         for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {

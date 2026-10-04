@@ -149,7 +149,7 @@ test('boardSanity: what a real game can and cannot produce', () => {
   assert.equal(boardSanity(rooks), 'too-many');
 });
 
-test('templates keep samples, skip near-copies, and learn a new piece from a confirmed position', () => {
+test('templates keep samples, skip near-copies, and learn a new piece once TWO diagrams agree on it', () => {
   assert.equal(PARTIAL.ver, 4);
   assert.deepEqual(Object.keys(PARTIAL.samples).sort(), ['K', 'P', 'R', 'k', 'p', 'r']);
   assert.equal(PARTIAL.samples.K.length, 1);
@@ -158,12 +158,18 @@ test('templates keep samples, skip near-copies, and learn a new piece from a con
   const t = JSON.parse(JSON.stringify(PARTIAL));   // as it comes back from storage
   const withQueen = put({ e1: 'K', e8: 'k', d5: 'Q', c3: 'b', f6: 'N' });
   const rep = learnFromCells(t, cellsFor(withQueen), withQueen);
-  assert.equal(rep.learned, true);
+  assert.equal(rep.learned, true, 'something was stored, so the book is saved');
   assert.equal(rep.contradictions, 0);
+  assert.equal(rep.held, 3);
   assert.equal(t.samples.K.length, 1, 'the king it already knew adds nothing');
-  assert.equal(t.samples.Q.length, 1);
-  // all six types are known now, so a later queen is read
+  assert.equal(t.samples.Q, undefined, 'one diagram is not enough');
   const later = put({ g1: 'K', g8: 'k', a4: 'q', h4: 'n', b2: 'B' });
+  assert.deepEqual(classifyCells(cellsFor(later), t).grid, put({ g1: 'K', g8: 'k' }), 'held shapes read nothing');
+  const again = put({ a1: 'K', a8: 'k', h5: 'Q', g3: 'b', b6: 'N' });   // a second, different diagram
+  assert.equal(learnFromCells(t, cellsFor(again), again).held, 0);
+  assert.equal(t.samples.Q.length, 1);
+  assert.deepEqual(t.pending, {}, 'nothing is left waiting');
+  // all six types are known now, so a later queen is read
   const res = classifyCells(cellsFor(later), t);
   assert.deepEqual(res.grid, later);
 });
@@ -172,8 +178,10 @@ test('learned samples rotate, 12 per piece; what was TAUGHT is never pushed out'
   const t = JSON.parse(JSON.stringify(PARTIAL));
   const taught = JSON.stringify(t.samples.P[0]);
   for (let i = 0; i < 30; i++) {
-    const g = put({ e1: 'K', e8: 'k', d4: 'P' });
-    learnFromCells(t, cellsFor(g, { '4,3': { feat: glyph(200 + i), lumStd: 60, colorScore: WHITE } }), g);
+    const cell = { feat: glyph(200 + i), lumStd: 60, colorScore: WHITE };
+    const g = put({ e1: 'K', e8: 'k', d4: 'P' }), g2 = put({ e1: 'K', e8: 'k', d5: 'P' });   // each shape on two diagrams
+    learnFromCells(t, cellsFor(g, { '4,3': cell }), g);
+    learnFromCells(t, cellsFor(g2, { '3,3': cell }), g2);
   }
   assert.equal(t.samples.P.length, 13);
   assert.equal(JSON.stringify(t.samples.P[0]), taught);
@@ -277,9 +285,61 @@ test('a book taught before v137 is upgraded on its first lesson and keeps its ol
   const t = { n: N, ver: 3, pieces, empties: { 0: PARTIAL.empties[0][0], 1: PARTIAL.empties[1][0] }, emptyThresh: PARTIAL.emptyThresh, colorRef: PARTIAL.colorRef };
   const g = put({ e1: 'K', e8: 'k', d5: 'Q', c3: 'b', f6: 'N' });
   assert.equal(learnFromCells(t, cellsFor(g), g).learned, true);
+  const g2 = put({ a1: 'K', a8: 'k', h5: 'Q', g3: 'b', b6: 'N' });
+  assert.equal(learnFromCells(t, cellsFor(g2), g2).learned, true);
   assert.equal(t.ver, 4);
   assert.deepEqual(Object.keys(t.samples).sort(), ['K', 'N', 'P', 'Q', 'R', 'b', 'k', 'p', 'r']);
   assert.deepEqual(classifyCells(cellsFor(g), t).grid, g);
+});
+
+// v139 — ONE slip in a confirmed board (measured as POISON=one: 40 wrong pieces on
+// the hold-out set, 6 on the first). The book has never met this shape, so nothing
+// contradicts "it is a pawn"; only a second diagram saying the same can make it count.
+const ODD = SHAPE.n;                                            // PARTIAL was never taught a knight
+const oddOn = (g, r, c) => cellsFor(g, { [r + ',' + c]: { feat: ODD, lumStd: 60, colorScore: WHITE } });
+test('one piece confirmed as the wrong type on one diagram does not teach the book that shape', () => {
+  const t = JSON.parse(JSON.stringify(PARTIAL));
+  const slip = put({ e1: 'K', e8: 'k', d4: 'P' });              // the thing on d4 is not a pawn
+  learnFromCells(t, oddOn(slip, 4, 3), slip);
+  assert.equal(t.samples.P.length, PARTIAL.samples.P.length, 'nothing was filed under pawn');
+  const later = put({ g1: 'K', g8: 'k', b6: 'P' });
+  assert.equal(classifyCells(oddOn(later, 2, 1), t).grid[2][1], '', 'the same shape later is left empty, not shown as a pawn');
+});
+
+test('the same diagram confirmed twice is still one diagram', () => {
+  const t = JSON.parse(JSON.stringify(PARTIAL));
+  const slip = put({ e1: 'K', e8: 'k', d4: 'P' });
+  learnFromCells(t, oddOn(slip, 4, 3), slip);
+  const rep = learnFromCells(t, oddOn(slip, 4, 3), slip);
+  assert.equal(rep.held, 0);
+  assert.equal(t.pending.P.length, 1);
+  assert.equal(t.samples.P.length, PARTIAL.samples.P.length);
+});
+
+test('a slip that is later confirmed correctly on two diagrams is forgotten, not kept waiting', () => {
+  const t = JSON.parse(JSON.stringify(PARTIAL));
+  const slip = put({ e1: 'K', e8: 'k', d4: 'P' });
+  learnFromCells(t, oddOn(slip, 4, 3), slip);
+  const a = put({ e1: 'K', e8: 'k', c6: 'N' }), b = put({ e1: 'K', e8: 'k', g3: 'N' });
+  learnFromCells(t, oddOn(a, 2, 2), a);
+  learnFromCells(t, oddOn(b, 5, 6), b);
+  assert.equal(t.samples.N.length, 1);
+  assert.equal(t.pending.P, undefined, 'the knight held as a pawn is dropped');
+  const later = put({ g1: 'K', g8: 'k', b6: 'N' });
+  assert.equal(classifyCells(oddOn(later, 2, 1), t).grid[2][1], 'N', 'and the shape now reads as what two diagrams said it is');
+});
+
+test('a book that learned on v137/v138 (learned samples, nothing held) keeps reading and learning', () => {
+  const t = JSON.parse(JSON.stringify(PARTIAL));
+  t.samples.Q = [Array.from(SHAPE.q)]; t.samples.q = [Array.from(SHAPE.q)];   // as v138 stored a learned queen: no anchor, no pending
+  assert.equal(t.pending, undefined);
+  const pos = put({ e1: 'K', e8: 'k', d4: 'Q', a7: 'p' });
+  assert.deepEqual(classifyCells(cellsFor(pos), t).grid, pos);
+  const g = put({ e1: 'K', e8: 'k', c3: 'B' }), g2 = put({ e1: 'K', e8: 'k', f6: 'B' });
+  learnFromCells(t, cellsFor(g), g); learnFromCells(t, cellsFor(g2), g2);
+  assert.equal(t.samples.B.length, 1);
+  assert.equal(t.samples.Q.length, 1, 'what it had learned before is still there');
+  assert.deepEqual(classifyCells(cellsFor(pos), t).grid, pos);
 });
 
 test('templates from before v137 (one average per piece) still read', () => {

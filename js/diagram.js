@@ -870,6 +870,7 @@ export function addToTemplates(t, cells, grid, skip = null, learning = false) {
 //     learned either (a piece the user forgot, or an arrow drawn on the board) —
 //     without counting against the board;
 //   · more than LEARN_MAX_CONTRA contradictions and NOTHING is learned from the board;
+//   · a NEW piece shape counts only once two different diagrams agree on it (v139);
 //   · the first teaching's samples are the anchor and are never dropped.
 // "Re-learn the pieces" in the book menu remains the full reset.
 // Mutates and returns nothing learned as { learned:false }. Legacy (ver 3)
@@ -880,7 +881,7 @@ export function learnFromCells(t, cells, grid) {
   // not a confirmed position, and "kings confirmed as queens" is the one mistake
   // the guards below cannot see in a book that has not met the piece yet.
   const flat = grid.flat();
-  if (boardSanity(grid) || !flat.includes('K') || !flat.includes('k')) return { learned: false, added: 0, contradictions: 0, skipped: 0 };
+  if (boardSanity(grid) || !flat.includes('K') || !flat.includes('k')) return { learned: false, added: 0, contradictions: 0, skipped: 0, held: 0 };
   if (!t.samples) {
     const samples = {}, base = { samples: {}, empties: { 0: 0, 1: 0 } }, empties = { 0: [], 1: [] };
     for (const code of Object.keys(t.pieces)) { samples[code] = [t.pieces[code]]; base.samples[code] = 1; }
@@ -915,10 +916,54 @@ export function learnFromCells(t, cells, grid) {
     }
     skip.push(row);
   }
-  if (contradictions > LEARN_MAX_CONTRA) return { learned: false, added: 0, contradictions, skipped };
+  if (contradictions > LEARN_MAX_CONTRA) return { learned: false, added: 0, contradictions, skipped, held: 0 };
+  // TWO DIAGRAMS (v139). A new piece shape is HELD in t.pending and reads nothing
+  // until a second, different diagram confirms the same shape under the same
+  // code; then both become samples. A slip is one square on one board, so it
+  // waits there for an agreement that does not come. Empty squares are still
+  // learned at once: a wrong empty sample can only leave a square empty.
+  const sig = boardSig(grid), pend = t.pending || (t.pending = {});
+  let held = 0, promoted = 0;
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const code = grid[r][c];
+    if (!code || skip[r][c]) continue;
+    const feat = cells[r * 8 + c].feat;
+    if ((t.samples[code] || []).some(s => cosDist(feat, s) < SAME)) continue;   // known already
+    const list = pend[code] || (pend[code] = []);
+    const slid = [];
+    for (let dy = -STRICT.shift; dy <= STRICT.shift; dy++) for (let dx = -STRICT.shift; dx <= STRICT.shift; dx++) slid.push(dx || dy ? shiftFeat(feat, dx, dy) : feat);
+    const gap = v => { let m = Infinity; for (const s of slid) { const d = cosDist(s, v); if (d < m) m = d; } return m; };
+    const mate = list.findIndex(p => p.s !== sig && gap(p.v) <= LEARN_AGREE);
+    if (mate < 0) {
+      skip[r][c] = true;
+      if (!list.some(p => p.s === sig && gap(p.v) < SAME)) {   // the same diagram confirmed again adds nothing
+        list.push({ v: Array.from(feat, v => Math.round(v * 1e4) / 1e4), s: sig });
+        if (list.length > PEND_CAP) list.shift();
+        held++;
+      }
+      continue;
+    }
+    // Agreed: the held shape becomes a sample (the square itself is added below),
+    // and the same shape held under any OTHER type is dropped — that was the slip.
+    const [p] = list.splice(mate, 1), own = t.samples[code] || (t.samples[code] = []), anchored = (t.base && t.base.samples[code]) || 0;
+    own.push(p.v); promoted++;
+    if (own.length - anchored > CAP) own.splice(anchored, 1);
+    for (const other of Object.keys(pend)) if (other.toLowerCase() !== code.toLowerCase()) pend[other] = pend[other].filter(x => gap(x.v) > LEARN_AGREE);
+  }
+  for (const code of Object.keys(pend)) if (!pend[code].length) delete pend[code];
   addToTemplates(t, cells, grid, skip, true);
-  return { learned: t.lastAdded > 0, added: t.lastAdded, contradictions, skipped };
+  const added = t.lastAdded + promoted;
+  return { learned: added > 0 || held > 0, added, contradictions, skipped, held };
 }
+
+// LEARN_AGREE: how close two confirmed squares must be to count as the same shape.
+// Fitted on BOTH truth files (they are no longer unseen for it): over all five
+// books the nearest square of ANOTHER type on another diagram was never closer
+// than 0.038 (FCE), while the nearest of the same piece was within 0.025 for
+// most squares. A diagram is told from another by which squares are occupied.
+export const LEARN_AGREE = 0.025;
+const PEND_CAP = 8;
+const boardSig = grid => grid.map(row => row.reduce((b, c) => b * 2 + (c ? 1 : 0), 0).toString(36)).join('.');
 
 // ── classification ──────────────────────────────────────────────────────────
 // STRICT PLACEMENT (v137). A piece is shown only when the reader is SURE of it;
