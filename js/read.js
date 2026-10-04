@@ -1079,6 +1079,14 @@ async function teachPieces(img, board, canvas, opts = {}) {
     box.append(boardWrap);
     if (note) box.append(note);
     box.append(pal);
+    // Review only: since v139 one corrected diagram is HELD, not trusted, so the
+    // same diagram pressed again reads as before. Say so, or it looks broken.
+    if (review) {
+      const learn = document.createElement('p');
+      learn.className = 'hint read-teach-learn';
+      learn.textContent = t('read_review_learn');
+      box.append(learn);
+    }
 
     const row = document.createElement('div'); row.className = 'row';
     const done = document.createElement('button');

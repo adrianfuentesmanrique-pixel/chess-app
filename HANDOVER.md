@@ -81,9 +81,28 @@
     Whether that is wanted is Adrian's call.
 
 - **READ TAB — v139 "TWO DIAGRAMS MUST AGREE" MEASURED OVER 1–6 LESSONS AND WITH
-  THE SAME SLIP MADE TWICE (2026-10-04). MEASUREMENT ONLY — THE APP IS UNCHANGED,
-  `sw.js` stays v139.** Committed on `main`, NOT pushed. Only
-  `tools/measure-pieces.mjs` changed: `LEARN=N` (any N), `NOLEARN=1` (same reads,
+  THE SAME SLIP MADE TWICE; ADRIAN CHOSE (a)+(c): THE RULE STAYS, THE DIALOG NOW
+  SAYS SO (2026-10-04).** Two commits on `main`, NOT pushed, NOT deployed.
+  `sw.js` v140 → **v141** (v140 is another session's pre-move work).
+  - **(c) built:** "Check the position" (review mode only, not "Teach me the
+    pieces") shows one small line under the piece palette — i18n
+    `read_review_learn`: EN "A correction counts once a second diagram of this
+    book agrees." / ES "Una corrección cuenta cuando un segundo diagrama de este
+    libro coincide." `js/read.js` (`teachPieces`), `js/i18n.js`,
+    `css/style.css` (`.read-teach-learn`). It is static text: it does not say
+    how many shapes are waiting. "Clear board" leaves it in place.
+  - **(b) three diagrams NOT built** — Adrian's choice, on the numbers below.
+  - **Verified for (c):** `test:tree` 93/93 (no unit test added: the change is
+    one line of dialog text). Headless CDP at 375px, EN/ES × light/dark:
+    `cdp-verify-pieces` **55/55** (47 + 2 new per language/theme: the line is
+    there in the right language and inside the dialog, and it survives "Clear
+    board"; both need the new element, so they fail on v139 by construction — not
+    run against v139). REAL long-press and taps; SEEDED: the book and templates.
+    `cdp-verify-hatched` **92/92** (last argument 17). `cdp-verify-stage2` exit 0
+    on the second run and on a run without the change; the FIRST run failed at
+    `teachOpen` ("no board there" after the long-press) — a one-off, not
+    reproduced, cause not found. es/dark screenshot looked at by eye.
+  - **The measurement** — `tools/measure-pieces.mjs` gained: `LEARN=N` (any N), `NOLEARN=1` (same reads,
   no lessons), `POISON=same` (+ `SLIP_TO=`), `JSON_OUT=`/`TAG=`.
   - **Learning speed — pieces read correctly, before the gate, clean lessons.**
     Each column is the same reads for all three lines. Hold-out (5 books; Silman
@@ -141,9 +160,8 @@
     anything→pawn (`SLIP_TO=` exists, not run); the same slip on DIFFERENT square
     shades; lessons in an order other than book order; more than 6 lessons; any
     Chess Life issue other than 2026-09; a sixth book; scans or photos; a real phone.
-  - **Verified:** `test:tree` 93/93. The changed tool reproduces v139's 77.5%
-    (hold-out, 2 lessons). No app change, so no CDP run, no `sw.js` bump. Nothing
-    tapped: real `classifyCells`/`learnFromCells` in Node on squares measured in
+  - **Measurement verified:** the changed tool reproduces v139's 77.5%
+    (hold-out, 2 lessons). Nothing tapped: real `classifyCells`/`learnFromCells` in Node on squares measured in
     headless Chrome by the v139 session (features reused).
   - Run: `LEARN=4 POISON=same NOGATE=1 REUSE=1 node tools/measure-pieces.mjs measure <outDir> tools/fixtures/piece-truth-holdout.json`
     (2–6 minutes each at 3–6 lessons).

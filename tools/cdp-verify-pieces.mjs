@@ -147,6 +147,7 @@ const dialog = () => evalP(`
   const box = m.getBoundingClientRect(), note = m.querySelector('.read-teach-note');
   const btns = [...m.querySelectorAll('.row button')].map(b => { const r = b.getBoundingClientRect(); return { text: b.textContent.trim(), inside: r.left >= box.left - 0.5 && r.right <= box.right + 0.5, clipped: b.scrollWidth > b.clientWidth + 1 }; });
   return { title: m.querySelector('h3').textContent, grid: cells.map(c => { const i = c.querySelector('img'); return i ? code(i.getAttribute('src')) : ''; }),
+    learn: (l => { if (!l) return null; const r = l.getBoundingClientRect(); return { text: l.textContent, inside: r.left >= box.left - 0.5 && r.right <= box.right + 0.5 && r.bottom <= box.bottom + 0.5 }; })(m.querySelector('.read-teach-learn')),
     doubt: cells.filter(c => c.classList.contains('doubt')).length, note: note ? note.textContent : '', noteInside: !note || note.getBoundingClientRect().right <= box.right + 0.5,
     btns, wide: m.scrollWidth > m.clientWidth + 1, onScreen: box.left >= 0 && box.right <= 375.5 && box.bottom <= 812.5 };`);
 const tapEl = async (expr, ms = 500) => {
@@ -205,6 +206,8 @@ for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], 
   const wrong = down.grid.filter((c, i) => c && c !== truth[i]).length, shown = down.grid.filter(Boolean).length, left = real - (shown - wrong);
   check(`${tag}: NO wrong piece on the board (${shown} shown of ${real} real, ${left} left empty)`, wrong === 0 && shown > 0, down.grid.map((c, i) => c && c !== truth[i] ? `${'abcdefgh'[i % 8]}${8 - (i >> 3)}:${c}` : '').filter(Boolean).join(' '));
   check(`${tag}: no empty square is marked as doubtful; the note counts the marks (${down.doubt})`, down.doubt <= left && (down.doubt === 0 ? down.note === '' : down.note === (await evalP(`return (await import('/js/i18n.js')).tn('read_review_doubt', ${down.doubt});`))), { doubt: down.doubt, note: down.note });
+  // v141: the dialog says a correction counts after a second diagram (v139's rule).
+  check(`${tag}: the dialog says "${await tr('read_review_learn')}", inside the dialog`, !!up.learn && up.learn.text === await tr('read_review_learn') && up.learn.inside, up.learn);
   const clearText = await tr('clear_board');
   check(`${tag}: three buttons, "${clearText}" in the middle, none clipped or outside the dialog`, up.btns.length === 3 && up.btns[1].text === clearText && up.btns.every(b => b.inside && !b.clipped) && !up.wide && up.onScreen, up.btns);
   // tap a marked or empty square: the selected white pawn lands, its mark goes
@@ -217,6 +220,7 @@ for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], 
   const cleared = await dialog();
   await shot(`${lang}-${scheme}-2-cleared`);
   check(`${tag}: "${clearText}" empties all 64 squares, the marks and the note in one tap`, cleared.grid.every(c => !c) && cleared.doubt === 0 && cleared.note === '');
+  check(`${tag}: ...and the line about the second diagram stays`, !!cleared.learn && cleared.learn.inside);
   await tapEl(`[...m.querySelectorAll('.row button')][0]`);
   const stillOpen = await dialog();
   const toast = await evalP(`const e = document.getElementById('toast'); return e.classList.contains('hidden') ? '' : e.textContent.trim();`);

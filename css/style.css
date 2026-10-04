@@ -1782,6 +1782,7 @@ body.read-immersive #read-fullscreen { color: var(--accent, var(--text)); }
   background: var(--gold-bg); color: var(--text); border-radius: var(--radius);
   padding: 8px 12px; font-size: 13px; margin: 8px 0 0;
 }
+.read-teach-learn { font-size: 12px; text-align: center; margin: 2px 0 0; }
 .read-teach-pal {
   display: flex; flex-wrap: wrap; gap: 5px;
   margin: 10px 0 4px; justify-content: center;
