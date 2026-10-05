@@ -329,6 +329,39 @@ test('a slip that is later confirmed correctly on two diagrams is forgotten, not
   assert.equal(classifyCells(oddOn(later, 2, 1), t).grid[2][1], 'N', 'and the shape now reads as what two diagrams said it is');
 });
 
+// A HELD SHAPE OF ANOTHER TYPE IS A RIVAL (v143). Hold-out set, FCE p150b f8: a
+// black bishop the book had not learned yet read as a pawn (0.055 off, every
+// taught type far behind) — while a bishop confirmed once was waiting in pending.
+// NEARP reads as a pawn in PARTIAL; HELDB is the same thing a little further from
+// the pawn, far enough to be held when confirmed as a bishop.
+const towards = (from, to, lo, hi) => { let f, d = 0; for (let w = 0.02; d < lo; w += 0.005) { f = mix(from, to, w); d = dist(f, from); } assert.ok(d < hi, `test glyph is ${d.toFixed(3)} off`); return f; };
+const NEARP = towards(SHAPE.p, SHAPE.b, 0.04, STRICT.partial.match), HELDB = towards(SHAPE.p, SHAPE.b, 0.075, 0.1);
+const blackOn = (g, r, c, feat) => cellsFor(g, { [r + ',' + c]: { feat, lumStd: 60, colorScore: BLACK } });
+const READ = put({ g1: 'K', g8: 'k', b6: 'p' });
+test('a held shape of another type empties the square while the book is short of six types', () => {
+  const t = JSON.parse(JSON.stringify(PARTIAL));
+  assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), t).grid[2][1], 'p', 'with nothing held it reads as the taught look-alike');
+  const lesson = put({ e1: 'K', e8: 'k', c5: 'b' });
+  assert.equal(learnFromCells(t, blackOn(lesson, 3, 2, HELDB), lesson).held, 1);
+  assert.equal(t.samples.b, undefined, 'one diagram: the bishop is held, not learned');
+  const res = classifyCells(blackOn(READ, 2, 1, NEARP), t);
+  assert.equal(res.grid[2][1], '');
+  assert.equal(res.doubt[2][1], true);
+  assert.equal(res.grid[0][6], 'k');           // the rest of the board is untouched
+});
+
+test('the same held shape does nothing in a book that knows all six types', () => {
+  const t = JSON.parse(JSON.stringify(FULL));
+  t.pending = { n: [{ v: Array.from(HELDB), s: 'x' }] };
+  assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), t).grid[2][1], 'p');
+});
+
+test('a held shape of the SAME type does nothing', () => {
+  const t = JSON.parse(JSON.stringify(PARTIAL));
+  t.pending = { P: [{ v: Array.from(HELDB), s: 'x' }] };
+  assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), t).grid[2][1], 'p');
+});
+
 test('a book that learned on v137/v138 (learned samples, nothing held) keeps reading and learning', () => {
   const t = JSON.parse(JSON.stringify(PARTIAL));
   t.samples.Q = [Array.from(SHAPE.q)]; t.samples.q = [Array.from(SHAPE.q)];   // as v138 stored a learned queen: no anchor, no pending

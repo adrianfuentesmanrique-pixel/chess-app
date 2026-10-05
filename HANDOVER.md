@@ -2,6 +2,69 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — "A HELD SHAPE OF ANOTHER TYPE IS A RIVAL" BUILT (v143); AND A NEW
+  DEFECT FOUND PAST 6 LESSONS, NOT FIXED (2026-10-04).** `sw.js` v142 → **v143**.
+  Changed: `js/diagram.js` (`modelOf` returns `held`, `nearest` returns `byHeld`,
+  one line in `classifyCells`, only while `types.size < 6`; `learnFromCells`
+  untouched), `tests/unit/diagram.test.js` (+3, 31 tests). Committed on `main`,
+  NOT pushed, NOT deployed. **Not tested on a real phone.**
+  - **Tests.** `test:tree` 96/96. Of the three new tests only the first can fail
+    on the old code (it did: read `p`, expected empty). The other two are guards:
+    each was checked to fail against the wrong form it guards (rule applied to a
+    six-type book; rival not excluding the chosen type), on throwaway copies.
+  - **Re-measured, both sets rendered afresh in headless Chrome, clean lessons,
+    before the gate — matches the entry below exactly.**
+
+    | hold-out, lessons | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+    |---|---|---|---|---|---|---|---|
+    | v139 wrong | 0 | 0 | 0 | 1 | 1 | 1 | 1 |
+    | v143 wrong | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+    | v139 correct | 73.9% | 75.4% | 77.5% | 79.2% | 80.2% | 81.5% | 83.1% |
+    | v143 correct | 73.9% | 75.2% | 77.3% | 78.9% | 79.8% | 81.0% | 82.5% |
+
+    | first set, lessons | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+    |---|---|---|---|---|---|---|---|
+    | v139 / v143 wrong | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+    | v139 correct | 77.0% | 76.4% | 77.6% | 78.6% | 80.7% | 81.6% | 82.6% |
+    | v143 correct | 77.0% | 76.3% | 77.5% | 78.4% | 80.5% | 81.4% | 82.3% |
+
+    `POISON=same` (v143, wrong before the gate, 2/3/4/6 lessons): hold-out
+    9 / 8 / 7 / 4, slips accepted 5/5/5/3 of 118; first set 5 / 4 / 4 / 0, 1/1/1/0
+    of 52. **The rule still does NOT fix the repeated slip.** `POISON=one` (1, 3)
+    and `POISON=one POISON_BOTH=1` (3, 6): 0 wrong on both sets.
+  - **`PEND_CAP` full — measured, nothing decided.** The cap is not a rare event:
+    held shapes are pushed out from 2 lessons on (hold-out, summed over all
+    plans: 38 drops at 2 lessons, 224 at 4, 450 at 6, 866 at 10). Compared against
+    a copy that never drops (`PEND_CAP` 1000) at 1–10 lessons: **wrong pieces
+    identical at every lesson count on both sets**; correct pieces within 3 on the
+    hold-out, and the real cap 8 is BETTER on the first set (1430 vs 1416 at 6
+    lessons). **f8 does not come back**: 0 at 7, 8, 9, 10 lessons (v139 still had
+    it at 7 and 8), and not even with the cap forced down to 2.
+  - **NEW DEFECT, IN v139 AND v143 ALIKE, NOT FIXED: a black pawn SHOWN as a black
+    rook at 7 and 8 lessons.** FCE taught from p350, lessons
+    p200a+p200b+p250+p300+p380+p70+p100a(+p100b): p150a **h6** and p150b **d6**,
+    `r` for `p`, d1 0.071 / 0.074, lead 0.073 / 0.061, clear 0.064 / 0.057. The
+    book knows all six types by then, so `STRICT.full` applies (match 0.13, lead
+    0.06) and the new rule is not in play. **The gate does not catch it — these
+    two are shown to the user.** One lesson order out of 11; in the other orders
+    the same squares read `p` or empty. 0 at 9 and 10 lessons (few reads: 162,
+    66). First set: 0 at 7 lessons. Why the pawn sits nearer a rook sample than
+    any pawn sample: NOT looked at. Nobody had run more than 6 lessons before.
+  - **Verified (headless CDP, 375px, EN/ES × light/dark):** `cdp-verify-pieces`
+    **55/55**, `cdp-verify-hatched` **92/92** (last argument 17),
+    `cdp-verify-stage2` exit 0 first try (preview server on 8743). REALLY TAPPED:
+    what those tools tap (long-presses, Clear board, a square, Open). SEEDED: the
+    books and their templates, as before. **No browser check exercises the new
+    rule itself** — it is covered by the unit tests and the Node measurement on
+    squares measured in Chrome.
+  - **STILL UNMEASURED:** the rook-for-pawn defect above (cause, and how often in
+    other orders/books); `SLIP_TO=` other types; the same slip on different
+    square shades; lessons in another order than book order; more than 10
+    lessons, and 7+ on Silman (7 diagrams — too few); a Chess Life issue other
+    than 2026-09; a sixth book; scans or photos; a real phone. Both truth files
+    are fitted, neither is unseen.
+  - Run: `LEARN=7 REUSE=1 NOGATE=1 LIST=1 DUMP=<file> node tools/measure-pieces.mjs measure <outDir> tools/fixtures/piece-truth-holdout.json`
+
 - **READ TAB — THE "UNLEARNED PIECE READ AS A LEARNED ONE" HOLE MEASURED; ONE RULE
   PROPOSED AND MEASURED; NOTHING BUILT — ADRIAN WAS NOT THERE TO CHOOSE
   (2026-10-04).** Tool only: `tools/measure-pieces.mjs` gained `DUMP=<file>` (one

@@ -1034,7 +1034,11 @@ function modelOf(templates) {
     const e = templates.empties[p];
     if (e) for (const v of (templates.samples ? e : [e])) empVec[p].push(Float32Array.from(v));
   }
-  return { pieces, types, empVec };
+  // Shapes confirmed on one diagram only, still waiting for a second (see
+  // learnFromCells). They never place a piece; classifyCells counts them as rivals.
+  const held = [];
+  for (const code of Object.keys(templates.pending || {})) for (const p of templates.pending[code]) held.push({ type: code.toLowerCase(), vec: Float32Array.from(p.v) });
+  return { pieces, types, empVec, held };
 }
 
 // One square against the model: the distance to the nearest sample of each TYPE
@@ -1045,9 +1049,11 @@ function modelOf(templates) {
 function nearest(feat, model, par) {
   const emps = model.empVec[par];
   const byType = {}, byColour = {};   // byColour: type → [nearest white, nearest black]
+  const byHeld = {};                  // type → nearest shape still held in pending
   let dEmp = emps.length ? Infinity : null;
   for (let dy = -STRICT.shift; dy <= STRICT.shift; dy++) for (let dx = -STRICT.shift; dx <= STRICT.shift; dx++) {
     const v = dx || dy ? shiftFeat(feat, dx, dy) : feat;
+    for (const p of model.held) { const d = cosDist(v, p.vec); if (!(p.type in byHeld) || d < byHeld[p.type]) byHeld[p.type] = d; }
     for (const p of model.pieces) {
       const d = cosDist(v, p.vec);
       if (!(p.type in byType) || d < byType[p.type]) byType[p.type] = d;
@@ -1056,7 +1062,7 @@ function nearest(feat, model, par) {
     }
     for (const e of emps) { const d = cosDist(v, e); if (d < dEmp) dEmp = d; }
   }
-  return { byType, byColour, dEmp };
+  return { byType, byColour, byHeld, dEmp };
 }
 
 export function classifyCells(cells, templates, turn = 'w') {
@@ -1074,13 +1080,21 @@ export function classifyCells(cells, templates, turn = 'w') {
     const row = [], drow = [];
     for (let c = 0; c < 8; c++) {
       const { feat, lumStd, colorScore } = cells[r * 8 + c];
-      const { byType, byColour, dEmp } = nearest(feat, model, (r + c) % 2);
+      const { byType, byColour, byHeld, dEmp } = nearest(feat, model, (r + c) % 2);
       let type = '', d1 = Infinity, d2 = Infinity;
       for (const ty of Object.keys(byType)) {
         const d = byType[ty];
         if (d < d1) { d2 = d1; d1 = d; type = ty; }
         else if (d < d2) d2 = d;
       }
+      // A HELD SHAPE OF ANOTHER TYPE IS A RIVAL (v143), only while the book is short
+      // of six types: a piece it has not learned yet can sit within `match` of a
+      // taught one with every taught type far behind (hold-out, FCE p150b f8: a
+      // black bishop read as a pawn). If that piece was confirmed even once, its
+      // held shape is the runner-up. It can only empty a square, never place a
+      // piece. NOT for a book that knows all six: measured, that loses 97-156
+      // correct pieces per column and prevents nothing.
+      if (types.size < 6) for (const ty of Object.keys(byHeld)) if (ty !== type && byHeld[ty] < d2) d2 = byHeld[ty];
       // Plainly empty: the cell sits at least as close to its colour's empty
       // pattern as to any piece (hatched or not). Legacy templates and colours
       // with no empty pattern fall back to the luminance-spread threshold.
