@@ -988,6 +988,10 @@ const boardSig = grid => grid.map(row => row.reduce((b, c) => b * 2 + (c ? 1 : 0
 //          book's white and black fills) to one side of their midpoint.
 // `full` applies once a book has been taught all six piece types, `partial`
 // until then (see classifyCells).
+// v143 / v145: a shape confirmed on one diagram only (held, see learnFromCells)
+// never places a piece but can empty a square — as the runner-up while the book
+// is short of six types, and in a six-type book only when it is of another type
+// and NEARER than the winner. Neither changed a number below.
 export const STRICT = {
   shift: 2,
   full:    { match: 0.13, lead: 0.06, clear: 0.01, band: 0.10 },
@@ -1094,7 +1098,18 @@ export function classifyCells(cells, templates, turn = 'w') {
       // held shape is the runner-up. It can only empty a square, never place a
       // piece. NOT for a book that knows all six: measured, that loses 97-156
       // correct pieces per column and prevents nothing.
-      if (types.size < 6) for (const ty of Object.keys(byHeld)) if (ty !== type && byHeld[ty] < d2) d2 = byHeld[ty];
+      // IN A SIX-TYPE BOOK ONLY A HELD SHAPE THAT BEATS THE WINNER COUNTS (v145):
+      // one of another type NEARER than the winning piece empties the square
+      // (hold-out, FCE taught from p350, 7 and 8 lessons, p150a h6 and p150b d6: a
+      // dark-square pawn read as a rook 0.07 off, while every dark-square pawn the
+      // book had been shown, 0.02-0.045 off, was still held). A held shape merely
+      // close behind the winner still counts for nothing — that is the rule above,
+      // and it stays off. Cost measured: 2 correct pieces at 1 lesson on the first
+      // set, none anywhere else. It treats the symptom: "six types" is counted
+      // without regard to square shade, and that stands.
+      // The braces matter: without them the `else` binds to the inner `if`.
+      if (types.size < 6) { for (const ty of Object.keys(byHeld)) if (ty !== type && byHeld[ty] < d2) d2 = byHeld[ty]; }
+      else { for (const ty of Object.keys(byHeld)) if (ty !== type && byHeld[ty] < d1) d2 = d1; }
       // Plainly empty: the cell sits at least as close to its colour's empty
       // pattern as to any piece (hatched or not). Legacy templates and colours
       // with no empty pattern fall back to the luminance-spread threshold.

@@ -2,6 +2,71 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — IN A SIX-TYPE BOOK A HELD SHAPE OF ANOTHER TYPE NEARER THAN THE WINNER
+  EMPTIES THE SQUARE (v145, 2026-10-04). BUILT; ADRIAN APPROVED THE COMMIT AFTER
+  SEEING THE SLIPPED-LESSON COST BELOW.** Committed on `main`, NOT pushed, NOT
+  deployed, not tested on a real phone. `sw.js` v144 → **v145** in this commit, put
+  in through the index only: the working copy already said v146 (another session's
+  bump for its own uncommitted `js/app.js` work — theirs, not in this commit). The
+  next free number is **v147** unless that session has moved again — grep first.
+  - **The change** — one line in `classifyCells` (`js/diagram.js`), beside the v143
+    line, BRACES INCLUDED (without them the `else` binds to the inner `if` and the
+    rule is a silent no-op):
+    `if (types.size < 6) { …v143… } else { for (const ty of Object.keys(byHeld)) if (ty !== type && byHeld[ty] < d1) d2 = d1; }`
+    `modelOf`, `nearest`, `learnFromCells`, `PEND_CAP` 8, `LEARN_AGREE` 0.025 and
+    every `STRICT` number are unchanged. It can only empty a square.
+  - **Tests** (`tests/unit/diagram.test.js`, now 33; `test:tree` 98/98): three new —
+    nearer held shape of another type empties (failed on v143: read `p`); nearer
+    held shape of the SAME type does nothing; held shape of another type FURTHER
+    than the winner but inside `lead` does nothing. Each was run against the wrong
+    form it guards (no braces / `ty !== type` dropped / the dead `byHeld < d2`
+    form) in a scratch copy and failed there. The v143 test "the same held shape
+    does nothing in a book that knows all six types" was REMOVED: its made-up held
+    shape sat nearer than the winner, so it asserted the opposite of this rule.
+  - **Clean lessons, before the gate — reproduced exactly.** Hold-out wrong: v143
+    0 at 0–6, 2 at 7, 2 at 8, 0 at 9–10; built 0 at 0–10; correct identical at
+    every count (1187, 10550, 9598, 8532, 7348, 6160, 4947, 3873, 2752, 1613, 738).
+    First set wrong 0 everywhere; correct 3860 → 3858 at 1 lesson, same elsewhere.
+  - **SLIPPED LESSONS — measured for the first time. The rule costs correct pieces
+    when a wrong confirmation is being held.** Correct pieces v143 showed that the
+    rule empties (`NOGATE=1`; v143 correct in brackets):
+
+    | | set | 2 | 4 | 6 | 8 |
+    |---|---|---|---|---|---|
+    | `POISON=one` | first | 20 (3324) | 0 | 0 | 0 |
+    | | hold-out | 1 | 0 | 0 | 0 |
+    | `POISON=one POISON_BOTH=1` | first | 41 (3315) | 57 (2298) | 41 (1360) | 16 (460) |
+    | | hold-out | 1 | 1 | 0 | 0 |
+    | `POISON=same` | first | 11 | 0 | 0 | 0 |
+    | | hold-out | 5 | 0 | 0 | 3 |
+    | `POISON=same POISON_BOTH=1` | first | 11 | 17 | 10 | 6 |
+    | | hold-out | 5 | 10 | 11 | 7 |
+
+    Worst: a slip in EVERY lesson on Chess Life, 1.2–3.5% of correct pieces. One
+    slip in the first lesson: 20 at 2 lessons, nothing from 4 on. Wrong pieces
+    under slips, v143 → built: first set `same` 5 → 0 (2 lessons), 4 → 0 (4),
+    `same`+BOTH 3 → 0 (6); hold-out at 8 lessons `one` 3 → 0, `same` 7 → 3,
+    `same`+BOTH 8 → 6, `one`+BOTH 4 → 4. Hold-out `same` at 2/4/6 lessons: 9/7/4
+    wrong under BOTH versions — the rule does nothing for those. No wrong-colour
+    reads. Totals only: WHICH squares are lost was not listed.
+  - **Verified:** `cdp-verify-pieces` 55/55 (375px, EN/ES × light/dark; really
+    tapped: long-press, Clear board, a square, Open; seeded: the book and its
+    templates). `cdp-verify-hatched` 92/92 (last argument 17). `cdp-verify-stage2`
+    green on the preview server's real port (it failed twice with "Failed to fetch
+    dynamically imported module" while 14 measurement runs had the machine
+    saturated, and passed once they finished — run it on an idle machine).
+  - **STILL UNMEASURED:** the rule once the useful held shape has been pushed out by
+    `PEND_CAP`; which squares the slipped runs lose and whether the gate changes
+    the count; the 4–9 wrong pieces the hold-out still places under `POISON=same`
+    (old, not caused by this rule); lesson orders other than book order; more than
+    10 lessons; FCE as a six-type book beyond 3–6 boards; another shaded-square
+    book at six types; a sixth book; scans; a real phone. Both truth files are
+    fitted, neither is unseen.
+  - **NOT FIXED — the cause.** "Six types known" is counted without regard to
+    square shade, and `LEARN_AGREE` 0.025 is too tight for FCE's dark squares
+    (the same pawn differs 0.030–0.066 between diagrams, so it stays held). This
+    rule only covers the case where the true piece is held and nearer.
+
 - **BLINDFOLD — PEEK DOES NOTHING ONCE THE PUZZLE IS OVER; NO CHECK GLOW WHILE THE
   PIECES ARE HIDDEN (v144, 2026-10-04).** `sw.js` v143 → **v144** in this commit
   (another session had already bumped the working copy to v145 for its own

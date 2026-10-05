@@ -350,15 +350,37 @@ test('a held shape of another type empties the square while the book is short of
   assert.equal(res.grid[0][6], 'k');           // the rest of the board is untouched
 });
 
-test('the same held shape does nothing in a book that knows all six types', () => {
-  const t = JSON.parse(JSON.stringify(FULL));
-  t.pending = { n: [{ v: Array.from(HELDB), s: 'x' }] };
-  assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), t).grid[2][1], 'p');
-});
-
 test('a held shape of the SAME type does nothing', () => {
   const t = JSON.parse(JSON.stringify(PARTIAL));
   t.pending = { P: [{ v: Array.from(HELDB), s: 'x' }] };
+  assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), t).grid[2][1], 'p');
+});
+
+// IN A SIX-TYPE BOOK ONLY A HELD SHAPE THAT BEATS THE WINNER COUNTS (v145).
+// Hold-out set, FCE taught from p350, 7 lessons, p150a h6 and p150b d6: a black
+// pawn on a dark square read as a rook 0.07 off, while the book's dark-square
+// pawns (0.02-0.045 off) were all still held. NEARP reads as a pawn in FULL.
+// HELDN is the very shape on the square, held as a knight; RUNNER is a held
+// shape further off than the pawn but well inside `lead` of it — the zone where
+// the wider rule ("a held shape is a rival in a six-type book too") fired and
+// lost 97-156 correct pieces a column.
+const HELDN = NEARP, RUNNER = towards(NEARP, SHAPE.r, dist(NEARP, SHAPE.p) + 0.015, dist(NEARP, SHAPE.p) + STRICT.full.lead - 0.01);
+const fullHolding = (pending) => Object.assign(JSON.parse(JSON.stringify(FULL)), { pending });
+test('in a six-type book a held shape of another type NEARER than the winner empties the square', () => {
+  assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), fullHolding({})).grid[2][1], 'p', 'with nothing held it reads as the pawn');
+  const res = classifyCells(blackOn(READ, 2, 1, NEARP), fullHolding({ n: [{ v: Array.from(HELDN), s: 'x' }] }));
+  assert.equal(res.grid[2][1], '');
+  assert.equal(res.doubt[2][1], true);
+  assert.equal(res.grid[0][6], 'k');           // the rest of the board is untouched
+});
+
+test('in a six-type book a nearer held shape of the SAME type does nothing', () => {
+  const t = fullHolding({ P: [{ v: Array.from(HELDN), s: 'x' }] });
+  assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), t).grid[2][1], 'p');
+});
+
+test('in a six-type book a held shape of another type FURTHER than the winner does nothing, however close behind', () => {
+  const t = fullHolding({ n: [{ v: Array.from(RUNNER), s: 'x' }] });
   assert.equal(classifyCells(blackOn(READ, 2, 1, NEARP), t).grid[2][1], 'p');
 });
 
