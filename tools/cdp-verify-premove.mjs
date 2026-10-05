@@ -2,10 +2,15 @@
 // Blindfold: a move made while the board is waiting on the opponent must be
 // taken, with no dead time. Dev tool, not shipped.
 //
-//   node tools/cdp-verify-premove.mjs <outDir> [repro]
+//   node tools/cdp-verify-premove.mjs <outDir> [repro|taps|stale]
 //
 // `repro` runs only the Puzzles cases, in one language/theme — the quick way to
 // see which of them fail on a given checkout.
+// `taps` is a different question, asked with real fingers in EN/ES x
+// light/dark: does anything delayed (Show solution, the opponent's reply,
+// Blindfold's countdown, a Rush run's timers) outlive the puzzle or run it was
+// started on? ONE=1 keeps it to EN/light, ONLY=tapsPuzzles|tapsBlind|tapsRush
+// to one mode. `stale` is the same first case CALLED rather than tapped.
 //
 // REALLY TOUCHED (CDP Input.dispatchTouchEvent — a finger down, moved, up):
 // every chess move, tap-tap and drag, and the Next / Peek / Show solution /
@@ -792,8 +797,229 @@ async function otherBoards() {
   }
 }
 
+// ── `taps` mode: nothing delayed may outlive the puzzle it was started on ───
+// REALLY TOUCHED: every chess move and every button (Show solution, Next, Peek,
+// Go, the Puzzles tab, the Rush chip, Rush start). SEEDED: which puzzle the
+// Puzzles cases start on (loadPuzzle), Blindfold's 2 s memorising time, the
+// hint warning marked seen, autoNext off. Blindfold and Rush puzzles are the
+// app's own; Blindfold taps Next until one is long enough for the case.
+const until = async (expr, ms = 6000) => {
+  for (const t0 = Date.now(); Date.now() - t0 < ms;) { if (await evalP(`return !!(${expr});`)) return true; await sleep(40); }
+  return false;
+};
+// Samples the board every 5 ms and counts the instants it would take a touch
+// when it must not.
+const watch = (cond, ms) => evalP(`const T = __t, P = T.app.Puzzles, B = T.app.Blind; let bad = 0; const t0 = performance.now();
+  while (performance.now() - t0 < ${ms}) { if (${cond}) bad++; await new Promise(r => setTimeout(r, 5)); } return bad;`);
+const pzNow = () => evalP(`const P = __t.app.Puzzles; return { id: P.current.id, len: P.current.moves.length, moveIdx: P.moveIdx, failed: P.failedThis, recorded: P.eloRecorded, elo: P.elo, attempts: P.attemptCount,
+  played: P.chess.history().length, shown: P.posHistory.length, live: P.board.interactive, analyze: !document.getElementById('puzzle-analyze').classList.contains('hidden') };`);
+const pzSeed = (minLen, when, cat) => evalP(`const T = __t, P = T.app.Puzzles;
+  const p = [...T.pz.PUZZLES].sort((a, b) => b.moves.length - a.moves.length).find(p => !T.used.has(p.id) && p.moves.length >= ${minLen} && (${!when} || T.fits(T.facts(p), ${JSON.stringify(when || null)}, ${JSON.stringify(cat || null)}, null)));
+  if (!p) return null; T.used.add(p.id); P.loadPuzzle(p); await new Promise(r => setTimeout(r, 900));
+  return { id: p.id, moves: p.moves, pts: T.pts('puzzle-board'), elo: P.elo, attempts: P.attemptCount };`);
+
+async function tapsPuzzles(tag) {
+  // Show solution, then Next while it is still playing
+  let p = await pzSeed(8);
+  await tapEl('#puzzle-solution');
+  const tSol = Date.now();
+  await until(`__t.app.Puzzles.failedThis`);
+  const charged = await pzNow();
+  await tapEl('#puzzle-next');
+  const leftMs = (p.moves.length - 2) * 700 - (Date.now() - tSol);   // solution time still to run when Next was tapped
+  await until(`__t.app.Puzzles.current.id !== ${JSON.stringify(p.id)}`);
+  await sleep(4000);
+  let s = await pzNow();
+  check(`${tag}PUZZLES Show solution + Next: the new puzzle sits at its first move, untouched and uncharged`,
+    leftMs > 700 && s.id !== p.id && s.moveIdx === 1 && s.played === 1 && s.shown === 2 && !s.failed && !s.recorded && s.live && !s.analyze,
+    { solutionStillHadMs: leftMs, newPuzzle: { moveIdx: s.moveIdx, of: s.len, movesPlayed: s.played, charged: s.recorded, live: s.live } });
+  check(`${tag}PUZZLES Show solution + Next: the abandoned puzzle is charged exactly once`,
+    charged.attempts === p.attempts + 1 && charged.recorded && (charged.elo < p.elo || p.elo === 600) && s.attempts === charged.attempts && s.elo === charged.elo,
+    { attempts: [p.attempts, charged.attempts, s.attempts], elo: [p.elo, charged.elo, s.elo].map(x => +x.toFixed(1)) });
+
+  // a solution left alone still plays to the end
+  p = await pzSeed(4);
+  await tapEl('#puzzle-solution');
+  await until(`__t.app.Puzzles.moveIdx >= ${p.moves.length}`, 12000);
+  await sleep(900);
+  s = await pzNow();
+  check(`${tag}PUZZLES a solution left to finish plays to the end`, s.id === p.id && s.moveIdx === s.len && s.played === s.len && s.analyze && s.live && s.attempts === p.attempts + 1, s);
+
+  // Next inside the 0.4 s before the opponent's reply
+  p = await pzSeed(4, 'reply', 'plain');
+  await clearView('#puzzle-next', 'puzzle-board');
+  let btn = await evalP(`return __t.btn('#puzzle-next');`);
+  p.pts = await evalP(`return __t.pts('puzzle-board');`);
+  await move(p.pts, p.moves[1], 'tap');
+  await tap(btn, 30);
+  await until(`__t.app.Puzzles.current.id !== ${JSON.stringify(p.id)}`);
+  await sleep(1500);
+  s = await pzNow();
+  check(`${tag}PUZZLES Next inside the reply window: the old reply does not land on the new puzzle`,
+    s.id !== p.id && s.moveIdx === 1 && s.played === 1 && s.shown === 2 && !s.recorded && s.live, { moveIdx: s.moveIdx, movesPlayed: s.played, positionsShown: s.shown, charged: s.recorded });
+
+  // Show solution inside the same window
+  p = await pzSeed(6, 'reply', 'plain');
+  await clearView('#puzzle-solution', 'puzzle-board');
+  btn = await evalP(`return __t.btn('#puzzle-solution');`);
+  p.pts = await evalP(`return __t.pts('puzzle-board');`);
+  await move(p.pts, p.moves[1], 'tap');
+  await tap(btn, 30);
+  const bad = await watch(`P.board.interactive && P.moveIdx < P.current.moves.length`, 1300);
+  await until(`__t.app.Puzzles.moveIdx >= ${p.moves.length}`, 12000);
+  await sleep(900);
+  s = await pzNow();
+  const line = await evalP(`return __t.app.Puzzles.chess.history({ verbose: true }).map(m => m.from + m.to).join(' ');`);
+  check(`${tag}PUZZLES Show solution inside the reply window: the board stays locked while it plays, every move once`,
+    bad === 0 && s.id === p.id && line === p.moves.map(m => m.slice(0, 4)).join(' ') && s.attempts === p.attempts + 1, { liveSamplesDuringSolution: bad, inOrder: line === p.moves.map(m => m.slice(0, 4)).join(' ') });
+}
+
+const blNow = () => evalP(`const B = __t.app.Blind, b = B.board; return { id: B.current?.id, moves: B.current?.moves, len: B.current?.moves.length, moveIdx: B.moveIdx, failed: B.failedThis, recorded: B.eloRecorded,
+  elo: B.elo, attempts: B.attemptCount, played: B.chess.history().length, hidden: b.piecesHidden, live: b.interactive, peeks: B.peeksUsed };`);
+// Next by finger until the app serves a puzzle the case can use, pieces hidden.
+async function blUntil(pred, first) {
+  for (let i = 0; i < 60; i++) {
+    if (i || !first) await blindNext();
+    const s = await blindReady(null, null);
+    if (await evalP(`const T = __t, p = T.app.Blind.current, f = T.facts(p); return !!(${pred});`)) return { ...s, ...(await blNow()) };
+  }
+  throw new Error('no blindfold puzzle for: ' + pred);
+}
+
+async function tapsBlind(tag) {
+  await blindOpen(2);
+  // Show solution, then Next while it is still playing
+  let p = await blUntil(`p.moves.length >= 6`, true);
+  await tapEl('#blind-solution');
+  const tSol = Date.now();
+  await until(`__t.app.Blind.failedThis`);
+  const charged = await blNow();
+  await tapEl('#blind-next');
+  const leftMs = (p.len - 2) * 700 - (Date.now() - tSol);
+  await until(`__t.app.Blind.current.id !== ${JSON.stringify(p.id)}`);
+  const shownLive = await watch(`B.board.interactive && !B.board.piecesHidden`, 1500);
+  await sleep(3500);
+  let s = await blNow();
+  check(`${tag}BLINDFOLD Show solution + Next: the new puzzle sits at its first move, hidden, untouched and uncharged`,
+    leftMs > 700 && s.id !== p.id && s.moveIdx === 1 && s.played === 1 && !s.failed && !s.recorded && s.hidden && s.live && shownLive === 0,
+    { solutionStillHadMs: leftMs, newPuzzle: { moveIdx: s.moveIdx, of: s.len, movesPlayed: s.played, charged: s.recorded, hidden: s.hidden, live: s.live }, liveWhilePiecesShown: shownLive });
+  check(`${tag}BLINDFOLD Show solution + Next: the abandoned puzzle is charged exactly once`,
+    charged.attempts === p.attempts + 1 && charged.recorded && (charged.elo < p.elo || p.elo === 600) && s.attempts === charged.attempts && s.elo === charged.elo,
+    { attempts: [p.attempts, charged.attempts, s.attempts], elo: [p.elo, charged.elo, s.elo].map(x => +x.toFixed(1)) });
+
+  // a solution left alone still plays to the end, pieces on show
+  p = await blUntil(`p.moves.length >= 4`, true);
+  await tapEl('#blind-solution');
+  await until(`__t.app.Blind.moveIdx >= ${p.len}`, 12000);
+  await sleep(900);
+  s = await blNow();
+  check(`${tag}BLINDFOLD a solution left to finish plays to the end`, s.id === p.id && s.moveIdx === s.len && s.played === s.len && !s.hidden && !s.live && s.attempts === p.attempts + 1,
+    { moveIdx: s.moveIdx, of: s.len, hidden: s.hidden, live: s.live });
+
+  // Next / Peek / Show solution inside the 0.4 s before the opponent's reply
+  for (const [label, sel] of [['Next', '#blind-next'], ['Peek', '#blind-peek'], ['Show solution', '#blind-solution']]) {
+    p = await blUntil(`T.fits(f, 'reply', 'plain', null) && p.moves.length >= ${label === 'Show solution' ? 6 : 4}`);
+    await clearView(sel, 'blind-board');
+    const btn = await evalP(`return __t.btn(${JSON.stringify(sel)});`);
+    const pts = await evalP(`return __t.pts('blind-board');`);
+    await move(pts, p.moves[1], 'tap');
+    await tap(btn, 30);
+    const bad = await watch(`B.board.interactive && !B.board.piecesHidden`, 1500);
+    s = await blNow();
+    if (label === 'Next') {
+      await until(`__t.app.Blind.board.piecesHidden && __t.app.Blind.board.interactive`, 8000);
+      s = await blNow();
+      check(`${tag}BLINDFOLD Next inside the reply window: the board never goes live with the new puzzle's pieces on show`,
+        bad === 0 && s.id !== p.id && s.moveIdx === 1 && s.played === 1 && !s.recorded, { liveSamplesWhileShown: bad, moveIdx: s.moveIdx, movesPlayed: s.played });
+    } else if (label === 'Peek') {
+      await until(`__t.app.Blind.board.piecesHidden && __t.app.Blind.board.interactive`, 8000);
+      const e = await blNow();
+      check(`${tag}BLINDFOLD Peek inside the reply window: the board stays locked while the pieces are on show, then the puzzle carries on`,
+        bad === 0 && s.peeks === 1 && e.id === p.id && e.moveIdx === 3 && e.played === 3 && e.hidden && e.live && !e.recorded,
+        { liveSamplesWhileShown: bad, afterPeek: { moveIdx: e.moveIdx, hidden: e.hidden, live: e.live, charged: e.recorded } });
+    } else {
+      await until(`__t.app.Blind.moveIdx >= ${p.len}`, 12000);
+      await sleep(900);
+      const e = await blNow();
+      const line = await evalP(`return __t.app.Blind.chess.history({ verbose: true }).map(m => m.from + m.to).join(' ');`);
+      check(`${tag}BLINDFOLD Show solution inside the reply window: the board stays locked while it plays, every move once`,
+        bad === 0 && line === p.moves.map(m => m.slice(0, 4)).join(' ') && !e.live && !e.hidden && e.attempts === p.attempts + 1, { liveSamplesDuringSolution: bad, inOrder: line === p.moves.map(m => m.slice(0, 4)).join(' ') });
+    }
+  }
+
+  // Show solution while the memorising countdown is still running
+  await blindNext();
+  const counting = await until(`!document.getElementById('blind-countdown').classList.contains('hidden')`, 3000);
+  p = await blNow();
+  await tapEl('#blind-solution');
+  await until(`__t.app.Blind.moveIdx >= ${p.len}`, 12000);
+  await sleep(2600);
+  s = await blNow();
+  check(`${tag}BLINDFOLD Show solution during the countdown: the countdown does not hide the solution afterwards`,
+    counting && s.id === p.id && s.moveIdx === s.len && !s.hidden && !s.live, { countdownWasRunning: counting, hiddenAfter: s.hidden, liveAfter: s.live });
+  await evalP(`__t.app.showScreen('analysis');`); await sleep(300); await toPuzzles();
+}
+
+// Four fingers as fast as the screen allows: the menu button, Puzzles in the
+// drawer (which ends the run), the Rush chip, Start. Each tap lands the moment
+// its button is on top — far quicker than a hand, which is the point: the old
+// run's timers are only 0.3–1.2 s long.
+async function quickTap(sel) {
+  let pt;
+  for (const t0 = Date.now(); Date.now() - t0 < 1500;) {
+    pt = await evalP(`const el = document.querySelector(${JSON.stringify(sel)}); const r = el.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const top = document.elementFromPoint(x, y); return { x, y, hit: !!top && (top === el || el.contains(top)) };`);
+    if (pt.hit) break;
+  }
+  await tap(pt, 20);
+}
+async function rushRestart() {
+  const t0 = Date.now();
+  await quickTap('#tabmenu-btn');
+  await quickTap('#tabbar [data-screen="puzzles"]');
+  const out = await until(`!__t.app.Rush.running`, 1000);
+  await quickTap('#screen-puzzles .puzzle-modes [data-v="rush"]');
+  const intro = await until(`!document.getElementById('rush-intro').classList.contains('hidden') && !document.getElementById('screen-rush').classList.contains('hidden')`, 1000);
+  await quickTap('#rush-start');
+  const back = await until(`__t.app.Rush.running`, 1000);
+  return { ms: Date.now() - t0, out, intro, back };
+}
+async function tapsRush(tag) {
+  // left and restarted inside the count-in: one clock, not two
+  await rushStart();
+  await sleep(1300);
+  let ms = await rushRestart();
+  await rushLive();
+  const a = await evalP(`return __t.app.Rush.timeLeft;`);
+  await sleep(4000);
+  const b = await evalP(`return __t.app.Rush.timeLeft;`);
+  check(`${tag}RUSH left and restarted inside the count-in: the clock runs at one second a second`, ms.out && ms.intro && ms.back && a - b >= 3 && a - b <= 5, { restart: ms, secondsLostIn4s: a - b });
+  // a wrong move, then left and restarted before the next puzzle was due
+  const p = await rushInfo();
+  const wrong = await evalP(`const T = __t, R = T.app.Rush; return T.other(R.chess, R.current.moves[R.moveIdx], 'wrong');`);
+  await move(p.pts, wrong, 'tap');
+  await until(`__t.app.Rush.strikes === 1`, 500);
+  const struck = (await rushInfo()).strikes;
+  ms = await rushRestart();
+  const first = (await rushInfo()).id;
+  await sleep(1600);
+  const later = await rushInfo();
+  check(`${tag}RUSH wrong move, then left and restarted: the old run does not swap the new run's first puzzle`, ms.out && ms.intro && ms.back && struck === 1 && later.id === first && later.strikes === 0, { restart: ms, strikeBefore: struck, firstPuzzleKept: later.id === first });
+  await toPuzzles();
+}
+
 try {
-  if (MODE === 'stale') {
+  if (MODE === 'taps') {
+    for (const [lang, scheme] of process.env.ONE ? [['en', 'light']] : [['en', 'light'], ['es', 'light'], ['en', 'dark'], ['es', 'dark']]) {
+      await load(lang, scheme);
+      const tag = `${lang}/${scheme}: `;
+      const mode = await evalP(`return document.body.className + ' | ' + (await import('${APP_URL}/js/i18n.js')).getLang();`);
+      check(`${tag}theme and language applied`, mode.includes('mode-' + scheme) && mode.endsWith('| ' + lang), mode);
+      for (const run of [tapsPuzzles, tapsBlind, tapsRush].filter(f => !process.env.ONLY || f.name === process.env.ONLY)) {
+        try { await run(tag); } catch (e) { check(`${tag}${run.name} ran to the end`, false, String(e.stack || e).slice(0, 500)); await toPuzzles(); }
+      }
+    }
+  } else if (MODE === 'stale') {
     // Not a pre-move check: does Show solution keep playing after Next?
     await load('en', 'light');
     const r = await evalP(`const T = __t, P = T.app.Puzzles;

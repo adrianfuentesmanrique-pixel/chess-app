@@ -4657,6 +4657,9 @@ export const Puzzles = {
     $('puzzle-analyze').classList.add('hidden');
     this.board.clearPremove();
     this.current = puzzle;
+    // Anything still waiting to move a piece — a reply, a solution being
+    // played out — belongs to the puzzle before this one, and stops here.
+    this.token = {};
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
     this.failedThis = false;
@@ -4752,7 +4755,9 @@ export const Puzzles = {
       // opponent reply
       this.setLiveInteractive(false);
       this.board.armPremove();
+      const token = this.token;
       await sleep(400);
+      if (token !== this.token) return;   // Next or Show solution got in first
       const r = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
       this.place(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
@@ -4802,11 +4807,15 @@ export const Puzzles = {
     clearTimeout(this.openTimer);   // the loop below plays the opening move itself
     this.board.clearPremove();
     this.setLiveInteractive(false);
+    // A new token takes over from a reply that was about to land, and from an
+    // earlier tap on this same button; loadPuzzle() takes it back from us.
+    const token = this.token = {};
     while (this.moveIdx < this.current.moves.length) {
       const m = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
       this.place(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
       await sleep(700);
+      if (token !== this.token) return;
     }
     this.setStatus(t('solved'));
     $('puzzle-analyze').classList.remove('hidden');
@@ -4941,6 +4950,10 @@ export const Rush = {
     this.score = 0;
     this.strikes = 0;
     this.running = true;
+    // Every delayed step checks it is still in the run that queued it: leaving
+    // and starting again inside a second used to let the old run's count-in
+    // start a second clock, and its "next puzzle" swap the new run's first one.
+    this.run = {};
     $('rush-intro').classList.add('hidden');
     $('rush-result').classList.add('hidden');
     $('rush-game').classList.remove('hidden');
@@ -4950,8 +4963,9 @@ export const Rush = {
     // Flagged before loadNext(), so it does not arm a pre-move under the count-in.
     this.countingIn = true;
     this.loadNext();
+    const run = this.run;
     this.countIn(() => {
-      if (!this.running) return;
+      if (!this.live(run)) return;
       $('rush-status').textContent = this.prompt ?? '';
       this.timer = setInterval(() => this.tick(), 1000);
       this.board.interactive = true;
@@ -4964,17 +4978,20 @@ export const Rush = {
     const el = $('rush-countdown');
     const label = el.firstElementChild;
     let n = this.COUNTDOWN;
+    const run = this.run;
     this.countingIn = true;
     el.classList.remove('hidden');
     $('rush-status').textContent = t('rush_get_ready');
     const tick = () => {
       if (!this.running) { el.classList.add('hidden'); return; }
+      if (run !== this.run) return;       // a newer run owns the count-in now
       label.textContent = n > 0 ? n : t('rush_go');
       label.classList.remove('pop');
       void label.offsetWidth;            // restart the animation each step
       label.classList.add('pop');
       if (n-- <= 0) {
         setTimeout(() => {
+          if (run !== this.run) return;
           el.classList.add('hidden');
           this.countingIn = false;
           done();
@@ -4985,6 +5002,8 @@ export const Rush = {
     };
     tick();
   },
+
+  live(run) { return this.running && run === this.run; },
 
   tick() {
     this.timeLeft--;
@@ -5018,8 +5037,9 @@ export const Rush = {
     // for "Get ready!" and must not leave the player without the prompt.
     this.prompt = t(playerColor === 'w' ? 'white' : 'black') + ' ' + t('to_move_find');
     if (!this.countingIn) $('rush-status').textContent = this.prompt;
+    const run = this.run;
     setTimeout(() => {
-      if (!this.running) return;
+      if (!this.live(run)) return;
       const m = this.applyUci(this.current.moves[0]);
       this.moveIdx = 1;
       this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
@@ -5034,6 +5054,7 @@ export const Rush = {
 
   userMove(mv) {
     if (!this.running || !this.current) return;
+    const run = this.run;
     const expected = this.current.moves[this.moveIdx];
     const tryUci = mv.from + mv.to + (mv.promotion ?? '');
     let m;
@@ -5046,13 +5067,13 @@ export const Rush = {
         this.score++;
         PuzzleLog.add('rush', this.current, true);
         this.updateHud();
-        setTimeout(() => { if (this.running) this.loadNext(); }, 350);
+        setTimeout(() => { if (this.live(run)) this.loadNext(); }, 350);
         return;
       }
       this.board.interactive = false;
       this.board.armPremove();
       setTimeout(() => {
-        if (!this.running) return;
+        if (!this.live(run)) return;
         const r = this.applyUci(this.current.moves[this.moveIdx]);
         this.moveIdx++;
         this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
@@ -5074,7 +5095,7 @@ export const Rush = {
         : t('rush_strike_left').replace('{n}', left);
       // Long enough to read how many chances are left, short enough not to
       // feel like a penalty on a timed run.
-      setTimeout(() => { if (this.running) this.loadNext(); }, 1200);
+      setTimeout(() => { if (this.live(run)) this.loadNext(); }, 1200);
     }
   },
 
@@ -5276,6 +5297,9 @@ export const Blind = {
     clearTimeout(this.countdownTimer);
     clearTimeout(this.peekTimer);
     $('blind-countdown').classList.add('hidden');
+    // A reply about to land or a solution being played out stops here too:
+    // they belong to the puzzle that is being left.
+    this.token = {};
     // Next, the start panel and leaving the screen all come through here.
     // Never armed during the memorising countdown or a peek: the pieces are
     // on show then, and a move queued in sight of them is not blindfold.
@@ -5477,11 +5501,15 @@ export const Blind = {
       this.setStatus(t('correct'));
       this.board.interactive = false;
       this.board.armPremove();
+      const token = this.token;
       await sleep(400);
+      if (token !== this.token) return;   // Next or Show solution got in first
       const r = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
       this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
-      this.board.interactive = true;
+      // A peek started inside the wait has the pieces on show; its own timer
+      // hides them and hands the board back.
+      this.board.interactive = this.board.piecesHidden;
       this.updateTurnIndicator();
       // Back through userMove, so a wrong pre-move is charged like a hand move.
       this.board.firePremove();
@@ -5514,10 +5542,12 @@ export const Blind = {
 
   async showSolution() {
     if (!this.current) return;
-    clearTimeout(this.peekTimer);
+    // Stops the memorising countdown and a peek as well — either would hide
+    // the pieces again in the middle of the solution.
+    this.cleanup();
+    const token = this.token;
     this.markFailed();
     this.log(false);
-    this.board.clearPremove();
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     while (this.moveIdx < this.current.moves.length) {
@@ -5525,6 +5555,7 @@ export const Blind = {
       this.moveIdx++;
       this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
       await sleep(700);
+      if (token !== this.token) return;
     }
     this.setStatus(t('solved'));
   },

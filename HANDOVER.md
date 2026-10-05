@@ -91,6 +91,73 @@
     2026-09; a sixth book; scans or photos; a real phone.
   - Run: `LEARN=3 REUSE=1 DUMP=<file> node tools/measure-pieces.mjs measure <outDir> tools/fixtures/piece-truth-holdout.json`
 
+- **NOTHING DELAYED OUTLIVES ITS PUZZLE — SHOW SOLUTION, THE REPLY, BLINDFOLD'S
+  COUNTDOWN, A RUSH RUN'S TIMERS (2026-10-04).** `sw.js` v141 → **v142** (v141
+  is another session's Read work). Changed `js/app.js` only (`js/board.js` and
+  `js/blind-elo.js` untouched); `tools/cdp-verify-premove.mjs` gained a `taps`
+  mode. Web-only. Committed on `main`, NOT pushed. **Not tested on a real phone.**
+  - **Reproduced with real taps before anything was changed (EN/light, 9 of 16
+    checks failed).** What really failed:
+    1. **Show solution + Next, Puzzles and Blindfold** — the new puzzle was
+       played out to its last move for the player, uncharged.
+    2. **Next inside the 0.4 s reply** — Puzzles: the old reply landed on the new
+       puzzle (its opening move shown twice in the history; mild). Blindfold:
+       the board went **live with the new puzzle's pieces on show**, for the
+       whole memorising countdown.
+    3. **Peek inside the 0.4 s reply (Blindfold)** — the board went live during
+       the 5 s peek: a move could be made in sight of the pieces.
+    4. **Show solution inside the 0.4 s reply, both** (not on the list, same
+       shape) — the reply made the board live while the solution was playing.
+    5. **Show solution during Blindfold's memorising countdown** (not on the
+       list) — the countdown ran on and hid the pieces mid-solution.
+    6. **Rush, left and restarted inside a second** — restart inside the
+       count-in: two clocks, 6 s lost in 4 s, and the orphan clock never stops.
+       Wrong move, then restart inside 1.2 s: the old run swapped the new run's
+       first puzzle. **Honest limit:** this took four taps (menu, Puzzles, Rush
+       chip, Start) in 0.3–0.4 s, machine speed; the windows are 1.0 s and 1.2 s.
+       A hand will rarely manage it. Fixed because the stuck double clock is
+       ugly when it does happen.
+  - **The fix — one idea, three places.** Each mode holds a throwaway object;
+    whatever is about to wait keeps a reference and gives up if it has been
+    replaced when it wakes.
+    - `Puzzles.token`: replaced in `loadPuzzle()` and at the start of
+      `showSolution()`. Checked after the `sleep(400)` in `userMove` and after
+      each `sleep(700)` in `showSolution`. So Show solution also takes over from
+      a pending reply and from an earlier tap on itself.
+    - `Blind.token`: replaced in `cleanup()` (Next, start panel, leaving).
+      `showSolution()` now calls `cleanup()` first — that is what stops the
+      countdown and a peek. After the reply `board.interactive =
+      board.piecesHidden`, so a peek keeps the board locked and its own 5 s
+      timer hands it back. **Peek does not replace the token** — the reply must
+      still land during a peek.
+    - `Rush.run`: replaced in `start()`. `Rush.live(run)` = still running AND
+      the same run; every Rush `setTimeout` and both count-in steps use it.
+    - It is an object, not the puzzle, on purpose: a homework list with one
+      puzzle left reloads **the same puzzle object**, and Blindfold can draw the
+      same one twice, so `this.current === solvedPuzzle` would not have caught
+      those. Auto-next still uses the puzzle identity; left alone.
+  - **Charging unchanged:** `markFailed()` still runs before the loop. Measured:
+    the abandoned puzzle is charged once (attempts +1), the new one not at all.
+  - **Measured, `node tools/cdp-verify-premove.mjs <outDir> taps`, 375 px, EN/ES
+    × light/dark:** 61/61 after the fix (15 cases per language/theme).
+    `stale` mode passes; the pre-move suite still 84/84, `cdp-verify-blind.mjs`
+    75/75, `test:tree` 93/93. `ONE=1` keeps `taps` to EN/light,
+    `ONLY=tapsPuzzles|tapsBlind|tapsRush` to one mode.
+  - **Tapped vs seeded:** every chess move and every button is a real touch.
+    SEEDED: which puzzle the Puzzles cases start on (`loadPuzzle`), Blindfold's
+    2 s memorising time, the hint warning marked seen, `autoNext` off.
+    Blindfold and Rush puzzles are the app's own. Rush's restart taps land the
+    instant each button is on top, with no human pause.
+  - **Harness facts:** on a phone the tab bar is a drawer — tap `#tabmenu-btn`
+    first. The test profile's ratings sink to the 600 floor after a few loads,
+    where a loss is recorded but the number cannot drop; "charged" is judged on
+    the attempt count.
+  - **READ FROM THE CODE, NOT RUN, NOT FIXED:** Peek pressed *after* a Blindfold
+    solution has played would hide the pieces again 5 s later (`peek()` does
+    not look at whether the puzzle is over).
+  - **STILL ADRIAN'S CALL, untouched:** Blindfold shows the red check glow with
+    the pieces hidden (see the pre-move entry below).
+
 - **PRE-MOVE — ALWAYS AVAILABLE IN PUZZLES, RUSH AND BLINDFOLD (2026-10-04).**
   `sw.js` v139 → **v140**. Changed `js/board.js`, `js/app.js`; new
   `tools/cdp-verify-premove.mjs`. Web-only. Committed on `main`, NOT pushed.
@@ -155,8 +222,8 @@
     board for seconds — `clearView()` waits them out; `tapEl()` retries. A
     button point worked out before a 0.4 s window is the only way to tap inside
     it.
-  - **FOUND, NOT FIXED — Show solution outlives its puzzle (pre-existing, not a
-    pre-move bug).** `Puzzles.showSolution()` loops on `this.current` with a
+  - **FOUND HERE, FIXED IN v142 (see the entry above) — Show solution outlives
+    its puzzle (pre-existing, not a pre-move bug).** `Puzzles.showSolution()` loops on `this.current` with a
     0.7 s sleep per move. Press Next before it finishes and the loop carries on
     **in the new puzzle**, playing its moves for you, uncharged. Confirmed:
     `node tools/cdp-verify-premove.mjs <outDir> stale` (8-move solution, new
