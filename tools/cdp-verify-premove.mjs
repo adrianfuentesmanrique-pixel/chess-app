@@ -18,7 +18,8 @@
 // CLICKED WITH element.click(): the tab bar and the puzzle-mode buttons.
 // SEEDED: which puzzle is served (Puzzles.loadPuzzle(p) / Rush.pickNext are
 // handed a puzzle whose solution is long enough for the case), Blindfold's
-// memorising time (set to 1 s through the slider's own events), and
+// memorising time (set through the slider's own events: 2 s, and 8 s for the
+// Peek-during-the-countdown cases), and
 // Puzzles.autoNext switched off in memory.
 // READ FROM THE APP: the solution, moveIdx, ratings, strikes, and a log of
 // every board state change with its timestamp (the board's own methods are
@@ -1021,6 +1022,68 @@ async function tapsBlind(tag) {
   s = await blNow();
   check(`${tag}BLINDFOLD Show solution during the countdown: the countdown does not hide the solution afterwards`,
     counting && s.id === p.id && s.moveIdx === s.len && !s.hidden && !s.live, { countdownWasRunning: counting, hiddenAfter: s.hidden, liveAfter: s.live });
+  await evalP(`__t.app.showScreen('analysis');`); await sleep(300); await toPuzzles();
+
+  // Peek while the pieces are still on show for memorising. An 8 s look —
+  // longer than the peek's own 5 s, so a peek timer that fires is caught
+  // hiding the pieces under a countdown that is still running, and short of
+  // 10 s, so there is a time extra to lose.
+  await blindOpen(8);
+  await blindReady(null, null);   // Kael greets over the buttons on the first puzzle; the cases use the ones after it
+  const peekSnap = () => evalP(`const B = __t.app.Blind, btn = document.getElementById('blind-peek');
+    return { id: B.current?.id, peeks: B.peeksUsed, peeked: B.peekedThis, bonus: document.getElementById('blind-bonus').textContent, label: btn.textContent, disabled: btn.disabled,
+      counting: !document.getElementById('blind-countdown').classList.contains('hidden'), hidden: B.board.piecesHidden, live: B.board.interactive };`);
+  const peekEarly = async (name, beforeCountdown) => {
+    await clearView('#blind-next', 'blind-board');
+    await clearView('#blind-peek', 'blind-board');
+    const pt = await evalP(`return { next: __t.btn('#blind-next'), peek: __t.btn('#blind-peek'), id: __t.app.Blind.current.id };`);
+    await tap(pt.next, 30);
+    await until(`__t.app.Blind.current.id !== ${JSON.stringify(pt.id)}`, 3000);
+    if (!beforeCountdown) {
+      await until(`!document.getElementById('blind-countdown').classList.contains('hidden')`, 3000);
+      // the countdown number takes a line of its own: the button has moved
+      pt.peek = await evalP(`return __t.btn('#blind-peek');`);
+    }
+    const before = await peekSnap();
+    const hit = await evalP(`const el = document.elementFromPoint(${pt.peek.x}, ${pt.peek.y}); return el?.id || el?.className || null;`);
+    await tap(pt.peek, 30);
+    const after = await peekSnap();
+    if (hit !== 'blind-peek') check(`${tag}BLINDFOLD Peek ${name}: the finger landed on the Peek button`, false, { landedOn: hit });
+    // sampled every 5 ms until the countdown is gone: was anything hidden or handed over under it?
+    const seen = await evalP(`const B = __t.app.Blind, cd = document.getElementById('blind-countdown'); let hiddenEarly = 0, liveEarly = 0, counted = 0, hiddenAtMs = null; const t0 = performance.now();
+      while (performance.now() - t0 < 12000) {
+        const on = !cd.classList.contains('hidden');
+        if (on) { counted++; if (B.board.piecesHidden) hiddenEarly++; if (B.board.interactive) liveEarly++; }
+        if (B.board.piecesHidden && hiddenAtMs === null) hiddenAtMs = Math.round(performance.now() - t0);
+        if (!on && counted && B.board.piecesHidden) break;
+        await new Promise(r => setTimeout(r, 5));
+      }
+      return { hiddenEarly, liveEarly, counted, hiddenAtMs };`);
+    await sleep(300);
+    const e = await peekSnap();
+    const rightMoment = beforeCountdown ? !before.counting : before.counting;
+    check(`${tag}BLINDFOLD Peek ${name}: nothing is spent - no peek used, the time extra still on offer`,
+      rightMoment && !before.hidden && after.peeks === before.peeks && e.peeks === before.peeks && !after.peeked && !e.peeked && after.bonus === before.bonus && e.bonus === before.bonus && after.label === before.label,
+      { tappedAtTheRightMoment: rightMoment, peeks: [before.peeks, after.peeks, e.peeks], extraForfeited: e.peeked, bonusLine: [before.bonus, after.bonus] });
+    check(`${tag}BLINDFOLD Peek ${name}: the pieces stay on show and the board locked until the countdown ends`,
+      seen.counted > 0 && seen.hiddenEarly === 0 && seen.liveEarly === 0 && seen.hiddenAtMs > 6500 && e.hidden && e.live && !e.counting,
+      { samplesHiddenUnderCountdown: seen.hiddenEarly, samplesLiveUnderCountdown: seen.liveEarly, piecesHiddenAfterMs: seen.hiddenAtMs, endHidden: e.hidden, endLive: e.live });
+    check(`${tag}BLINDFOLD Peek ${name}: the Peek button shows as switched off, and is back on once the pieces are hidden`, before.disabled === true && e.disabled === false, { disabledAtTap: before.disabled, disabledAfterCountdown: e.disabled });
+  };
+  await peekEarly('during the countdown', false);
+  await peekEarly('in the half second before the countdown', true);
+
+  // and a Peek on a live puzzle is what it always was: 5 s of pieces, board locked, then hidden and live
+  const b4 = await peekSnap();
+  await tapEl('#blind-peek');
+  const pk = await peekSnap();
+  const liveShown = await watch(`B.board.interactive && !B.board.piecesHidden`, 4500);
+  const mid = await peekSnap();
+  await until(`__t.app.Blind.board.piecesHidden && __t.app.Blind.board.interactive`, 2000);
+  const pe = await peekSnap();
+  check(`${tag}BLINDFOLD Peek on a live puzzle still works: one peek spent, extra given up, 5 s of pieces with the board locked, then hidden and live`,
+    b4.hidden && b4.live && pk.peeks === b4.peeks + 1 && pk.peeked && pk.bonus !== b4.bonus && !pk.hidden && !pk.live && liveShown === 0 && !mid.hidden && pe.hidden && pe.live && pe.id === b4.id,
+    { peeks: [b4.peeks, pk.peeks], bonusLine: [b4.bonus, pk.bonus], shownDuringPeek: !mid.hidden, liveWhileShown: liveShown, endHidden: pe.hidden, endLive: pe.live });
   await evalP(`__t.app.showScreen('analysis');`); await sleep(300); await toPuzzles();
 }
 

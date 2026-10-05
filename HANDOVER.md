@@ -2,6 +2,41 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD — PEEK IS SWITCHED OFF WHILE THE PIECES ARE ON SHOW FOR MEMORISING
+  (v146, 2026-10-04, later session).** `sw.js` v144 → **v146** in this commit (v145
+  was another session's uncommitted bump for its `js/diagram.js` work; that work is
+  NOT in this commit, only the number moved past it). Committed on `main`, NOT
+  pushed, NOT deployed. **Not tested on a real phone.** Adrian chose "greyed out"
+  over "pressable but harmless".
+  - **Reproduced first, with real taps (EN/light, old code, 8 s look):** Peek during
+    the countdown AND Peek in the half second before the countdown appears — both
+    spent a peek (0 → 1), forfeited the time extra ("Time extra forfeited by the
+    peek"), and ~5.0 s after the tap hid the pieces and turned the board live with
+    the countdown still on screen (≈500 samples each, 5 ms apart).
+  - **Fix.** `js/app.js`, `Blind.memorising`: set true in `nextPuzzle` (before
+    `updatePeekBtn`), false in `hidePieces` (which now calls `updatePeekBtn`) and in
+    `cleanup()`. `Blind.peek` returns at once while it is true; `updatePeekBtn`
+    disables the button. `Blind.token`, `js/board.js`, `js/blind-elo.js` untouched.
+  - **Verified, headless CDP at 375px.** `taps` mode EN/ES x light/dark **125/125**
+    (was 97; +7 per combination at the end of `tapsBlind`: the two early-Peek cases,
+    3 checks each, and "Peek on a live puzzle still works" — one peek spent, extra
+    given up, 5 s shown with the board locked, then hidden and live). Peek after
+    the puzzle is over: still green. `cdp-verify-blind.mjs` **75/75**. `test:tree`
+    **98/98** (two of those are the other session's uncommitted diagram tests).
+  - **NOT GREEN: full pre-move suite 83/84, twice** (CPU 100% then ~45% — League of
+    Legends running, not another session). Run 1: one Puzzles case, `lagMs` 5.5
+    against a limit of 5. Run 2: `BLINDFOLD reply / tap / straddle` — the first move
+    was never taken (`played:false`). Blindfold part alone, twice more: 50/52 (a
+    Puzzles `deadMs` of 1; and the countdown case served a puzzle whose first move
+    is a promotion, which that case cannot use and reports as a FAIL), then
+    **52/52**. The not-taken move did not repeat in those two runs. **Not
+    explained** — a guess, not checked: `blindNext()` accepts `timeLocked` as proof
+    the new puzzle arrived, and an unscored old puzzle is also time-locked.
+  - **REALLY TAPPED:** Next, Peek (at a point re-measured after the countdown number
+    appears — it pushes the button down), Go, every chess move. **SEEDED:** the 8 s
+    (and 2 s) memorising time through the slider's own events, hint warning marked
+    seen, autoNext off. Puzzles are the app's own.
+
 - **READ TAB — IN A SIX-TYPE BOOK A HELD SHAPE OF ANOTHER TYPE NEARER THAN THE WINNER
   EMPTIES THE SQUARE (v145, 2026-10-04). BUILT; ADRIAN APPROVED THE COMMIT AFTER
   SEEING THE SLIPPED-LESSON COST BELOW.** Committed on `main`, NOT pushed, NOT

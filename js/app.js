@@ -5159,6 +5159,7 @@ export const Blind = {
   countdownTimer: null,
   startTimer: null,       // the half-second beat before the countdown begins
   peekTimer: null,
+  memorising: false,      // true while the pieces are on show for the opening look — Peek is off
   timeLocked: false,      // true from Go / Next until the puzzle is scored
   changeArmed: false,     // "Change time" tapped mid-puzzle: start panel instead of the next puzzle
   paidLine: '',           // what the last scored puzzle paid, and at what time
@@ -5297,6 +5298,7 @@ export const Blind = {
     clearTimeout(this.countdownTimer);
     clearTimeout(this.peekTimer);
     $('blind-countdown').classList.add('hidden');
+    this.memorising = false;
     // A reply about to land or a solution being played out stops here too:
     // they belong to the puzzle that is being left.
     this.token = {};
@@ -5378,6 +5380,7 @@ export const Blind = {
     this.board.setPiecesHidden(false);
     this.board.setPosition(this.chess.fen());
     this.board.interactive = false;
+    this.memorising = true;
     $('blind-status').textContent = t('blind_watch_now');
     this.updatePeekBtn();
     this.updateTurnIndicator();
@@ -5417,6 +5420,8 @@ export const Blind = {
   hidePieces() {
     this.board.setPiecesHidden(true);
     this.board.interactive = true;
+    this.memorising = false;
+    this.updatePeekBtn();
     this.setStatus(t('blind_solve_now'));
   },
 
@@ -5428,7 +5433,7 @@ export const Blind = {
     const btn = $('blind-peek');
     const left = Math.max(0, 2 - this.peeksUsed);
     btn.textContent = `👁 ${t('blind_peek_btn')} (${left})`;
-    btn.disabled = left === 0 || this.isOver();
+    btn.disabled = left === 0 || this.isOver() || this.memorising;
   },
 
   setStatus(msg) { $('blind-status').textContent = msg; },
@@ -5438,6 +5443,9 @@ export const Blind = {
     // Nothing left to peek at — and its timer would hide the pieces again and
     // hand back a board with no puzzle on it.
     if (this.isOver()) return;
+    // The pieces are already on show. A peek here would be spent on nothing,
+    // and its 5 s timer would hide them under a countdown still running.
+    if (this.memorising) return;
     if (this.peeksUsed >= 2) {
       toast(t('blind_no_peeks_toast'));
       return;
