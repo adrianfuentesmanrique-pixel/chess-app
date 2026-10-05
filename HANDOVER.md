@@ -2,6 +2,95 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — THE "UNLEARNED PIECE READ AS A LEARNED ONE" HOLE MEASURED; ONE RULE
+  PROPOSED AND MEASURED; NOTHING BUILT — ADRIAN WAS NOT THERE TO CHOOSE
+  (2026-10-04).** Tool only: `tools/measure-pieces.mjs` gained `DUMP=<file>` (one
+  JSON line per square that holds or was given a piece: truth, placed before the
+  gate `raw`, after it `shown`, nearest type, d1, lead, clear, the codes the book
+  held). **The app is unchanged, `sw.js` not bumped by this session.** `test:tree`
+  93/93. Nothing tapped: real `classifyCells`/`learnFromCells` in Node on the
+  squares measured in headless Chrome by the v139 session (features reused).
+  The baseline reproduces the v141 entry below exactly (75.4 / 77.5 / 79.2 / 80.2 /
+  81.5 / 83.1 on the hold-out; same slip 5 of 118, 9 / 9 / 7 / 5 wrong).
+  - **1. How often (v139, clean lessons, before the gate).** "Unlearned" = the
+    book holds no trusted sample of that piece TYPE in either colour.
+
+    | hold-out, lessons | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+    |---|---|---|---|---|---|---|---|
+    | unlearned pieces read | 162 | 1404 | 1076 | 860 | 674 | 471 | 325 |
+    | of them within `match` 0.06 of a learned type | 13 | 127 | 116 | 99 | 86 | 73 | 59 |
+    | READ AS ANOTHER TYPE, before the gate | 0 | 0 | 0 | **1** | **1** | **1** | 0 (*) |
+    | after the gate | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+    (*) at 6 lessons the same square is still read wrong: the book has by then
+    learned the WHITE bishop, so the type counts as learned, but the white shape
+    is no help against a black bishop (lead still 0.072). First set: 0 at every
+    lesson count (48–312 unlearned pieces, at most 2 within 0.06).
+    It is ONE square on ONE board every time — FCE p150b f8, black bishop read as
+    a pawn, d1 0.053–0.058, lead 0.067–0.072, clear 0.054–0.059.
+  - **The finding that matters: `match` is not what protects.** About 1 unlearned
+    piece in 10 on the hold-out sits inside 0.06 of a learned type (10 distinct
+    squares; Dvoretsky rooks at 0.054–0.057 from a pawn, an FCE rook at 0.041).
+    They are stopped by `lead` and `clear`, several by under 0.01. So "a tighter
+    match while the book is incomplete" is the wrong tool: 0.05 would drop 89
+    correct pieces at 3 lessons on the hold-out (65 on the first set) and still
+    leave 14 unlearned pieces inside it. Estimated from the dump, NOT run.
+  - **2. THE ONE RULE PROPOSED — "a held shape of another type is a rival".** While
+    the book knows fewer than six piece types, the shapes waiting in `t.pending`
+    count against a read: if a held shape of ANOTHER type is nearer than
+    `lead` beyond the trusted match, the square is left empty. A held shape can
+    then only empty a square, never place a piece — the same footing as an empty
+    sample. It works on f8 because a black bishop had already been confirmed in the
+    lessons and was waiting (which lesson squares: not checked). Scratch copy only (`modelOf` + `nearest` +
+    one line in `classifyCells`, about 6 lines); not in the repo.
+    Clean lessons, before the gate, wrong pieces / pieces read correctly:
+
+    | hold-out, lessons | 1 | 2 | 3 | 4 | 5 | 6 |
+    |---|---|---|---|---|---|---|
+    | v139 wrong | 0 | 0 | 1 | 1 | 1 | 1 |
+    | rule wrong | 0 | 0 | 0 | 0 | 0 | 0 |
+    | v139 correct | 75.4% | 77.5% | 79.2% | 80.2% | 81.5% | 83.1% |
+    | rule correct | 75.2% | 77.3% | 78.9% | 79.8% | 81.0% | 82.5% |
+    | correct pieces lost | 26 | 32 | 31 | 35 | 35 | 33 |
+
+    | first set, lessons | 1 | 2 | 3 | 4 | 5 | 6 |
+    |---|---|---|---|---|---|---|
+    | v139 / rule wrong | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+    | v139 correct | 76.4% | 77.6% | 78.6% | 80.7% | 81.6% | 82.6% |
+    | rule correct | 76.3% | 77.5% | 78.4% | 80.5% | 81.4% | 82.3% |
+    | correct pieces lost | 5 | 6 | 8 | 6 | 5 | 4 |
+
+    In books still short of six types alone the cost is 0.3–1.0 point (hold-out
+    70.7% → 70.2% at 3 lessons). 0 lessons: identical (nothing is held yet).
+  - **The same rule applied to EVERY book (also those that know all six) was
+    measured first and is worse — do not build that form:** also 0 wrong, but it
+    loses 97–156 correct pieces per column (first set 76.4% → 74.3% after one
+    lesson, below "nothing learned"), nearly all in Chess Life, where the hole
+    cannot occur.
+  - **`POISON=same` — THE RULE DOES NOT FIX THE REPEATED SLIP.** The prompt's
+    guess that it is the same hole is wrong. Wrong pieces before the gate, v139 →
+    rule: hold-out 9 → 9 (2 lessons), 9 → 8 (3), 7 → 7 (4), 5 → 4 (6); first set
+    5 / 4 / 4 / 0 unchanged. Slipped pairs accepted: unchanged (5 of 118, 1 of 52)
+    — the rule is in the reader, not in learning. `POISON=one` (1 and 3 lessons)
+    and `POISON=one POISON_BOTH=1` (3 and 6): v139's lone wrong piece goes 1 → 0,
+    nothing new appears, cost 0.1–0.3 point.
+  - **3. Recommendation given to Adrian: build it** (the narrow form). The gate
+    caught f8 only because a pawn cannot stand on the back rank; the same misread
+    on any other rank would not trip the gate (not observed, reasoned). Cost about half a point of correct
+    reads. **Stated plainly: the evidence is one square in one book, and the rule
+    is fitted on both truth files.** Leaving it is also defensible: 0 wrong with
+    the gate on everything measured.
+  - **What the rule cannot do:** it needs the unlearned piece to have been
+    confirmed at least once. A piece the user has never confirmed in that book is
+    still held off only by `lead` and `clear` (99 such near pieces at 3 lessons on
+    the hold-out, none placed).
+  - **4. STILL UNMEASURED:** a slip to other wrong types (`SLIP_TO=` not run); the
+    same slip on different square shades; lessons in another order than book
+    order; more than 6 lessons; the rule with `PEND_CAP` full (old held shapes
+    are dropped, so a rival can disappear); a Chess Life issue other than
+    2026-09; a sixth book; scans or photos; a real phone.
+  - Run: `LEARN=3 REUSE=1 DUMP=<file> node tools/measure-pieces.mjs measure <outDir> tools/fixtures/piece-truth-holdout.json`
+
 - **PRE-MOVE — ALWAYS AVAILABLE IN PUZZLES, RUSH AND BLINDFOLD (2026-10-04).**
   `sw.js` v139 → **v140**. Changed `js/board.js`, `js/app.js`; new
   `tools/cdp-verify-premove.mjs`. Web-only. Committed on `main`, NOT pushed.

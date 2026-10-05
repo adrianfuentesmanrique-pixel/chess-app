@@ -30,6 +30,9 @@
 //     shade is called the same wrong type in the first two lessons (a pawn as a
 //     knight, anything else as a pawn; SLIP_TO=<type letter> picks another).
 //     env JSON_OUT=<file> TAG=<label> appends the per-book totals as JSON lines.
+//     env DUMP=<file> writes one JSON line per square that holds a piece or had one
+//     placed on it: truth, what was placed before the gate (raw) and after (shown),
+//     nearest type, d1, lead, clear, and the piece codes the book held (have).
 //     ('swap' leaves a board with no kings unless it holds both queens; the app's
 //     dialog and learnFromCells both refuse that, so 'one' is the test that bites.)
 //     env STRICT='{"full":{"match":0.1}}' tries other thresholds.
@@ -165,7 +168,7 @@ if (MODE === 'find') {
   if (process.env.STRICT && D.STRICT) { const o = JSON.parse(process.env.STRICT); for (const k of Object.keys(o)) typeof o[k] === 'object' ? Object.assign(D.STRICT[k], o[k]) : D.STRICT[k] = o[k]; }
   const cellsOf = k => feats[k].cells.map(c => ({ feat: Float32Array.from(c.feat), lumStd: c.lumStd, colorScore: c.colorScore }));
   const lc = s => s.toLowerCase();
-  const rows = [], bad = [], missed = [];
+  const rows = [], bad = [], missed = [], DUMP = process.env.DUMP, dump = [];
   for (const book of BOOKS) {
     const tot = { pairs: 0, real: 0, ok: 0, ghost: 0, type: 0, colour: 0, miss: 0, shown: 0, gated: 0 };
     // LEARN=1: after the teaching diagram, ONE more diagram of the book is added
@@ -220,8 +223,10 @@ if (MODE === 'find') {
         if (d === teach || lessons.includes(d) || !feats[book.name + '/' + d.id]) continue;
         const res = D.classifyCells(cellsOf(book.name + '/' + d.id), tm), truth = fenGrid(d.fen);
         tot.pairs++; if (res.refused) tot.gated++;
+        const src = tm.samples || tm.pieces, have = Object.keys(src).filter(k => !tm.samples || src[k].length).sort().join('');
         for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
           const t = truth[r][c], got = (process.env.NOGATE && res.ungated || res.grid)[r][c], sq = 'abcdefgh'[c] + (8 - r);
+          if (DUMP && (t || res.ungated[r][c])) { const x = res.detail[r * 8 + c]; dump.push({ tag: process.env.TAG, book: book.name, teach: teach.id, lessons: lessons.map(l => l.id).join('+'), d: d.id, sq, t, raw: res.ungated[r][c], shown: res.grid[r][c], near: x.type, d1: +x.d1.toFixed(4), lead: +(x.d2 - x.d1).toFixed(4), clear: x.dEmp == null ? null : +(x.dEmp - x.d1).toFixed(4), have }); }
           if (t) tot.real++;
           if (got) tot.shown++;
           if (got && got === t) tot.ok++;
@@ -236,6 +241,7 @@ if (MODE === 'find') {
     if (process.env.JSON_OUT) fs.appendFileSync(process.env.JSON_OUT, JSON.stringify({ tag: process.env.TAG, book: book.name, plans: plans.length, ...tot }) + '\n');
   }
   console.table(rows);
+  if (DUMP) fs.writeFileSync(DUMP, dump.map(x => JSON.stringify(x)).join('\n') + '\n');
   if (process.env.LIST) for (const b of bad) console.log(b);
   if (process.env.LIST === 'all') for (const b of missed) console.log('left empty: ' + b);
 }
