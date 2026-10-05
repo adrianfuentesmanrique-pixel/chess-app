@@ -3,9 +3,10 @@
 ## Already done and pushed — do NOT redo these
 
 - **BLINDFOLD — PEEK IS SWITCHED OFF WHILE THE PIECES ARE ON SHOW FOR MEMORISING
-  (v146, 2026-10-04, later session).** `sw.js` v144 → **v146** in this commit (v145
-  was another session's uncommitted bump for its `js/diagram.js` work; that work is
-  NOT in this commit, only the number moved past it). Committed on `main`, NOT
+  (v146, 2026-10-04, later session).** `sw.js` v145 → **v146** in this commit (v145
+  is the other session's `js/diagram.js` commit d7c6b6c, which landed while this
+  session's tests were running; all tests here ran with that work in the tree).
+  Committed on `main`, NOT
   pushed, NOT deployed. **Not tested on a real phone.** Adrian chose "greyed out"
   over "pressable but harmless".
   - **Reproduced first, with real taps (EN/light, old code, 8 s look):** Peek during
