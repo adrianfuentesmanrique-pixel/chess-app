@@ -5420,17 +5420,24 @@ export const Blind = {
     this.setStatus(t('blind_solve_now'));
   },
 
+  // Solved, or Show solution pressed: both write the log line, and only
+  // nextPuzzle clears it. The pieces are on show for good from then on.
+  isOver() { return this.logged; },
+
   async updatePeekBtn() {
     const btn = $('blind-peek');
     const left = Math.max(0, 2 - this.peeksUsed);
     btn.textContent = `👁 ${t('blind_peek_btn')} (${left})`;
-    btn.disabled = left === 0;
+    btn.disabled = left === 0 || this.isOver();
   },
 
   setStatus(msg) { $('blind-status').textContent = msg; },
 
   async peek() {
     if (!this.current) return;
+    // Nothing left to peek at — and its timer would hide the pieces again and
+    // hand back a board with no puzzle on it.
+    if (this.isOver()) return;
     if (this.peeksUsed >= 2) {
       toast(t('blind_no_peeks_toast'));
       return;
@@ -5488,6 +5495,7 @@ export const Blind = {
         this.setStatus(t('solved'));
         this.recordResult(true);
         this.log(!this.failedThis);
+        this.updatePeekBtn();
         $('blind-share').classList.remove('hidden');
         Streak.recordActivity();
         if (Puzzles.autoNext) {
@@ -5548,6 +5556,7 @@ export const Blind = {
     const token = this.token;
     this.markFailed();
     this.log(false);
+    this.updatePeekBtn();
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     while (this.moveIdx < this.current.moves.length) {

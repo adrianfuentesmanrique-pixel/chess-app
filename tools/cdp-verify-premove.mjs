@@ -210,6 +210,18 @@ const INIT = `
     } catch { return null; }
   };
   T.fits = (f, when, cat, need) => !!f && (!when || f[when] === cat) && (!need || !!f[need]);
+  // My first move gives check (not mate) and the last move leaves a king in
+  // check: the red glow has something to show both hidden and on show.
+  T.glow = p => {
+    if (!T.facts(p)) return false;
+    try {
+      const c = new Chess(p.fen);
+      c.move(u(p.moves[0])); c.move(u(p.moves[1]));
+      if (!c.inCheck() || c.isCheckmate()) return false;
+      for (const m of p.moves.slice(2)) c.move(u(m));
+      return c.inCheck();
+    } catch { return false; }
+  };
   T.pick = (when, cat, need) => {
     const list = pz.PUZZLES;
     const start = Math.floor(Math.random() * list.length);
@@ -915,6 +927,58 @@ async function tapsBlind(tag) {
   s = await blNow();
   check(`${tag}BLINDFOLD a solution left to finish plays to the end`, s.id === p.id && s.moveIdx === s.len && s.played === s.len && !s.hidden && !s.live && s.attempts === p.attempts + 1,
     { moveIdx: s.moveIdx, of: s.len, hidden: s.hidden, live: s.live });
+
+  // Peek once the puzzle is over: a finger on the button, then 5.8 s of
+  // watching — the peek's own timer is 5 s — for the pieces to be hidden again
+  // or the board to change hands.
+  const peekOver = async (name, p) => {
+    const before = await blNow();
+    const off = await evalP(`return document.getElementById('blind-peek').disabled;`);
+    await tapEl('#blind-peek');
+    const tapped = await blNow();
+    const bad = await watch(`B.board.piecesHidden || B.board.interactive !== ${before.live}`, 5800);
+    const e = await blNow();
+    check(`${tag}BLINDFOLD Peek ${name}: nothing changes - pieces stay on show, the board is left as it was, no peek is spent`,
+      bad === 0 && e.id === p.id && !e.hidden && e.live === before.live && tapped.peeks === before.peeks && e.peeks === before.peeks && e.attempts === before.attempts && e.elo === before.elo,
+      { samplesHiddenOrBoardChanged: bad, peeks: [before.peeks, tapped.peeks, e.peeks], hiddenAfter: e.hidden, live: [before.live, e.live] });
+    check(`${tag}BLINDFOLD Peek ${name}: the Peek button shows as switched off`, off === true, { disabled: off });
+  };
+  await peekOver('after Show solution has finished', p);
+
+  // solved by hand, then Peek
+  p = await blUntil(`f && p.moves.length === 4`);
+  let sq = await evalP(`return __t.pts('blind-board');`);
+  for (let i = 1; i < p.len; i += 2) {
+    await until(`__t.app.Blind.moveIdx === ${i} && __t.app.Blind.board.interactive`, 4000);
+    await move(sq, p.moves[i], 'tap');
+  }
+  await until(`__t.app.Blind.moveIdx >= ${p.len}`, 3000);
+  s = await blNow();
+  if (s.moveIdx !== s.len || s.hidden || s.failed) throw new Error('blindfold puzzle was not solved by the taps: ' + JSON.stringify({ ...s, moves: undefined }));
+  await peekOver('after the puzzle is solved', p);
+
+  // Show solution, then Peek while it is still playing
+  p = await blUntil(`p.moves.length >= 6`);
+  await tapEl('#blind-solution');
+  await until(`__t.app.Blind.failedThis`);
+  const playing = (await blNow()).moveIdx < p.len;
+  await peekOver('while the solution is still playing', p);
+  s = await blNow();
+  check(`${tag}BLINDFOLD Peek while the solution is still playing: the solution still plays to the end`, playing && s.moveIdx === s.len && s.played === s.len, { stillPlayingAtPeek: playing, moveIdx: s.moveIdx, of: s.len });
+
+  // the red check glow: not on a king nobody is meant to see
+  p = await blUntil(`T.glow(p)`);
+  sq = await evalP(`return __t.pts('blind-board');`);
+  await move(sq, p.moves[1], 'tap');
+  const glow = await evalP(`const B = __t.app.Blind; let inCheck = 0, lit = 0; const t0 = performance.now();
+    while (performance.now() - t0 < 300) { if (B.board.piecesHidden && B.chess.inCheck()) { inCheck++; if (document.querySelector('#blind-board .sq.check')) lit++; } await new Promise(r => setTimeout(r, 5)); }
+    return { inCheck, lit };`);
+  check(`${tag}BLINDFOLD check glow: with the pieces hidden, the king in check is not lit up`, glow.inCheck > 0 && glow.lit === 0, { samplesInCheckWhileHidden: glow.inCheck, samplesWithGlow: glow.lit });
+  await tapEl('#blind-solution');
+  await until(`__t.app.Blind.moveIdx >= ${p.len}`, 12000);
+  await sleep(900);
+  const lit = await evalP(`return { glow: document.querySelectorAll('#blind-board .sq.check').length, hidden: __t.app.Blind.board.piecesHidden };`);
+  check(`${tag}BLINDFOLD check glow: with the pieces on show, the king in check is lit up as before`, lit.glow === 1 && !lit.hidden, lit);
 
   // Next / Peek / Show solution inside the 0.4 s before the opponent's reply
   for (const [label, sel] of [['Next', '#blind-next'], ['Peek', '#blind-peek'], ['Show solution', '#blind-solution']]) {

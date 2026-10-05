@@ -2,6 +2,41 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD — PEEK DOES NOTHING ONCE THE PUZZLE IS OVER; NO CHECK GLOW WHILE THE
+  PIECES ARE HIDDEN (v144, 2026-10-04).** `sw.js` v143 → **v144** in this commit
+  (another session had already bumped the working copy to v145 for its own
+  `js/diagram.js` work — that bump is theirs and is not in this commit). Committed
+  on `main`, NOT pushed, NOT deployed. **Not tested on a real phone.**
+  - **Reproduced first, with real taps (EN/light, old code):** Peek after Show
+    solution had finished, Peek after solving by hand, and Peek while the solution
+    was still playing — all three spent a peek and 5 s later hid the pieces again;
+    the two Show-solution cases also turned the locked board live. The check glow
+    was lit on every sample taken with the pieces hidden (54 of 54).
+  - **Fix.** `js/app.js`: new `Blind.isOver()` (= `this.logged`, set by a solve and
+    by Show solution, cleared only by `nextPuzzle`); `Blind.peek` returns at once
+    when it is true; `Blind.updatePeekBtn` disables the button then, and is now
+    also called on a solve and at the start of `showSolution`. `Blind.token` and
+    `cleanup()` untouched. `js/board.js` (Adrian said yes): `render` adds `.check`
+    only when `!this.piecesHidden`. `js/blind-elo.js` untouched.
+  - **Verified, headless CDP at 375px.** `taps` mode EN/ES x light/dark **97/97**
+    (was 61; +9 per combination in `tapsBlind`). `cdp-verify-blind.mjs` **75/75**.
+    `test:tree` **96/96**. Peek during a live puzzle still works (existing "Peek
+    inside the reply window" case: 5 s, then hidden and live).
+  - **NOT GREEN: full pre-move suite 79/84, twice — and 78/84 on an untouched copy
+    of the previous commit run the same hour.** A different handful fails each run,
+    every one a timing limit missed by a hair (`lagMs < 5`, `deadMs < 1`) in
+    Puzzles, Rush and Blindfold alike. The CPU sat at 100% throughout (another
+    session was working in this checkout). Machine noise, not this change — but
+    84/84 was NOT seen today. Re-run it on a quiet machine before trusting it.
+  - **REALLY TAPPED:** every chess move, Peek, Show solution, Next, Go.
+    **SEEDED:** the 2 s memorising time, the hint warning marked seen, autoNext
+    off. Puzzles are the app's own; Next is tapped until one fits the case.
+  - **Seen, left alone (not in scope):** after a hand solve the Blindfold board
+    stays live (taps select pieces, no move is taken) — the Puzzles tab does the
+    same. **Read from the code, NOT run:** Peek during the memorising countdown is
+    not guarded — it spends a peek, forfeits the extra, and its 5 s timer hides
+    the pieces and opens the board while a longer countdown is still on screen.
+
 - **READ TAB — THE "PAWN SHOWN AS A ROOK PAST 6 LESSONS" DEFECT DIAGNOSED; ONE RULE
   PROPOSED AND MEASURED; NOTHING BUILT — ADRIAN DECIDES (2026-10-04, later session).**
   No file the app loads was touched by this session; `js/diagram.js` is unchanged.

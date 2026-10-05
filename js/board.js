@@ -330,8 +330,8 @@ export class Board {
         sq.classList.remove('dest', 'capture-dest', 'check');
       }
     }
-    // check highlight
-    if (ok) {
+    // check highlight — not while pieces are hidden: it would point at the king
+    if (ok && !this.piecesHidden) {
       try {
         if (chess.inCheck()) {
           const king = findKing(grid, chess.turn());
