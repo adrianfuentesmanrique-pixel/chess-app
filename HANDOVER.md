@@ -2,6 +2,88 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — THE CAUSE BEHIND THE v145 RULE MEASURED (SHADE-BLIND "SIX TYPES",
+  `LEARN_AGREE` ON DARK SQUARES); TWO FIXES TRIED, NEITHER BEATS v145; NOTHING BUILT,
+  NO RULE RECOMMENDED — ADRIAN DECIDES (2026-10-04, night session).** No file the app
+  loads was touched; `js/diagram.js` is unchanged at v145; `test:tree` 98/98. Nothing
+  tapped: the real `classifyCells`/`learnFromCells` in Node (`tools/measure-pieces.mjs`,
+  `NOGATE=1`) on both truth files rendered afresh in headless Chrome. 374 runs. All
+  candidates were scratch copies and are gone; each is a few lines, described below.
+  - **1. Baseline reproduced exactly** from the current file: every clean number in
+    the v145 entry (hold-out 1187 … 738, first set 557 … 486, wrong 0), v143's 2 wrong
+    at 7 and 8 lessons, the slipped line 3274/2241/1319/444, hold-out `same` 9/7/4.
+  - **2. WHICH squares v145 loses under `POISON=one POISON_BOTH=1` (first set; 41, 57,
+    41, 16 at 2/4/6/8): every one is a ROOK in Chess Life, and every one is in a book
+    where a slipped lesson had confirmed a rook as a pawn** (155 of 155). The held
+    "pawn" is a real rook picture, so it sits nearer to the next rook (0.045–0.125
+    from the trusted ones) than the book's own rooks do, and v145 empties the square.
+    Both shades, both colours, both six-type teachers (p30, p17a) — square shade is
+    NOT what they share. The rule cannot tell a true held shape from a slipped one.
+  - **3. What shade does, measured per book** (same piece code, light square against
+    dark square, every pair in the truth files): Chess Life and Hellsten are FLAT —
+    50–96% of pairs within 0.06, median 0.04–0.06. Dvoretsky, Silman and FCE are
+    SHADED — 0 of 1,429 pairs within 0.06, nearest 0.087, median 0.32–0.37. The
+    nearest OTHER type on a dark square of another diagram: FCE 0.038, Dvoretsky
+    0.052, Silman 0.057.
+  - **4. Candidates.** (A) six types counted per square shade, every book: DEAD —
+    loses 405 of 3858 correct at 1 lesson on the first set (Chess Life, where shade
+    does not matter). (A2) the same, but only in a shaded book — a book is flat once
+    any piece code has a light and a dark sample within `STRICT.partial.match` of
+    each other; needs each sample to remember its shade. (A2n) A2 with the v145 rule
+    taken out. (B35) `LEARN_AGREE` 0.035 on dark squares only, 0.025 on light. (B35n)
+    B35 on v143. B at 0.045 and 0.07 were run clean only: over FCE's 0.038, and 0.07
+    gave one wrong-colour read (hold-out, 5 lessons).
+    **Both A2n and B35n show 0 wrong at 7 and 8 lessons without the v145 rule — the
+    cause CAN be removed on the two known squares. Neither is better than v145:**
+
+    | clean, correct (wrong 0 in every cell) | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+    |---|---|---|---|---|---|---|---|---|---|---|
+    | hold-out v145 | 10550 | 9598 | 8532 | 7348 | 6160 | 4947 | 3873 | 2752 | 1613 | 738 |
+    | hold-out A2 (= A2n) | 10485 | 9532 | 8480 | 7314 | 6144 | 4947 | 3870 | 2750 | 1614 | 738 |
+    | hold-out B35 (= B35n) | 10550 | 9630 | 8594 | 7407 | 6205 | 4966 | 3877 | 2746 | 1607 | 738 |
+    | first v145 (= A2) | 3858 | 3360 | 2836 | 2387 | 1885 | 1430 | 960 | 486 | – | – |
+    | first B35 | 3858 | 3370 | 2843 | 2392 | 1883 | 1418 | 944 | 473 | – | – |
+
+    A2's whole loss at 1–5 lessons is Silman (654 → 589 at 1 lesson, 10%); FCE −3/−2/+1
+    at 7–9. Slipped lessons, `correct w wrong` at 2/4/6/8:
+
+    | | v145 | A2 | A2n | B35 |
+    |---|---|---|---|---|
+    | first `one` | 3304·2347·1415·480 w0 | same | 3324·2347·1415·480 w0 | 3307·2353·1412·472 w0 |
+    | first `one`+BOTH | 3274·2241·1319·444 w0 | same | 3315·2298·1360·460 w0 | 3269·2246·1330·450 w0 |
+    | first `same` | 3299·2339·1411·478 w0 | same | 3310·2339·1411·478 **w5·4·0·0** | 3302·2342·1411·471 w0 |
+    | first `same`+BOTH | 3299·2282·1348·453 w0 | same | 3310·2299·1358·459 **w5·4·3·0** | 3302·2279·1341·443 w0 |
+    | hold `one` | 9547·7327·4928·2736 w0 | 9484·7292·4928·2733 w0 | = A2 | 9552·7379·4951·2741 w0 |
+    | hold `one`+BOTH | 9495·7251·4856·2686 w0·0·0·4 | 9436·7218·4856·2686 w0·0·0·4 | = A2 | 9495·7264·4861·2691 w0·0·0·4 |
+    | hold `same` | 9511·7296·4919·2725 w9·7·4·3 | 9448·7263·4919·2725 w9·7·4·3 | 9452·… same w | 9527·7336·4931·2729 **w14·10·4·3** |
+    | hold `same`+BOTH | 9511·7274·4898·2710 w9·7·4·6 | 9448·7241·4898·2710 w9·7·4·**3** | 9452·7251·4909·2717 w9·7·4·3 | 9527·7313·4906·2708 **w14·10·4·6** |
+
+    - **A2 on top of v145:** removes 3 wrong pieces in ONE cell (hold-out `same`+BOTH,
+      8 lessons, FCE p70 g6/h5/c2 `n` for `p`), changes no other wrong count, costs
+      65/66/52/34/16 correct reads at 1–5 lessons, all Silman. Needs stored data.
+    - **A2n instead of v145:** gets back the 41/57/41/16 rooks, but lets back in 5/4/3
+      wrong pieces on Chess Life under a repeated slip (`p` for `r`) — a flat book,
+      where the shade rule is off and only the v145 rule was stopping them.
+    - **B35:** +32/+62/+59/+45 correct at 2–5 lessons on the hold-out, −6 to −16 at
+      6–9 on both sets, and **5 and 3 MORE wrong pieces under a repeated slip (2 and 4
+      lessons), all on FCE dark squares** (p150a h6 e5, p150b d6 c5 e5, `n` for `p`):
+      the looser agreement trusts the slip said twice. No stored-data change.
+  - **RECOMMENDATION: NONE. Leave v145 as it is.** B35 adds wrong pieces. A2 is the
+    only candidate that never adds one, but its measured gain is 3 pieces in one
+    column of a fitted file against 10% of Silman's early reads and a stored-data
+    change. If A2 were ever built: books already taught have samples with no shade;
+    they would count for both shades (exactly today's behaviour) until the book is
+    re-taught or learns new samples — nothing breaks, nothing improves for them.
+  - **STILL UNMEASURED:** whether Silman's 65 lost reads were lucky or safe (they are
+    exactly "full thresholds on a shade missing a type", the FCE failure — all right
+    in this file); the 9/7/4 hold-out wrong under `POISON=same` (FCE light-square `N`
+    for `P`, Dvoretsky p440 e5 — untouched by every candidate); A2 and B together;
+    B between 0.025 and 0.035; inferring a sample's shade without storing it; the flat
+    test on a book whose first diagrams have no piece code on both shades; `PEND_CAP`
+    push-out; lesson orders other than book order; more than 10 lessons; FCE as a
+    six-type book beyond 3–6 boards; a sixth book; scans; a real phone. After the
+    gate was not measured (everything is `NOGATE=1`). Both truth files are fitted.
+
 - **BLINDFOLD — PEEK IS SWITCHED OFF WHILE THE PIECES ARE ON SHOW FOR MEMORISING
   (v146, 2026-10-04, later session).** `sw.js` v145 → **v146** in this commit (v145
   is the other session's `js/diagram.js` commit d7c6b6c, which landed while this
