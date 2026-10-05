@@ -2,6 +2,93 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB — THE "PAWN SHOWN AS A ROOK PAST 6 LESSONS" DEFECT DIAGNOSED; ONE RULE
+  PROPOSED AND MEASURED; NOTHING BUILT — ADRIAN DECIDES (2026-10-04, later session).**
+  No file the app loads was touched by this session; `js/diagram.js` is unchanged.
+  `test:tree` 96/96. Nothing tapped: real `classifyCells`/`learnFromCells` in Node on
+  squares measured afresh in headless Chrome (both truth files re-rendered). All
+  scripts were scratch and are gone; the rule is one line, quoted below.
+  (Another session had `js/app.js`, `js/board.js`, `sw.js` → v144 and
+  `tools/cdp-verify-premove.mjs` uncommitted in the tree at the time — not this work.)
+  - **1. Reproduced exactly.** Hold-out, `LEARN=7` and `8`, `NOGATE=1`: FCE
+    p350→p150a **h6** and p150b **d6**, `r` for `p`. First set: 0.
+  - **2. THE CAUSE — the rook samples are REAL rooks, learned from clean lessons.
+    What is missing is the pawn.** Traced sample by sample:
+    - Nearest to h6 / d6: `r` from **p200a g5** (0.071 / 0.074) and `r` from
+      **p200b h8** (0.080 / 0.096) — both true black rooks on dark squares.
+    - The book's trusted pawn samples at that point (P ×4, p ×2) ALL come from
+      LIGHT squares. The nearest of them is **0.51 / 0.46** away. In FCE the dark
+      square's shading dominates the measured shape: everything standing on a
+      dark square is within ~0.10 of everything else on one, and ~0.5 from the
+      same piece on a light square.
+    - The book HAD been shown black pawns on dark squares four times in three
+      lessons (p250 b6 and a7, p70 f6, p100a g7). They sit 0.021–0.045 from h6/d6
+      — much nearer than the rook. All were still HELD, never trusted: between
+      diagrams the same dark-square pawn differs by 0.030–0.066, which is over
+      `LEARN_AGREE` 0.025, so two diagrams never "agree". (p250 a7 was itself
+      refused as a contradiction of the rook.)
+    - So: p350 teaches no pawn; light-square pawns get learned; the book then
+      counts as knowing all six TYPES; `STRICT.full` (match 0.13) switches on;
+      and a dark-square pawn, which the book effectively has never learned, is
+      inside 0.13 of a rook with the next trusted type (king, 0.135–0.145) a full
+      `lead` behind. "Six types known" is counted per type, but in this book a
+      shape is only known per square shade.
+  - **3. Exposure (v143, clean lessons, before the gate, six-type books only).**
+
+    | correct reads at d1 > 0.06 / all correct | 7 | 8 | 9 | 10 |
+    |---|---|---|---|---|
+    | hold-out | 35 / 2096 (1.7%) | 19 / 1599 | 9 / 1085 | 2 / 523 |
+    | first set (ChessLife only) | 97 / 750 (12.9%) | 50 / 378 | no reads | no reads |
+
+    **The number that matters more: FCE has almost never been read as a six-type
+    book.** At 7 lessons 1 plan of 30 reaches six types (3 boards read), at 8
+    three plans (6 boards), at 9 six plans (6 boards). In that one plan at 7
+    lessons, 2 of 19 pieces shown were wrong. Dvoretsky and Hellsten never reach
+    six types in either file. So `STRICT.full` is measured on Chess Life (where
+    square shade does not matter: 41 of 41 "pawn-type known only on the other
+    shade" reads were right) and next to nothing else. In FCE, pieces whose type
+    was known only from the other shade: 15 at 7 lessons — 0 right, 2 wrong, 13
+    left empty.
+  - **4. THE ONE RULE PROPOSED — "in a six-type book, a held shape of another type
+    that is NEARER than the winner empties the square".** In `classifyCells`,
+    beside the v143 line (braces matter — an `else` without them binds to the
+    inner `if`, which silently made the first measurement a no-op):
+    `if (types.size < 6) { …v143 line… } else { for (const ty of Object.keys(byHeld)) if (ty !== type && byHeld[ty] < d1) d2 = d1; }`
+    This is NOT the dead "held-shape rule applied to six-type books" (that one
+    fires when a held shape is within `lead` of the winner and lost 97–156
+    pieces); this fires only when the held shape beats the winner outright. It can
+    only empty a square. Measured from a scratch copy, both sets, 0–10 lessons:
+
+    | hold-out, lessons | 0–6 | 7 | 8 | 9 | 10 |
+    |---|---|---|---|---|---|
+    | v143 wrong | 0 | **2** | **2** | 0 | 0 |
+    | rule wrong | 0 | 0 | 0 | 0 | 0 |
+    | correct lost | 0 | 0 | 0 | 0 | 0 |
+    | correct (both) | 73.9–82.5% | 83.5% | 84.0% | 84.1% | 87.6% |
+
+    First set: wrong 0 / 0 at every count; correct lost **2 at 1 lesson** (3860 →
+    3858), 0 at every other count (no reads at 9–10).
+  - **HOW THIN:** very. It removes exactly the two squares it was designed on, in
+    one lesson order of one book, and nothing else in either file moved (bar 2
+    pieces). It only helps when the true piece was confirmed at least once on
+    that shade AND is still held — `p` held was at the `PEND_CAP` of 8 in this
+    plan, so one more held pawn could have pushed the useful one out. It does
+    nothing for a dark-square piece never confirmed at all. It treats the
+    symptom; the cause (shade-blind "six types", and `LEARN_AGREE` too tight for
+    FCE's dark squares) stands.
+  - **Considered, NOT measured as a rule:** "use `partial` on a shade that lacks
+    one of the six types". Estimated only: it would catch both squares but drop
+    56 of 750 correct at 7 lessons on the first set (114 of 1481 at 5) for
+    nothing gained there, and needs every sample to remember its square shade
+    (a stored-data change).
+  - **STILL UNMEASURED:** the rule under `POISON=` (a slipped held shape can now
+    empty right squares in a six-type book); the rule once the useful held shape
+    has been pushed out; `LEARN_AGREE` per shade or looser for FCE dark squares
+    (0.035 for all is dead); lesson orders other than book order; FCE as a
+    six-type book beyond 3–6 boards; any other book with shaded dark squares at
+    six types; more than 10 lessons; a sixth book; scans; a real phone. Both
+    truth files are fitted, neither is unseen.
+
 - **READ TAB — "A HELD SHAPE OF ANOTHER TYPE IS A RIVAL" BUILT (v143); AND A NEW
   DEFECT FOUND PAST 6 LESSONS, NOT FIXED (2026-10-04).** `sw.js` v142 → **v143**.
   Changed: `js/diagram.js` (`modelOf` returns `held`, `nearest` returns `byHeld`,
