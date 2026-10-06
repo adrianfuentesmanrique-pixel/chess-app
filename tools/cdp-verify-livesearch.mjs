@@ -249,9 +249,9 @@ async function run(lang, scheme, first) {
   await click('#ana-prev'); v = await view();
   check('offline: the database search still follows the board → 2', count(v, 'One game', 2), v.status);
   await click('#ana-explore'); await click('.modal-box .sheet-btn', '🌐'); await sleep(1200); v = await view();
-  check('offline: Internet search fails with a message, no crash', v.status.startsWith('⚠️') && v.source === 'lichess', v.status);
-  await move('e2', 'e4'); const v2 = await view();
-  check('Internet results are not live (a move leaves them alone)', v2.status === v.status && v2.source === 'lichess', v2.status);
+  check('offline, no Lichess account linked: the Internet search explains itself, no crash', v.status.length > 40 && !v.status.startsWith('⚠️') && v.source === 'lichess', v.status);
+  await move('e2', 'e4'); await sleep(400); const v2 = await view();
+  check('not linked: a move leaves the Connect offer in place (the linked, live case is in cdp-verify-lichess.mjs)', v2.status === v.status && v2.source === 'lichess', v2.status);
   await click('#ana-view-tab button[data-v="moves"]'); await click('#ana-explore'); v = await view();
   check('Moves, then 🔎: straight back to the database, no chooser', v.modal === 0 && v.source === 'local' && count(v, 'One game', 1), v.status);
   await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });

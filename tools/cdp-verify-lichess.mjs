@@ -231,7 +231,37 @@ async function run(lang, scheme) {
     check(inApp && inApp.opened === 0 && seen.filter(x => x.path.startsWith('/masters/pgn/') && x.method === 'GET').length === 2, 'tap on a game: it opens on the board in the app, no new window, no new request');
     await shoot(c, `${name}-3b-game-opened`);
 
+    // 4b. LIVE, like the database search: remembered source, a lookup per board change
+    const nSearch = () => seen.filter(x => x.path === '/masters' && x.method === 'GET').length;
+    const LIST = `return { n: document.querySelectorAll('#ana-games-list .list-item').length, status: document.getElementById('ana-games-status').textContent,
+      showing: !document.getElementById('ana-games-view').classList.contains('hidden'), sheet: document.querySelectorAll('.sheet-btn').length };`;
+    const press = (id, n) => c.evalP(`for (let i = 0; i < ${n}; i++) document.getElementById('${id}').click();`);
+    await c.evalP(`document.getElementById('ana-explore').click();`);
+    let l = await until(c, `${LIST.replace('return {', 'const o = {').replace(/;\s*$/, '')}; return o.n === 2 ? o : null;`);
+    check(l && l.showing && l.sheet === 0 && nSearch() === 2, 'live: with a game open, 🔎 goes straight back to the internet results for the position on the board (no menu)');
+    await press('ana-prev', 3); await sleep(1600);
+    l = await c.evalP(LIST);
+    check(nSearch() === 3 && l.n === 2, 'live: three quick steps back = ONE new lookup, results refreshed');
+    await press('ana-next', 3); await sleep(1200);
+    l = await c.evalP(LIST);
+    check(nSearch() === 3 && l.n === 2, 'live: back on a position already looked up = no request, results shown from memory');
+    check(seen.filter(x => x.path.startsWith('/masters/pgn/') && x.method === 'GET').length === 2, 'live: games already fetched are not fetched again');
+    explorer = 429;
+    await press('ana-prev', 1); await sleep(1300);
+    l = await c.evalP(LIST);
+    const after429 = nSearch();
+    await press('ana-prev', 1); await sleep(1300);
+    const l2 = await c.evalP(LIST);
+    check(after429 === 4 && nSearch() === 4 && l.status === '⚠️ ' + tr.lichess_rate_limited && l2.status === l.status, 'live: after a 429 the next move asks nothing and says to wait a minute');
+    await c.evalP(`document.querySelector('#ana-view-tab button[data-v="moves"]').click();`);
+    explorer = 200;
+    await press('ana-prev', 1); await sleep(1000);
+    check(nSearch() === 4, 'live: with the Moves tab showing, a move asks nothing');
+    await c.evalP(`document.querySelector('#ana-view-tab button[data-v="games"]').click();`); await sleep(400);
+
     // 5. 429
+    // a fresh start: the app remembers positions it has looked up, and these three need a real request each
+    await c.send('Page.reload', {}); await opened(c); await sleep(600);
     explorer = 429; seen.length = 0;
     await c.evalP(SEARCH);
     s = await until(c, `${PANEL.replace('return {', 'const o = {').replace(/;\s*$/, '')}; return o.status.includes('⚠️') ? o : null;`);
@@ -239,6 +269,7 @@ async function run(lang, scheme) {
 
     // 6. 401
     explorer = 401;
+    await c.send('Page.reload', {}); await opened(c); await sleep(600);
     await c.evalP(SEARCH);
     s = await until(c, `${PANEL.replace('return {', 'const o = {').replace(/;\s*$/, '')}; return o.token ? null : o;`);
     check(s && s.status === tr.lichess_expired && s.buttons.length === 1 && s.buttons[0] === tr.lichess_connect, '401: token cleared, says it expired, offers Connect again');
@@ -247,6 +278,7 @@ async function run(lang, scheme) {
     // 7. offline search (token seeded again)
     explorer = 200; offline = true;
     await c.evalP(`localStorage.setItem('ctc-lichess-token', '${FAKE}');`);
+    await c.send('Page.reload', {}); await opened(c); await sleep(600);
     await c.evalP(SEARCH);
     s = await until(c, `${PANEL.replace('return {', 'const o = {').replace(/;\s*$/, '')}; return o.status.includes('⚠️') ? o : null;`);
     check(s && s.status === '⚠️ ' + tr.explore_lichess_unavailable && s.token === FAKE, 'offline search: clear message at once, token kept');

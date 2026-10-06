@@ -77,6 +77,26 @@
     per game with the header, tap opens in the app with no window.open and no new
     request); test:tree 103, offline-open 8/8, offline-read ALL PASSED. NOT measured:
     the real PGN text from Lichess and its real rate limit - Adrian's look after push.
+  - **v154, same day: THE INTERNET SEARCH IS NOW LIVE, like the database search** (Adrian
+    confirmed v153 works on the real Lichess, then asked for this). While the internet
+    results are on screen every board change looks the new position up
+    (`refresh()` -> `Analysis.internetSoon()`); with the Moves tab showing nothing is
+    asked; 🔎 goes straight back to the last source (`searchAgain()` /
+    `internetChosen()`) - the internet only counts as "last source" while an account is
+    linked, so a user who only saw the Connect offer still gets their database back.
+    THIS REPLACES the v152 "one request per tap" rule. What keeps it within Lichess's
+    rules: ALL explorer requests go through one chain (`lichessFetch` / `masterChain`,
+    never two in the air; `lichessBusy` is gone); a move waits 500 ms before it is
+    looked up, so stepping fast asks once; positions (`masterSearch`, fen -> games) and
+    games (`masterPgn`) already fetched are answered from memory; after a 429 the live
+    search rests 60 s (`lichessWait`) and says so - a tap on 🌐 still tries. MEASURED,
+    Lichess faked: `cdp-verify-lichess.mjs` 27 checks x 4 ALL PASSED (3 quick steps = 1
+    lookup; a seen position = 0 requests; 429 then a move = 0 requests; Moves tab = 0);
+    `cdp-verify-livesearch.mjs` ALL PASSED after two of its expectations were updated
+    ("Internet results are not live" is no longer true; a not-linked search now explains
+    itself instead of showing a warning); test:tree 103; offline-open 8/8; offline-read
+    ALL PASSED. NOT measured: Lichess's real rate limit under live use - if 429s show up
+    in real use, raise the 500 ms or drop the per-game move lines first.
   - **Known, left alone:** signing out of the app does not remove the Lichess link (it
     is per device, scope-less); Kael's quote bubble can overlap the hint under the
     Connect button (the existing "quote in English under Spanish" bubble — other session).

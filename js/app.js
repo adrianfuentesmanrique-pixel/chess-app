@@ -1703,7 +1703,7 @@ export const Analysis = {
     $('ana-view-tab').addEventListener('click', e => {
       const b = e.target.closest('button[data-v]');
       if (!b) return;
-      if (b.dataset.v === 'games') { this.showGamesTab(); this.searchLive(); } else this.showMovesTab();
+      if (b.dataset.v === 'games') { this.showGamesTab(); this.searchAgain(); } else this.showMovesTab();
     });
     $('ana-setup-btn').onclick = () => Setup.open(this.tree.fen());
     $('ana-new-game-btn').onclick = () => this.loadTree(new GameTree());
@@ -1929,6 +1929,7 @@ export const Analysis = {
     // The live database search, on the same choke point. One check and nothing
     // else unless a base's results are on screen right now.
     if (this.exploreLive()) this.searchLive();
+    else if (this.internetLive()) this.internetSoon();
   },
 
   updateNagBar() {
@@ -1958,7 +1959,8 @@ export const Analysis = {
   // when a result is opened — and while its results are on screen every board
   // change looks the new position up (refresh() calls searchLive()). There is
   // no off switch: with the moves showing it costs one check, and 🔎 brings
-  // the results back for the same base. The Internet search stays one-shot.
+  // the results back for the same base. The Internet search is live the same
+  // way and remembered the same way (exploreSource) — see exploreInternet().
   explore: null,        // { baseId, name, index, rev, syncing } + opened, noStore, at (syncExplore)
   exploreSource: null,  // what the results list holds: 'local' | 'lichess'
   exploreSeq: 0,        // newest search wins when an index build is still running
@@ -1967,10 +1969,10 @@ export const Analysis = {
   exploreLive() { return !!this.explore && this.exploreSource === 'local' && this.gamesShowing(); },
 
   async openExplore() {
-    // Moves showing and a base already chosen: straight back to its results
+    // Moves showing and a source already chosen: straight back to its results
     // for the position on the board. Changing base (or going to the Internet)
     // is only offered from the results themselves.
-    if (this.explore && !this.gamesShowing()) { this.showGamesTab(); this.searchLive(); return; }
+    if ((this.explore || this.internetChosen()) && !this.gamesShowing()) { this.showGamesTab(); this.searchAgain(); return; }
     sheet([
       { label: '📚 ' + t('explore_database'), action: () => this.exploreDatabase() },
       { label: '🌐 ' + t('explore_internet'), action: () => this.exploreInternet() },
@@ -2127,34 +2129,75 @@ export const Analysis = {
   },
 
   // Lichess answers 401 to the explorer without a token (since Oct 2026), so
-  // the Internet search needs a linked account — see Lichess below. One
-  // request per tap, never a retry: their API rule is one request at a time.
-  lichessBusy: false,
+  // the Internet search needs a linked account — see Lichess below.
+  //
+  // Like the database search it is LIVE while its results are on screen
+  // (refresh() → internetSoon()). What keeps that polite: every request to the
+  // explorer goes through ONE chain, so there is never more than one in the air
+  // (their rule); a move waits half a second before it is looked up, so stepping
+  // quickly through a game asks once; a position and a game already fetched are
+  // answered from memory; and after a 429 the live search rests for a minute.
+  masterSearch: new Map(),   // fen → topGames
+  masterPgn: new Map(),      // game id → PGN
+  masterChain: Promise.resolve(),
+  lichessTimer: null,
+  lichessWait: 0,            // no live lookups before this time (set by a 429)
+
+  internetLive() { return this.exploreSource === 'lichess' && this.gamesShowing(); },
+
+  lichessFetch(url, alive = () => true) {
+    const run = async () => {
+      if (!alive()) throw new Error('stale');
+      const token = Lichess.token();
+      if (!token) throw new Error('401');
+      let res;
+      try { res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } }); }
+      catch { throw new Error('net'); }
+      if (res.status === 429) this.lichessWait = Date.now() + 60000;
+      if (!res.ok) throw new Error(String(res.status));
+      return res;
+    };
+    const p = this.masterChain.then(run, run);
+    this.masterChain = p.catch(() => { });
+    return p;
+  },
+
+  // A board change while the Internet results are showing.
+  internetSoon() {
+    this.exploreSeq++;   // whatever is filling the old list stops here
+    clearTimeout(this.lichessTimer);
+    $('ana-games-list').innerHTML = '';
+    if (Date.now() < this.lichessWait) { $('ana-games-status').textContent = '⚠️ ' + t('lichess_rate_limited'); return; }
+    $('ana-games-status').textContent = t('explore_searching');
+    this.lichessTimer = setTimeout(() => { if (this.internetLive()) this.exploreInternet(); },
+      this.masterSearch.has(this.tree.fen()) || !Lichess.token() ? 0 : 500);
+  },
+
+  // The remembered source's results for the position on the board. The
+  // Internet only counts as remembered while an account is linked: someone who
+  // looked at the Connect offer once still gets their database back from 🔎.
+  internetChosen() { return this.exploreSource === 'lichess' && (!!Lichess.token() || !this.explore); },
+  searchAgain() { return this.internetChosen() ? this.exploreInternet() : this.searchLive(); },
 
   async exploreInternet() {
     this.exploreSource = 'lichess';
     const seq = ++this.exploreSeq;
+    clearTimeout(this.lichessTimer);
     this.showGamesTab();
     $('ana-games-list').innerHTML = '';
-    const token = Lichess.token();
-    if (!token) { this.offerLichess(t('lichess_explain')); return; }
-    if (this.lichessBusy) return;
-    this.lichessBusy = true;
+    if (!Lichess.token()) { this.offerLichess(t('lichess_explain')); return; }
     $('ana-games-status').textContent = t('explore_searching');
+    const fen = this.tree.fen();
     try {
-      await this.masterChain;   // a game still being fetched for the last results: let it land first
-      const url = `https://explorer.lichess.org/masters?fen=${encodeURIComponent(this.tree.fen())}&topGames=15`;
-      let res;
-      try { res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } }); }
-      catch { throw new Error(t('explore_lichess_unavailable')); }
+      let games = this.masterSearch.get(fen);
+      if (!games) {
+        const res = await this.lichessFetch(`https://explorer.lichess.org/masters?fen=${encodeURIComponent(fen)}&topGames=15`, () => seq === this.exploreSeq);
+        games = (await res.json()).topGames || [];
+        if (this.masterSearch.size > 300) this.masterSearch.clear();
+        this.masterSearch.set(fen, games);
+      }
       if (seq !== this.exploreSeq) return;
-      // A stored token that is refused has expired or was revoked on lichess.org.
-      if (res.status === 401) { Lichess.clear(); this.offerLichess(t('lichess_expired')); return; }
-      if (res.status === 429) throw new Error(t('lichess_rate_limited'));
-      if (!res.ok) throw new Error(`Lichess: ${res.status}`);
-      const data = await res.json();
-      if (seq !== this.exploreSeq) return;
-      this.renderGameResults(data.topGames || [], 'lichess');
+      this.renderGameResults(games, 'lichess');
       const row = document.createElement('div'); row.className = 'row wrap lichess-row';
       const note = document.createElement('span'); note.className = 'hint'; note.textContent = t('lichess_connected_line');
       const off = document.createElement('button'); off.className = 'btn small'; off.textContent = t('lichess_disconnect');
@@ -2163,33 +2206,22 @@ export const Analysis = {
       $('ana-games-list').appendChild(row);
       this.fillMasterMoves(seq);
     } catch (e) {
-      if (seq === this.exploreSeq) $('ana-games-status').textContent = '⚠️ ' + (e.message || e);
-    } finally {
-      this.lichessBusy = false;
+      if (seq !== this.exploreSeq || e.message === 'stale') return;
+      // A stored token that is refused has expired or was revoked on lichess.org.
+      if (e.message === '401') { Lichess.clear(); this.offerLichess(t('lichess_expired')); return; }
+      $('ana-games-status').textContent = '⚠️ ' + (e.message === '429' ? t('lichess_rate_limited')
+        : /^\d+$/.test(e.message) ? `Lichess: ${e.message}` : t('explore_lichess_unavailable'));
     }
   },
 
   // The explorer's result names the games but carries no moves; each game is
-  // its own request. They go through ONE chain — the results filling in their
-  // move lines and a tap on a game never overlap (Lichess: one at a time) —
-  // and a fetched game is kept, so opening one already listed costs nothing.
-  masterPgn: new Map(),
-  masterChain: Promise.resolve(),
-
-  fetchMasterPgn(id) {
-    const run = async () => {
-      if (this.masterPgn.has(id)) return this.masterPgn.get(id);
-      const token = Lichess.token();
-      if (!token) throw new Error('401');
-      const res = await fetch(`https://explorer.lichess.org/masters/pgn/${encodeURIComponent(id)}`, { headers: { Authorization: 'Bearer ' + token } });
-      if (!res.ok) throw new Error(String(res.status));
-      const pgn = await res.text();
-      this.masterPgn.set(id, pgn);
-      return pgn;
-    };
-    const p = this.masterChain.then(run, run);
-    this.masterChain = p.catch(() => { });
-    return p;
+  // its own request, kept once fetched — opening one already listed costs nothing.
+  async fetchMasterPgn(id, alive) {
+    if (this.masterPgn.has(id)) return this.masterPgn.get(id);
+    const pgn = await (await this.lichessFetch(`https://explorer.lichess.org/masters/pgn/${encodeURIComponent(id)}`, alive)).text();
+    if (this.masterPgn.size > 600) this.masterPgn.clear();
+    this.masterPgn.set(id, pgn);
+    return pgn;
   },
 
   // Third line of each result: the game's moves from the position on the board
@@ -2197,9 +2229,10 @@ export const Analysis = {
   async fillMasterMoves(seq) {
     const f = this.tree.fen().split(' ');
     const ply = (+f[5] - 1) * 2 + (f[1] === 'b' ? 1 : 0);
+    const alive = () => seq === this.exploreSeq;
     for (const el of [...$('ana-games-list').querySelectorAll('.moves[data-id]')]) {
-      if (seq !== this.exploreSeq) return;
-      try { el.textContent = pgnLineFrom(await this.fetchMasterPgn(el.dataset.id), ply); }
+      if (!alive()) return;
+      try { el.textContent = pgnLineFrom(await this.fetchMasterPgn(el.dataset.id, alive), ply); }
       catch { return; }
     }
   },
