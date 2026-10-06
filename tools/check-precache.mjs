@@ -9,15 +9,20 @@
 // splash. That is how learning-data, quotes-data, legal-data and openings-eco
 // went missing (fixed in v147).
 //
-// NOT checked: dynamic import() (those are allowed to load on first use) and
-// cross-origin imports (the worker never caches them).
+// A static import from ANOTHER ORIGIN fails too: the worker never caches those
+// (see the fetch handler in sw.js), so the app would only open offline while the
+// browser's own HTTP cache still happened to hold the file. That is how the
+// Firebase SDK on www.gstatic.com kept the app on the splash (vendored in v149).
+// The walk follows minified files as well (`import{a}from"./x.js"`).
+//
+// NOT checked: dynamic import() (those are allowed to load on first use).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = 'js/app.js';
-const IMPORT_RE = /(?:^|[\n;])\s*(?:import|export)\s+(?:[^'"`;]*?\sfrom\s*)?['"]([^'"]+)['"]/g;
+const IMPORT_RE = /(?:^|[\n;])\s*(?:import|export)\b\s*(?:[^'"`;]*?\bfrom\s*)?['"]([^'"]+)['"]/g;
 
 export function precachedAssets(root = ROOT) {
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
@@ -27,7 +32,7 @@ export function precachedAssets(root = ROOT) {
   return new Set([...body.matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]));
 }
 
-export function staticImports(root = ROOT, entry = ENTRY) {
+export function staticImports(root = ROOT, entry = ENTRY, crossOrigin = []) {
   const seen = new Set();
   const todo = [entry];
   while (todo.length) {
@@ -36,7 +41,7 @@ export function staticImports(root = ROOT, entry = ENTRY) {
     seen.add(file);
     const src = fs.readFileSync(path.join(root, file), 'utf8');
     for (const [, spec] of src.matchAll(IMPORT_RE)) {
-      if (!spec.startsWith('.') && !spec.startsWith('/')) continue; // gstatic etc.
+      if ((!spec.startsWith('.') && !spec.startsWith('/')) || spec.startsWith('//')) { crossOrigin.push(`${file} -> ${spec}`); continue; }
       todo.push(path.posix.join(spec.startsWith('/') ? '' : path.posix.dirname(file), spec).replace(/^\//, ''));
     }
   }
@@ -45,18 +50,23 @@ export function staticImports(root = ROOT, entry = ENTRY) {
 
 export function checkPrecache(root = ROOT) {
   const assets = precachedAssets(root);
+  const crossOrigin = [];
+  const files = staticImports(root, ENTRY, crossOrigin);
   return {
+    // Imported at startup from another origin: the worker never caches it.
+    crossOrigin,
     // Imported at startup but not precached: the app cannot open offline after an update.
-    notPrecached: staticImports(root).filter(f => !assets.has(f)),
+    notPrecached: files.filter(f => !assets.has(f)),
     // Listed but not on disk: harmless to install (per-file tolerant), but a typo hides a real gap.
     notOnDisk: [...assets].filter(a => a !== './' && !fs.existsSync(path.join(root, a))),
   };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { notPrecached, notOnDisk } = checkPrecache();
+  const { notPrecached, notOnDisk, crossOrigin } = checkPrecache();
+  for (const f of crossOrigin) console.error(`CROSS-ORIGIN: ${f} is a static import from another origin; the worker never caches it`);
   for (const f of notPrecached) console.error(`NOT PRECACHED: ${f} is statically imported from ${ENTRY} but is not in ASSETS in sw.js`);
   for (const f of notOnDisk) console.error(`NOT ON DISK: ${f} is in ASSETS in sw.js but the file does not exist`);
-  if (notPrecached.length || notOnDisk.length) process.exit(1);
+  if (notPrecached.length || notOnDisk.length || crossOrigin.length) process.exit(1);
   console.log(`precache OK: all ${staticImports().length} statically imported files are in ASSETS`);
 }

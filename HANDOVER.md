@@ -2,6 +2,62 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **"THE APP SOMETIMES DOES NOT OPEN" — GSTATIC FIXED (v149, 2026-10-05): THE FIREBASE
+  SDK IS SELF-HOSTED AND PRECACHED. ALL THREE CAUSES NOW CLOSED IN THE CODE.** Adrian
+  chose option (a). Needs a normal push to `main`; no Firestore rules deploy. **When
+  this was written `origin/main` was still `94f73ad` (v146 live): `ff20dad`, `7b16de7`
+  (v147), `29b1936` (v148) and this commit were all unpushed** — check before assuming.
+  - **What changed:** new folder `vendor/firebase-10.14.1/` with `firebase-app.js`,
+    `firebase-auth.js`, `firebase-firestore.js`, `firebase-app-check.js` (718 KB raw,
+    ~183 KB gzipped) and `LICENSE` (Apache-2.0, from the firebase-js-sdk repo).
+    `firebase-app.js` is byte-identical to `www.gstatic.com/firebasejs/10.14.1/`; the
+    other three differ in exactly ONE place each — their `from"https://www.gstatic.com/
+    firebasejs/10.14.1/firebase-app.js"` is now `from"./firebase-app.js"` (compared
+    against gstatic after writing). Do NOT blind search-and-replace that URL: it also
+    appears inside `firebase-app.js` as a plain name string and a logger name, which
+    must stay. `js/firebase.js` imports the four from `../vendor/firebase-10.14.1/`.
+    `sw.js`: the four added to `ASSETS`, `CACHE` v148 → v149, one comment reworded;
+    the fetch handler, `networkFirst`/`launchFor`/`sameBytes`, cache-first, share-target
+    and install/activate are untouched. The "never cache cross-origin" rule is untouched.
+  - **Upgrading the SDK later:** new folder named for the new version, same one-line
+    repoint in the three files, update the four imports and the four `ASSETS` lines.
+    `vendor/` is cache-first, so NEVER overwrite files inside an existing version folder.
+  - **Guard tightened (`tools/check-precache.mjs`, `tests/unit/precache.test.js`):** a
+    static import from another origin now FAILS (`CROSS-ORIGIN: …`) instead of being
+    skipped, and the import walk reads minified files (`import{a}from"./x.js"` — the old
+    pattern needed spaces and would have missed the SDK's own import). 36 files walked
+    (was 32). Shown failing both ways before passing: with the old gstatic imports (4 ×
+    CROSS-ORIGIN) and with `firebase-app.js` reachable only through `firebase-auth.js`
+    and left out of `ASSETS`. `npm.cmd run test:tree` 102/102 (one new test).
+  - **Reproduced, headless Chrome over CDP, 375px, local server.** New switch
+    `NOGSTATIC=1` on `tools/cdp-verify-offline-open.mjs`: before the offline reload it
+    clears the browser HTTP cache and blocks `*://www.gstatic.com/*` on the PAGE target
+    (`Network.setBlockedURLs`). The worker target is NOT attached — `sw.js` never
+    fetches cross-origin itself. BEFORE (v148, `ONE=1 NOGSTATIC=1`): first visit and
+    version bump both STUCK ON SPLASH, exactly the four `firebasejs/10.14.1` files
+    failing. AFTER (v149, `NOGSTATIC=1`): 8/8 open in ~1.6 s (both cases × EN/ES ×
+    light/dark; 84 entries after one visit, 83 after a bump); the only gstatic request
+    left is `recaptcha/releases/…/recaptcha__en.js` (App Check, online-only by nature).
+    Without the switch: 8/8. `tools/cdp-measure-weak-signal.mjs` identical to v148
+    (1.6 s / 6.5 s / 4.1 s, 35 requests on a good network, edit check unchanged, no
+    MIXED) — the SDK is cache-first, so a warm launch does not request it at all.
+  - **Online, same four combinations (scratch script, gone):** app opens, 0 requests to
+    `gstatic.com/firebasejs`, the four files come from this origin, the sign-in sheet
+    opens in EN and ES (light and dark), App Check answers 200 then 403 and Firestore
+    logs "Could not reach Cloud Firestore backend" — **the SAME lines the unchanged
+    v148 code gives on localhost** (run side by side). So a real Firestore read and a
+    real sign-in were NOT confirmed locally, before or after; they need the live site.
+  - **Advisories:** OSV lists none for `firebase@10.14.1` (checked 2026-10-05).
+  - **Cost:** every `CACHE` bump now re-downloads the SDK with the rest of the
+    precache (~183 KB gzipped more per update). Before, the browser kept it for a year.
+  - **NOT tested:** a real phone, the TWA, the live site (nothing is pushed).
+  - **Still open, unchanged:** the Stockfish `.wasm` (7.3 MB) is thrown away by every
+    `CACHE` bump (see the v148 entry) — the same is true of `vendor/pdf.worker.min.mjs`,
+    `vendor/jbig2.wasm` and `vendor/openjpeg.wasm` (cached on first use, not in
+    `ASSETS`; read from the code, not reproduced). And install is per-file tolerant: a
+    file that fails during install is skipped silently, so a dropped connection mid-
+    install can still leave one startup file missing until the next online launch.
+
 - **"THE APP SOMETIMES DOES NOT OPEN" — CAUSE 2 (WEAK SIGNAL) FIXED (v148,
   2026-10-05). GSTATIC STILL OPEN.** `sw.js`: only the network-first branch changed
   (now `networkFirst(e)` + `launchFor` + `sameBytes`, below the fetch handler), `CACHE`

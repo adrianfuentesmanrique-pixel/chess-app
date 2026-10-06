@@ -8,8 +8,9 @@
 // waits `latency` ms, then all response bodies share one link of `kbps` KB/s.
 // CDP's Network.emulateNetworkConditions is NOT used: it throttles the page's
 // requests but not the ones the service worker makes, and the worker is the
-// thing being measured. www.gstatic.com (the Firebase SDK) is therefore NOT
-// throttled here.
+// thing being measured. Since v149 the Firebase SDK is served from vendor/ on
+// this server too (cache-first, so a warm launch does not request it); only
+// reCAPTCHA still comes from www.gstatic.com and is NOT throttled here.
 //
 //   speed  — two fast visits (warm cache), then one launch at each speed; time
 //            from reload to #splash getting `hide`, requests + bytes served.

@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v148';
+const CACHE = 'chess-training-center-v149';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -52,6 +52,14 @@ const ASSETS = [
   'js/explore-index.js',
   'js/tour.js',
   'vendor/chess.js',
+  // The Firebase SDK, statically imported by js/firebase.js (and so by
+  // js/app.js): without all four the app never gets past the splash. Copied
+  // from www.gstatic.com/firebasejs/10.14.1; the folder carries the version, so
+  // an SDK upgrade is a new path and cache-first can never serve a stale one.
+  'vendor/firebase-10.14.1/firebase-app.js',
+  'vendor/firebase-10.14.1/firebase-auth.js',
+  'vendor/firebase-10.14.1/firebase-firestore.js',
+  'vendor/firebase-10.14.1/firebase-app-check.js',
   'vendor/chart.umd.js',
   'vendor/stockfish-17.1-lite-single-03e3232.js',
   // PDF.js main library for the Read tab (~500 KB). The separate ~1.3 MB
@@ -130,8 +138,8 @@ self.addEventListener('fetch', e => {
 
   if (e.request.method !== 'GET') return;
 
-  // Only ever cache our own files. Cross-origin GETs (Firebase auth/data, the
-  // gstatic SDK) go straight to the network: CacheStorage is readable by any
+  // Only ever cache our own files. Cross-origin GETs (Firebase auth/data,
+  // reCAPTCHA) go straight to the network: CacheStorage is readable by any
   // script on this origin and survives sign-out, so a cached authenticated
   // response would outlive the session it belonged to.
   if (new URL(e.request.url).origin !== self.location.origin) return;

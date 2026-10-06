@@ -1,12 +1,15 @@
 // Firebase Auth (Google + email/password) + Firestore sync.
-// Loaded from Google's own CDN — there is no offline story for login/sync anyway
-// (it requires the network by definition), so vendoring it brings no benefit.
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
+// The SDK is served from this origin (vendor/firebase-10.14.1, copied from
+// www.gstatic.com/firebasejs/10.14.1 with only their import of firebase-app.js
+// repointed) and precached: js/app.js imports this file at startup, so an SDK
+// file that cannot be fetched leaves the app on the splash. Login and sync
+// themselves still need the network.
+import { initializeApp } from '../vendor/firebase-10.14.1/firebase-app.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile,
   deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+} from '../vendor/firebase-10.14.1/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
   // Masterclass. onSnapshot drives the live board — watchLiveState() below is
@@ -14,8 +17,8 @@ import {
   addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot,
   // Students homework: progress is added, not overwritten, so two phones add up.
   increment, arrayUnion,
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
+} from '../vendor/firebase-10.14.1/firebase-firestore.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from '../vendor/firebase-10.14.1/firebase-app-check.js';
 import * as db from './db.js';
 
 const firebaseConfig = {

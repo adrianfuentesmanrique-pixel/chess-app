@@ -14,8 +14,14 @@
 //
 // "Opened" means #splash got its `hide` class, which only happens on the last
 // line of main() in js/app.js — i.e. the whole module graph loaded and ran.
-// With the server stopped www.gstatic.com is still reachable, on purpose: this
-// measures the precache list, not the Firebase SDK imports.
+// With the server stopped www.gstatic.com is still reachable by default. Until
+// v148 the Firebase SDK was imported from there; since v149 it is in vendor/.
+//
+// NOGSTATIC=1 also takes www.gstatic.com away for the offline reload: the URL is
+// blocked on the PAGE target (Network.setBlockedURLs) and the browser's HTTP
+// cache is cleared first, so nothing can come from there either. The worker
+// target is not attached; sw.js never fetches a cross-origin URL itself, and
+// every gstatic request the page makes during that reload is printed.
 //
 // NOTHING IS TAPPED. Language is seeded through localStorage before the page's
 // own scripts run, the theme through prefers-color-scheme emulation.
@@ -178,6 +184,10 @@ async function run(scenario, lang, scheme) {
     }
 
     await web.stop();
+    if (process.env.NOGSTATIC) {
+      await c.send('Network.clearBrowserCache');
+      await c.send('Network.setBlockedURLs', { urls: ['*://www.gstatic.com/*'] });
+    }
     c.failed.length = 0;
     await c.send('Page.reload', {});
     const ms = await opened(c);
@@ -190,6 +200,8 @@ async function run(scenario, lang, scheme) {
     console.log(`     seen: "${text}"`);
     const local = c.failed.filter(f => f.startsWith(web.url));
     if (local.length) console.log(`     failed offline: ${local.map(f => f.slice(web.url.length + 1)).join(', ')}`);
+    const gs = c.failed.filter(f => f.includes('www.gstatic.com'));
+    if (process.env.NOGSTATIC) console.log(`     gstatic requests that failed: ${gs.length ? gs.map(f => f.replace('https://www.gstatic.com/firebasejs/', '')).join(', ') : 'none'}`);
     return ok;
   } finally {
     await c.close();
