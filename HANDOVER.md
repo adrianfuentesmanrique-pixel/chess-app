@@ -2,6 +2,53 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **"THE APP SOMETIMES DOES NOT OPEN" — CAUSE 2 (WEAK SIGNAL) FIXED (v148,
+  2026-10-05). GSTATIC STILL OPEN.** `sw.js`: only the network-first branch changed
+  (now `networkFirst(e)` + `launchFor` + `sameBytes`, below the fetch handler), `CACHE`
+  v147 → v148. `ASSETS`, the cache-first branch, share-target and install/activate are
+  untouched. Needs a normal push to `main`; no Firestore rules deploy. **When this was
+  written v147 (`7b16de7`) was NOT on `origin/main` either** — check before assuming.
+  - **What it does (Adrian chose option (a), in the one-decision-per-launch form):**
+    each file is asked from the network with a 2.5 s limit (`NET_TIMEOUT`). The first
+    file that is too slow or fails switches the WHOLE launch (per client id) to the
+    cache and aborts what is in the air. Every file that does arrive is compared byte
+    for byte with its cached copy; if one differs, an update is out, and the limit is
+    lifted for the rest of that launch so the launch is all new. A per-file limit
+    alone would have mixed new small files with an old cached `app.js`.
+  - **A changed file is deliberately NOT written to the cache** (a launch cut off
+    halfway would leave the cache half old, half new). The cache is only replaced
+    whole, by the next `CACHE` bump. **So every deploy that changes app code must bump
+    `CACHE`** — without a bump users still get the new code on a good signal, but on a
+    weak one they stay on the old code and every launch after the change is a slow one.
+    On the dev server an unbumped edit still shows on the next reload (measured).
+  - **Measured, headless Chrome over CDP, 375px, local server, warm cache
+    (`node tools/cdp-measure-weak-signal.mjs`; `speed` / `update` runs one half).** The
+    SERVER is slowed (latency per request + one shared link), not Chrome, so the
+    worker's own requests are throttled; gstatic is not. The local server does not
+    compress (1.4 MB per launch vs ~426 KB live), so these are bigger than the live
+    numbers in the diagnosis entry — compare before/after on this tool only.
+    | | v147 | v148 |
+    |---|---|---|
+    | good network | 1.6 s, 35 requests | 1.6 s, 35 requests |
+    | 400 ms / 50 KB/s | 36.0 s | 6.5 s (4 requests, 166 KB) |
+    | 3 s / 10 KB/s | 163.1 s | 4.2 s (1 request) |
+    Edit served without a bump (markers appended to `index.html`, `js/app.js`,
+    `js/quotes-data.js`): good network → new on launch 1; 400 ms / 50 KB/s → new on
+    launch 1 but slow (34.7 s, the limit lifted); 3 s / 10 KB/s → old on all 4
+    launches, 4.1 s each. No launch was a mixed set. `tools/cdp-verify-offline-open.mjs`
+    8/8 (both cases × EN/ES × light/dark, v148 → v149), `npm.cmd run test:tree` 101/101.
+  - **Left as it was, on purpose:** if the connection dies outright in the middle of a
+    launch that is loading an update, the remaining files come from the cache (that
+    one launch can be mixed) — the alternative is a launch stuck on the splash.
+  - **NOT tested:** a real phone, the TWA, the live site, a real weak mobile signal
+    (only the slowed local server). The 2.5 s figure is a choice, not tuned on a device.
+  - **Found, NOT fixed — matters for "the app must work without internet":**
+    `vendor/stockfish-17.1-lite-single-03e3232.wasm` (7.3 MB) is deliberately not in
+    `ASSETS`; it is cached on first use, and `activate` deletes it with the old cache
+    on every `CACHE` bump. Read from the code, not reproduced: after any update the
+    engine (analysis evaluation, the bot) cannot start offline until it has been used
+    once online. Separate session.
+
 - **"THE APP SOMETIMES DOES NOT OPEN" — CAUSE 1 FIXED (v147, 2026-10-05). CAUSES 2
   AND GSTATIC STILL OPEN.** `sw.js`: the four startup modules `js/learning-data.js`,
   `js/quotes-data.js`, `js/legal-data.js`, `js/openings-eco.js` are now in `ASSETS`,

@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v147';
+const CACHE = 'chess-training-center-v148';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -165,11 +165,82 @@ self.addEventListener('fetch', e => {
   // cache: 'no-store' bypasses the browser's own HTTP disk cache, which can
   // otherwise silently serve a stale response for an unchanged URL even when
   // this handler explicitly wants to hit the network.
-  e.respondWith(
-    fetch(e.request, { cache: 'no-store' }).then(res => {
-      // Clone synchronously — see the cache-first branch above.
-      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
-      return res;
-    }).catch(() => caches.match(e.request))
-  );
+  e.respondWith(networkFirst(e));
 });
+
+// Network-first used to wait for the network with no limit, so on a weak signal
+// a fully cached app re-downloaded itself before every launch and sat on the
+// splash for most of a minute. Now each file gets NET_TIMEOUT, and the choice
+// between network and cache is made ONCE PER LAUNCH, never per file — a per-file
+// limit would hand out new small files next to an old cached app.js:
+//  - the first file that is too slow (or fails) switches the whole launch to
+//    the cache; requests still in the air are dropped;
+//  - every file that does arrive is compared with its cached copy. All the same:
+//    it makes no difference which one is served. One different (an update is
+//    out): the limit is lifted for the rest of the launch, so the launch is all
+//    new. A changed file is NOT written to the cache — a launch cut off halfway
+//    would leave it half old, half new. The next CACHE version replaces it whole.
+const NET_TIMEOUT = 2500;
+const launches = new Map();   // client id → { cacheOnly, changed, stop, gaveUp }
+
+function launchFor(e) {
+  const nav = e.request.mode === 'navigate';
+  const id = (nav ? e.resultingClientId : e.clientId) || '';
+  if (nav || !launches.has(id)) {
+    if (launches.size > 20) launches.delete(launches.keys().next().value);
+    const L = { cacheOnly: false, changed: false, stop: new AbortController() };
+    L.gaveUp = new Promise(r => { L.giveUp = () => { L.cacheOnly = true; r('slow'); L.stop.abort(); }; });
+    launches.set(id, L);
+  }
+  return launches.get(id);
+}
+
+function sameBytes(a, b) {
+  if (a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a), y = new Uint8Array(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
+}
+
+async function networkFirst(e) {
+  const L = launchFor(e);
+  const cached = await caches.match(e.request);
+  if (!cached) {
+    // Nothing stored for this file: only the network can answer.
+    // cache: 'no-store' bypasses the browser's own HTTP disk cache, which can
+    // otherwise silently serve a stale response for an unchanged URL.
+    const res = await fetch(e.request, { cache: 'no-store' });
+    // Clone synchronously — see the cache-first branch above.
+    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+    return res;
+  }
+  if (L.cacheOnly) return cached;
+
+  const fresh = fetch(e.request, { cache: 'no-store', signal: L.stop.signal }).then(async res => {
+    if (!res.ok) return { res, same: true };   // an error page says nothing about an update; pass it on as before
+    const copy = res.clone();   // synchronously, before the body is read below
+    const [a, b] = await Promise.all([res.arrayBuffer(), cached.clone().arrayBuffer()]);
+    return { res: copy, same: sameBytes(a, b) };
+  });
+  fresh.catch(() => {});
+  const use = got => {
+    if (got.same) return got.res;
+    if (L.cacheOnly) return cached;   // this launch already runs on the cache
+    L.changed = true;
+    return got.res;
+  };
+
+  let timer;
+  const got = await Promise.race([
+    fresh.catch(() => 'failed'),
+    L.gaveUp,
+    new Promise(r => { timer = setTimeout(r, NET_TIMEOUT, 'slow'); }),
+  ]);
+  clearTimeout(timer);
+  if (got === 'slow' && L.changed) return fresh.then(use, () => cached);   // an update is loading: wait it out
+  if (got === 'slow' || got === 'failed') {
+    if (!L.changed) L.giveUp();
+    return cached;
+  }
+  return use(got);
+}
