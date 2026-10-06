@@ -46,8 +46,8 @@ setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 560000).
 // ── what SHOULD be covered, worked out separately from the app ───────────────
 // pdf.js under Node, the page's text joined the naive way, and the rule restated.
 const VENDOR = pathToFileURL(path.join(ROOT, 'vendor') + path.sep).href;
-const pdfjs = await import(VENDOR + 'pdf.min.mjs');
-pdfjs.GlobalWorkerOptions.workerSrc = VENDOR + 'pdf.worker.min.mjs';
+const pdfjs = await import(VENDOR + 'pdfjs-6.3.289/pdf.min.mjs');
+pdfjs.GlobalWorkerOptions.workerSrc = VENDOR + 'pdfjs-6.3.289/pdf.worker.min.mjs';
 async function expected(file, pages) {
   const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(file)), wasmUrl: VENDOR, verbosity: 0 }).promise;
   const out = {};

@@ -61,8 +61,8 @@ async function worker(k) {
   await evalP(`
     const src = await (await fetch('/__diagram')).text();
     window.D = await import(URL.createObjectURL(new Blob([src + '\\nexport { toGray, toneMap, detectFromBand, detectInWindow, placeByTone, accept, fitBoard, checkerVotes, isSlid, cellTone };'], { type: 'text/javascript' })));
-    window.lib = await import('/vendor/pdf.min.mjs');
-    lib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+    window.lib = await import('/vendor/pdfjs-6.3.289/pdf.min.mjs');
+    lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs-6.3.289/pdf.worker.min.mjs';
     window.docs = {}; window.GATE = ${+(process.env.GATE || 0)};
   `);
   return { send, evalP, chrome };

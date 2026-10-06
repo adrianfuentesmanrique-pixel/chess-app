@@ -2,6 +2,66 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **THE READ TAB'S PDF ENGINE NOW SURVIVES AN APP UPDATE (v151, 2026-10-06).** Adrian
+  chose option (a) plus the rescue: versioned folder, then `KEEP`. Needs a normal push
+  to `main`; no Firestore rules deploy. When this was written `origin/main` was
+  `23c808e` (v150 live) and this commit was unpushed — check before assuming.
+  - **The bug, now reproduced (it was only read from the code before):** on v150 a
+    2-page test book opened online stored `vendor/pdf.worker.min.mjs` and
+    `vendor/openjpeg.wasm` in `chess-training-center-v150`; after a bump both were in
+    NO cache; offline the book did not open — toast "Couldn't open the book."
+  - **What changed.** The four pdf.js files moved (`git mv`, bytes untouched) from
+    `vendor/` to `vendor/pdfjs-6.3.289/`. `js/read.js`: the `import()`, `workerSrc`
+    and `PDF_WASM_URL` point there. `sw.js`: the `ASSETS` line for `pdf.min.mjs`
+    (still precached, still the only one of the four that is); `KEEP` now lists the
+    worker, `jbig2.wasm` and `openjpeg.wasm` beside the Stockfish `.wasm`; new
+    `KEEP_WAS` (new address → the pre-v151 address, those three files only) and two
+    lines in `tidyKeep` that look under the old address too and store the copy as a
+    fresh `Response` (so it does not carry the old URL). `CACHE` v150 → v151. The
+    cache is still called `ctc-engine` — renaming it would throw Stockfish away.
+    `networkFirst`/`launchFor`/`sameBytes`, share-target, install, the cross-origin
+    rule and the Stockfish entry are untouched; nothing was added to install.
+  - **Why the carry-over is safe:** `git log` shows the three files were never changed
+    after they were added (`8548ef6`, `31c8191`), so a copy any phone holds under the
+    old address is byte-for-byte the 6.3.289 file. **Never add a `KEEP_WAS` entry for
+    a file that was ever replaced under its old name.** `KEEP_WAS` can be deleted once
+    nobody is on v150 or older; leaving it costs nothing.
+  - **A pdf.js upgrade from now on:** new folder `vendor/pdfjs-<version>/` with all
+    four files, repoint `js/read.js`, the `ASSETS` line and the three `KEEP` lines,
+    bump `CACHE`. `activate` then drops the old three from `ctc-engine` by itself.
+  - **New tool `tools/cdp-verify-offline-read.mjs <outDir>`** (sibling of the engine
+    tool, same plumbing, `ONE=1` for EN/light) and its fixture
+    `tools/fixtures/offline-read-test.pdf` (9.7 KB, made for this: page 1 text, page 2
+    one full-page JPEG2000 image, so `openjpeg.wasm` is really fetched). `fresh`: one
+    visit, nothing tapped, none of the three files requested. `bump`: book seeded with
+    `db.addBook`, opened online, both pages must show ink (dark pixels counted on the
+    canvas), `sw.js` served bumped by one, server stopped, same book opened offline.
+    `rescue`: starts from `sw.js` and `js/read.js` of `23c808e` (v150; the server
+    answers the old paths from the new folder) and updates to the working tree.
+    New unit test in `tests/unit/precache.test.js` (+ `keptFiles()` in
+    `tools/check-precache.mjs`): every `KEEP` file exists, has a version in its path,
+    and is not also precached.
+  - **Results.** BEFORE (v150, `ONE=1`): fresh PASS, bump FAIL as above. AFTER (v151):
+    fresh PASS (0 requests, 84 entries); bump 4/4 (EN/ES × light/dark) — worker and
+    `openjpeg.wasm` in `ctc-engine`, each downloaded 1× in all, made-up old file
+    removed, offline both pages show ink; rescue PASS (v150 → v151, both carried from
+    the old address into `ctc-engine`, each downloaded 1× in all — no second
+    download). Screenshots looked at: ES/dark and EN/light (rescue).
+    `tools/cdp-verify-offline-engine.mjs` ALL PASSED (fresh, 4 bump, rescue).
+    `tools/cdp-verify-offline-open.mjs` with `NOGSTATIC=1` 8/8 (~1.6 s).
+    `tools/cdp-measure-weak-signal.mjs`: 1.6 s / 6.5 s / 4.2 s (v150 measured the same
+    day: 4.1 s — one tenth, noise), 35 requests, edit check unchanged, no MIXED.
+    `npm.cmd run test:tree` 103/103.
+  - **NOT tested:** a real phone, the TWA, the live site. **`jbig2.wasm` was never
+    fetched in any run** — no JBIG2 encoder on this machine; it goes through the same
+    pdf.js fetch, the same `KEEP` line and the same `tidyKeep` code as
+    `openjpeg.wasm`, but that is read from the code. Adding a book (`importFile`) and
+    Training mode were not driven offline — they load the same worker. The five older
+    Read tools (`cdp-verify-hatched/pieces/training`, `measure-fallback/pieces`) had
+    their pdf.js paths repointed and pass `node --check`; they were not run.
+  - The "Rule for `KEEP`" bullet in the v150 entry below (pdf.js files NOT added) is
+    now history: they are added, under the versioned folder.
+
 - **THE STOCKFISH ENGINE NOW SURVIVES AN APP UPDATE (v150, 2026-10-06).** Adrian chose
   option (a): a second cache that `activate` does not wipe. Needs a normal push to
   `main`; no Firestore rules deploy. **When this was written `origin/main` was still

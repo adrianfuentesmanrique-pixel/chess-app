@@ -32,6 +32,15 @@ export function precachedAssets(root = ROOT) {
   return new Set([...body.matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]));
 }
 
+// The files sw.js keeps across updates (KEEP). Nothing ever replaces a kept
+// entry, so each one's path must carry its version.
+export function keptFiles(root = ROOT) {
+  const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+  const m = sw.match(/const KEEP = \[([\s\S]*?)\];/);
+  if (!m) throw new Error('could not find the KEEP list in sw.js');
+  return [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]);
+}
+
 export function staticImports(root = ROOT, entry = ENTRY, crossOrigin = []) {
   const seen = new Set();
   const todo = [entry];

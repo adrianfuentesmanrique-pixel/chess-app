@@ -92,8 +92,8 @@ await send('Page.navigate', { url: `http://127.0.0.1:${WEB}/__probe` }); await s
 await evalP(`
   const src = await (await fetch('/__diagram')).text();
   window.D = await import(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
-  window.lib = await import('/vendor/pdf.min.mjs');
-  lib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+  window.lib = await import('/vendor/pdfjs-6.3.289/pdf.min.mjs');
+  lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs-6.3.289/pdf.worker.min.mjs';
   window.docs = {}; window.pages = {};
   window.pageImg = async (bi, n) => {
     const k = bi + ':' + n; if (pages[k]) return pages[k];

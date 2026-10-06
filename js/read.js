@@ -11,7 +11,10 @@
 // material hosted under my own name with a Play Store listing attached.
 //
 // PDF rendering is Mozilla's PDF.js (Apache-2.0, pdfjs-dist 6.3.289), vendored
-// in vendor/ exactly like chess.js and the Stockfish wasm. It is imported
+// in vendor/pdfjs-6.3.289/ (the folder carries the version, as for the
+// Firebase SDK — an upgrade is a NEW folder, never new files under the old
+// names: the service worker keeps the worker and the wasm across updates and
+// never replaces a kept file). It is imported
 // lazily the first time a book is opened or added, so a launch by someone who
 // never opens Read pays none of its ~500 KB parse cost. Shipped without the
 // cmaps/ and standard_fonts/ folders — chess books are Latin text with
@@ -40,17 +43,19 @@ const EMPTY_FEN = '8/8/8/8/8/8/8/8 w - - 0 1';
 // full-page scans of exactly that kind) decodes to nothing and the reader shows
 // a pure-white page. Must end in '/'. Passed per getDocument() call below —
 // unlike workerSrc there is no global setter for it. Like the worker, the wasm
-// is NOT precached; vendor/ is cache-first, so it is stored on first use.
-const PDF_WASM_URL = new URL('../vendor/', import.meta.url).href;
+// is NOT precached; it is stored on first use, in the cache that outlives an
+// app update (KEEP in sw.js).
+const PDF_WASM_URL = new URL('../vendor/pdfjs-6.3.289/', import.meta.url).href;
 let pdfjsLib = null;
 async function loadPdfjs() {
   if (pdfjsLib) return pdfjsLib;
-  const lib = await import('../vendor/pdf.min.mjs');
+  const lib = await import('../vendor/pdfjs-6.3.289/pdf.min.mjs');
   // The worker is a separate ~1.3 MB file; resolve it next to this module so it
   // works whatever path the app is served from. It is NOT precached by the
-  // service worker (same reasoning as the Stockfish wasm) — vendor/ is
-  // cache-first, so it is stored on first use and then available offline.
-  lib.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdf.worker.min.mjs', import.meta.url).href;
+  // service worker (same reasoning as the Stockfish wasm) — it is stored on
+  // first use, in the cache that outlives an app update (KEEP in sw.js), so a
+  // book already on the phone still opens offline after one.
+  lib.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs-6.3.289/pdf.worker.min.mjs', import.meta.url).href;
   pdfjsLib = lib;
   return lib;
 }

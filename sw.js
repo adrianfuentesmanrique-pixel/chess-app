@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v150';
+const CACHE = 'chess-training-center-v151';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -6,12 +6,27 @@ const SHARE_CACHE = 'ctc-shared-inbox';
 // Heavy files fetched on first use that must outlive an update: they live in
 // their own cache, which `activate` does not wipe. Without it every CACHE bump
 // threw the 7 MB engine away and the bot and the analysis evaluation could not
-// start offline until it had been downloaded again. ONLY files whose NAME
-// carries their version belong here — nothing else ever replaces an entry. An
-// entry that is no longer listed is removed in `activate`.
+// start offline until it had been downloaded again; the same went for the
+// Read tab's PDF engine, so a book already on the phone would not open. ONLY
+// files whose NAME or FOLDER carries their version belong here — nothing else
+// ever replaces an entry. An entry that is no longer listed is removed in
+// `activate`.
 const KEEP_CACHE = 'ctc-engine';
-const KEEP = ['vendor/stockfish-17.1-lite-single-03e3232.wasm'];
-const KEEP_URLS = KEEP.map(u => new URL(u, self.location).href);
+const KEEP = [
+  'vendor/stockfish-17.1-lite-single-03e3232.wasm',
+  'vendor/pdfjs-6.3.289/pdf.worker.min.mjs',
+  'vendor/pdfjs-6.3.289/jbig2.wasm',
+  'vendor/pdfjs-6.3.289/openjpeg.wasm',
+];
+const abs = u => new URL(u, self.location).href;
+const KEEP_URLS = KEEP.map(abs);
+// Up to v150 the three pdf.js files sat in vendor/ with no version in their
+// path. They never changed while they lived there, so a copy a phone already
+// holds under the old address IS the 6.3.289 file: `activate` carries it
+// across instead of making the phone download it again. Never add an entry
+// here for a file that was ever replaced under its old name.
+const KEEP_WAS = Object.fromEntries(['pdf.worker.min.mjs', 'jbig2.wasm', 'openjpeg.wasm']
+  .map(f => [abs('vendor/pdfjs-6.3.289/' + f), abs('vendor/' + f)]));
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -74,12 +89,13 @@ const ASSETS = [
   // PDF.js main library for the Read tab (~500 KB). The separate ~1.3 MB
   // pdf.worker.min.mjs is deliberately NOT precached — same reasoning as the
   // Stockfish .wasm below: it is fetched on first use (the first time a book is
-  // opened or added) and cached by the cache-first handler, since vendor/ is
-  // CACHE_FIRST. So a first launch by someone who never opens Read stays light.
-  // The image-decoder wasm (vendor/jbig2.wasm ~102 KB, vendor/openjpeg.wasm
+  // opened or added) and cached by the cache-first handler into KEEP_CACHE, so
+  // an update does not throw it away. A first launch by someone who never opens
+  // Read stays light. The image-decoder wasm (jbig2.wasm ~102 KB, openjpeg.wasm
   // ~246 KB) that pdf.js uses to render JBIG2/JPEG2000 scanned pages is likewise
-  // NOT precached — same cache-first-on-first-use path as the worker above.
-  'vendor/pdf.min.mjs',
+  // NOT precached — same first-use path as the worker above.
+  // The folder carries the pdf.js version: an upgrade is a new folder.
+  'vendor/pdfjs-6.3.289/pdf.min.mjs',
   // NOTE: the 7 MB Stockfish .wasm is deliberately NOT precached here. Pulling
   // it during install put a 7 MB download in front of first launch, and since
   // install is all-or-nothing, a phone that dropped it got NOTHING cached.
@@ -128,15 +144,20 @@ self.addEventListener('activate', e => {
 
 // Runs before the old caches go. Drops kept files that are no longer listed
 // (an engine upgrade must not leave the old 7 MB behind), and moves a listed
-// file that an older version stored in its versioned cache across, so the
-// update that introduced KEEP_CACHE does not cost anyone a second download.
+// file that an older version stored in its versioned cache across — under its
+// own address or the one it had before (KEEP_WAS) — so the update that starts
+// keeping a file does not cost anyone a second download.
 async function tidyKeep(old) {
   const keep = await caches.open(KEEP_CACHE);
   for (const req of await keep.keys()) if (!KEEP_URLS.includes(req.url)) await keep.delete(req);
   for (const url of KEEP_URLS) {
     if (await keep.match(url)) continue;
     for (const k of old) {
-      const hit = await (await caches.open(k)).match(url);
+      const c = await caches.open(k);
+      let hit = await c.match(url);
+      // Found under the old address: stored as a new Response, which does not
+      // carry that address, so it is served as the file now asked for.
+      if (!hit && KEEP_WAS[url] && (hit = await c.match(KEEP_WAS[url]))) hit = new Response(hit.body, { status: hit.status, statusText: hit.statusText, headers: hit.headers });
       if (hit) { await keep.put(url, hit); break; }
     }
   }

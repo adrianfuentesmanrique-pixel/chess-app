@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkPrecache, staticImports } from '../../tools/check-precache.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { checkPrecache, staticImports, keptFiles, precachedAssets } from '../../tools/check-precache.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 test('the import walk finds the startup modules, including multi-line imports', () => {
   const files = staticImports();
@@ -22,4 +27,14 @@ test('nothing the app needs at startup is imported from another origin', () => {
 
 test('every precached file exists', () => {
   assert.deepEqual(checkPrecache().notOnDisk, []);
+});
+
+test('every file kept across updates exists, carries its version in its path, and is not precached', () => {
+  const kept = keptFiles();
+  assert.ok(kept.length >= 4, 'the Stockfish wasm and the three pdf.js files');
+  for (const f of kept) {
+    assert.ok(fs.existsSync(path.join(ROOT, f)), `${f} is in KEEP in sw.js but the file does not exist`);
+    assert.match(f, /\d+\.\d+/, `${f} has no version in its path - a kept file is never replaced`);
+    assert.ok(!precachedAssets().has(f), `${f} is both kept and precached`);
+  }
 });

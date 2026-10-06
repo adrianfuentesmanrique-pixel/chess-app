@@ -118,7 +118,7 @@ async function openBook() {
 // own canvas width, with `grid` as the position the user "confirmed".
 const seedTemplates = (width, grid) => evalP(`
   const db = await import('/js/db.js'), D = await import('/js/diagram.js');
-  const lib = await import('/vendor/pdf.min.mjs'); lib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+  const lib = await import('/vendor/pdfjs-6.3.289/pdf.min.mjs'); lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs-6.3.289/pdf.worker.min.mjs';
   const doc = await lib.getDocument({ url: '/__book', wasmUrl: '/vendor/' }).promise, page = await doc.getPage(${TEACH.page});
   const vp = page.getViewport({ scale: ${width} / page.getViewport({ scale: 1 }).width });
   const cv = document.createElement('canvas'); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
@@ -177,7 +177,7 @@ await load('en', 'light');
 await click('#tabbar button[data-screen="read"]', 500);
 const seeded = await evalP(`
   const db = await import('/js/db.js');
-  const lib = await import('/vendor/pdf.min.mjs'); lib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+  const lib = await import('/vendor/pdfjs-6.3.289/pdf.min.mjs'); lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs-6.3.289/pdf.worker.min.mjs';
   for (const bk of await db.listBookSummaries()) await db.deleteBook(bk.id);
   const blob = await (await fetch('/__book')).blob();
   const doc = await lib.getDocument({ data: await blob.arrayBuffer(), wasmUrl: '/vendor/' }).promise;

@@ -245,8 +245,8 @@ await load('en', 'light');
 await click('#tabbar button[data-screen="read"]', 500);
 const seeded = await evalP(`
   const db = await import('/js/db.js');
-  const lib = await import('/vendor/pdf.min.mjs');
-  lib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+  const lib = await import('/vendor/pdfjs-6.3.289/pdf.min.mjs');
+  lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs-6.3.289/pdf.worker.min.mjs';
   for (const bk of await db.listBookSummaries()) await db.deleteBook(bk.id);
   const books = ${JSON.stringify(BOOKS.map((b, i) => ({ name: b.name, page: b.page, i })))};
   for (const b of books) {
