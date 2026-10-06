@@ -1,6 +1,59 @@
-# Chess app — where things stand (updated 2026-10-05)
+# Chess app — where things stand (updated 2026-10-06)
 
 ## Already done and pushed — do NOT redo these
+
+- **THE STOCKFISH ENGINE NOW SURVIVES AN APP UPDATE (v150, 2026-10-06).** Adrian chose
+  option (a): a second cache that `activate` does not wipe. Needs a normal push to
+  `main`; no Firestore rules deploy. **When this was written `origin/main` was still
+  `94f73ad` (v146 live): `ff20dad`, v147, v148, v149 and this commit were all
+  unpushed** — check before assuming.
+  - **The bug, now reproduced (it was only read from the code before):** on v149, a
+    game against the bot online stored the 7.3 MB `.wasm` in `chess-training-center-
+    v149`; after a bump it was in NO cache; offline, Play answered `e4` with "Couldn't
+    download the chess engine (7 MB)" and Analysis showed the same line, no evaluation.
+  - **What changed (`sw.js` only, in the app):** `KEEP_CACHE = 'ctc-engine'`, `KEEP`
+    (one entry, the Stockfish `.wasm`) and `KEEP_URLS`. The cache-first branch writes a
+    `KEEP` file into `KEEP_CACHE` instead of `CACHE` (reading was already
+    `caches.match` across every cache — unchanged). `activate` keeps `KEEP_CACHE` and
+    first runs the new `tidyKeep(old)`: (1) deletes kept entries no longer listed in
+    `KEEP`, so an engine upgrade does not leave the old 7 MB behind; (2) moves a listed
+    file found in an old versioned cache across, so users who have the engine in v149
+    or earlier do NOT download it again on this update. A failure in `tidyKeep` is
+    logged and does not block activation. `CACHE` v149 → v150. `ASSETS`,
+    `networkFirst`/`launchFor`/`sameBytes`, share-target, install and the cross-origin
+    rule are untouched; nothing was added to install.
+  - **Rule for `KEEP`: only files whose NAME carries their version.** Nothing ever
+    replaces a kept entry. That is why `vendor/pdf.worker.min.mjs`, `vendor/jbig2.wasm`
+    and `vendor/openjpeg.wasm` were NOT added: their names have no version, so a pdf.js
+    upgrade would leave phones on the old worker beside the new `pdf.min.mjs` (6.3.289
+    today). They are still thrown away by every bump — read from the code, NOT
+    reproduced. Separate session: versioned folder first (as for Firebase), then `KEEP`.
+  - **New tool `tools/cdp-verify-offline-engine.mjs <outDir>`** (headless Chrome over
+    CDP, 375px, local server, `ONE=1` for EN/light). `fresh`: one visit, nothing
+    tapped, the server's request log must not contain the `.wasm`. `bump`: bot game
+    online (first use), a made-up old file put in `ctc-engine`, `sw.js` served bumped
+    by one, server stopped, then offline a bot game (`e2-e4` by real touch events) and
+    the Analysis engine toggle. `rescue`: same, but starting from `git show
+    ca40e68:sw.js` (v149) and updating to the working tree. It seeds `onboardingDone`
+    and `tourDone` through `js/db.js` — the welcome sheet and tour offer otherwise sit
+    over the board (and the tab bar's Play press is repeated until it sticks, because
+    the app puts its own first screen up just after the splash).
+  - **Results.** BEFORE (v149, `ONE=1`): fresh PASS (0 requests), bump FAIL as above.
+    AFTER (v150): fresh PASS (0 requests, 84 entries); bump 4/4 (EN/ES × light/dark) —
+    `.wasm` in `ctc-engine`, downloaded 1× in all, made-up old file removed, offline
+    bot replied `1. e4 d5`, offline Analysis showed `+0.40 d17 1.e4 …`; rescue PASS
+    (v149 → v150, `.wasm` carried into `ctc-engine`, downloaded 1× in all).
+    Screenshots looked at: Play ES/dark and Analysis EN/light. `tools/cdp-verify-
+    offline-open.mjs` with `NOGSTATIC=1` 8/8 (~1.6 s). `tools/cdp-measure-weak-
+    signal.mjs` identical to v149 (1.6 s / 6.5 s / 4.1 s, 35 requests, edit check
+    unchanged, no MIXED). `npm.cmd run test:tree` 102/102.
+  - **NOT tested:** a real phone, the TWA, the live site. Endgame's engine toggle and
+    the other `engine.evaluate` callers were not driven — they load the same worker.
+    A phone very short of storage can still evict everything the origin stored,
+    `ctc-engine` included; nothing in a service worker prevents that.
+  - **Seen in passing, NOT fixed:** offline, Kael's quote bubble on the Play screen was
+    in English with the app in Spanish (one screenshot; not checked whether quotes are
+    translated at all). The two broken offline images are unchanged.
 
 - **"THE APP SOMETIMES DOES NOT OPEN" — GSTATIC FIXED (v149, 2026-10-05): THE FIREBASE
   SDK IS SELF-HOSTED AND PRECACHED. ALL THREE CAUSES NOW CLOSED IN THE CODE.** Adrian

@@ -1,8 +1,17 @@
-const CACHE = 'chess-training-center-v149';
+const CACHE = 'chess-training-center-v150';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
 const SHARE_CACHE = 'ctc-shared-inbox';
+// Heavy files fetched on first use that must outlive an update: they live in
+// their own cache, which `activate` does not wipe. Without it every CACHE bump
+// threw the 7 MB engine away and the bot and the analysis evaluation could not
+// start offline until it had been downloaded again. ONLY files whose NAME
+// carries their version belong here — nothing else ever replaces an entry. An
+// entry that is no longer listed is removed in `activate`.
+const KEEP_CACHE = 'ctc-engine';
+const KEEP = ['vendor/stockfish-17.1-lite-single-03e3232.wasm'];
+const KEEP_URLS = KEEP.map(u => new URL(u, self.location).href);
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
@@ -74,7 +83,8 @@ const ASSETS = [
   // NOTE: the 7 MB Stockfish .wasm is deliberately NOT precached here. Pulling
   // it during install put a 7 MB download in front of first launch, and since
   // install is all-or-nothing, a phone that dropped it got NOTHING cached.
-  // It is fetched on first use instead and cached by the handler below.
+  // It is fetched on first use instead and cached by the handler below, into
+  // KEEP_CACHE (see the top of this file), so an update does not throw it away.
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
@@ -109,10 +119,28 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== SHARE_CACHE).map(k => caches.delete(k))))
+    caches.keys().then(keys => keys.filter(k => k !== CACHE && k !== SHARE_CACHE && k !== KEEP_CACHE))
+      .then(old => tidyKeep(old).catch(err => console.warn('[sw] keep', err))
+        .then(() => Promise.all(old.map(k => caches.delete(k)))))
       .then(() => self.clients.claim())
   );
 });
+
+// Runs before the old caches go. Drops kept files that are no longer listed
+// (an engine upgrade must not leave the old 7 MB behind), and moves a listed
+// file that an older version stored in its versioned cache across, so the
+// update that introduced KEEP_CACHE does not cost anyone a second download.
+async function tidyKeep(old) {
+  const keep = await caches.open(KEEP_CACHE);
+  for (const req of await keep.keys()) if (!KEEP_URLS.includes(req.url)) await keep.delete(req);
+  for (const url of KEEP_URLS) {
+    if (await keep.match(url)) continue;
+    for (const k of old) {
+      const hit = await (await caches.open(k)).match(url);
+      if (hit) { await keep.put(url, hit); break; }
+    }
+  }
+}
 
 self.addEventListener('fetch', e => {
   // Web Share Target endpoint. A file shared to the app (WhatsApp → Share → CTC)
@@ -153,7 +181,7 @@ self.addEventListener('fetch', e => {
           // Clone NOW, before the page starts reading the body. Cloning inside the
           // async .then() ran after the body was consumed ("Response body is
           // already used"), so the put silently failed and nothing got cached.
-          if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+          if (res.ok) { const copy = res.clone(); caches.open(KEEP_URLS.includes(e.request.url) ? KEEP_CACHE : CACHE).then(c => c.put(e.request, copy)); }
           return res;
         }).catch(err => {
           // Previously this resolved to `cached`, which is undefined when
