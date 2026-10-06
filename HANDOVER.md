@@ -1,6 +1,50 @@
-# Chess app — where things stand (updated 2026-10-04)
+# Chess app — where things stand (updated 2026-10-05)
 
 ## Already done and pushed — do NOT redo these
+
+- **"THE APP SOMETIMES DOES NOT OPEN" — DIAGNOSED, NOTHING BUILT, FIX PROPOSED AND
+  WAITING FOR ADRIAN'S GO (2026-10-05).** No file the app loads was touched; `sw.js`
+  is still v146. Reproduced in headless Chrome over CDP at 375px against the LIVE
+  site (and, for the update case only, a local `git archive HEAD` copy). NOT tested
+  on a real phone or inside the TWA. Probe scripts were scratch and are gone.
+  - **What is deployed (checked, not from notes):** `main` == `origin/main`, live
+    `sw.js` is byte-identical to the file here (v146). The old note "v136 onward not
+    pushed" is stale. `/.well-known/assetlinks.json` answers 200 with 4 fingerprints.
+    The site is **NOT behind Cloudflare today**: DNS is the four GitHub Pages IPs,
+    `Server: GitHub.com`, no `cf-` headers; everything is `Cache-Control: max-age=600`.
+  - **CAUSE 1 (reproduced, live): four modules `js/app.js` statically imports are
+    missing from `ASSETS` in `sw.js`** — `js/learning-data.js`, `js/quotes-data.js`,
+    `js/legal-data.js`, `js/openings-eco.js`. They only reach the cache when a page
+    that is ALREADY controlled by the worker fetches them. After a single visit the
+    cache has 76 entries and none of the four; with the network gone the four fail
+    `net::ERR_FAILED`, the module graph never runs, and the splash covers the app
+    for good. After a second online visit (82 entries) offline opens in 1.9 s.
+  - **Every version bump puts every user back in that state** (reproduced on the
+    local copy, v146 → v147): `activate` deletes the old cache, the new one is
+    precache-only (75 entries, the four missing), and the next launch without a
+    connection is stuck on the splash. `sw.js` was bumped 37 times in the six days
+    29 Sep – 4 Oct.
+  - **Why nobody sees an error:** a failed module load fires on the `<script>`
+    element, not on `window`, so the crash guard in `index.html` never shows; and
+    the splash is only removed on the last line of `main()` (`js/app.js` ~7458).
+  - **CAUSE 2 (reproduced, live): weak signal.** The fetch handler is network-first
+    with `cache: 'no-store'` and no timeout, so a fully cached app still re-downloads
+    ~426 KB in 35 requests before every launch. Warm cache, throttled: 400 ms / 50 KB/s
+    → 11.3 s on the splash; 3 s / 10 KB/s → 51.4 s. Good network: 2.4 s.
+  - **Also reproduced, lower likelihood:** `js/firebase.js` statically imports four
+    files from `www.gstatic.com`, which the worker deliberately never caches (`sw.js`
+    cross-origin return). Offline start therefore depends on the browser's own HTTP
+    cache; with it cleared, offline is stuck on the splash on the four gstatic files.
+    This also breaks the house rule "everything self-hosted".
+  - **Ruled out:** a missing/renamed precache file (all `ASSETS` exist; install is
+    per-file tolerant), App Check 403 (logged every run, never blocks start),
+    assetlinks, stale deploy.
+  - **Trap for the next probe:** a Chrome `--user-data-dir` with a long path makes
+    every Cache write fail ("Entry already exists") and the cache look empty — a
+    Windows path-length artifact. Use a short profile dir (`os.tmpdir()/cp-…`).
+  - **Proposed fix (ONE, not built):** add the four files to `ASSETS` and bump to
+    v147. Needs a normal push to `main` (Pages deploy); no Firestore rules deploy.
+    Causes 2 and gstatic are separate follow-ups, deliberately not bundled.
 
 - **READ TAB — THE CAUSE BEHIND THE v145 RULE MEASURED (SHADE-BLIND "SIX TYPES",
   `LEARN_AGREE` ON DARK SQUARES); TWO FIXES TRIED, NEITHER BEATS v145; NOTHING BUILT,
