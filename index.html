@@ -128,6 +128,10 @@
        below, so this is the heading a screen reader lands on. -->
   <h1 id="app-title"><span id="app-title-ico" aria-hidden="true"></span><span id="app-title-name"></span></h1>
   <div class="row topbar-right" style="gap:10px; margin:0;">
+    <!-- Shown only while the device has no connection (main() in js/app.js). -->
+    <button id="offline-ico" class="icon-btn hidden" type="button" data-i18n-aria="offline_mode">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19h.01M8.5 15.5a5 5 0 0 1 7 0M5 12a10 10 0 0 1 14 0M2 8.5a15 15 0 0 1 20 0M4 3l16 18"/></svg>
+    </button>
     <span id="streak-badge" class="streak-badge" title="Racha diaria"></span>
     <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
   </div>

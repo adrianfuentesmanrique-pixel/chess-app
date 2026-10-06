@@ -307,7 +307,14 @@ async function run(lang, scheme) {
     const off = await until(c, `const el = document.getElementById('toast'); return el.textContent === ${JSON.stringify(tr.lichess_offline)} && !el.classList.contains('hidden') ? { href: location.href } : null;`, 4000);
     check(off && off.href.startsWith(web.url) && !seen.length, `offline Connect: "${tr.lichess_offline}" in ${Date.now() - t0} ms, the app stays open`);
     await shoot(c, `${name}-7-offline-connect`);
+    // the header's offline mark (not Lichess, but this is where the script is offline)
+    const mark = await c.evalP(`const { t } = await import('/js/i18n.js'); const el = document.getElementById('offline-ico'); const r = el.getBoundingClientRect(); el.click();
+      return { shown: !el.classList.contains('hidden') && r.width > 0, aria: el.getAttribute('aria-label') === t('offline_mode'), toast: document.getElementById('toast').textContent === t('offline_mode_hint') };`);
+    check(mark.shown && mark.aria && mark.toast, 'offline mark: shown in the header, labelled, a tap explains it');
     await c.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+
+    const gone = await until(c, `return document.getElementById('offline-ico').classList.contains('hidden');`, 3000);
+    check(gone, 'offline mark: gone again once the connection is back');
 
     // 9. legal text, as the app shows it
     const legal = await c.evalP(`const L = await import('/js/legal-data.js'); const lang = ${JSON.stringify(lang)};

@@ -125,6 +125,8 @@ body { display: flex; flex-direction: column; height: 100dvh; }
   .streak-icon-img { transition: none; }
 }
 .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px 8px; }
+#offline-ico { color: var(--gold); padding: 4px 2px; display: flex; align-items: center; }
+#offline-ico.hidden { display: none; }
 
 /* ── splash screen ─────────────────────── */
 #splash {

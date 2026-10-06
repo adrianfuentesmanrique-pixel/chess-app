@@ -2,6 +2,18 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **OFFLINE MARK IN THE HEADER (v155, 2026-10-06).** Adrian asked for a minimal "offline
+  mode" sign that does not disturb the tabs; of four sketches he chose the icon. A small
+  gold no-signal icon (`#offline-ico`, inline SVG, in `#topbar .topbar-right` before the
+  streak badge) is shown only while `navigator.onLine` is false - `online`/`offline`
+  listeners in `main()` right after `Lichess.finishConnect()`. A tap shows the toast
+  `offline_mode_hint`; the label is `offline_mode` (ES + EN). It takes no row and moves
+  nothing. MEASURED (two checks added to `tools/cdp-verify-lichess.mjs`, where the
+  script is already offline; 29 checks x 4 ALL PASSED): shown + labelled + tap explains
+  it while offline, gone when the connection returns, EN/ES x light/dark at 375px;
+  test:tree 103, offline-open 8/8, offline-read ALL PASSED. KNOWN LIMIT: `navigator.onLine`
+  only knows "no network at all" - Wi-Fi with no internet behind it still counts as online.
+
 - **OPTIONAL "CONNECT LICHESS ACCOUNT" SO THE INTERNET GAME SEARCH WORKS AGAIN (v152,
   2026-10-06).** Lichess answers 401 to every opening-explorer request without a token
   (re-measured today with curl on `explorer.lichess.org` and `explorer.lichess.ovh`, with

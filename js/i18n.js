@@ -85,6 +85,8 @@ const DICT = {
   explore_first_shown: { es: 'se muestran las primeras {n}', en: 'showing the first {n}' },
   explore_searching: { es: 'Buscando partidas…', en: 'Searching for games...' },
   explore_lichess_unavailable: { es: 'La búsqueda en internet no está disponible en este momento. Prueba a buscar en tu propia base.', en: 'Internet search isn\'t available right now. Try searching your own database instead.' },
+  offline_mode: { es: 'Modo sin conexión', en: 'Offline mode' },
+  offline_mode_hint: { es: 'Modo sin conexión. La app sigue funcionando; lo que necesita internet volverá al reconectar.', en: 'Offline mode. The app keeps working; anything that needs the internet comes back when you reconnect.' },
   lichess_explain: { es: 'Para buscar partidas de maestros en internet hay que conectar una cuenta de Lichess (es gratis). Es opcional: la búsqueda en tu propia base funciona sin ella.', en: 'Searching master games on the internet needs a Lichess account to be connected (it\'s free). It\'s optional: searching your own database works without it.' },
   lichess_connect_hint: { es: 'Inicias sesión en lichess.org. La app nunca ve tu contraseña ni pide permisos sobre tu cuenta, y la clave de acceso se guarda solo en este dispositivo.', en: 'You sign in on lichess.org. The app never sees your password and asks for no permissions over your account, and the access key is stored only on this device.' },
   lichess_connect: { es: 'Conectar cuenta de Lichess', en: 'Connect Lichess account' },

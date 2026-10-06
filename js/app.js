@@ -7658,6 +7658,12 @@ async function main() {
   }
   handleIncomingFiles().catch(e => console.error('[share]', e));
   Lichess.finishConnect().catch(e => console.error('[lichess]', e));
+  // Offline mark in the header: there only while the device has no connection.
+  const offIco = $('offline-ico');
+  const offSync = () => offIco.classList.toggle('hidden', navigator.onLine);
+  offIco.onclick = () => toast(t('offline_mode_hint'), 4000);
+  addEventListener('online', offSync); addEventListener('offline', offSync);
+  offSync();
   const elapsed = Date.now() - splashStart;
   setTimeout(async () => {
     $('splash').classList.add('hide');
