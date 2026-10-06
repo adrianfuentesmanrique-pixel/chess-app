@@ -2126,21 +2126,57 @@ export const Analysis = {
     await db.clearPosIndex(ex.baseId).catch(() => {});
   },
 
+  // Lichess answers 401 to the explorer without a token (since Oct 2026), so
+  // the Internet search needs a linked account — see Lichess below. One
+  // request per tap, never a retry: their API rule is one request at a time.
+  lichessBusy: false,
+
   async exploreInternet() {
     this.exploreSource = 'lichess';
-    this.exploreSeq++;
+    const seq = ++this.exploreSeq;
     this.showGamesTab();
-    $('ana-games-status').textContent = t('explore_searching');
     $('ana-games-list').innerHTML = '';
+    const token = Lichess.token();
+    if (!token) { this.offerLichess(t('lichess_explain')); return; }
+    if (this.lichessBusy) return;
+    this.lichessBusy = true;
+    $('ana-games-status').textContent = t('explore_searching');
     try {
-      const url = `https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(this.tree.fen())}&topGames=15`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(res.status === 401 ? 'lichess_unavailable' : `Lichess: ${res.status}`);
+      const url = `https://explorer.lichess.org/masters?fen=${encodeURIComponent(this.tree.fen())}&topGames=15`;
+      let res;
+      try { res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } }); }
+      catch { throw new Error(t('explore_lichess_unavailable')); }
+      if (seq !== this.exploreSeq) return;
+      // A stored token that is refused has expired or was revoked on lichess.org.
+      if (res.status === 401) { Lichess.clear(); this.offerLichess(t('lichess_expired')); return; }
+      if (res.status === 429) throw new Error(t('lichess_rate_limited'));
+      if (!res.ok) throw new Error(`Lichess: ${res.status}`);
       const data = await res.json();
+      if (seq !== this.exploreSeq) return;
       this.renderGameResults(data.topGames || [], 'lichess');
+      const row = document.createElement('div'); row.className = 'row wrap lichess-row';
+      const note = document.createElement('span'); note.className = 'hint'; note.textContent = t('lichess_connected_line');
+      const off = document.createElement('button'); off.className = 'btn small'; off.textContent = t('lichess_disconnect');
+      off.onclick = async () => { await Lichess.disconnect(); $('ana-games-list').innerHTML = ''; this.offerLichess(t('lichess_explain')); };
+      row.append(note, off);
+      $('ana-games-list').appendChild(row);
     } catch (e) {
-      $('ana-games-status').textContent = '⚠️ ' + (e.message === 'lichess_unavailable' ? t('explore_lichess_unavailable') : (e.message || e));
+      if (seq === this.exploreSeq) $('ana-games-status').textContent = '⚠️ ' + (e.message || e);
+    } finally {
+      this.lichessBusy = false;
     }
+  },
+
+  // Not linked (or the link just died): say why, and offer the one button.
+  offerLichess(msg) {
+    $('ana-games-status').textContent = msg;
+    const el = $('ana-games-list');
+    el.innerHTML = '';
+    const btn = document.createElement('button'); btn.className = 'btn primary'; btn.style.width = '100%'; btn.style.marginTop = '8px';
+    btn.textContent = t('lichess_connect');
+    btn.onclick = () => Lichess.connect();
+    const hint = document.createElement('p'); hint.className = 'hint'; hint.textContent = t('lichess_connect_hint');
+    el.append(btn, hint);
   },
 
   renderGameResults(list, source) {
@@ -6806,6 +6842,16 @@ function openSettings() {
     });
     const privHint = document.createElement('p'); privHint.className = 'hint'; privHint.textContent = t('privacy_hint');
 
+    // Lichess link — optional, only the Analysis tab's Internet search uses it.
+    const lLi = document.createElement('label'); lLi.className = 'fld-label'; lLi.textContent = 'Lichess';
+    const liBtn = document.createElement('button'); liBtn.className = 'btn'; liBtn.style.width = '100%';
+    const liLabel = () => { liBtn.textContent = t(Lichess.token() ? 'lichess_disconnect' : 'lichess_connect'); };
+    liLabel();
+    liBtn.onclick = async () => {
+      if (Lichess.token()) { await Lichess.disconnect(); liLabel(); }
+      else Lichess.connect();
+    };
+
     // legal
     const lLegal = document.createElement('label'); lLegal.className = 'fld-label'; lLegal.textContent = t('legal_section');
     const termsBtn = document.createElement('button'); termsBtn.className = 'btn'; termsBtn.textContent = t('view_terms');
@@ -6831,7 +6877,7 @@ function openSettings() {
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
     const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
     ok.onclick = () => close(null);
-    box.append(l1, seg, l2, seg2, l3, seg3, lVar, segVar, l4, seg4, lPriv, segPriv, privHint, lTour, tourBtn, lLegal, legalRow, ...accountEls, about, ok);
+    box.append(l1, seg, l2, seg2, l3, seg3, lVar, segVar, l4, seg4, lPriv, segPriv, privHint, lTour, tourBtn, lLi, liBtn, lLegal, legalRow, ...accountEls, about, ok);
   });
 }
 
@@ -7336,6 +7382,73 @@ async function routeIncomingFile(file) {
   } catch (e) { console.error('[share] import failed', e); toast(t('import_failed')); }
 }
 
+// Optional Lichess link, only for the Analysis tab's Internet search. Sign-in
+// with Lichess = OAuth authorization code + PKCE (S256), public client, no
+// secret, NO scopes: the explorer wants a token, not a permission. The password
+// is typed on lichess.org only. The token lives in this device's localStorage
+// and nowhere else — never Firestore, never a URL we keep.
+const Lichess = {
+  HOST: 'https://lichess.org',
+  CLIENT_ID: 'chesstrainingcenter.app',
+  TOKEN_KEY: 'ctc-lichess-token',
+  PENDING_KEY: 'ctc-lichess-pending',   // { verifier, state, at } while the user is away on lichess.org
+
+  token() { try { return localStorage.getItem(this.TOKEN_KEY); } catch { return null; } },
+  clear() { try { localStorage.removeItem(this.TOKEN_KEY); } catch { } },
+  redirectUri() { return location.origin + location.pathname; },
+
+  async connect() {
+    if (!navigator.onLine) { toast(t('lichess_offline'), 4000); return; }
+    try {
+      const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      const rnd = n => b64url(crypto.getRandomValues(new Uint8Array(n)));
+      const verifier = rnd(48), state = rnd(16);
+      const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+      // localStorage, not sessionStorage: a TWA may bring the user back in
+      // another tab. Read once on return, and refused after ten minutes.
+      localStorage.setItem(this.PENDING_KEY, JSON.stringify({ verifier, state, at: Date.now() }));
+      const q = new URLSearchParams({
+        response_type: 'code', client_id: this.CLIENT_ID, redirect_uri: this.redirectUri(),
+        code_challenge_method: 'S256', code_challenge: challenge, state,
+      });
+      location.assign(`${this.HOST}/oauth?${q}`);
+    } catch (e) { console.error('[lichess] connect', e); toast(t('lichess_connect_failed'), 5000); }
+  },
+
+  // Back from lichess.org with ?code=…&state=… (or ?error=…). Run once on boot.
+  async finishConnect() {
+    const p = new URLSearchParams(location.search);
+    if (!p.has('state') || !(p.has('code') || p.has('error'))) return;
+    history.replaceState(null, '', location.pathname + location.hash);
+    let pending = null;
+    try { pending = JSON.parse(localStorage.getItem(this.PENDING_KEY)); localStorage.removeItem(this.PENDING_KEY); } catch { }
+    if (!pending || pending.state !== p.get('state') || Date.now() - pending.at > 600000) { toast(t('lichess_connect_failed'), 5000); return; }
+    if (p.has('error')) { toast(t('lichess_connect_cancelled'), 4000); return; }
+    try {
+      const res = await fetch(`${this.HOST}/api/token`, {
+        method: 'POST',
+        body: new URLSearchParams({
+          grant_type: 'authorization_code', code: p.get('code'), code_verifier: pending.verifier,
+          redirect_uri: this.redirectUri(), client_id: this.CLIENT_ID,
+        }),
+      });
+      const data = res.ok ? await res.json() : null;
+      if (!data || !data.access_token) throw new Error('token ' + res.status);
+      localStorage.setItem(this.TOKEN_KEY, data.access_token);
+      toast(t('lichess_connected'), 6000);
+    } catch (e) { console.error('[lichess] token', e.message); toast(t('lichess_connect_failed'), 5000); }
+  },
+
+  // Forget the token here, and ask Lichess to revoke it too (best effort —
+  // offline, only the local copy goes; it then just expires unused).
+  async disconnect() {
+    const token = this.token();
+    this.clear();
+    if (token) fetch(`${this.HOST}/api/token`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } }).catch(() => { });
+    toast(t('lichess_disconnected'), 4000);
+  },
+};
+
 // Share Target: the service worker stashed a shared file and reloaded us with
 // ?shared=1. Open with / Set as default: the File Handling API hands us the file
 // through launchQueue instead. Both feed routeIncomingFile. Run once on boot.
@@ -7453,6 +7566,7 @@ async function main() {
     navigator.serviceWorker.register('sw.js').catch(() => { });
   }
   handleIncomingFiles().catch(e => console.error('[share]', e));
+  Lichess.finishConnect().catch(e => console.error('[lichess]', e));
   const elapsed = Date.now() - splashStart;
   setTimeout(async () => {
     $('splash').classList.add('hide');

@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v151';
+const CACHE = 'chess-training-center-v152';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -261,14 +261,18 @@ function sameBytes(a, b) {
 
 async function networkFirst(e) {
   const L = launchFor(e);
-  const cached = await caches.match(e.request);
+  // A page load is looked up without its query: ./?code=…&state=… (back from
+  // lichess.org) and ./?shared=1 are the same page as ./ — and must never be
+  // stored under an address that carries a one-time sign-in code.
+  const nav = e.request.mode === 'navigate';
+  const cached = await caches.match(e.request, { ignoreSearch: nav });
   if (!cached) {
     // Nothing stored for this file: only the network can answer.
     // cache: 'no-store' bypasses the browser's own HTTP disk cache, which can
     // otherwise silently serve a stale response for an unchanged URL.
     const res = await fetch(e.request, { cache: 'no-store' });
     // Clone synchronously — see the cache-first branch above.
-    if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+    if (res.ok && !(nav && new URL(e.request.url).search)) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
     return res;
   }
   if (L.cacheOnly) return cached;

@@ -8,7 +8,7 @@
 // commercially — no template can account for your specific business
 // structure, but this covers the categories a reviewer would expect to see.
 
-const LAST_UPDATED = '2026-07-09';
+const LAST_UPDATED = '2026-10-06';
 
 export const LEGAL_TERMS = {
   es: {
@@ -53,7 +53,7 @@ export const LEGAL_TERMS = {
       },
       {
         h: '10. Función "Explorar" y servicios externos',
-        p: `La búsqueda de partidas por posición puede enviar la posición actual del tablero (en formato FEN, sin datos que te identifiquen) al servicio público de Lichess para mostrarte partidas relacionadas. Este servicio es operado por un tercero independiente (Lichess), tiene su propia disponibilidad y términos, y no lo controlamos ni garantizamos su funcionamiento continuo — puede no estar disponible en todo momento.`,
+        p: `La búsqueda de partidas por posición en internet es opcional y solo funciona si conectas tu cuenta de Lichess. Al usarla, la posición actual del tablero (en formato FEN) se envía al servicio de Lichess junto con la clave de acceso de tu cuenta, por lo que Lichess puede saber que la consulta proviene de tu cuenta. Este servicio es operado por un tercero independiente (Lichess), tiene su propia disponibilidad y términos, y no lo controlamos ni garantizamos su funcionamiento continuo — puede no estar disponible en todo momento.`,
       },
       {
         h: '11. Límites de uso y futuros planes de pago',
@@ -135,7 +135,7 @@ export const LEGAL_TERMS = {
       },
       {
         h: '10. "Explore" feature and external services',
-        p: `Searching for games by position may send the current board position (in FEN format, with no data that identifies you) to Lichess's public service to show you related games. This service is operated by an independent third party (Lichess), has its own availability and terms, and we do not control or guarantee its continued operation — it may not be available at all times.`,
+        p: `Searching the internet for games by position is optional and only works if you connect your Lichess account. When you use it, the current board position (in FEN format) is sent to Lichess's service together with your account's access key, so Lichess can tell that the request comes from your account. This service is operated by an independent third party (Lichess), has its own availability and terms, and we do not control or guarantee its continued operation — it may not be available at all times.`,
       },
       {
         h: '11. Usage limits and future paid plans',
@@ -212,7 +212,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '8. Servicios externos',
-        p: `La función "Explorar" puede enviar la posición actual del tablero (formato FEN, sin datos que te identifiquen) a la API pública de Lichess para buscar partidas relacionadas, solo cuando la usas activamente. El motor de ajedrez (Stockfish) se ejecuta localmente en tu dispositivo; la posición de tus partidas no se envía a servidores externos para el análisis del motor.`,
+        p: `La búsqueda de partidas en internet de la función "Explorar" es opcional y requiere que conectes tu cuenta de Lichess. Inicias sesión en lichess.org: nunca vemos tu contraseña y no pedimos permiso para leer ni cambiar nada de tu cuenta. Lichess entrega una clave de acceso que se guarda solo en tu dispositivo, no en nuestros servidores, y que puedes borrar cuando quieras con "Desconectar". Solo cuando usas la búsqueda, la posición actual del tablero (formato FEN) se envía a Lichess junto con esa clave, por lo que Lichess puede asociar la consulta a tu cuenta. No recibimos ni guardamos tu nombre de usuario de Lichess. El motor de ajedrez (Stockfish) se ejecuta localmente en tu dispositivo; la posición de tus partidas no se envía a servidores externos para el análisis del motor.`,
       },
       {
         h: '9. Tus derechos',
@@ -266,7 +266,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '8. External services',
-        p: `The "Explore" feature may send the current board position (FEN format, with no data that identifies you) to Lichess's public API to look up related games, only when you actively use it. The chess engine (Stockfish) runs locally on your device; your game positions are not sent to external servers for engine analysis.`,
+        p: `The internet game search in the "Explore" feature is optional and requires you to connect your Lichess account. You sign in on lichess.org: we never see your password and we request no permission to read or change anything in your account. Lichess issues an access key that is stored only on your device, not on our servers, and that you can delete at any time with "Disconnect". Only when you use the search, the current board position (FEN format) is sent to Lichess together with that key, so Lichess can associate the request with your account. We do not receive or store your Lichess username. The chess engine (Stockfish) runs locally on your device; your game positions are not sent to external servers for engine analysis.`,
       },
       {
         h: '9. Your rights',

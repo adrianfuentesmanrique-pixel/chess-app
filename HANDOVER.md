@@ -2,6 +2,68 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **OPTIONAL "CONNECT LICHESS ACCOUNT" SO THE INTERNET GAME SEARCH WORKS AGAIN (v152,
+  2026-10-06).** Lichess answers 401 to every opening-explorer request without a token
+  (re-measured today with curl on `explorer.lichess.org` and `explorer.lichess.ovh`, with
+  no token and with a made-up one), so 🔎 → 🌐 always showed "not available".
+  **LICHESS CAN WITHDRAW THIS ACCESS AGAIN AT ANY TIME** — if the search dies again,
+  re-run the curl before touching code.
+  - **Decided by Adrian:** sign in with Lichess, OAuth authorization code + PKCE, no
+    server. Control in BOTH places (search panel + Settings). One-time secret kept in
+    `localStorage` for ≤10 min (not `sessionStorage`: the TWA may return in another tab).
+  - **Read from Lichess's docs/source today, not assumed:** the explorer endpoints list
+    `security: OAuth2: []` = a token with NO scope, so none is requested; S256 only;
+    public unregistered client, no secret; `redirect_uri` any https URL (http only for
+    localhost), must be identical in both steps; revoke = `DELETE /api/token` with the
+    token as Bearer; no refresh tokens, ~1 year life; one request at a time; 429 = wait
+    a minute.
+  - **Built (js/app.js).** New `Lichess` object just above `handleIncomingFiles`:
+    `token()`, `clear()`, `connect()` (builds `https://lichess.org/oauth?…`, client id
+    `chesstrainingcenter.app`, redirect = `location.origin + location.pathname`),
+    `finishConnect()` (run once at boot next to `handleIncomingFiles()`: strips
+    `?code&state` from the address bar first, checks state + 10-min age, POSTs
+    `/api/token`), `disconnect()` (deletes locally, best-effort revoke at Lichess).
+    Keys: `ctc-lichess-token`, `ctc-lichess-pending`. The token is on the device only —
+    never Firestore, never the repo. `Analysis.exploreInternet()` now uses
+    `explorer.lichess.org` with `Authorization: Bearer`, one request per tap
+    (`lichessBusy`, no retry); no token → `offerLichess()` (explanation + Connect);
+    401 → token cleared + "expired, connect again"; 429 → "try again in a minute";
+    network failure → the old `explore_lichess_unavailable` text. Under the results: a
+    "connected · Disconnect" row. Settings sheet: a `Lichess` row, Connect/Disconnect.
+    12 new `lichess_*` keys in js/i18n.js (ES + EN). Plain word "Lichess" only, no logo.
+  - **sw.js (strictly needed).** `networkFirst` now looks a page load up with
+    `ignoreSearch` and never stores a navigation that has a query. Before, `./?code=…`
+    (and `./?shared=1`) missed the cache and were STORED under the full address — the
+    one-time sign-in code would have been kept in CacheStorage. `CACHE` v151 → v152.
+  - **Legal (js/legal-data.js).** The four sentences reworded (Terms §"search", Privacy
+    §8, ES + EN; wording approved by Adrian): the search is optional, needs a linked
+    account, Lichess can tie the request to that account, we never see the password or
+    the username. `LAST_UPDATED` → 2026-10-06. `privacy.html` renders from the same file.
+    Play Data safety form: judged NO change (nothing new reaches our servers; the send to
+    Lichess is user-initiated after disclosure) — from memory of Google's definitions,
+    not re-read; Adrian's declaration to confirm.
+  - **MEASURED** — new `tools/cdp-verify-lichess.mjs <outDir>`, headless Chrome/CDP,
+    375px, EN/ES × light/dark, every `*lichess.org*` request caught by CDP `Fetch` and
+    answered by the script (nothing reaches Lichess, the token is made up): 19 checks ×
+    4 = ALL PASSED — not connected explains + offers Connect and sends nothing; the
+    oauth address has code/S256/redirect/state and no scope; the return exchanges the
+    code with the verifier matching the challenge, cleans the address bar, deletes the
+    pending secret, leaves no cache entry with `code=`; the search sends ONE GET with
+    the header to explorer.lichess.org; 429; 401 clears + re-offers; offline search and
+    offline Connect answer at once; Settings Disconnect deletes + sends the revoke; the
+    reworded paragraphs are what the legal sheets show. Also: `test:tree` 103/103,
+    `test:precache` OK, `cdp-verify-offline-open.mjs` NOGSTATIC=1 8/8,
+    `cdp-verify-offline-read.mjs` ALL PASSED, `cdp-verify-share.mjs` 34/34 (the
+    `ignoreSearch` change touches `?shared=1` / `?open-file=1`).
+  - **NOT MEASURED, only read from docs/code:** that a scope-less token is really
+    accepted by the explorer; the real consent screen; the return inside the TWA (Brave);
+    what happens if the Lichess Android app claims the link. These are Adrian's real
+    sign-in step. After connecting, the app reloads, so the board position is back at
+    the start and the user taps 🔎 → 🌐 again (the toast says so).
+  - **Known, left alone:** signing out of the app does not remove the Lichess link (it
+    is per device, scope-less); Kael's quote bubble can overlap the hint under the
+    Connect button (the existing "quote in English under Spanish" bubble — other session).
+
 - **THE READ TAB'S PDF ENGINE NOW SURVIVES AN APP UPDATE (v151, 2026-10-06).** Adrian
   chose option (a) plus the rescue: versioned folder, then `KEEP`. Needs a normal push
   to `main`; no Firestore rules deploy. When this was written `origin/main` was
