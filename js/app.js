@@ -2142,6 +2142,7 @@ export const Analysis = {
     this.lichessBusy = true;
     $('ana-games-status').textContent = t('explore_searching');
     try {
+      await this.masterChain;   // a game still being fetched for the last results: let it land first
       const url = `https://explorer.lichess.org/masters?fen=${encodeURIComponent(this.tree.fen())}&topGames=15`;
       let res;
       try { res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } }); }
@@ -2160,10 +2161,55 @@ export const Analysis = {
       off.onclick = async () => { await Lichess.disconnect(); $('ana-games-list').innerHTML = ''; this.offerLichess(t('lichess_explain')); };
       row.append(note, off);
       $('ana-games-list').appendChild(row);
+      this.fillMasterMoves(seq);
     } catch (e) {
       if (seq === this.exploreSeq) $('ana-games-status').textContent = '⚠️ ' + (e.message || e);
     } finally {
       this.lichessBusy = false;
+    }
+  },
+
+  // The explorer's result names the games but carries no moves; each game is
+  // its own request. They go through ONE chain — the results filling in their
+  // move lines and a tap on a game never overlap (Lichess: one at a time) —
+  // and a fetched game is kept, so opening one already listed costs nothing.
+  masterPgn: new Map(),
+  masterChain: Promise.resolve(),
+
+  fetchMasterPgn(id) {
+    const run = async () => {
+      if (this.masterPgn.has(id)) return this.masterPgn.get(id);
+      const token = Lichess.token();
+      if (!token) throw new Error('401');
+      const res = await fetch(`https://explorer.lichess.org/masters/pgn/${encodeURIComponent(id)}`, { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) throw new Error(String(res.status));
+      const pgn = await res.text();
+      this.masterPgn.set(id, pgn);
+      return pgn;
+    };
+    const p = this.masterChain.then(run, run);
+    this.masterChain = p.catch(() => { });
+    return p;
+  },
+
+  // Third line of each result: the game's moves from the position on the board
+  // on. Stops at the first refusal (429 above all) or when a newer search starts.
+  async fillMasterMoves(seq) {
+    const f = this.tree.fen().split(' ');
+    const ply = (+f[5] - 1) * 2 + (f[1] === 'b' ? 1 : 0);
+    for (const el of [...$('ana-games-list').querySelectorAll('.moves[data-id]')]) {
+      if (seq !== this.exploreSeq) return;
+      try { el.textContent = pgnLineFrom(await this.fetchMasterPgn(el.dataset.id), ply); }
+      catch { return; }
+    }
+  },
+
+  async openMasterGame(id) {
+    try {
+      this.loadTree(parsePgn(await this.fetchMasterPgn(id)));
+    } catch (e) {
+      if (e.message === '401') { Lichess.clear(); this.offerLichess(t('lichess_expired')); }
+      else toast(t(e.message === '429' ? 'lichess_rate_limited' : 'explore_lichess_unavailable'), 4000);
     }
   },
 
@@ -2206,8 +2252,8 @@ export const Analysis = {
       } else {
         const w = item.white?.name ?? '?', b = item.black?.name ?? '?';
         const res = item.winner === 'white' ? '1-0' : item.winner === 'black' ? '0-1' : '½-½';
-        btn.innerHTML = `<b>${esc(w)} — ${esc(b)}</b><span class="sub">${item.year ?? ''} · ${res}</span>`;
-        btn.onclick = () => window.open(`https://lichess.org/${item.id}`, '_blank');
+        btn.innerHTML = `<b>${esc(w)} — ${esc(b)}</b><span class="sub">${item.year ?? ''} · ${res}</span><span class="sub moves" data-id="${esc(item.id)}"></span>`;
+        btn.onclick = () => this.openMasterGame(item.id);
       }
       el.appendChild(btn);
     }
@@ -7380,6 +7426,18 @@ async function routeIncomingFile(file) {
       toast(t('share_unsupported'));
     }
   } catch (e) { console.error('[share] import failed', e); toast(t('import_failed')); }
+}
+
+// "3. Bb5 a6 4. Ba4 …" — a PGN's main line from `ply` on (0 = White's first
+// move), a dozen moves at most; the list cuts it to the width with an ellipsis.
+function pgnLineFrom(pgn, ply) {
+  const sans = pgn.replace(/^\[.*\]\s*$/gm, '').replace(/\{[^}]*\}/g, ' ').split(/\s+/)
+    .map(x => x.replace(/^\d+\.+/, '')).filter(x => x && !/^(1-0|0-1|1\/2-1\/2|\*)$/.test(x));
+  let out = '';
+  for (let i = ply; i < sans.length && i < ply + 24; i++) {
+    out += (i % 2 === 0 ? `${i / 2 + 1}. ` : i === ply ? `${(i + 1) / 2}… ` : '') + sans[i] + ' ';
+  }
+  return out.trim();
 }
 
 // Optional Lichess link, only for the Analysis tab's Internet search. Sign-in

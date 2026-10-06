@@ -159,6 +159,10 @@ async function run(lang, scheme) {
       if (u.pathname === '/oauth') return reply(200, '<title>stopped here</title>not following through', 'text/html');
       if (u.pathname === '/api/token' && m === 'POST') return reply(200, JSON.stringify({ token_type: 'Bearer', access_token: FAKE, expires_in: 31536000 }));
       if (u.pathname === '/api/token' && m === 'DELETE') return reply(204);
+      if (u.pathname.startsWith('/masters/pgn/')) {
+        if (explorer !== 200) return reply(explorer, 'no', 'text/plain');
+        return reply(200, '[Event "Made up"]\n[White "Test, White"]\n[Black "Test, Black"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 1-0\n', 'application/x-chess-pgn');
+      }
       if (u.pathname === '/masters') {
         if (explorer !== 200) return reply(explorer, '<h1>no</h1>', 'text/html');
         return reply(200, JSON.stringify({ topGames: [
@@ -217,7 +221,15 @@ async function run(lang, scheme) {
     const ex = seen.filter(x => x.path === '/masters' && x.method === 'GET');
     check(ex.length === 1 && ex[0].host === 'explorer.lichess.org' && ex[0].auth === 'Bearer ' + FAKE, 'search: ONE request, to explorer.lichess.org, with the Authorization header');
     check(s && s.buttons.length === 3 && s.buttons[2] === tr.lichess_disconnect, 'search: two games listed, then "connected" and Disconnect');
+    const lines = await until(c, `const m = [...document.querySelectorAll('#ana-games-list .moves')].map(x => x.textContent); return m.length === 2 && m.every(Boolean) ? m : null;`);
+    const pg = seen.filter(x => x.path.startsWith('/masters/pgn/'));
+    check(lines && lines[0] === '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7' && pg.filter(x => x.method === 'GET').length === 2 && pg.every(x => x.method !== 'GET' || x.auth === 'Bearer ' + FAKE),
+      'results: each game shows its moves on a third line (one request per game, with the header)');
     await shoot(c, `${name}-3-results`);
+    await c.evalP(`window.__opened = 0; window.open = () => { window.__opened++; }; document.querySelector('#ana-games-list .list-item').click();`);
+    const inApp = await until(c, `const txt = document.getElementById('ana-moves').textContent; return /Bb5/.test(txt) ? { opened: window.__opened, shown: !document.getElementById('ana-moves').classList.contains('hidden') } : null;`);
+    check(inApp && inApp.opened === 0 && seen.filter(x => x.path.startsWith('/masters/pgn/') && x.method === 'GET').length === 2, 'tap on a game: it opens on the board in the app, no new window, no new request');
+    await shoot(c, `${name}-3b-game-opened`);
 
     // 5. 429
     explorer = 429; seen.length = 0;

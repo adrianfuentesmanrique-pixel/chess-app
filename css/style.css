@@ -966,6 +966,8 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 }
 .list-item:active { background: var(--panel2); }
 .list-item .sub { color: var(--muted); font-size: 13px; }
+.list-item .sub.moves { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item .sub.moves:empty { display: none; }
 .list-item .result { color: var(--accent); }
 
 /* endgame viewer title: "Example 2 — Black to move, draw" under the heading */

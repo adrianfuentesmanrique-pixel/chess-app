@@ -60,6 +60,23 @@
     what happens if the Lichess Android app claims the link. These are Adrian's real
     sign-in step. After connecting, the app reloads, so the board position is back at
     the start and the user taps 🔎 → 🌐 again (the toast says so).
+  - **v153, same day, after Adrian's REAL sign-in (v152 pushed by him): it connected and
+    master games show** - so a scope-less token IS accepted and the return works. He then
+    asked for two things, both built: (1) each internet result has a THIRD line with the
+    game's moves from the board position on, cut to the width by CSS ellipsis
+    (`.list-item .sub.moves`); (2) tapping a result opens the game ON THE APP's board
+    (`Analysis.openMasterGame` -> `loadTree(parsePgn(...))`), no longer lichess.org. The
+    explorer result carries no moves, so each game is one request to
+    `explorer.lichess.org/masters/pgn/<id>` (documented, same token): `fetchMasterPgn`
+    runs them through ONE promise chain (`masterChain`, never two at once), keeps them in
+    `masterPgn` (a tap on a listed game costs no request), `fillMasterMoves` stops at the
+    first refusal or when a newer search starts. Up to 15 extra requests per search - if
+    Lichess starts answering 429, this is the first thing to cut back. Helper
+    `pgnLineFrom(pgn, ply)` above the `Lichess` object. MEASURED with Lichess faked:
+    `cdp-verify-lichess.mjs` now 21 checks x 4 ALL PASSED (moves line text, one request
+    per game with the header, tap opens in the app with no window.open and no new
+    request); test:tree 103, offline-open 8/8, offline-read ALL PASSED. NOT measured:
+    the real PGN text from Lichess and its real rate limit - Adrian's look after push.
   - **Known, left alone:** signing out of the app does not remove the Lichess link (it
     is per device, scope-less); Kael's quote bubble can overlap the hint under the
     Connect button (the existing "quote in English under Spanish" bubble — other session).
