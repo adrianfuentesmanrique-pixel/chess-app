@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v146';
+const CACHE = 'chess-training-center-v147';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -34,6 +34,14 @@ const ASSETS = [
   'js/read-training.js',
   'js/blind-elo.js',
   'js/diagram.js',
+  // Statically imported by js/app.js, so the app cannot start without them.
+  // Every file app.js imports at startup MUST be listed here: one that is not
+  // only gets cached on a second online visit, and each CACHE bump throws it
+  // out again. `npm.cmd run test:precache` fails if this list falls behind.
+  'js/learning-data.js',
+  'js/quotes-data.js',
+  'js/legal-data.js',
+  'js/openings-eco.js',
   // Only the band a new account starts in (ELO 1200). The other nine are
   // fetched on demand and cached by the network-first handler below — bundling
   // all 5 MB into install would be slow and mostly unused.

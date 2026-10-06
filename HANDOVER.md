@@ -2,6 +2,37 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **"THE APP SOMETIMES DOES NOT OPEN" — CAUSE 1 FIXED (v147, 2026-10-05). CAUSES 2
+  AND GSTATIC STILL OPEN.** `sw.js`: the four startup modules `js/learning-data.js`,
+  `js/quotes-data.js`, `js/legal-data.js`, `js/openings-eco.js` are now in `ASSETS`,
+  `CACHE` bumped v146 → v147. Nothing else in `sw.js` changed (the network-first
+  handler is untouched). Needs a normal push to `main`; no Firestore rules deploy.
+  - **Guard so it cannot drift again:** `tools/check-precache.mjs` walks every STATIC
+    import reachable from `js/app.js` (32 files, multi-line imports included) and
+    fails if a local one is not in `ASSETS`, or if an `ASSETS` entry is not on disk.
+    Run alone with `npm.cmd run test:precache`; it also runs inside
+    `npm.cmd run test:tree` through `tests/unit/precache.test.js` (now 101/101).
+    Written before the fix: it failed on exactly the four files, then passed.
+    Dynamic `import()` and cross-origin imports are deliberately not checked.
+  - **Reproduced, headless Chrome over CDP, 375px, local server
+    (`tools/cdp-verify-offline-open.mjs <outDir>`, `ONE=1` for EN/light only).
+    Nothing tapped; "opened" = `#splash` got `hide`, the last line of `main()`.**
+    BEFORE (v146): one visit → 76 entries, 0/4, offline reload stuck on the splash;
+    version bump → 75 entries, 0/4, stuck. AFTER: one visit → 80 entries, 4/4,
+    opens offline in ~1.6 s; version bump (the tool serves `sw.js` with the name
+    bumped by one, working tree untouched) → 79 entries, 4/4, opens in ~1.6 s.
+    All eight runs pass: both cases × EN/ES × light/dark.
+  - **NOT tested:** a real phone, the installed TWA, the live site (until pushed).
+    Whether this is what Adrian's phone was hitting is inferred from the code and
+    the reproduction, not observed on the device.
+  - **Seen in passing, NOT fixed (cosmetic, does not block opening):** offline right
+    after a version bump, images that are not precached show as broken — the Kael
+    portrait on the welcome sheet and `streaks/flame1.png` in the header. They come
+    back on the next online launch.
+  - **Still open:** cause 2 (network-first, `cache: 'no-store'`, no timeout — a warm
+    app re-downloads ~426 KB before every launch on a weak signal) and the four
+    `www.gstatic.com` Firebase imports. Both are described in the entry below.
+
 - **"THE APP SOMETIMES DOES NOT OPEN" — DIAGNOSED, NOTHING BUILT, FIX PROPOSED AND
   WAITING FOR ADRIAN'S GO (2026-10-05).** No file the app loads was touched; `sw.js`
   is still v146. Reproduced in headless Chrome over CDP at 375px against the LIVE
