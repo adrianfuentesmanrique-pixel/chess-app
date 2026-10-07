@@ -2,6 +2,18 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PUZZLE RUSH NO LONGER SERVES THE SAME PUZZLES EVERY RUN (v159, 2026-10-07).
+  COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** Adrian's report: "the puzzle rush
+  problems are always the same". Cause, in `Rush.pickNext` (`js/app.js`): each puzzle
+  was one of the 5 CLOSEST to the target rating (900 + 55 per point scored), and ties
+  were broken by file order - so the same 5 puzzles at every step of every run. Now:
+  any puzzle within 50 points of the target, chosen evenly; the window doubles only
+  while it holds fewer than 30. The difficulty ramp and no-repeat-within-a-run are
+  unchanged. Measured by calling the app's real `Rush.pickNext()` in headless Chrome,
+  40 simulated runs x 10 puzzles, 15,000 puzzles loaded: before, exactly 5 different
+  puzzles at every position; after, 38-40 different out of 40 at every position,
+  ratings within about 50 of the target, 0 repeats inside a run. NOT played by hand.
+
 - **STREAK LINE REWORDED (v159, 2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian.**
   "7 days to 15 days" read as two day-counts. Adrian chose option A of four: the line
   under "Day N" on Profile is now "Next flame in {n} days" / "Próxima llama en {n} días",

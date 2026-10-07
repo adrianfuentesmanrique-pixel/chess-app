@@ -5041,8 +5041,13 @@ export const Rush = {
     ensureForRating(target).catch(() => {});
     let candidates = PUZZLES.filter(p => !this.usedIds.has(p.id));
     if (!candidates.length) { this.usedIds.clear(); candidates = PUZZLES; }
-    candidates = [...candidates].sort((a, b) => Math.abs(a.rating - target) - Math.abs(b.rating - target));
-    const top = candidates.slice(0, 5);
+    // Any puzzle rated within 50 points of the target, chosen evenly. It used
+    // to be one of the 5 CLOSEST, and with ties broken by file order those were
+    // the same 5 every run — so every run opened with the same puzzles. The
+    // window only widens when it holds too few to choose from (a band still
+    // loading, or the thin top of the scale).
+    let top = [];
+    for (let w = 50; top.length < 30 && w <= 3200; w *= 2) top = candidates.filter(p => Math.abs(p.rating - target) <= w);
     const pick = top[Math.floor(Math.random() * top.length)];
     this.usedIds.add(pick.id);
     return pick;
