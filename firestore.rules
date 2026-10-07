@@ -251,6 +251,181 @@ service cloud.firestore {
       allow read, write: if signedIn() && me() == uid;
     }
 
+    // ═══════════════════════════ Pulso ═══════════════════════════
+    // A live 1-v-1 puzzle tug-of-war between two friends. ONE document per
+    // friendship, reused for every match, with the same sorted id a friendship
+    // has. "a" is members[0], "b" is members[1].
+    //
+    // There is no Cloud Function: these rules ARE the referee. Each player may
+    // write only their own four counters, one attempt per write, and a result
+    // is accepted only if the numbers already stored agree with it. What they
+    // cannot do is prove a puzzle was really solved — like every counter in
+    // this app it is self-reported (spec section 9 says so to Adrian plainly).
+    //
+    // Clock, all in server time: play runs from startAt + 6 s (the countdown)
+    // to startAt + 186 s; moves are taken until + 189 s (3 s of grace for a
+    // solve still in the air); a match nobody closed can be replaced from
+    // + 196 s.
+    //
+    // Every time check sits BEHIND its status check in the same &&, because
+    // startAt is null outside a match and null + duration is an error.
+    //
+    // Spec: docs/superpowers/plans/2026-10-pulso.md, section 5, points 1 to 8.
+    // Every clause here is covered by a test in tests/rules/pulso.test.js.
+
+    // A challenge as it must look when it is sent — the first one and every
+    // later one. Zeroing the counters here is what makes a rematch start level.
+    function pulsoChallengeOk(d) {
+      return d.status == 'invited'
+        && d.host == me()
+        // serverTimestamp() on the client. The 5 minutes run from this.
+        && d.invitedAt == request.time
+        && d.startAt == null
+        // The 60 puzzle ids, five letters/digits each, nothing between them.
+        // matches() is a whole-string match: one check, whatever the length.
+        && d.pz is string && d.pz.matches('[A-Za-z0-9]{300}')
+        && d.aS == 0 && d.aM == 0 && d.aK == 0 && d.aP == 0
+        && d.bS == 0 && d.bM == 0 && d.bK == 0 && d.bP == 0
+        && d.winner == null
+        && d.reason == null;
+    }
+
+    // May a new challenge replace what is stored? Not a challenge still
+    // waiting, and not a match in play.
+    function pulsoCanRechallenge(old) {
+      return old.status in ['idle', 'done']
+        || (old.status == 'invited'
+            && request.time > old.invitedAt + duration.value(5, 'm'))
+        || (old.status == 'live'
+            && request.time > old.startAt + duration.value(196, 's'));
+    }
+
+    // One attempt by one player. o and n are that player's four counters
+    // before and after the write, as [solved, mistakes, streak, pull] — lists
+    // because a rules function takes at most 7 arguments. Exactly a solve or
+    // exactly a mistake — never both, never two at once.
+    function pulsoStepOk(o, n) {
+      return n[0] + n[1] <= 60
+        && ((n[0] == o[0] + 1 && n[1] == o[1] && n[2] == o[2] + 1
+             // The streak pull: from the third solve in a row, 2 steps.
+             && n[3] == o[3] + (o[2] < 2 ? 1 : 2))
+            || (n[1] == o[1] + 1 && n[0] == o[0] && n[2] == 0 && n[3] == o[3] - 1));
+    }
+
+    function pulsoMoveOk(old, d) {
+      return old.status == 'live'
+        && request.time >= old.startAt + duration.value(6, 's')
+        && request.time <= old.startAt + duration.value(189, 's')
+        // The diff is what keeps a player off the friend's counters, and off
+        // the status, the tally and the puzzle list.
+        && ((me() == old.members[0]
+             && d.diff(old).affectedKeys().hasOnly(['aS', 'aM', 'aK', 'aP'])
+             && pulsoStepOk([old.aS, old.aM, old.aK, old.aP], [d.aS, d.aM, d.aK, d.aP]))
+            || (me() == old.members[1]
+                && d.diff(old).affectedKeys().hasOnly(['bS', 'bM', 'bK', 'bP'])
+                && pulsoStepOk([old.bS, old.bM, old.bK, old.bP], [d.bS, d.bM, d.bK, d.bP])));
+    }
+
+    // Who the clock gives it to: the marker's side; level → fewer mistakes;
+    // still level → a draw.
+    function pulsoTimeWinner(old) {
+      return old.aP > old.bP ? old.members[0]
+        : old.aP < old.bP ? old.members[1]
+        : old.aM < old.bM ? old.members[0]
+        : old.aM > old.bM ? old.members[1]
+        : 'draw';
+    }
+
+    // The tally field that matches the winner goes up by exactly 1 and the
+    // other two stay put.
+    function pulsoTallyOk(old, d) {
+      return (d.winner == old.members[0]
+              && d.aW == old.aW + 1 && d.bW == old.bW && d.dr == old.dr)
+        || (d.winner == old.members[1]
+            && d.bW == old.bW + 1 && d.aW == old.aW && d.dr == old.dr)
+        || (d.winner == 'draw'
+            && d.dr == old.dr + 1 && d.aW == old.aW && d.bW == old.bW);
+    }
+
+    // The claim is checked against the numbers ALREADY stored (old), never
+    // against anything in this write — the diff lets no counter move with it.
+    function pulsoEndOk(old, d) {
+      return old.status == 'live'
+        && me() in old.members
+        && d.diff(old).affectedKeys().hasOnly(['status', 'winner', 'reason', 'aW', 'bW', 'dr'])
+        && d.status == 'done'
+        && pulsoTallyOk(old, d)
+        && ((d.reason == 'pull'
+             && ((old.aP - old.bP >= 10 && d.winner == old.members[0])
+                 || (old.aP - old.bP <= -10 && d.winner == old.members[1])))
+            || (d.reason == 'time'
+                && request.time >= old.startAt + duration.value(189, 's')
+                && d.winner == pulsoTimeWinner(old))
+            // You can only forfeit yourself: the winner is the OTHER member.
+            || (d.reason == 'left'
+                && d.winner != me() && d.winner in old.members));
+    }
+
+    match /pulso/{pairId} {
+      // Only the two players. Also what makes the app's one listener —
+      // where('members','array-contains',myUid) — safe.
+      allow read: if signedIn() && me() in resource.data.members;
+
+      // The first challenge ever between two friends. The friendship is looked
+      // up here and on a new challenge ONLY, never on a move: exists() is
+      // billed as a read, so it happens once per match. pairIdOk() makes
+      // {pairId} the friendship's own id, so no second id has to be built.
+      allow create: if signedIn()
+        && after().keys().hasOnly(['members', 'status', 'host', 'invitedAt', 'startAt', 'pz',
+                                   'aS', 'aM', 'aK', 'aP', 'bS', 'bM', 'bK', 'bP',
+                                   'winner', 'reason', 'aW', 'bW', 'dr'])
+        && after().keys().hasAll(['members', 'status', 'host', 'invitedAt', 'startAt', 'pz',
+                                  'aS', 'aM', 'aK', 'aP', 'bS', 'bM', 'bK', 'bP',
+                                  'winner', 'reason', 'aW', 'bW', 'dr'])
+        && pairIdOk(pairId, after().members)
+        && me() in after().members
+        && pulsoChallengeOk(after())
+        && after().aW == 0 && after().bW == 0 && after().dr == 0
+        && exists(/databases/$(database)/documents/friendships/$(pairId));
+
+      allow update: if signedIn() && (
+        // A new challenge (every later match, and a rematch). `members` and
+        // the tally are not in the diff, so they cannot change — a new
+        // challenge can never reset the score between two friends.
+        (me() in resource.data.members
+         && pulsoCanRechallenge(resource.data)
+         && after().diff(resource.data).affectedKeys().hasOnly(
+              ['status', 'host', 'invitedAt', 'startAt', 'pz',
+               'aS', 'aM', 'aK', 'aP', 'bS', 'bM', 'bK', 'bP', 'winner', 'reason'])
+         && pulsoChallengeOk(after())
+         && exists(/databases/$(database)/documents/friendships/$(pairId)))
+
+        // Cancel (the host) or decline (the friend): invited → idle, and
+        // nothing else moves.
+        || (me() in resource.data.members
+            && resource.data.status == 'invited'
+            && after().diff(resource.data).affectedKeys().hasOnly(['status'])
+            && after().status == 'idle')
+
+        // Accept: the member who is NOT the host, inside the 5 minutes. The
+        // server stamps startAt, so nobody can start the clock in the past.
+        || (me() in resource.data.members
+            && me() != resource.data.host
+            && resource.data.status == 'invited'
+            && request.time <= resource.data.invitedAt + duration.value(5, 'm')
+            && after().diff(resource.data).affectedKeys().hasOnly(['status', 'startAt'])
+            && after().status == 'live'
+            && after().startAt == request.time)
+
+        || pulsoMoveOk(resource.data, after())
+        || pulsoEndOk(resource.data, after())
+      );
+
+      // Never. A friend who blocks you just leaves a document neither of you
+      // opens again; deleting it would also wipe the tally.
+      allow delete: if false;
+    }
+
     // ═══════════════════════ Masterclass ═══════════════════════
     // A Masterclass is a shared base that lives here rather than in the
     // device's IndexedDB. Unlike /leaderboard, NOTHING here is world-readable:

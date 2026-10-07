@@ -2,6 +2,47 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO SESSION 1 OF 7 DONE: THE RULES AND THEIR TESTS (2026-10-07). COMMITTED
+  LOCALLY, NOT PUSHED, AND THE RULES ARE NOT DEPLOYED - ask Adrian for both.**
+  `firestore.rules` has a new `pulso/{pairId}` block (after the Friends blocks, before
+  Masterclass) and `tests/rules/pulso.test.js` has 86 tests for it. Adrian answered the
+  four decisions with the spec's recommended options (3 minutes; a mistake = 1 step back
+  and the streak ends; no strikes; private tally), so **the spec was not changed**.
+  What the rules do, exactly as spec section 5 points 1-8: only the two members read;
+  the first challenge and every later one need the friendship document to exist (the
+  ONLY place it is looked up - a move never looks it up, because a lookup is billed as a
+  read); cancel/decline; accept only by the non-host inside 5 minutes with a
+  server-stamped `startAt`; a move is one solve OR one mistake on your own four counters,
+  between `startAt + 6 s` and `startAt + 189 s`, never past 60 attempts; a result is
+  checked against the stored numbers (`pull` / `time` / `left`) and must add exactly 1
+  to the matching tally field; no delete. Helper functions: `pulsoChallengeOk`,
+  `pulsoCanRechallenge`, `pulsoStepOk`, `pulsoMoveOk`, `pulsoTimeWinner`,
+  `pulsoTallyOk`, `pulsoEndOk`. Reused, not copied: `signedIn`, `me`, `after`,
+  `pairIdOk`.
+  - **One thing the rules language forced:** a rules function takes at most 7 arguments,
+    so `pulsoStepOk(o, n)` takes the four counters as two LISTS, `[solved, mistakes,
+    streak, pull]` before and after. Nothing in the spec had to change. The
+    1,000-expression limit was not hit.
+  - **Time-based tests:** the emulator's clock cannot be moved, and it did not need to
+    be - every time rule compares "now" with a timestamp stored in the document, so the
+    tests seed a document whose `invitedAt` / `startAt` is already in the past.
+  - **Verified:** `npm.cmd run test:rules` - 399 pass, 0 fail (313 that existed before +
+    86 new). The new tests were run BEFORE the rule existed (27 "allowed" cases failed,
+    as they must), and afterwards 28 clauses were weakened one at a time in a scratch
+    copy of the rules - the tests caught all 28. Nothing was checked at 375 px,
+    light/dark or ES/EN because this session built no screen.
+  - **Things the rules deliberately allow (all in the spec, none a bug):** a player may
+    forfeit during the countdown; after the bar reaches an end the friend can still pull
+    back until the result write lands ("the tie goes to the defender"); a match nobody
+    closed can be replaced 10 seconds after its end and then counts for nobody; a
+    declined challenge can be sent again at once. A counter is self-reported like every
+    other in this app - the rules stop impossible numbers, they cannot prove a puzzle
+    was solved (spec section 9).
+  - **Still owed:** sessions 2 to 7 of the plan (section 10), `npm.cmd run rules:deploy`
+    (committed is not deployed), and Adrian's seven art files (section 8). The entry
+    below is the design summary and is still accurate except for its "no `pulso` block
+    in `firestore.rules`" and "four decisions are waiting" lines.
+
 - **PULSO IS DESIGNED, NOT BUILT (2026-10-07). SPEC COMMITTED LOCALLY, NOT PUSHED.**
   Pulso = a live 1-v-1 puzzle tug-of-war between two friends. The whole design is in
   `docs/superpowers/plans/2026-10-pulso.md`; **no app code exists yet** - there is no
