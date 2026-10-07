@@ -2,6 +2,55 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **BADGE EARNED: ITS OWN CONGRATULATION CARD, NOT KAEL'S BUBBLE (v162, 2026-10-07).
+  COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** New `js/badge-card.js` (`BadgeCard`), a
+  `.badge-card` block in `css/style.css` (after the Kael corner), `Badges.checkNew` in
+  `js/badges.js` now calls `BadgeCard.enqueue(...)` instead of `KaelQuotes.show`,
+  `BadgeCard.init({ isBusy, open })` in the init list in `js/app.js` (after
+  `KaelQuotes.init()`), `Streak.celebratingUntil`, new string `badge_congrats`, `sw.js`
+  (`js/badge-card.js` in `ASSETS`, `CACHE` v161 -> v162), new dev tool
+  `tools/cdp-verify-badge.mjs`.
+  - **Why Adrian never saw a notice (REPRODUCED, `node tools/cdp-verify-badge.mjs <dir>
+    repro` on the old code):** on the first solved puzzle of the day the badge appeared in
+    Kael's bubble for 0.4 s and was then replaced by the streak celebration ("1 día") and
+    never shown again. `Puzzles.recordResult` calls `Badges.checkNew()` with no delay; the
+    5400 ms delay only existed on the second call, from `Streak.recordActivity`, which by
+    then found the badge already saved. On any later solve it did show for 5 s, but as an
+    ordinary-looking bubble in the bottom corner.
+  - **How it works now:** `BadgeCard` keeps a queue and a `seen` set (two `checkNew()`
+    calls racing over one solve cannot show a badge twice). One card at a time: 0.45 s
+    settle, 4.6 s on screen, 0.38 s gap. Before showing it asks `isBusy()` and, if busy,
+    looks again every 0.4 s - busy means `Rush.running` (count-in included) or
+    `Date.now() < Streak.celebratingUntil` (set for 5.4 s in `Streak.celebrateTier`). So
+    the `delayMs` argument of `checkNew` is no longer what protects the streak
+    celebration; it is only a minimum wait. Tap = `showScreen('profile')` and scroll to
+    `#trophy-case`. Reduce motion = opacity only (CSS media query). The sound is the same
+    `kael-pop` the bubble played, through `Sound.play`, so the sound switch still rules.
+  - **`BadgeCard.position` is `'top'`; `'bottom'` (above Kael) is also in the CSS** as
+    `.pos-bottom`, kept until Adrian picks. Bottom sits on top of Kael's bubble when he
+    talks (screenshot taken) - top was recommended.
+  - **TESTED (headless Chrome over CDP, 375x812, 32/32 checks, 0 console errors):** one
+    badge earned by really tapping the solving moves, ES/EN x light/dark, screenshots
+    mid-entrance / bounce / shine / settled; a Kael quote arriving meanwhile leaves the
+    card alone; leaves by itself after 4.6 s; tap opens the trophy case; three badges from
+    one solve come one after another, none lost, none twice; first solve of the day =
+    streak celebration first, card 5.2 s later; reduce motion; both positions.
+    `test:precache` OK, `test:tree` 142/142.
+  - **SEEDED, not played:** in the Rush check the mid-run badge is a pending
+    `first_engine` released by calling `Badges.checkNew()` during the run (nothing in the
+    app can earn a badge mid-run today), and the run is ended by setting `Rush.score = 20`
+    and `Rush.timeLeft = 2`. The card stayed off for the 3.5 s watched and appeared on the
+    result screen.
+  - **NOT tested:** a real phone; the sound (headless, sound off); every one of the ten
+    `checkNew()` call sites - only the puzzle, Rush-finish and streak ones were run, the
+    rest are read (they all go through the same `checkNew`).
+  - **Known limits:** a card still queued when the app is closed is not shown later (the
+    badge itself is saved and is in the trophy case). At the top the card covers the
+    header (menu, streak, settings) for 4.6 s; a tap there opens the trophy case.
+  - **For the Pulso sessions:** `isBusy` only knows `Rush.running`. When Pulso gets a
+    screen with its own timed run, add its "running" flag to `isBusy` in `js/app.js` or a
+    badge card can drop over a live match.
+
 - **PULSO SESSION 3 OF 7 DONE: THE PUZZLE SEQUENCE AND THE DATA LAYER, NO SCREENS (v161,
   2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** New `js/pulso.js`, new
   `tests/unit/pulso.test.js`, a Pulso section in `js/firebase.js` (after the block

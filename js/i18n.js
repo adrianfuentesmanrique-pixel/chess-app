@@ -831,6 +831,7 @@ const DICT = {
   mc_reconnecting: { es: 'Reconectando… tu tablero no se está actualizando.', en: "Reconnecting… your board isn't updating." },
   trophy_case: { es: 'Logros', en: 'Achievements' },
   badge_earned: { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },
+  badge_congrats: { es: '¡Felicidades! Nuevo logro', en: 'Congratulations! New badge' },
   streak_tier_up: { es: '¡Racha en aumento!', en: 'Streak milestone!' },
   share: { es: 'Compartir', en: 'Share' },
   card_streak_title: { es: '¡Racha de {n} días!', en: '{n}-day streak!' },

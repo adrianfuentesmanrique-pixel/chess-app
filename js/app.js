@@ -25,6 +25,7 @@ import { renderMoveList } from './movelist.js';
 import { fenKey, PositionIndex } from './explore-index.js';
 import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
+import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Friends } from './friends.js';
 import { Masterclass } from './masterclass.js';
@@ -941,14 +942,20 @@ const Streak = {
     const tierUp = newTier > prevTier;
     this.render({ tierUp });
     if (tierUp) this.celebrateTier(newTier);
-    // Badge popups share the one Kael bubble, so hold them back when the tier
-    // celebration is already using it.
-    Badges.checkNew(tierUp ? 5400 : 0);
+    // The badge card holds itself back until celebratingUntil has passed.
+    Badges.checkNew();
   },
+
+  // While this is in the future the badge card waits its turn. It has to be a
+  // clock the card can read rather than a delay passed to one checkNew() call:
+  // the move that raises the streak usually triggers a second checkNew() of its
+  // own, and that one knew nothing about the celebration.
+  celebratingUntil: 0,
 
   celebrateTier(tierIdx) {
     const tier = STREAK_TIERS[tierIdx];
     if (!tier) return;
+    this.celebratingUntil = Date.now() + 5400;
     setTimeout(() => {
       KaelQuotes.show({
         title: '🔥 ' + t('streak_tier_up'),
@@ -7628,6 +7635,16 @@ async function main() {
   Blind.init();
   Endgame.init();
   KaelQuotes.init();
+  // The badge card waits out a timed Rush run (it must never cover that board)
+  // and the streak celebration (one celebration at a time).
+  BadgeCard.init({
+    isBusy: () => Rush.running || Date.now() < Streak.celebratingUntil,
+    open: () => {
+      showScreen('profile');
+      // Profile.refresh() redraws the page first; scroll once it has.
+      setTimeout(() => $('trophy-case')?.scrollIntoView({ block: 'center', behavior: reduceMotion.matches ? 'auto' : 'smooth' }), 400);
+    },
+  });
   Profile.init();
   Leaderboard.init();
   PublicProfile.init();

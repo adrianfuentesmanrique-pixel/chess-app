@@ -1383,6 +1383,67 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
    lives there, next to the other two slots, so all three stay one thing. */
 .kael-quote-streak { width: 64px; height: 64px; flex: 0 0 auto; filter: drop-shadow(0 0 8px var(--gold-glow)); }
 .kael-quote-title { display: block; font-size: 13px; margin-bottom: 2px; }
+
+/* ── badge earned card (js/badge-card.js) ── */
+/* Navy with a gold edge in BOTH themes: it is a celebration, so it should not
+   blend into the page the way a panel does. Above the toast and the sheets,
+   below the full-screen overlays. Takes a tap only while it is on screen. */
+.badge-card {
+  --bc-navy: #102a43; --bc-navy2: #0a1c30;
+  position: fixed; z-index: 120;
+  top: calc(8px + env(safe-area-inset-top)); left: 0; right: 0;
+  width: calc(100% - 24px); max-width: 420px; margin: 0 auto;
+  display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 10px 12px; border-radius: 16px;
+  font: inherit; color: #f5f7fa; cursor: pointer;
+  background: linear-gradient(135deg, var(--bc-navy), var(--bc-navy2));
+  border: 1px solid var(--gold);
+  box-shadow: 0 8px 24px var(--shadow), 0 0 18px -6px var(--gold-glow);
+  opacity: 0; transform: translateY(-130%); pointer-events: none;
+  transition: opacity .3s ease, transform .3s ease-in;
+}
+.badge-card.pos-bottom {
+  top: auto; bottom: calc(72px + env(safe-area-inset-bottom));
+  transform: translateY(40px);
+}
+.badge-card.show {
+  opacity: 1; transform: translateY(0); pointer-events: auto;
+  /* a small overshoot, so it lands rather than just arriving */
+  transition: opacity .25s ease, transform .45s cubic-bezier(.2, 1.35, .4, 1);
+}
+.badge-card.show:active { transform: scale(.98); }
+.badge-card-art {
+  position: relative; flex: 0 0 auto; width: 56px; height: 56px;
+  border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center; font-size: 34px; line-height: 1;
+}
+.badge-card-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.badge-card.show .badge-card-art { animation: badge-card-bounce .7s .25s cubic-bezier(.3, 1.5, .5, 1) both; }
+/* the shine: one pale band crossing the badge once */
+.badge-card-art::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, .75) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+.badge-card.show .badge-card-art::after { animation: badge-card-shine .8s .75s ease-out both; }
+.badge-card-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.badge-card-kicker {
+  color: var(--gold); font-size: 11px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+.badge-card-name { font-size: 16px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.badge-card-go { flex: 0 0 auto; color: var(--gold); font-size: 24px; line-height: 1; }
+@keyframes badge-card-bounce {
+  0% { transform: scale(.55); } 60% { transform: scale(1.14); } 100% { transform: scale(1); }
+}
+@keyframes badge-card-shine {
+  from { transform: translateX(-120%); } to { transform: translateX(120%); }
+}
+/* Reduce motion: no slide, no bounce, no shine -- it fades in and out. */
+@media (prefers-reduced-motion: reduce) {
+  .badge-card, .badge-card.pos-bottom, .badge-card.show { transform: none; transition: opacity .3s ease; }
+  .badge-card.show .badge-card-art, .badge-card.show .badge-card-art::after { animation: none; }
+}
 .modal-box {
   background: var(--panel); border-radius: 18px 18px 0 0;
   padding: 18px 16px calc(18px + env(safe-area-inset-bottom));

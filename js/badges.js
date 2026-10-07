@@ -4,14 +4,15 @@
 // BADGE_DEFS is built at module top level from PUZZLE_THEMES,
 // ENDGAME_CATEGORIES and LEVELS, so all three must come from modules that do
 // NOT import app.js back. LEVELS was moved into js/engine.js for exactly this
-// reason. The app.js bindings below ($, esc, KaelQuotes, activeScreen) are only
+// reason. The app.js bindings below ($, esc, activeScreen) are only
 // read inside methods, which is what keeps the cycle safe.
 import { t, getLang } from './i18n.js';
 import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES } from './puzzles.js';
 import { ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEVELS } from './engine.js';
-import { $, esc, KaelQuotes, activeScreen } from './app.js';
+import { BadgeCard } from './badge-card.js';
+import { $, esc, activeScreen } from './app.js';
 
 // ═════════════════════ ACHIEVEMENTS / BADGES ═════════════════════
 
@@ -125,8 +126,9 @@ export const Badges = {
     };
   },
 
-  // delayMs lets a caller that's already occupying the Kael bubble (the streak
-  // tier-up celebration) push these back instead of talking over itself.
+  // Newly earned badges go to the congratulation card (js/badge-card.js), which
+  // queues them and holds them back during a Rush run or a streak celebration.
+  // delayMs is a minimum wait on top of that.
   async checkNew(delayMs = 0) {
     this.earned = await db.kvGet('earnedBadges', {});
     const state = await this.gatherState();
@@ -139,15 +141,7 @@ export const Badges = {
         newlyEarned.push(def);
       }
     }
-    newlyEarned.forEach((def, i) => {
-      setTimeout(() => {
-        KaelQuotes.show({
-          title: '🏆 ' + t('badge_earned'),
-          text: badgeLabel(def),
-          image: `icons/badges/${def.id}.png`,
-        }, 5000);
-      }, delayMs + i * 5200);
-    });
+    BadgeCard.enqueue(newlyEarned.map(def => ({ id: def.id, icon: def.icon, label: () => badgeLabel(def) })), delayMs);
     if (changed) await db.kvSet('earnedBadges', this.earned);
     if (activeScreen === 'profile') this.renderTrophyCase();
     return changed;
