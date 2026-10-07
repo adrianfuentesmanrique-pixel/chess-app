@@ -3,7 +3,13 @@
 ## Already done and pushed — do NOT redo these
 
 - **READ TAB: FULL SCREEN LETS THE INSTALLED APP TURN SIDEWAYS (v157, 2026-10-07).
-  COMMITTED, NOT PUSHED - ask Adrian before pushing. NOT YET PROVEN ON THE PHONE.**
+  PUSHED (eafbf6c is on origin/main, sw.js v157). CONFIRMED ON ADRIAN'S PHONE
+  2026-10-07 - CLOSED, do not propose another test run.** Basis: Adrian's own report
+  from the INSTALLED app (the Play Store package, which runs in Brave on his phone):
+  in the reader's full screen the phone's bars disappeared, and turning the phone
+  sideways showed two pages. So requestFullscreen and screen.orientation.lock both
+  work inside the upright-only package; no Play Store rebuild is needed. Not re-run by
+  a session - headless Chrome has no screen to turn, so the phone is the only proof.
   Adrian chose option (b) of three: the app stays upright, only the reader turns, and
   only in full screen. No Play Store rebuild.
   - **Investigated first (facts, checked):** the installed app is held upright by the
@@ -38,8 +44,8 @@
     disappear; Android shows its own short "swipe to exit" hint; Back leaves full screen
     first; on a PC the button now makes the browser window full screen as well.
 
-- **READ TAB: TWO-PAGE VIEW IN FULL SCREEN (v156, 2026-10-07). COMMITTED, NOT PUSHED -
-  ask Adrian before pushing.** In full screen (`body.read-immersive`) on a screen wider
+- **READ TAB: TWO-PAGE VIEW IN FULL SCREEN (v156, 2026-10-07). PUSHED (25671dd is on
+  origin/main); seen working sideways on Adrian's phone with v157.** In full screen (`body.read-immersive`) on a screen wider
   than tall the reader shows the book as spreads; upright, or out of full screen, it is
   the one column it always was.
   - **Decided by Adrian (four questions, with sketches):** (1) automatic by screen shape
