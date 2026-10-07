@@ -15,6 +15,9 @@
 // Firebase SDK on www.gstatic.com kept the app on the splash (vendored in v149).
 // The walk follows minified files as well (`import{a}from"./x.js"`).
 //
+// Also fails if ART in sw.js (badges, streak flames, avatars) and the art
+// folders disagree — see checkArt below.
+//
 // NOT checked: dynamic import() (those are allowed to load on first use).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,6 +42,29 @@ export function keptFiles(root = ROOT) {
   const m = sw.match(/const KEEP = \[([\s\S]*?)\];/);
   if (!m) throw new Error('could not find the KEEP list in sw.js');
   return [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]);
+}
+
+// The art sw.js fetches at install into its own cache (ART), against what is
+// on disk and what the app can ask for. A badge, flame or avatar that is not
+// listed only reaches a phone the first time it is shown online.
+const ART_DIRS = ['icons/badges', 'icons/kael', 'streaks', 'avatars'];   // top-level .png only
+export function checkArt(root = ROOT) {
+  const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+  const m = sw.match(/const ART = \[([\s\S]*?)\n\];/);
+  if (!m) throw new Error('could not find the ART list in sw.js');
+  const listed = new Set([...m[1].matchAll(/names\('([^']+)',([^)]*)\)/g)].flatMap(([, dir, rest]) =>
+    [...rest.matchAll(/'([^']*)'/g)].map(x => x[1]).join('').split(' ').map(n => `${dir}/${n}.png`)));
+  const onDisk = ART_DIRS.flatMap(dir => fs.readdirSync(path.join(root, dir), { withFileTypes: true })
+    .filter(d => d.isFile() && d.name.endsWith('.png')).map(d => `${dir}/${d.name}`));
+  const avatars = fs.readFileSync(path.join(root, 'js/avatars.js'), 'utf8');
+  const ids = [...avatars.matchAll(/\{ id: '([^']+)'/g)].map(x => `avatars/${x[1]}.png`);
+  return {
+    listed: listed.size,
+    notListed: onDisk.filter(f => !listed.has(f)),
+    notOnDisk: [...listed].filter(f => !fs.existsSync(path.join(root, f))),
+    // An avatar a player can choose (js/avatars.js) that sw.js does not fetch.
+    avatarNotListed: ids.filter(f => !listed.has(f)),
+  };
 }
 
 export function staticImports(root = ROOT, entry = ENTRY, crossOrigin = []) {
@@ -76,6 +102,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   for (const f of crossOrigin) console.error(`CROSS-ORIGIN: ${f} is a static import from another origin; the worker never caches it`);
   for (const f of notPrecached) console.error(`NOT PRECACHED: ${f} is statically imported from ${ENTRY} but is not in ASSETS in sw.js`);
   for (const f of notOnDisk) console.error(`NOT ON DISK: ${f} is in ASSETS in sw.js but the file does not exist`);
-  if (notPrecached.length || notOnDisk.length || crossOrigin.length) process.exit(1);
-  console.log(`precache OK: all ${staticImports().length} statically imported files are in ASSETS`);
+  const art = checkArt();
+  for (const f of art.notListed) console.error(`ART NOT LISTED: ${f} is on disk but is not in ART in sw.js`);
+  for (const f of art.notOnDisk) console.error(`ART NOT ON DISK: ${f} is in ART in sw.js but the file does not exist`);
+  for (const f of art.avatarNotListed) console.error(`AVATAR NOT LISTED: ${f} is in js/avatars.js but is not in ART in sw.js`);
+  if (notPrecached.length || notOnDisk.length || crossOrigin.length || art.notListed.length || art.notOnDisk.length || art.avatarNotListed.length) process.exit(1);
+  console.log(`precache OK: all ${staticImports().length} statically imported files are in ASSETS, all ${art.listed} art files are in ART`);
 }

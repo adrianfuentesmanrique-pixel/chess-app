@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkPrecache, staticImports, keptFiles, precachedAssets } from '../../tools/check-precache.mjs';
+import { checkPrecache, checkArt, staticImports, keptFiles, precachedAssets } from '../../tools/check-precache.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -37,4 +37,12 @@ test('every file kept across updates exists, carries its version in its path, an
     assert.match(f, /\d+\.\d+/, `${f} has no version in its path - a kept file is never replaced`);
     assert.ok(!precachedAssets().has(f), `${f} is both kept and precached`);
   }
+});
+
+test('every badge, streak flame, avatar and Kael portrait the app ships is in the service worker art list', () => {
+  const art = checkArt();
+  assert.ok(art.listed >= 135, '76 badges, 26 flames, 31 avatars, 2 Kael portraits');
+  assert.deepEqual(art.notListed, []);
+  assert.deepEqual(art.notOnDisk, []);
+  assert.deepEqual(art.avatarNotListed, []);
 });

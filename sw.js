@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v157';
+const CACHE = 'chess-training-center-v158';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -30,7 +30,50 @@ const KEEP_WAS = Object.fromEntries(['pdf.worker.min.mjs', 'jbig2.wasm', 'openjp
 // App code changes often; heavy/rarely-changing assets (engine, pieces, icons)
 // benefit from cache-first. Everything else should prefer the network so
 // updates show up on the very next load instead of needing two reloads.
-const CACHE_FIRST = /\/(vendor|pieces|pieces2|icons)\//;
+const CACHE_FIRST = /\/(vendor|pieces|pieces2|icons|streaks|avatars)\//;
+// The app's art: every badge, every streak flame, every avatar the app can
+// show and Kael's two portraits (4.1 MB together). Fetched at install into a cache of its OWN, which
+// `activate` does not wipe — up to v157 only the 8 robot badges were precached,
+// the rest was stored on first sight in the versioned cache, and every CACHE
+// bump threw it away, so offline the trophy case, the flames and the player's
+// own avatar came up empty after each update.
+// These files carry no version in their names, so the CACHE NAME carries it:
+// when any art file is redrawn under its existing name, bump the number here
+// (the old art cache is then deleted in `activate`) AND make ART_WAS return
+// false, or a phone coming from an old version would carry the old drawing in.
+// `npm.cmd run test:precache` fails if a file in these folders is not listed.
+// avatars/ is top-level files only: "avatars/CTC new arts" is the 137 MB of
+// source drawings for tools/build_*.py, which the app never loads.
+const ART_CACHE = 'ctc-art-1';
+const ART_RE = /\/(icons\/(badges|kael)|streaks|avatars)\//;
+// Versioned caches that may hold today's art from a first fetch: the art last
+// changed during v62. What a phone already has is moved across at install
+// instead of being downloaded again.
+const ART_WAS = k => +(k.match(/^chess-training-center-v(\d+)$/) || [])[1] >= 63;
+const names = (dir, list) => list.split(' ').map(n => `${dir}/${n}.png`);
+const ART = [
+  ...names('icons/kael', 'kael-bust kael-welcome'),
+  ...names('icons/badges',
+    'beat_engine_0 beat_engine_1 beat_engine_2 beat_engine_3 beat_engine_4 beat_engine_5 ' +
+    'beat_engine_6 beat_engine_7 beat_engine_all daily_180 daily_1825 daily_270 daily_30 ' +
+    'daily_365 daily_3650 daily_7 daily_730 daily_90 endgame_bishop endgame_knight endgame_minor ' +
+    'endgame_pawn endgame_queen endgame_rook first_engine first_import opening_1 opening_3 puz_10 ' +
+    'puz_1000 puz_200 puz_50 puz_5000 rush3_20 rush3_30 rush3_40 rush5_30 rush5_40 rush5_50 ' +
+    'streak_180 streak_1825 streak_270 streak_30 streak_365 streak_3650 streak_7 streak_730 ' +
+    'streak_90 theme_advancedPawn theme_attraction theme_backRankMate theme_capturingDefender ' +
+    'theme_clearance theme_defensiveMove theme_deflection theme_discoveredAttack ' +
+    'theme_discoveredCheck theme_doubleCheck theme_fork theme_hangingPiece theme_interference ' +
+    'theme_intermezzo theme_mateIn1 theme_mateIn2 theme_mateIn3 theme_mateIn4 theme_mateIn5 ' +
+    'theme_pin theme_promotion theme_quietMove theme_sacrifice theme_skewer theme_smotheredMate ' +
+    'theme_trappedPiece theme_xRayAttack theme_zugzwang'),
+  ...names('streaks',
+    'bishop1 bishop2 bishop3 bishop4 flame1 flame2 flame3 flame4 flame5 flame6 knight1 knight2 ' +
+    'knight3 knight4 pawn1 pawn2 pawn3 pawn4 pawn5 pawn6 queen1 queen2 queen3 rook1 rook2 rook3'),
+  ...names('avatars',
+    'bear bishop_b bishop_w crystal dragon eagle fire galaxy griffin hydra ice king_b king_w ' +
+    'knight_b knight_w kraken lion owl pawn_b pawn_w phoenix queen_b queen_w raven rook_b rook_w ' +
+    'shadow storm tiger void wolf'),
+];
 const ASSETS = [
   './',
   'index.html',
@@ -108,13 +151,7 @@ const ASSETS = [
   'icons/logo-mark.png',
   'icons/logo-full.png',
   'icons/google-g.svg',
-  // The 8 robot badges are the Play tab's level picker, so they must be there
-  // on a first launch that happens offline. The rest of icons/badges/ is not
-  // precached — it is only cached after first fetch.
-  'icons/badges/beat_engine_0.png', 'icons/badges/beat_engine_1.png',
-  'icons/badges/beat_engine_2.png', 'icons/badges/beat_engine_3.png',
-  'icons/badges/beat_engine_4.png', 'icons/badges/beat_engine_5.png',
-  'icons/badges/beat_engine_6.png', 'icons/badges/beat_engine_7.png',
+  // Badges, Kael, streak flames and avatars are NOT here: see ART above.
   'pieces/wK.svg', 'pieces/wQ.svg', 'pieces/wR.svg', 'pieces/wB.svg', 'pieces/wN.svg', 'pieces/wP.svg',
   'pieces/bK.svg', 'pieces/bQ.svg', 'pieces/bR.svg', 'pieces/bB.svg', 'pieces/bN.svg', 'pieces/bP.svg',
   'pieces2/wK.svg', 'pieces2/wQ.svg', 'pieces2/wR.svg', 'pieces2/wB.svg', 'pieces2/wN.svg', 'pieces2/wP.svg',
@@ -126,21 +163,39 @@ self.addEventListener('install', e => {
   // a single request fails, which on a flaky mobile connection meant the app
   // installed with an empty cache and then failed at runtime.
   e.waitUntil(
-    caches.open(CACHE)
-      .then(c => Promise.all(ASSETS.map(url =>
-        c.add(url).catch(err => console.warn('[sw] skipped', url, err)))))
-      .then(() => self.skipWaiting())
+    Promise.all([
+      caches.open(CACHE).then(c => Promise.all(ASSETS.map(url =>
+        c.add(url).catch(err => console.warn('[sw] skipped', url, err))))),
+      stockArt().catch(err => console.warn('[sw] art', err)),
+    ]).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => keys.filter(k => k !== CACHE && k !== SHARE_CACHE && k !== KEEP_CACHE))
+    caches.keys().then(keys => keys.filter(k => k !== CACHE && k !== SHARE_CACHE && k !== KEEP_CACHE && k !== ART_CACHE))
       .then(old => tidyKeep(old).catch(err => console.warn('[sw] keep', err))
         .then(() => Promise.all(old.map(k => caches.delete(k)))))
       .then(() => self.clients.claim())
   );
 });
+
+// Runs at install, while the old caches are still there. Each art file that is
+// not in the art cache yet is taken from an old versioned cache if one has it,
+// and downloaded otherwise — one by one, so a dropped connection costs only
+// the files it dropped; those are stored the first time they are shown.
+async function stockArt() {
+  const art = await caches.open(ART_CACHE);
+  const was = (await caches.keys()).filter(ART_WAS);
+  await Promise.all(ART.map(abs).map(async url => {
+    if (await art.match(url)) return;
+    for (const k of was) {
+      const hit = await (await caches.open(k)).match(url);
+      if (hit) return art.put(url, hit);
+    }
+    await art.add(url).catch(err => console.warn('[sw] skipped', url, err));
+  }));
+}
 
 // Runs before the old caches go. Drops kept files that are no longer listed
 // (an engine upgrade must not leave the old 7 MB behind), and moves a listed
@@ -202,7 +257,7 @@ self.addEventListener('fetch', e => {
           // Clone NOW, before the page starts reading the body. Cloning inside the
           // async .then() ran after the body was consumed ("Response body is
           // already used"), so the put silently failed and nothing got cached.
-          if (res.ok) { const copy = res.clone(); caches.open(KEEP_URLS.includes(e.request.url) ? KEEP_CACHE : CACHE).then(c => c.put(e.request, copy)); }
+          if (res.ok) { const copy = res.clone(); caches.open(KEEP_URLS.includes(e.request.url) ? KEEP_CACHE : ART_RE.test(e.request.url) ? ART_CACHE : CACHE).then(c => c.put(e.request, copy)); }
           return res;
         }).catch(err => {
           // Previously this resolved to `cached`, which is undefined when

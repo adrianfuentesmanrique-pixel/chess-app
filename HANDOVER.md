@@ -2,6 +2,47 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **OFFLINE ART: BADGES, FLAMES, AVATARS AND KAEL SURVIVE OFFLINE AND SURVIVE AN UPDATE
+  (v158, 2026-10-07). COMMITTED LOCALLY, NOT PUSHED - pushing deploys, ask Adrian.
+  NOT yet checked on Adrian's phone.**
+  - **Reproduced first on v157 (headless Chrome, 375x812, server stopped):** never
+    opened Profile -> offline 8/76 badges, 1/26 flames, 0/31 avatars, own avatar blank.
+    Everything seen once online -> all there offline. After a CACHE bump -> 8/76 badges,
+    0 flames, 0 avatars, header flame and own avatar blank, Kael's button a broken image.
+  - **Cause:** only the 8 robot badges were in ASSETS; the rest was stored on first
+    sight in the versioned cache, which `activate` deletes on every bump. `CACHE_FIRST`
+    did not match `streaks/` or `avatars/` at all (they went network-first).
+  - **The 142 MB was a misreading:** the app uses 31 avatar files = 1.5 MB (the ids in
+    `AVATAR_OPTIONS`, `js/avatars.js`). The other 137 MB is `avatars/CTC new arts/`, the
+    source drawings for `tools/build_avatars.py` / `build_badges.py`; no app code loads
+    it. So ALL 31 avatars are fetched at install - no "chosen avatar only" logic, and
+    no need to shrink any PNG. (That folder is still in git and so on the public site;
+    moving it out is a separate decision, not taken.)
+  - **Built (`sw.js`):** `ART` (135 files, 4.1 MB: 76 badges, 26 flames, 31 avatars,
+    2 Kael portraits), `ART_CACHE = 'ctc-art-1'`, `ART_RE`, `ART_WAS`, `stockArt()`.
+    Install runs `stockArt()` beside the ASSETS loop: each file missing from the art
+    cache is MOVED from an old versioned cache if one holds it (v63 or later - the art
+    last changed during v62), else downloaded, one by one. `activate` no longer deletes
+    `ART_CACHE`. The fetch handler stores first-fetched art there too. `CACHE_FIRST`
+    now includes `streaks|avatars`. Art is NOT in `KEEP`: kept files must carry a
+    version in their path (the unit test enforces it) and art names do not, so the
+    art cache's NAME carries the version.
+  - **IF ANY ART FILE IS REDRAWN UNDER ITS EXISTING NAME:** bump `ART_CACHE` to
+    `ctc-art-2` AND make `ART_WAS` return false. A CACHE bump alone no longer replaces art.
+  - **Guard:** `tools/check-precache.mjs` `checkArt()` (in `npm.cmd run test:precache`
+    and one new unit test, 104 total) fails if a PNG in `icons/badges`, `icons/kael`,
+    `streaks` or top-level `avatars` is not in `ART`, or an `AVATAR_OPTIONS` id is not.
+  - **Tested (run, not read):** new `tools/cdp-verify-offline-art.mjs` - cold / seen /
+    bump x EN, ES x light, dark = 12 PASS; all 135 files fetch offline and on Profile
+    the header flame, own avatar (seeded 'wolf'), 76/76 trophy badges, 8/8 ladder
+    flames and Kael's button decode. Update v158 -> v159 downloaded 0 art files.
+    `FROM=856bfb7` (real v157 -> v158 update) 4 PASS, 1 art file downloaded instead of
+    135. `test:precache` OK, `test:tree` 104/104, `cdp-verify-offline-open.mjs` with
+    `NOGSTATIC=1` 8 PASS. Seeded, not tapped: language, theme, avatar, a 40-day streak.
+    Only the Profile tab was clicked. NOT tested: a signed-in account, the installed app.
+  - **Found, NOT fixed (read from code, not reproduced):** `sounds/*.wav` (8 files,
+    152 KB, `js/sound.js`) are in no list either - same first-fetch-then-wiped pattern.
+
 - **READ TAB: FULL SCREEN LETS THE INSTALLED APP TURN SIDEWAYS (v157, 2026-10-07).
   PUSHED (eafbf6c is on origin/main, sw.js v157). CONFIRMED ON ADRIAN'S PHONE
   2026-10-07 - CLOSED, do not propose another test run.** Basis: Adrian's own report
