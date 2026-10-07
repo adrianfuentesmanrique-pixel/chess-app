@@ -67,7 +67,7 @@ const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const PORT = 9300 + Math.floor(Math.random() * 600);
 const WEB = 9900 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cp-sp-'));
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 420000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 600000).unref();
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm',
@@ -305,7 +305,31 @@ for (const [lang, scheme] of combos) {
   check('turned upright in full screen: one page, button gone, same place', !s.spread && !s.btn.shown && s.ind === '5 / 12' && near(s.pages[5].w, s.stage.w), { ind: s.ind, btn: s.btn });
   await screen(812, 375); await sleep(600); s = await state();
   check('turned sideways in full screen: two pages again, same place', s.spread && s.btn.shown && s.ind === '4–5 / 12', s.ind);
-  await click('#read-back', 600);
+  await click('#read-fullscreen', 900);
+
+  // v157: full screen is the device's full screen too, and asks the screen to
+  // follow the phone. Headless Chrome has no screen to turn, so lock/unlock are
+  // RECORDED here, not obeyed - what the installed app does is a phone test.
+  await screen(375, 812);
+  await evalP(`window.__o = []; const so = screen.orientation;
+    so.lock = t => { window.__o.push('lock:' + t); return Promise.resolve(); }; so.unlock = () => { window.__o.push('unlock'); };`);
+  const dev = () => evalP(`const v = e => e.getClientRects().length > 0; return { real: !!document.fullscreenElement, full: document.body.classList.contains('read-immersive'), calls: window.__o.join(','),
+    header: v(document.getElementById('topbar')), reader: v(document.getElementById('read-stage')) };`);
+  await click('#read-fullscreen', 1200); let f = await dev();
+  check('full screen is the device\'s full screen, and asks the screen to follow the phone', f.real && f.full && f.calls === 'lock:any' && !f.header, f);
+  const dd = await pressDiagram(5);
+  check('the diagram dialog still shows in the device\'s full screen', dd.modal && dd.img, dd);
+  await click('#read-page-ind', 600);
+  check('the jump-to-page dialog still shows in the device\'s full screen', await evalP(`const m = document.querySelector('.modal-back'); return !!m && m.getClientRects().length > 0 && !!m.querySelector('input');`));
+  await killModals();
+  await click('#read-fullscreen', 1200); f = await dev();
+  check('the button leaves both, and hands the screen back upright', !f.real && !f.full && f.calls.endsWith('unlock') && f.header, f);
+  await click('#read-fullscreen', 1200);
+  await evalP(`await document.exitFullscreen(); await new Promise(r => setTimeout(r, 900));`); f = await dev();
+  check('full screen ended by the phone itself (Back / swipe): the header is back, the book still open', !f.real && !f.full && f.header && f.reader && f.calls.endsWith('unlock'), f);
+  await click('#read-fullscreen', 1200);
+  await click('#read-back', 900); f = await dev();
+  check('closing the book in full screen leaves the device\'s full screen too', !f.real && !f.full && f.header && f.calls.endsWith('unlock'), f);
 }
 
 if (errors.length) console.error('PAGE ERRORS:\n' + [...new Set(errors)].join('\n'));

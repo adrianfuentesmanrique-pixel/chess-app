@@ -768,10 +768,38 @@ function relayout() {
   updatePageInd();
   for (const n of R.slots.keys()) renderSlot(n);   // the page's width changed → re-render crisp
 }
-function toggleFullscreen() {
-  document.body.classList.toggle('read-immersive');
+// The installed app is held upright by its package. Real full screen (the phone's
+// own bars go too) is the one state where a page may ask the screen to follow the
+// phone, so full screen asks for both; leaving it hands the screen back upright.
+// A browser that refuses either is left exactly as it was: the bars just hide.
+function deviceFullscreen(on) {
+  try {
+    if (on) {
+      const p = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+      p?.then(() => screen.orientation?.lock?.('any')).catch(() => {});
+    } else {
+      try { screen.orientation?.unlock?.(); } catch {}
+      if (document.fullscreenElement) document.exitFullscreen?.()?.catch(() => {});
+    }
+  } catch {}
+}
+function setFullscreen(on, device = true) {
+  document.body.classList.toggle('read-immersive', on);
+  if (device) deviceFullscreen(on);
   syncSpreadBtn();
   if (R.doc && wantSpread() !== R.spread) relayout();
+}
+function toggleFullscreen() {
+  setFullscreen(!document.body.classList.contains('read-immersive'));
+}
+// Back, Esc or the phone's own gesture ended real full screen: the reader leaves
+// its full screen with it, so the header and the menu are never left hidden.
+function onDeviceFullscreenChange() {
+  if (document.fullscreenElement) { R.deviceFull = true; return; }
+  if (!R.deviceFull) return;
+  R.deviceFull = false;
+  try { screen.orientation?.unlock?.(); } catch {}
+  if (document.body.classList.contains('read-immersive')) setFullscreen(false, false);
 }
 function toggleSpread() {
   if (!R.doc || !spreadPossible()) return;
@@ -837,6 +865,7 @@ export function closeBook(remember = false) {
   if (stage) { stage.scrollTop = 0; stage.style.touchAction = 'pan-y'; stage.classList.remove('snap-rows'); }
   document.body.classList.remove('reading');
   document.body.classList.remove('read-immersive');   // never leave the chrome hidden
+  deviceFullscreen(false);
   setSpread(false);
   const reader = $('read-reader'), shelf = $('read-shelf');
   if (reader) reader.classList.add('hidden');
@@ -1328,4 +1357,5 @@ export function init() {
   stage.addEventListener('pointercancel', onCancel);
   stage.addEventListener('contextmenu', e => e.preventDefault());
   window.addEventListener('resize', onResize);
+  document.addEventListener('fullscreenchange', onDeviceFullscreenChange);
 }

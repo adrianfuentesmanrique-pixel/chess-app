@@ -2,6 +2,42 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **READ TAB: FULL SCREEN LETS THE INSTALLED APP TURN SIDEWAYS (v157, 2026-10-07).
+  COMMITTED, NOT PUSHED - ask Adrian before pushing. NOT YET PROVEN ON THE PHONE.**
+  Adrian chose option (b) of three: the app stays upright, only the reader turns, and
+  only in full screen. No Play Store rebuild.
+  - **Investigated first (facts, checked):** the installed app is held upright by the
+    PACKAGE, not by the site - `C:\Users\Adrian\chess-app-android\twa-manifest.json` has
+    `"orientation": "portrait"` (package 1.0.5, versionCode 7), baked in through
+    `app/build.gradle` and `LauncherActivity.java`. Changing `manifest.webmanifest` alone
+    would NOT turn the installed app. Option (a), whole app rotates, needs a rebuilt and
+    re-uploaded package AND a sideways layout for every board screen: measured at 812x375
+    the board is 560px tall on a 375px-high screen (Analysis shows ~4 ranks, Puzzles ~2);
+    nothing spills sideways and the menu scrolls. Rejected for that reason.
+  - **What was built (`js/read.js` only, the two-page maths untouched):** the reader's
+    full screen used to be CSS only (`body.read-immersive`). Now `setFullscreen(on)` also
+    calls `deviceFullscreen(on)`: `document.documentElement.requestFullscreen()` then
+    `screen.orientation.lock('any')`; leaving calls `unlock()` + `exitFullscreen()`.
+    Every call is optional and caught - a browser that refuses is left exactly as it was.
+    `onDeviceFullscreenChange` (a `fullscreenchange` listener added in `init`): when the
+    phone itself ends full screen (Back, swipe, Esc) the reader leaves its full screen
+    too, so the header is never left hidden. `closeBook` also leaves it (leaving the Read
+    tab calls `closeBook`). Rotation then reaches the existing `onResize` -> `relayout`.
+  - **MEASURED (headless Chrome):** `tools/cdp-verify-spread.mjs` now 61 checks x EN/ES x
+    light/dark = 244/244 (6 new per run: real full screen entered and `lock('any')`
+    asked; diagram dialog and jump-to-page dialog still show inside it; the button leaves
+    both and unlocks; full screen ended from outside brings the header back with the book
+    open; closing the book leaves it). The tool's own time limit was raised to 600 s (a
+    full run takes ~380 s). test:tree 103, test:precache OK,
+    `cdp-verify-offline-open.mjs` NOGSTATIC=1 ALL OPENED.
+  - **ONLY READ / NOT TESTED:** whether the installed app (it runs in Brave) obeys
+    `lock('any')` and really turns. Headless Chrome has no screen to turn, so the tool
+    RECORDS the lock/unlock calls, it does not see a rotation. Only Adrian's phone can
+    prove it. If Brave refuses: full screen still hides the phone's bars, nothing turns.
+  - **Side effects to expect:** in full screen the phone's status bar and bottom bar
+    disappear; Android shows its own short "swipe to exit" hint; Back leaves full screen
+    first; on a PC the button now makes the browser window full screen as well.
+
 - **READ TAB: TWO-PAGE VIEW IN FULL SCREEN (v156, 2026-10-07). COMMITTED, NOT PUSHED -
   ask Adrian before pushing.** In full screen (`body.read-immersive`) on a screen wider
   than tall the reader shows the book as spreads; upright, or out of full screen, it is
