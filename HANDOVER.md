@@ -2,6 +2,49 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO SESSION 2 OF 7 DONE: RUSH'S ENGINE IS REUSABLE, RUSH ITSELF UNCHANGED (v160,
+  2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** Only `js/app.js` (inside
+  `export const Rush`) and the `CACHE` line of `sw.js` (v159 -> v160) changed. No Pulso
+  screen, no `js/pulso.js`, nothing in `firestore.rules` or `js/firebase.js`.
+  - **The lookup:** `Rush.prefix` (`'rush'`) and `Rush.el(name)` = `$(prefix + '-' +
+    name)`. All 31 `$('rush-...')` inside Rush now read `this.el('...')`. A second mode
+    sets `prefix: 'pulso'` and the same engine drives `pulso-board`, `pulso-status`,
+    `pulso-countdown` and so on.
+  - **The three hooks:** `Rush.onSolve(run)` (score +1, log dot, HUD, next puzzle after
+    0.35 s), `Rush.onMistake(run)` (strike, log dot, HUD, sound, struck out at 3, the
+    "n left" line, next puzzle after 1.2 s) and `Rush.pickNext()` (already a method,
+    untouched). The code was moved, not rewritten; `userMove()` keeps the board handling
+    and calls the hooks. `run` is the token a hook passes to `live(run)` before any
+    delayed step.
+  - **Left as they were, on purpose:** the three `rush-` uses outside Rush - the
+    count-in touch rule (`'#rush-countdown'`), the board-id list (`'rush-board'`) and
+    `PuzzleLog.containers` (`rush: 'rush-log'`). None needed changing for Rush. **Session
+    4/5 must ADD the Pulso twins beside them** (`#pulso-countdown`, `pulso-board`, and a
+    `pulso` log entry only if Pulso shows a strip). Also still Rush-only inside the
+    object, for Pulso to replace rather than reuse: `start`, `openIntro`, `updateHud`
+    (draws the strikes and uses the CSS class `rush-strike`), `tick`, `finish`,
+    `bestKey`/`showBest`/`recordSeasonScore`, `share`, and the two `PuzzleLog` calls
+    that name `'rush'`. `loadNext()` assumes `pickNext()` returns a puzzle - a mode whose
+    list can run out must stop before calling it.
+  - **Verified, new tool `tools/cdp-verify-rush.mjs`** (headless Chrome, 375 px, real
+    finger taps on the chip, Start, every chess move, Play again, Back). Per ES/EN x
+    light/dark it plays run A (count-in, N solves, one mistake, clock runs out, new best
+    saved) and run B (three mistakes, struck out, best unchanged): **64 of 64 checks
+    pass.** The first combination waited the full real 3 minutes; the other three had
+    `timeLeft` set to 4 once the run was played. The same script run against the code as
+    committed before this change (`BASE=1`) gave a record identical line for line except
+    which colour was to move. Console errors: the same two kinds before and after (App
+    Check 403; a 404 for `sw.js`, which the script blocks on purpose) - zero new.
+    `pickNext` measurement, 40 runs x 10 puzzles, 15,000 loaded: 38-40 different out of
+    40 at every position, furthest rating 50 from target, 0 repeats. (The old code scored
+    37 at one position in its own run - that figure wobbles by a puzzle or so from run
+    to run; the picking code is byte-for-byte the same.) `test:rules` 399 pass / 0 fail,
+    `test:tree` 104 pass / 0 fail, `test:precache` OK. Screenshots were looked at for
+    count-in (EN dark), after a mistake (ES light) and the time-up result (ES dark).
+    One promotion puzzle in the new-code run was answered through `Rush.userMove()`
+    instead of the promotion picker. NOT played on a real phone.
+  - **Still owed:** sessions 3 to 7 of the plan and Adrian's seven art files.
+
 - **PULSO SESSION 1 OF 7 DONE: THE RULES AND THEIR TESTS (2026-10-07). PUSHED BY
   ADRIAN (origin/main = 53f4c6d) AND THE RULES ARE DEPLOYED (`rules:deploy` run
   2026-10-07 on his say-so, "released rules firestore.rules to cloud.firestore").**

@@ -4985,26 +4985,30 @@ export const Rush = {
   // pressure while letting a good run survive a mistake.
   MAX_STRIKES: 3,
   COUNTDOWN: 5,
+  // Every element this engine touches is looked up as `${prefix}-name`, so a
+  // second mode can run the same engine over its own screen by changing this.
+  prefix: 'rush',
+  el(name) { return $(this.prefix + '-' + name); },
 
   init() {
-    this.board = new Board($('rush-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
-    segInit($('rush-duration'), () => this.showBest());
-    $('rush-start').onclick = () => this.start();
-    $('rush-again').onclick = () => this.openIntro();
+    this.board = new Board(this.el('board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
+    segInit(this.el('duration'), () => this.showBest());
+    this.el('start').onclick = () => this.start();
+    this.el('again').onclick = () => this.openIntro();
     // The result screen was a dead end — "play again" or "share" only, with no
     // way back to the other puzzle modes without using the device back button.
-    $('rush-exit').onclick = () => { this.stop(); showScreen('puzzles'); };
-    $('rush-share').onclick = () => this.share();
+    this.el('exit').onclick = () => { this.stop(); showScreen('puzzles'); };
+    this.el('share').onclick = () => this.share();
   },
 
   // 3-minute and 5-minute runs are different events, so each keeps its own
   // best score and its own leaderboard. 'rushBestScore' stays as the best
   // across both, since the achievements are phrased "N in a row" regardless
   // of clock and shouldn't be lost when the boards split.
-  bestKey(duration = +segValue($('rush-duration'))) { return 'rushBest' + duration; },
+  bestKey(duration = +segValue(this.el('duration'))) { return 'rushBest' + duration; },
 
   async showBest() {
-    $('rush-best-score').textContent = await db.kvGet(this.bestKey(), 0);
+    this.el('best-score').textContent = await db.kvGet(this.bestKey(), 0);
   },
 
   // Monthly boards give newer players something reachable: an all-time board
@@ -5024,9 +5028,9 @@ export const Rush = {
 
   async openIntro() {
     showScreen('rush');
-    $('rush-intro').classList.remove('hidden');
-    $('rush-game').classList.add('hidden');
-    $('rush-result').classList.add('hidden');
+    this.el('intro').classList.remove('hidden');
+    this.el('game').classList.add('hidden');
+    this.el('result').classList.add('hidden');
     await this.showBest();
   },
 
@@ -5054,18 +5058,18 @@ export const Rush = {
   },
 
   async start() {
-    $('rush-start').disabled = true;
+    this.el('start').disabled = true;
     try {
       await ensureForRating(1000);            // where every run begins
     } catch {
       toast(t('puzzles_unavailable'));
-      $('rush-start').disabled = false;
+      this.el('start').disabled = false;
       return;
     }
-    $('rush-start').disabled = false;
+    this.el('start').disabled = false;
     this.usedIds = new Set();
     PuzzleLog.reset('rush');           // the strip shows one run at a time
-    this.duration = +segValue($('rush-duration'));
+    this.duration = +segValue(this.el('duration'));
     this.timeLeft = this.duration;
     this.score = 0;
     this.strikes = 0;
@@ -5074,9 +5078,9 @@ export const Rush = {
     // and starting again inside a second used to let the old run's count-in
     // start a second clock, and its "next puzzle" swap the new run's first one.
     this.run = {};
-    $('rush-intro').classList.add('hidden');
-    $('rush-result').classList.add('hidden');
-    $('rush-game').classList.remove('hidden');
+    this.el('intro').classList.add('hidden');
+    this.el('result').classList.add('hidden');
+    this.el('game').classList.remove('hidden');
     this.updateHud();
     // Show the first puzzle immediately but frozen, so the count-in is spent
     // reading the position rather than staring at an empty board.
@@ -5086,7 +5090,7 @@ export const Rush = {
     const run = this.run;
     this.countIn(() => {
       if (!this.live(run)) return;
-      $('rush-status').textContent = this.prompt ?? '';
+      this.el('status').textContent = this.prompt ?? '';
       this.timer = setInterval(() => this.tick(), 1000);
       this.board.interactive = true;
     });
@@ -5095,13 +5099,13 @@ export const Rush = {
   // Counts 5…1 then "Go!" over the board. The clock does not start until it
   // finishes, so the count-in never costs the player time.
   countIn(done) {
-    const el = $('rush-countdown');
+    const el = this.el('countdown');
     const label = el.firstElementChild;
     let n = this.COUNTDOWN;
     const run = this.run;
     this.countingIn = true;
     el.classList.remove('hidden');
-    $('rush-status').textContent = t('rush_get_ready');
+    this.el('status').textContent = t('rush_get_ready');
     const tick = () => {
       if (!this.running) { el.classList.add('hidden'); return; }
       if (run !== this.run) return;       // a newer run owns the count-in now
@@ -5133,9 +5137,9 @@ export const Rush = {
 
   updateHud() {
     const m = Math.floor(Math.max(0, this.timeLeft) / 60), s = Math.max(0, this.timeLeft) % 60;
-    $('rush-timer').textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
-    $('rush-score').textContent = `⚡ ${this.score}`;
-    const el = $('rush-strikes');
+    this.el('timer').textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
+    this.el('score').textContent = `⚡ ${this.score}`;
+    const el = this.el('strikes');
     el.innerHTML = Array.from({ length: this.MAX_STRIKES }, (_, i) =>
       `<span class="rush-strike${i < this.strikes ? ' used' : ''}">✕</span>`).join('');
     el.classList.toggle('danger', this.strikes >= this.MAX_STRIKES - 1);
@@ -5156,7 +5160,7 @@ export const Rush = {
     // Kept so the count-in can put it back — countIn() borrows the status line
     // for "Get ready!" and must not leave the player without the prompt.
     this.prompt = t(playerColor === 'w' ? 'white' : 'black') + ' ' + t('to_move_find');
-    if (!this.countingIn) $('rush-status').textContent = this.prompt;
+    if (!this.countingIn) this.el('status').textContent = this.prompt;
     const run = this.run;
     setTimeout(() => {
       if (!this.live(run)) return;
@@ -5184,10 +5188,7 @@ export const Rush = {
       this.moveIdx++;
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
       if (this.moveIdx >= this.current.moves.length || isMate) {
-        this.score++;
-        PuzzleLog.add('rush', this.current, true);
-        this.updateHud();
-        setTimeout(() => { if (this.live(run)) this.loadNext(); }, 350);
+        this.onSolve(run);
         return;
       }
       this.board.interactive = false;
@@ -5204,19 +5205,34 @@ export const Rush = {
       this.chess.undo();
       this.board.setPosition(this.chess.fen());
       this.board.interactive = false;
-      this.strikes++;
-      PuzzleLog.add('rush', this.current, false);
-      this.updateHud();
-      Sound.play('puzzle-wrong');
-      if (this.strikes >= this.MAX_STRIKES) { this.finish(t('rush_strikes_out')); return; }
-      const left = this.MAX_STRIKES - this.strikes;
-      $('rush-status').textContent = left === 1
-        ? t('rush_strike_last')
-        : t('rush_strike_left').replace('{n}', left);
-      // Long enough to read how many chances are left, short enough not to
-      // feel like a penalty on a timed run.
-      setTimeout(() => { if (this.live(run)) this.loadNext(); }, 1200);
+      this.onMistake(run);
     }
+  },
+
+  // What a solved puzzle and a wrong move are worth is the mode's own business
+  // (as is pickNext, where the next puzzle comes from): a mode built on this
+  // engine replaces these three and keeps the board handling in userMove().
+  // `run` is the token to hand to live() before any delayed step.
+  onSolve(run) {
+    this.score++;
+    PuzzleLog.add('rush', this.current, true);
+    this.updateHud();
+    setTimeout(() => { if (this.live(run)) this.loadNext(); }, 350);
+  },
+
+  onMistake(run) {
+    this.strikes++;
+    PuzzleLog.add('rush', this.current, false);
+    this.updateHud();
+    Sound.play('puzzle-wrong');
+    if (this.strikes >= this.MAX_STRIKES) { this.finish(t('rush_strikes_out')); return; }
+    const left = this.MAX_STRIKES - this.strikes;
+    this.el('status').textContent = left === 1
+      ? t('rush_strike_last')
+      : t('rush_strike_left').replace('{n}', left);
+    // Long enough to read how many chances are left, short enough not to
+    // feel like a penalty on a timed run.
+    setTimeout(() => { if (this.live(run)) this.loadNext(); }, 1200);
   },
 
   async finish(reason) {
@@ -5238,11 +5254,11 @@ export const Rush = {
     // A run that scores 0 or 1 is a run you bailed out of; three solved is a
     // real one. Starting a run and letting the clock die no longer counts.
     if (this.score >= STREAK_MIN_RUSH_SOLVED) Streak.recordActivity();
-    $('rush-game').classList.add('hidden');
-    $('rush-result').classList.remove('hidden');
-    $('rush-result-title').textContent = reason;
-    $('rush-result-score').textContent = this.score;
-    $('rush-result-best').textContent = isNewBest ? t('rush_new_best') : `${t('rush_best')}: ${Math.max(best, this.score)}`;
+    this.el('game').classList.add('hidden');
+    this.el('result').classList.remove('hidden');
+    this.el('result-title').textContent = reason;
+    this.el('result-score').textContent = this.score;
+    this.el('result-best').textContent = isNewBest ? t('rush_new_best') : `${t('rush_best')}: ${Math.max(best, this.score)}`;
   },
 
   stop() {
