@@ -2,6 +2,23 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO IS DESIGNED, NOT BUILT (2026-10-07). SPEC COMMITTED LOCALLY, NOT PUSHED.**
+  Pulso = a live 1-v-1 puzzle tug-of-war between two friends. The whole design is in
+  `docs/superpowers/plans/2026-10-pulso.md`; **no app code exists yet** - there is no
+  `js/pulso.js`, no `pulso` block in `firestore.rules`, no `screen-pulso`. The name was
+  searched and is free in chess. Design in one breath: bar of 10 steps each side, solve
+  +1, +2 once you have 2 in a row, mistake -1, no strikes, 3 minutes, level bar = fewer
+  mistakes wins; the challenger stores 60 puzzle ids in ONE document `pulso/{pairId}`
+  reused for every match of that pair; each player writes only their own four counters
+  and the rules check the result claim, so there is no server; a friend only learns of a
+  challenge if their app is open (one always-on listener + a "Tell them" share button).
+  One typical match is about 47 writes / 95 reads against 20,000 / 50,000 a day.
+  **Four decisions are waiting on Adrian** (section 2 of the spec: match length, cost of
+  a mistake, three strikes, whether the tally shows on a friend's profile) - the spec's
+  numbers are the recommended options and must be changed if he picks otherwise.
+  Build plan is seven sessions (section 10); session 1 is the rules and their tests.
+  Art list for Adrian is section 8 (seven files in a new `icons/pulso/`).
+
 - **PUZZLE RUSH NO LONGER SERVES THE SAME PUZZLES EVERY RUN (v159, 2026-10-07).
   COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** Adrian's report: "the puzzle rush
   problems are always the same". Cause, in `Rush.pickNext` (`js/app.js`): each puzzle
