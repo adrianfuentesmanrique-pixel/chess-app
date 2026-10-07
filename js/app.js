@@ -28,6 +28,7 @@ import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Friends } from './friends.js';
+import { PulsoUI } from './pulso-ui.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { Activity } from './activity.js';
@@ -1172,7 +1173,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'blind', 'students'];
+const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'students'];
 export let activeScreen = 'analysis';
 
 export function showScreen(name) {
@@ -1198,7 +1199,8 @@ export function showScreen(name) {
   // Leaving the Rush screen ends the run. Without this the clock kept ticking
   // on a hidden board and the run "finished" while the player was elsewhere.
   if (name !== 'rush') Rush.stop();
-  if (name === 'puzzles' || name === 'blind' || name === 'rush') syncPuzzleModeSeg(name);
+  if (name === 'pulso') PulsoUI.onEnter();
+  if (name === 'puzzles' || name === 'blind' || name === 'rush' || name === 'pulso') syncPuzzleModeSeg(name);
   if (name !== prev) pushTabHistory(name);
   updateTabMenu();
 }
@@ -1267,7 +1269,7 @@ const MENU_AREA = {
   endgame: 'endgame',
   base: 'base', masterclass: 'base',
   trainer: 'trainer',
-  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles',
+  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles', pulso: 'puzzles',
   play: 'play',
   read: 'read',
   students: 'students',
@@ -1332,12 +1334,12 @@ function navigateFromMenu(name) {
 
 const TAB_ORDER = [...document.querySelectorAll('#tabbar button')].map(b => b.dataset.screen);
 
-// Rush and Blind are modes of the Puzzles tab, reached by its chip strip with
+// Rush, Blind and Pulso are modes of the Puzzles tab, reached by its chip strip with
 // no Back button of their own, so they swipe as their home tab does. The other
 // sub-screens (a leaderboard, Friends, a public profile, Masterclass, Setup)
 // are deliberately left out: each is left by its Back button, and a sideways
 // swipe there would walk away from the screen Back is meant to return to.
-const SWIPE_AS_HOME = new Set(['rush', 'blind']);
+const SWIPE_AS_HOME = new Set(['rush', 'blind', 'pulso']);
 
 // The tab beside `screen` in the drawer's order (dir +1 = next, -1 = previous),
 // or null at either end and on a sub-screen that is not in SWIPE_AS_HOME,
@@ -1571,7 +1573,7 @@ function settleDrag(s, commit) {
 }
 
 // ── puzzle mode switcher ──
-// The same segmented control sits on all three puzzle screens, so any mode can
+// The same segmented control sits on all four puzzle screens, so any mode can
 // reach the others without going back out to the tab bar first.
 function syncPuzzleModeSeg(mode) {
   document.querySelectorAll('.puzzle-modes').forEach(seg =>
@@ -1581,6 +1583,7 @@ function syncPuzzleModeSeg(mode) {
 function openPuzzleMode(mode) {
   if (mode === 'blind') Blind.open();
   else if (mode === 'rush') Rush.openIntro();
+  else if (mode === 'pulso') PulsoUI.open();
   else showScreen('puzzles');
 }
 
@@ -7649,6 +7652,7 @@ async function main() {
   Leaderboard.init();
   PublicProfile.init();
   Friends.init();
+  PulsoUI.init();
   Masterclass.init();
   Students.init();
   Activity.init(() => activeScreen);

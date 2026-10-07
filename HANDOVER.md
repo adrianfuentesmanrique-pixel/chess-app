@@ -2,6 +2,64 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO SESSION 4 OF 7 DONE: LOBBY, CHALLENGE, WAITING SCREEN, INCOMING BANNER - NO
+  MATCH SCREEN (v163, 2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian, and
+  RECOMMEND NOT PUSHING until the match exists (session 5): pushed now, players would
+  see a Pulso chip that ends at a "the match arrives in the next version" card.**
+  New `js/pulso-ui.js` (`PulsoUI`), `screen-pulso` and `#pulso-banner` in `index.html`,
+  a Pulso chip on all the puzzle-mode strips, the `pulso_*` words in `js/i18n.js`, a
+  Pulso block at the end of `css/style.css`, new dev tool
+  `tools/emu-verify-pulso-ui.mjs`. `sw.js`: `js/pulso-ui.js` in `ASSETS`, `CACHE` v162
+  -> v163 (v162 was taken by the badge card the same day). `firestore.rules`,
+  `js/firebase.js` and `js/pulso.js` are untouched.
+  - **Why a new file:** `js/app.js` is too big to read; `js/pulso-ui.js` imports from it
+    the way `js/friends.js` does (a cycle - app.js bindings only inside functions).
+    `js/app.js` got 9 lines: the import, `'pulso'` in `SCREENS`, `MENU_AREA` and
+    `SWIPE_AS_HOME`, `PulsoUI.onEnter()` in `showScreen`, `PulsoUI.open()` in
+    `openPuzzleMode`, `PulsoUI.init()` in `main()`.
+  - **The listener:** `watchPulso` is started in ONE place, `PulsoUI.onAuth()`, when the
+    signed-in uid changes, and stopped there on sign-out. Measured: 1 listener open, 1
+    ever opened, after walking every strip; 0 after sign-out.
+  - **How the screen is decided:** `PulsoUI.sync()` runs after every change and once a
+    second while a challenge or match is open. Pane = `holding` if a match is live and
+    under 196 s old, else `waiting` if `PulsoUI.wait` is set, else `lobby`.
+    `PulsoUI.wait = { uid, seen, ended }`; `ended` is `'no_answer'` (5 minutes, plus 1 s
+    so "Challenge again" is never sent before the rules agree) or `'declined'`.
+    `PulsoUI.incoming()` is the challenge the banner shows. The banner is hidden, and a
+    gold dot (`.pulso-dot`) put on the menu button and the Puzzles entry instead, while
+    `PulsoUI.busy()`: a Rush run, a game against the engine with moves played, or a live
+    Masterclass.
+  - **Accept:** "Preparando…" -> `loadBands()` -> `resolveList()` -> only then
+    `acceptPulso()`. A missing puzzle declines and toasts `pulso_update_needed`. Both
+    phones jump to `screen-pulso` when a match they saw as `invited` turns `live`.
+  - **For session 5:** `#pulso-holding` is the placeholder the match screen replaces.
+    The jump to the match belongs where `onMatches()` now calls `showScreen('pulso')`.
+    `showScreen` does not yet stop anything for Pulso. All the spec's match and result
+    words are already in `js/i18n.js` (`pulso_streak_on` ... `pulso_rematch_wants`);
+    `pulso_holding` and `pulso_holding_sub` can go when the holding card does.
+  - **Words added that the spec's list did not have:** `mode_pulso` is "⚔ Pulso" (the
+    other chips all carry an icon), `pulso_how_1..5`, `pulso_loading`, `pulso_row_tally`,
+    `pulso_in_play` (unused so far), `pulso_tell_copied`, `pulso_declined`,
+    `pulso_again`, `pulso_failed`, `pulso_gone`, `pulso_holding`, `pulso_holding_sub`.
+  - **Checked:** `node tools/emu-verify-pulso-ui.mjs <outDir>` - the whole app in two
+    headless-Chrome tabs (two origins, so two storages) against the Firestore emulator
+    with the real rules, a stand-in sign-in that does call `onAuthStateChanged`, real
+    touch events: **65 of 65**, no console errors. Covers the three strips, challenge ->
+    banner on another screen -> accept -> both holding, cancel, decline, challenge
+    again, a seeded 6-minute-old invitation, no banner over a Rush run, a list with
+    unknown puzzles, offline lobby, sign-out; ES/EN x light/dark at 375 px with
+    screenshots looked at. Also `test:tree` 142/0, `test:rules` 399/0, `test:precache`
+    OK (39 files), `emu-verify-pulso.mjs --quick` 48/48, `cdp-verify-rush.mjs` 64/64.
+  - **Known limits, not fixed:** (1) at 375 px the Pulso chip is the fourth and only a
+    sliver of it shows on the Puzzles, Rush and Blindfold strips until the strip is
+    swiped; (2) the friend's phone judges the 5 minutes by its own clock (it has no
+    offset until it accepts), so a phone whose clock is minutes wrong may hide a live
+    banner - the rules still referee the accept; (3) the host is told "said not now"
+    when the friend's phone declined for the update-needed reason; (4) the stand-in
+    flame shows a faint square in light mode (the PNG's background is not fully clear);
+    (5) the "Challenge to a Pulso" item in the Friends row menu and on a public profile
+    (spec section 6) is not built - no session of the plan lists it.
+
 - **BADGE EARNED: ITS OWN CONGRATULATION CARD, NOT KAEL'S BUBBLE (v162, 2026-10-07).
   COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** New `js/badge-card.js` (`BadgeCard`), a
   `.badge-card` block in `css/style.css` (after the Kael corner), `Badges.checkNew` in

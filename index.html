@@ -137,6 +137,16 @@
   </div>
 </header>
 
+<!-- An incoming Pulso challenge, on whatever screen I am on (js/pulso-ui.js).
+     In the page's flow, so it pushes the screen down instead of covering it. -->
+<div id="pulso-banner" class="pulso-banner hidden" role="status">
+  <span id="pulso-banner-who" class="pulso-banner-who"></span>
+  <span class="pulso-banner-acts">
+    <button id="pulso-decline" class="btn small" data-i18n="pulso_not_now"></button>
+    <button id="pulso-accept" class="btn small primary" data-i18n="pulso_accept"></button>
+  </span>
+</div>
+
 <main>
   <!-- ══════════ ANALYSIS ══════════ -->
   <section id="screen-analysis" class="screen">
@@ -502,6 +512,7 @@
       <button data-v="puzzles" class="on" data-i18n="mode_puzzles"></button>
       <button data-v="blind" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
+      <button data-v="pulso" data-i18n="mode_pulso"></button>
     </div>
     <!-- Students homework mode (Puzzles.paintHomework): the homework's title,
          n/count and Exit. Only these puzzles count while it shows. -->
@@ -555,6 +566,7 @@
         <button data-v="puzzles" data-i18n="mode_puzzles"></button>
         <button data-v="blind" data-i18n="mode_blind"></button>
         <button data-v="rush" class="on" data-i18n="mode_rush"></button>
+        <button data-v="pulso" data-i18n="mode_pulso"></button>
       </div>
       <p class="hint" data-i18n="rush_explain"></p>
       <div class="row wrap profile-elo-row">
@@ -599,6 +611,52 @@
     </div>
   </section>
 
+  <!-- ══════════ PULSO ══════════ -->
+  <!-- A live 1-v-1 puzzle tug-of-war between two friends. js/pulso-ui.js shows
+       one pane at a time: the lobby, waiting for an answer, and (until the
+       match screen is built) a holding state once a challenge is accepted. -->
+  <section id="screen-pulso" class="screen hidden">
+    <div id="pulso-lobby">
+      <h2 class="sr-only" data-i18n="mode_pulso"></h2>
+      <div class="seg puzzle-modes scroll" data-mode="pulso">
+        <button data-v="puzzles" data-i18n="mode_puzzles"></button>
+        <button data-v="blind" data-i18n="mode_blind"></button>
+        <button data-v="rush" data-i18n="mode_rush"></button>
+        <button data-v="pulso" class="on" data-i18n="mode_pulso"></button>
+      </div>
+      <div class="pulso-hero">
+        <!-- Stand-in art until icons/pulso/ arrives. -->
+        <img src="streaks/flame3.png" alt="" width="96" height="96">
+        <div class="pulso-title">PULSO</div>
+        <p class="hint" data-i18n="pulso_tagline"></p>
+      </div>
+      <p id="pulso-note" class="hint empty-note hidden" role="status"></p>
+      <button id="pulso-note-btn" class="btn primary btn-wide hidden"></button>
+      <div id="pulso-list" class="list"></div>
+      <button id="pulso-how" class="btn quiet btn-wide" data-i18n="pulso_how"></button>
+    </div>
+    <div id="pulso-waiting" class="hidden">
+      <div class="profile-card pulso-card">
+        <div id="pulso-wait-vs" class="pulso-vs"></div>
+        <h2 id="pulso-wait-title"></h2>
+        <div id="pulso-wait-clock" class="pulso-clock" aria-live="off"></div>
+        <p id="pulso-wait-hint" class="hint"></p>
+        <button id="pulso-tell" class="btn primary btn-wide" data-i18n="pulso_tell"></button>
+        <button id="pulso-cancel" class="btn btn-wide" data-i18n="cancel"></button>
+        <button id="pulso-again" class="btn primary btn-wide hidden" data-i18n="pulso_again"></button>
+        <button id="pulso-wait-back" class="btn btn-wide hidden" data-i18n="back"></button>
+      </div>
+    </div>
+    <div id="pulso-holding" class="hidden">
+      <div class="profile-card pulso-card">
+        <div id="pulso-hold-vs" class="pulso-vs"></div>
+        <h2 data-i18n="pulso_holding"></h2>
+        <p class="hint" data-i18n="pulso_holding_sub"></p>
+        <button id="pulso-hold-back" class="btn btn-wide" data-i18n="back"></button>
+      </div>
+    </div>
+  </section>
+
   <!-- ══════════ BLINDFOLD PUZZLES ══════════ -->
   <section id="screen-blind" class="screen hidden">
     <h2 class="sr-only" data-i18n="blind_title"></h2>
@@ -606,6 +664,7 @@
       <button data-v="puzzles" data-i18n="mode_puzzles"></button>
       <button data-v="blind" class="on" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
+      <button data-v="pulso" data-i18n="mode_pulso"></button>
     </div>
     <p class="hint" data-i18n="blind_explain"></p>
     <!-- Start panel: the memorising time is chosen here, before the first
