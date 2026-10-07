@@ -2,8 +2,9 @@
 
 ## Already done and pushed — do NOT redo these
 
-- **PULSO SESSION 1 OF 7 DONE: THE RULES AND THEIR TESTS (2026-10-07). COMMITTED
-  LOCALLY, NOT PUSHED, AND THE RULES ARE NOT DEPLOYED - ask Adrian for both.**
+- **PULSO SESSION 1 OF 7 DONE: THE RULES AND THEIR TESTS (2026-10-07). PUSHED BY
+  ADRIAN (origin/main = 53f4c6d) AND THE RULES ARE DEPLOYED (`rules:deploy` run
+  2026-10-07 on his say-so, "released rules firestore.rules to cloud.firestore").**
   `firestore.rules` has a new `pulso/{pairId}` block (after the Friends blocks, before
   Masterclass) and `tests/rules/pulso.test.js` has 86 tests for it. Adrian answered the
   four decisions with the spec's recommended options (3 minutes; a mistake = 1 step back
@@ -38,8 +39,8 @@
     declined challenge can be sent again at once. A counter is self-reported like every
     other in this app - the rules stop impossible numbers, they cannot prove a puzzle
     was solved (spec section 9).
-  - **Still owed:** sessions 2 to 7 of the plan (section 10), `npm.cmd run rules:deploy`
-    (committed is not deployed), and Adrian's seven art files (section 8). The entry
+  - **Still owed:** sessions 2 to 7 of the plan (section 10) and Adrian's seven art
+    files (section 8). Any LATER change to the pulso rules needs its own deploy. The entry
     below is the design summary and is still accurate except for its "no `pulso` block
     in `firestore.rules`" and "four decisions are waiting" lines.
 
