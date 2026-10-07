@@ -2,6 +2,69 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO SESSION 3 OF 7 DONE: THE PUZZLE SEQUENCE AND THE DATA LAYER, NO SCREENS (v161,
+  2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** New `js/pulso.js`, new
+  `tests/unit/pulso.test.js`, a Pulso section in `js/firebase.js` (after the block
+  functions, before Masterclass), new dev tool `tools/emu-verify-pulso.mjs`, and `sw.js`
+  (`js/pulso.js` added to `ASSETS` because `js/firebase.js` now imports it; `CACHE`
+  v160 -> v161). Nothing in `index.html`, `js/i18n.js`, `js/app.js` or
+  `firestore.rules`. Nothing a player can see.
+  - **`js/pulso.js` (pure, imports only `js/puzzles.js` for `BANDS`/`bandOf`):** `PULSO`
+    (the numbers: 60 puzzles, 5-character ids, 10 steps, 6 s countdown, 180 s play, 3 s
+    grace, 196 s abandoned, 5 min invite), `targetRating(i)`, `bandOfIndex(i)`,
+    `bandsNeeded()` (= bands 1 to 6), `buildList(puzzles, rnd)` (60 ids or `null`),
+    `packIds`/`unpackIds`/`idAt`, `puzzleAt(pz, i, puzzles)`, `resolveList(pz, puzzles)`
+    (all 60 or `null` - the "one of you needs to update the app" check),
+    `applySolve(c)`/`applyMistake(c)` on `{S, M, K, P}`, `stepOk(o, n)` and
+    `timeWinner(m)` (the rules' `pulsoStepOk` and `pulsoTimeWinner` copied line for
+    line), `markerPos(myPull, theirPull)` (clamped to -10..10), `decideResult(m, timeUp)`
+    (`{winner: 'a'|'b'|'draw', reason: 'pull'|'time'}` or `null`), `clockOffset`.
+  - **`js/firebase.js`:** `watchPulso(cb)` (ONE listener, `members array-contains`,
+    `limit(100)`, `includeMetadataChanges`; `cb(matches, {fromCache})`; each match is the
+    stored fields plus `id`, `me` (`'a'`/`'b'`), `friend` (uid), `invitedAt`/`startAt` in
+    ms of server time, `pending`), `sendPulsoChallenge(friendUid, pz)`,
+    `cancelPulso(pairId)`, `declinePulso` (the same function), `acceptPulso(pairId)`,
+    `pulsoMove(pairId, solved)`, `finishPulso(pairId, {left})`, `pulsoClockOffset()`,
+    `pulsoServerNow()`. **No function reads a document**: `pulsoMove` and `finishPulso`
+    work from the copy the listener keeps, so they do nothing until `watchPulso` runs.
+  - **Three things the next sessions must know:**
+    1. **The challenge is one merge write for both cases** (first ever / rematch), with
+       `aW/bW/dr: increment(0)` so an existing tally is not touched. Writing plain `0`
+       there is refused on a rematch (it would wipe the score). Proved on the emulator.
+    2. **Do not `await pulsoMove()` during play** - it settles only when the server
+       answers. `finishPulso()` may be called on every snapshot and on the clock; it
+       returns `false` when there is nothing to record or the rules said no.
+    3. **The clock offset exists only on a phone that sent a challenge or accepted one
+       in this app session.** After a reload in the middle of a match it is `null` and
+       `pulsoServerNow()` falls back to the phone's own clock. Session 5 has to decide
+       what a reloaded phone does (recommended: carry on with the phone's clock; the
+       rules still refuse anything early or late, so the worst case is a retry).
+  - **Spec against deployed rules: no disagreement found.** Every clock number, the +2
+    from the third solve in a row, `S + M <= 60`, the tie-break and the 196 s all match.
+    Two choices made where the spec was silent: a puzzle whose id exists but sits in a
+    different band counts as missing; a pull can go below zero (the rules allow it).
+  - **Verified.** `test:tree` 142 pass / 0 fail (104 + 38 new). `test:rules` 399 / 0.
+    `test:precache` OK (37 files). **`node tools/emu-verify-pulso.mjs`: 55 of 55** - the
+    real `js/firebase.js`, unmodified, in three headless-Chrome tabs (alice, bob, carol)
+    against the Firestore emulator with the real `firestore.rules`; the script serves
+    stand-ins for three SDK files so the app's own code talks to the emulator signed in
+    as `?uid=`. It covers: a list built from the real puzzle files and found by the other
+    phone (60/60 within 50 points), first challenge, cancel, challenge the other way,
+    decline, accept, moves from both (five sent back to back), a full pull with both
+    phones reporting it (one taken, one quietly refused), a rematch keeping the tally,
+    leaving, and a match left to run out the REAL 3 minutes (a draw, tally 1-1-1), plus
+    eight writes the rules refused (not friends, host accepting, second challenge,
+    stranger cancel, stranger accept, accept after cancel, move in the countdown, move
+    after the grace). `--quick` skips the 3-minute match (48 checks, about 40 s).
+    `node tools/cdp-verify-rush.mjs`: 64 of 64 at 375 px, ES/EN x light/dark; console
+    errors are the same two kinds as before (App Check 403, the 404 for `sw.js` the
+    script blocks) - zero new. NOT run on a real phone, and never against the live
+    project.
+  - **Known and left:** a move made within a few milliseconds of another could start
+    from numbers one snapshot old and be refused; no finger is that fast and the
+    back-to-back test passes. Nothing was done about it.
+  - **Still owed:** sessions 4 to 7 of the plan and Adrian's seven art files.
+
 - **PULSO SESSION 2 OF 7 DONE: RUSH'S ENGINE IS REUSABLE, RUSH ITSELF UNCHANGED (v160,
   2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian.** Only `js/app.js` (inside
   `export const Rush`) and the `CACHE` line of `sw.js` (v159 -> v160) changed. No Pulso

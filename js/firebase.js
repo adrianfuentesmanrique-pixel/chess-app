@@ -20,6 +20,7 @@ import {
 } from '../vendor/firebase-10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from '../vendor/firebase-10.14.1/firebase-app-check.js';
 import * as db from './db.js';
+import { PULSO, applySolve, applyMistake, decideResult, unpackIds, clockOffset } from './pulso.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBaJJ3kBUkAupKiqysQCSJ20qXpSUurAxU',
@@ -574,6 +575,248 @@ export async function fetchBlockedUids() {
   const out = [];
   snap.forEach(d => out.push(d.id));
   return out;
+}
+
+// ── Pulso ─────────────────────────────────────────────────────────────────
+// A live 1-v-1 puzzle tug-of-war between two friends. ONE document per
+// friendship, pulso/{pairId}, reused for every match. The rules (the Pulso
+// block in firestore.rules, tested in tests/rules/pulso.test.js) are the
+// referee — there is no Cloud Function — so every write below is shaped to be
+// exactly what one clause of that block accepts, and nothing more.
+// Spec: docs/superpowers/plans/2026-10-pulso.md, section 5. The arithmetic is
+// js/pulso.js; this section only reads and writes.
+//
+// Everything hangs off ONE listener, watchPulso(). It is also this section's
+// memory: pulsoMove() and finishPulso() work from the copy it keeps, so no
+// function here ever reads a document, and none of them works until it runs.
+
+let pulsoStop = null;
+let pulsoDocs = new Map();   // pairId -> the match as last delivered
+let pulsoClock = null;       // a clock measurement waiting for its two halves
+let pulsoOffset = null;      // server time minus this phone's time, in ms
+
+const pulsoRef = pairId => doc(firestore, 'pulso', pairId);
+
+// A match as the screens get it: the stored fields, plus
+//   id        the pairId — what every function below except the challenge takes
+//   me        'a' or 'b': which set of counters is mine
+//   friend    the other player's uid
+//   invitedAt, startAt   milliseconds of SERVER time, or null
+//   pending   true while a write of mine has not reached the server. A stamp I
+//             have just written reads null until then.
+function pulsoView(d, uid) {
+  const x = d.data();
+  const ms = v => (v && typeof v.toMillis === 'function' ? v.toMillis() : null);
+  const iAmA = x.members[0] === uid;
+  return {
+    ...x, id: d.id, me: iAmA ? 'a' : 'b', friend: x.members[iAmA ? 1 : 0],
+    invitedAt: ms(x.invitedAt), startAt: ms(x.startAt),
+    pending: d.metadata.hasPendingWrites,
+  };
+}
+
+// The app's one always-on listener: every Pulso document I am a member of, so
+// it delivers an incoming challenge and the live match alike. array-contains
+// alone needs no composite index (the same shape as fetchFriendUids). The first
+// load costs one read per friend I have ever played; after that only a
+// document that changes is billed.
+//
+// cb(matches, { fromCache }). Returns the unsubscribe function. Calling it again
+// stops the listener before — there is never more than one.
+//
+// { includeMetadataChanges: true } for the same reason as watchLiveState(), and
+// one more: it is how `pending` turns false, which is what finishPulso() and
+// the clock measurement wait for.
+export function watchPulso(cb) {
+  const user = auth.currentUser;
+  if (pulsoStop) pulsoStop();
+  if (!user) return () => {};
+  const stop = onSnapshot(
+    query(collection(firestore, 'pulso'), where('members', 'array-contains', user.uid), limit(100)),
+    { includeMetadataChanges: true },
+    snap => {
+      const next = new Map();
+      snap.forEach(d => next.set(d.id, pulsoView(d, user.uid)));
+      pulsoDocs = next;
+      measurePulsoClock();
+      cb([...next.values()], { fromCache: snap.metadata.fromCache });
+    },
+    err => { console.error('pulso watch failed', err); pulsoDocs = new Map(); cb([], { fromCache: true }); });
+  pulsoStop = () => { stop(); pulsoStop = null; pulsoDocs = new Map(); pulsoClock = null; };
+  return pulsoStop;
+}
+
+// How the two phones agree on the time. Firestore has no "what time is it"
+// call, so each phone measures from the one stamped write it makes anyway —
+// the challenger from the invite, the friend from the accept: the stamp the
+// server put on it, minus the middle of "sent" and "confirmed" on this phone
+// (clockOffset in js/pulso.js). No extra read: the stamp arrives through the
+// listener, in the first snapshot after the write that is no longer pending.
+//
+// `sawPending` is what proves that snapshot carries THIS write. On a rematch
+// the document already holds the last match's stamp, and without it that old
+// stamp could be taken for the new one.
+function armPulsoClock(id, field) {
+  pulsoClock = { id, field, t0: Date.now(), t1: null, server: null, sawPending: false };
+  return pulsoClock;
+}
+function measurePulsoClock() {
+  const c = pulsoClock;
+  if (!c) return;
+  const m = pulsoDocs.get(c.id);
+  if (m && m.pending) c.sawPending = true;
+  else if (m && c.sawPending && c.server === null && m[c.field] !== null) c.server = m[c.field];
+  // t1 is only ever set when the write succeeded, so a refused write (whose
+  // snapshot snaps back to the old stamp) can never finish a measurement.
+  if (c.server !== null && c.t1 !== null) {
+    pulsoOffset = clockOffset(c.server, c.t0, c.t1);
+    pulsoClock = null;
+  }
+}
+async function stampedPulsoWrite(id, field, write) {
+  const clock = armPulsoClock(id, field);
+  try {
+    await write();
+  } catch (e) {
+    if (pulsoClock === clock) pulsoClock = null;
+    throw e;
+  }
+  clock.t1 = Date.now();
+  measurePulsoClock();
+}
+
+// null until this phone has sent a challenge or accepted one in this session
+// (so also after reloading the app in the middle of a match).
+export function pulsoClockOffset() { return pulsoOffset; }
+// The server's clock as best this phone knows it. Count down to
+// startAt + PULSO.COUNTDOWN_MS against this, never against Date.now().
+export function pulsoServerNow() { return Date.now() + (pulsoOffset || 0); }
+
+// Challenge a friend: the first one ever and every later one, rematch included.
+// `pz` is the 300-character list from packIds(buildList(PUZZLES)).
+//
+// One write that is right for both cases, without reading first to see which:
+// a merge. On a document that does not exist it creates all 19 fields the
+// create rule lists. On one that does, `members` is the same value it already
+// holds and increment(0) leaves the tally exactly as it is, so neither shows
+// up as changed and the "new challenge" rule sees only the 15 fields it
+// allows. Writing 0 instead of increment(0) would be refused on a rematch —
+// rightly: it would wipe the score between two friends.
+//
+// serverTimestamp(), never Date.now(): the rule is `invitedAt == request.time`.
+//
+// Throws when the rules refuse: not friends (any more), a challenge between
+// these two still waiting, or a match in play.
+export async function sendPulsoChallenge(friendUid, pz) {
+  const user = auth.currentUser;
+  if (!user || !friendUid || friendUid === user.uid || !unpackIds(pz)) return false;
+  const id = pairIdOf(user.uid, friendUid);
+  await stampedPulsoWrite(id, 'invitedAt', () => setDoc(pulsoRef(id), {
+    members: [user.uid, friendUid].sort(),
+    status: 'invited',
+    host: user.uid,
+    invitedAt: serverTimestamp(),
+    startAt: null,
+    pz,
+    aS: 0, aM: 0, aK: 0, aP: 0,
+    bS: 0, bM: 0, bK: 0, bP: 0,
+    winner: null,
+    reason: null,
+    aW: increment(0), bW: increment(0), dr: increment(0),
+  }, { merge: true }));
+  return true;
+}
+
+// The host taking a challenge back, and the friend saying no, are the same
+// write: invited → idle, nothing else. Either member may make it and there is
+// no time limit, so it also clears a challenge that has run out.
+export async function cancelPulso(pairId) {
+  if (!auth.currentUser || !pairId) return false;
+  await updateDoc(pulsoRef(pairId), { status: 'idle' });
+  return true;
+}
+export const declinePulso = cancelPulso;
+
+// The friend says yes, and the server stamps the start — nobody can start the
+// clock in the past. Only status and startAt may change. Throws when the rules
+// refuse: I am the host, the 5 minutes are up, or it was cancelled first.
+//
+// The caller loads the puzzles and checks all 60 are there (resolveList in
+// js/pulso.js) BEFORE calling this: the clock runs from this write.
+export async function acceptPulso(pairId) {
+  if (!auth.currentUser || !pairId) return false;
+  await stampedPulsoWrite(pairId, 'startAt', () => updateDoc(pulsoRef(pairId), {
+    status: 'live',
+    startAt: serverTimestamp(),
+  }));
+  return true;
+}
+
+// One attempt: a solve or a mistake. Only MY four counters are written, as the
+// plain numbers the rules will work out for themselves — not increment(), so
+// what the rule compares and what the screen shows cannot drift apart.
+//
+// The numbers come from the listener's copy, which is patched here straight
+// away so a second attempt made before the first is echoed still starts from
+// the right place. If the rules refuse a move (too late, mostly) the next
+// snapshot puts the server's numbers back.
+//
+// DO NOT await this during play. The promise settles only when the server
+// answers, and a phone with no signal would freeze the board; Firestore queues
+// the write and sends it when it can. Returns false, writing nothing, when
+// there is no live match or no puzzle left.
+export async function pulsoMove(pairId, solved) {
+  const m = pulsoDocs.get(pairId);
+  if (!auth.currentUser || !m || m.status !== 'live') return false;
+  const k = m.me;
+  const next = (solved ? applySolve : applyMistake)(
+    { S: m[k + 'S'], M: m[k + 'M'], K: m[k + 'K'], P: m[k + 'P'] });
+  if (!next) return false;
+  const patch = { [k + 'S']: next.S, [k + 'M']: next.M, [k + 'K']: next.K, [k + 'P']: next.P };
+  pulsoDocs.set(pairId, { ...m, ...patch, pending: true });
+  await updateDoc(pulsoRef(pairId), patch);
+  return true;
+}
+
+// Record the result. Call it whenever a snapshot might have ended the match,
+// and on the clock; it works out for itself whether there is anything to
+// record and returns false when there is not.
+//
+// `left: true` is my own forfeit — the friend wins, whatever the numbers say.
+// Otherwise the claim comes from decideResult() over numbers the SERVER has
+// confirmed: while a move of mine is still pending this waits, because a claim
+// built on a move that then arrives too late would be refused.
+//
+// A refusal is normal and is swallowed (false): both phones send this and the
+// second finds the match already 'done', or the friend pulled back in the same
+// instant and play goes on, or this phone's clock ran a little ahead of the
+// server's. The tally goes up by increment(1), which is the one thing the rule
+// accepts there.
+export async function finishPulso(pairId, { left = false } = {}) {
+  const m = pulsoDocs.get(pairId);
+  if (!auth.currentUser || !m || m.status !== 'live') return false;
+  let result;
+  if (left) {
+    result = { winner: m.me === 'a' ? 'b' : 'a', reason: 'left' };
+  } else {
+    if (m.pending) return false;
+    const timeUp = pulsoServerNow() >= m.startAt + PULSO.COUNTDOWN_MS + PULSO.PLAY_MS + PULSO.GRACE_MS;
+    result = decideResult(m, timeUp);
+    if (!result) return false;
+  }
+  const { winner, reason } = result;
+  try {
+    await updateDoc(pulsoRef(pairId), {
+      status: 'done',
+      winner: winner === 'draw' ? 'draw' : m.members[winner === 'a' ? 0 : 1],
+      reason,
+      [winner === 'a' ? 'aW' : winner === 'b' ? 'bW' : 'dr']: increment(1),
+    });
+  } catch (e) {
+    if (e && e.code === 'permission-denied') return false;
+    throw e;
+  }
+  return true;
 }
 
 // ── Masterclass ──────────────────────────────────────────────────────────
