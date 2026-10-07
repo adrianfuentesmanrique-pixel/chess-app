@@ -217,6 +217,7 @@ const DICT = {
   share_open_failed: { es: 'No pude recibir el archivo al abrirlo. Prueba a usar «Compartir → CTC».', en: "Couldn't receive the file on open. Try “Share → CTC” instead." },
   share_receiving: { es: 'Recibiendo el archivo…', en: 'Receiving the file…' },
   read_fullscreen: { es: 'Pantalla completa', en: 'Full screen' },
+  read_two_pages: { es: 'Dos páginas', en: 'Two pages' },
   read_training: { es: 'Modo entrenamiento', en: 'Training mode' },
   read_training_on: { es: 'Modo entrenamiento activado. Las jugadas con «!» están tapadas: toca una para verla.', en: 'Training mode on. Moves marked “!” are covered — tap one to reveal it.' },
   read_training_off: { es: 'Modo entrenamiento desactivado.', en: 'Training mode off.' },

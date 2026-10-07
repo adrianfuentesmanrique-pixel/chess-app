@@ -1674,6 +1674,18 @@ body.reading main { overflow: hidden; }
 body.read-immersive #topbar,
 body.read-immersive #tabbar { display: none; }
 body.read-immersive #read-fullscreen { color: var(--accent, var(--text)); }
+/* Two-page view (js/read.js sets body.read-spread: full screen on a screen wider
+   than tall). The reader drops the app's 560px column and the room kept for the
+   hidden header and tab bar, so the two pages get the whole screen. */
+body.read-spread #screen-read { max-width: none; }
+body.read-spread main { padding-bottom: 10px; }
+body.read-spread #read-reader {
+  height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: 0;
+}
+/* A spread that fits the screen whole comes to rest on a row, not between two. */
+.read-stage.snap-rows { scroll-snap-type: y proximity; }
+.read-stage.snap-rows .read-page { scroll-snap-align: start; }
 /* Training mode toggle: a gold ring when on; dimmed on a scanned book, where it
    still takes a tap to say why. */
 .read-train-btn.on { color: var(--text); background: var(--gold-bg); box-shadow: inset 0 0 0 1.5px var(--gold); }

@@ -1,6 +1,63 @@
-# Chess app — where things stand (updated 2026-10-06)
+# Chess app — where things stand (updated 2026-10-07)
 
 ## Already done and pushed — do NOT redo these
+
+- **READ TAB: TWO-PAGE VIEW IN FULL SCREEN (v156, 2026-10-07). COMMITTED, NOT PUSHED -
+  ask Adrian before pushing.** In full screen (`body.read-immersive`) on a screen wider
+  than tall the reader shows the book as spreads; upright, or out of full screen, it is
+  the one column it always was.
+  - **Decided by Adrian (four questions, with sketches):** (1) automatic by screen shape
+    PLUS a button in the bar (`#read-spread`, shown only in full screen on a wide screen;
+    the choice is kept on the device in `localStorage.readTwoPages`, `'0'` = off);
+    (2) cover alone, then 2-3, 4-5, like the printed book; (3) keep scrolling down, row
+    by row - NO sideways page turns; (4) on a phone held sideways the pages are READABLE
+    (half the width each, taller than the screen, scroll down), not shrunk to fit.
+  - **Measured before designing (812x375 and 1280x800, made-up PDF):** the reader was
+    capped at 560px wide by `.screen { max-width: 560px }` even in full screen, and full
+    screen left ~62px unused at the bottom. A whole page on a phone held sideways would be
+    ~218px wide (about 60% of upright) - hence decision 4.
+  - **How it is built (`js/read.js`, nothing rewritten):** rows instead of pages -
+    `rowOf(n)`, `rowFirst(r)`, `rowLast(r)`, `pageTop(n) = rowOf(n) * slotH()`,
+    `pageLeft(n)`; `colW()` is now the column and `pageW()` the page (equal in the
+    one-page view). `geometry()`/`measure()` take the zoom-1 sizes ONLY when the stage or
+    the view changes, never during a zoom (a zoomed column's sideways scrollbar on a PC
+    changes `clientHeight` - that broke the last row until `R.stageH` was stored).
+    `SPREAD_MIN_W = 340`: both pages whole when a whole page is at least that wide (PC,
+    tablet), else half the width each. `relayout()` is the one place that changes view
+    (full-screen button, the two-page button, rotation/resize); it returns to zoom 1 at
+    the same page. `R.page` in the spread is the LEFT page of the row; that is what is
+    saved. Indicator: `4–5 / 12`. CSS: `body.read-spread` lifts the 560px cap and the
+    room kept for the hidden header and tab bar; `.read-stage.snap-rows` (scroll-snap,
+    proximity) makes a whole spread settle on a row - it is switched OFF around every
+    programmatic scroll (`scrollToPage`), because the target pages do not exist until
+    `syncSlots` makes them and the browser snaps back to the ones that do.
+  - **Untouched:** the detector, Training mode's rules, the PDF engine, the shelf. The
+    diagram press, the covers and zoom-about-a-point needed NO change - they all work
+    from `getBoundingClientRect`, so a page that is not at x = 0 is the same to them.
+  - **MEASURED - new tool `tools/cdp-verify-spread.mjs <outDir>` (`ONE=1` = EN/light
+    only), 55 checks x EN/ES x light/dark = 220/220.** It makes its own 12-page PDF.
+    375x812: one page at x = 0, same size in and out of full screen, no button, diagram
+    press finds the board. 812x375 and 1280x800 in full screen: two pages by themselves,
+    stage takes the whole screen, no sideways scroll, both pages whole at 1280x800;
+    a REAL finger long-press finds the board on the LEFT and on the RIGHT page; Training
+    covers both pages and a real tap reveals one move on each; a real double-tap zooms to
+    2x with the tapped point of the RIGHT page still under the finger (within 1%) and back;
+    jump to 9 shows 8–9, the cover sits alone centred, page 12 alone on the left; the
+    button switches one/two and is remembered; close and reopen returns to the same
+    place; rotating in full screen switches view and keeps the place. Also run: test:tree
+    103, `cdp-verify-training.mjs` 65/65, `cdp-verify-hatched.mjs` 56/56,
+    `cdp-verify-offline-read.mjs` ALL PASSED, `cdp-verify-offline-open.mjs` NOGSTATIC=1
+    ALL OPENED.
+  - **ONLY READ / NOT TESTED:** a real two-finger pinch in the spread (same
+    `setZoomAbout` as the double-tap, which is tested); a real phone - everything above
+    is headless Chrome; odd-sized pages (letterboxed in their slot as before).
+  - **KNOWN LIMITS:** (a) THE INSTALLED APP DOES NOT ROTATE - `manifest.webmanifest` has
+    `"orientation": "portrait"`, so on the phone the two-page view works in the browser
+    (Brave) only. Unlocking it means letting the WHOLE app rotate (no other screen was
+    designed or tested sideways) and probably a rebuilt Play Store package; separate
+    session, not promised. (b) A PDF with no cover page has its pairs shifted by one.
+    (c) Full screen upright still leaves ~62px unused at the bottom - left alone on
+    purpose ("single page stays exactly as it is").
 
 - **OFFLINE MARK IN THE HEADER (v155, 2026-10-06).** Adrian asked for a minimal "offline
   mode" sign that does not disturb the tabs; of four sketches he chose the icon. A small

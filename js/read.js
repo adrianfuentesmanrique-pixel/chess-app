@@ -306,12 +306,21 @@ async function renderCover(doc) {
 
 // ── reader ──────────────────────────────────────────────────────────────────
 const GAP = 8;            // px between pages at zoom 1
-const BUFFER = 1;         // extra pages rendered above and below the viewport
+const BUFFER = 1;         // extra rows rendered above and below the viewport
+// Two-page view: a spread shows both pages WHOLE when a whole page is still at
+// least this wide (a PC, a tablet). Below that (a phone held sideways, where a
+// whole page would be ~220px) each page takes half the width instead and the
+// row is taller than the screen — readable, and you scroll down for the rest.
+const SPREAD_MIN_W = 340;
+const SPREAD_KEY = 'readTwoPages';   // '0' = the user switched two-page view off
 const R = {
   id: null, doc: null, page: 1, pageCount: 1,
   zoom: 1,
   p1ratio: 1.3,                 // page-1 height/width, drives every slot's height
   basePageW: 0, basePageH: 0,   // one page's CSS size at zoom 1 (fit to stage)
+  baseColW: 0, stageH: 0,       // the column's CSS width, and the stage's height, at zoom 1
+  spread: false,                // two-page view: rows of two pages, the cover alone
+  lastSingle: 0,                // the page shown when two-page view took over
   slots: new Map(),             // page number -> slot object (see makeSlotEl)
   pool: [],                     // detached .read-page elements for reuse
   scrollRaf: 0, reRenderTimer: null,
@@ -358,6 +367,8 @@ async function openBook(id) {
     R.p1ratio = vp1.height / vp1.width || 1.3;
     R.page = clampPage(book.page || 1);
     $('read-stage').style.touchAction = 'pan-y';
+    setSpread(false);   // a book always opens in the one-page view (full screen is off)
+    measure();
     layout();
     // Resume: put the saved page at the top of the view, then render what shows.
     $('read-stage').scrollTop = pageTop(R.page);
@@ -376,24 +387,65 @@ async function openBook(id) {
 }
 
 // ── layout: base = zoom-1 units, multiplied by R.zoom for what's on screen ────
+// The zoom-1 sizes for the stage as it is now. One-page view: the page is as wide
+// as the stage. Two-page view: two pages side by side, see SPREAD_MIN_W.
+function geometry() {
+  const stage = $('read-stage');
+  const w = stage.clientWidth || 320;
+  if (!R.spread) return { colW: w, pageW: w };
+  const half = (w - GAP) / 2;
+  const whole = ((stage.clientHeight || 1) - 2) / R.p1ratio;   // -2: keep the page's outline in view
+  return { colW: w, pageW: Math.floor(whole >= SPREAD_MIN_W ? Math.min(half, whole) : half) };
+}
+// Taken when the stage's size or the view changes — never during a zoom, so the
+// base units setZoomAbout works in cannot shift under a pinch.
+function measure() {
+  if (!$('read-stage')) return;
+  const g = geometry();
+  R.stageH = $('read-stage').clientHeight || 1;   // at zoom 1: no sideways scrollbar eating into it
+  R.baseColW = g.colW;
+  R.basePageW = g.pageW;
+  R.basePageH = R.basePageW * R.p1ratio;
+}
 function layout() {
   const stage = $('read-stage'), col = $('read-col');
   if (!stage || !col) return;
-  R.basePageW = stage.clientWidth || 320;
-  R.basePageH = R.basePageW * R.p1ratio;
   col.style.width = colW() + 'px';
-  col.style.height = totalH() + 'px';
+  // A whole spread is a hair shorter than the stage, so the column is padded for
+  // the last row to reach the top like every other (else it is never "current").
+  const h = R.spread ? Math.max(totalH(), pageTop(R.pageCount) + R.stageH) : totalH();
+  col.style.height = h + 'px';
 }
-function colW()      { return R.basePageW * R.zoom; }
+// Whole spreads settle on a row when the scroll comes to rest (css/style.css).
+// Switched on only AFTER the pages and the scroll are in place: with it on, the
+// browser would snap to wherever the old view's pages still stood.
+function syncSnap() {
+  const stage = $('read-stage');
+  stage.classList.toggle('snap-rows', R.spread && R.zoom === 1 && R.basePageH <= R.stageH);
+}
+function colW()      { return R.baseColW * R.zoom; }
+function pageW()     { return R.basePageW * R.zoom; }
 function slotH()     { return (R.basePageH + GAP) * R.zoom; }
 function pageH()     { return R.basePageH * R.zoom; }
-function pageTop(n)  { return (n - 1) * slotH(); }
+// Rows. One-page view: a row is a page. Two-page view pairs the pages like the
+// printed book — the cover alone, then 2-3, 4-5 (even pages on the left).
+function rowOf(n)    { return R.spread ? n >> 1 : n - 1; }
+function rowFirst(r) { return r <= 0 ? 1 : (R.spread ? 2 * r : r + 1); }
+function rowLast(r)  { return clampPage(r <= 0 ? 1 : (R.spread ? 2 * r + 1 : r + 1)); }
+function pageTop(n)  { return rowOf(n) * slotH(); }
+function pageLeft(n) {
+  if (!R.spread) return 0;
+  const x0 = (R.baseColW - 2 * R.basePageW - GAP) / 2;
+  const x = n === 1 ? (R.baseColW - R.basePageW) / 2 : n % 2 ? x0 + R.basePageW + GAP : x0;
+  return x * R.zoom;
+}
 function totalH()    { return pageTop(R.pageCount) + pageH(); }
 function clampPage(n) { return Math.min(Math.max(1, n | 0), R.pageCount); }
 
-// The top-most page under the viewport's top edge — the "current" page.
+// The top-most page under the viewport's top edge — the "current" page. In the
+// two-page view that is the left page of the row.
 function topVisiblePage() {
-  return clampPage(Math.floor(($('read-stage').scrollTop + 1) / slotH()) + 1);
+  return clampPage(rowFirst(Math.floor(($('read-stage').scrollTop + 1) / slotH())));
 }
 
 // Ensure a canvas exists for every page near the viewport, recycle the rest, and
@@ -402,15 +454,16 @@ function syncSlots() {
   const stage = $('read-stage');
   if (!R.doc || !stage) return;
   const sh = stage.clientHeight || 1, sh2 = slotH();
-  const first = clampPage(Math.floor(stage.scrollTop / sh2) + 1 - BUFFER);
-  const last  = clampPage(Math.floor((stage.scrollTop + sh) / sh2) + 1 + BUFFER);
+  const first = clampPage(rowFirst(Math.floor(stage.scrollTop / sh2) - BUFFER));
+  const last  = rowLast(Math.floor((stage.scrollTop + sh) / sh2) + BUFFER);
 
   for (const n of [...R.slots.keys()]) if (n < first || n > last) releaseSlot(n);
   for (let n = first; n <= last; n++) ensureSlot(n);
   // Reposition/resize all live slots to the current zoom (covers a zoom change).
   for (const [n, slot] of R.slots) {
     slot.el.style.top = pageTop(n) + 'px';
-    slot.el.style.width = colW() + 'px';
+    slot.el.style.left = pageLeft(n) + 'px';
+    slot.el.style.width = pageW() + 'px';
     slot.el.style.height = pageH() + 'px';
   }
   const top = topVisiblePage();
@@ -438,7 +491,8 @@ function ensureSlot(n) {
   const el = R.pool.pop() || makeSlotEl();
   el.dataset.page = n;
   el.style.top = pageTop(n) + 'px';
-  el.style.width = colW() + 'px';
+  el.style.left = pageLeft(n) + 'px';
+  el.style.width = pageW() + 'px';
   el.style.height = pageH() + 'px';
   el.querySelector('.read-blank').classList.add('hidden');
   $('read-col').appendChild(el);
@@ -468,7 +522,7 @@ function releaseSlot(n) {
 async function renderSlot(n) {
   const slot = R.slots.get(n);
   if (!slot || !R.doc) return;
-  const targetW = colW();
+  const targetW = pageW();
   if (slot.rendered && Math.abs(slot.scale - targetW) < 1) return;   // already crisp
   const token = ++slot.token;
   if (slot.task) { try { slot.task.cancel(); } catch {} slot.task = null; }
@@ -665,7 +719,64 @@ async function pagePaintsImage(page) {
 }
 
 function updatePageInd() {
-  $('read-page-ind').textContent = R.page + ' / ' + R.pageCount;
+  const last = rowLast(rowOf(R.page));   // two-page view names both pages: "4–5 / 12"
+  $('read-page-ind').textContent = (last > R.page ? R.page + '–' + last : R.page) + ' / ' + R.pageCount;
+}
+
+// ── two-page view ───────────────────────────────────────────────────────────
+// Only in full screen on a screen wider than tall: there the reader takes the
+// whole screen (css: body.read-spread) and shows the book as spreads. It comes on
+// by itself; the bar's button switches it off and on, and that choice is kept on
+// this device. Upright, or out of full screen, the reader is the one column it
+// always was.
+function spreadPossible() {
+  return document.body.classList.contains('read-immersive') && window.innerWidth > window.innerHeight;
+}
+function wantSpread() {
+  let off = false;
+  try { off = localStorage.getItem(SPREAD_KEY) === '0'; } catch {}
+  return spreadPossible() && !off;
+}
+function setSpread(on) {
+  R.spread = on;
+  document.body.classList.toggle('read-spread', on);   // widens the stage: set BEFORE measuring
+  syncSpreadBtn();
+}
+function syncSpreadBtn() {
+  const b = $('read-spread');
+  if (!b) return;
+  b.classList.toggle('hidden', !spreadPossible());
+  b.classList.toggle('on', R.spread);
+  b.setAttribute('aria-pressed', R.spread ? 'true' : 'false');
+}
+// The view or the stage's size changed: back to zoom 1, same place in the book.
+function relayout() {
+  let keep = R.page;
+  const was = R.spread;
+  setSpread(wantSpread());
+  if (R.spread && !was) R.lastSingle = keep;
+  // Leaving the spread: return to the very page it took over from, if that page
+  // is still one of the two on show.
+  if (!R.spread && was && R.lastSingle && (R.lastSingle >> 1) === (keep >> 1)) keep = R.lastSingle;
+  R.zoom = 1;
+  $('read-stage').style.touchAction = 'pan-y';
+  $('read-stage').classList.remove('snap-rows');
+  $('read-col').style.width = '0px';   // a zoomed column's sideways scrollbar must not be measured
+  measure();
+  layout();
+  scrollToPage(keep);
+  updatePageInd();
+  for (const n of R.slots.keys()) renderSlot(n);   // the page's width changed → re-render crisp
+}
+function toggleFullscreen() {
+  document.body.classList.toggle('read-immersive');
+  syncSpreadBtn();
+  if (R.doc && wantSpread() !== R.spread) relayout();
+}
+function toggleSpread() {
+  if (!R.doc || !spreadPossible()) return;
+  try { localStorage.setItem(SPREAD_KEY, R.spread ? '0' : '1'); } catch {}
+  relayout();
 }
 
 // Throttled so a fast scroll through the book doesn't hammer IndexedDB; the exact
@@ -687,8 +798,13 @@ async function jumpToPage() {
 }
 
 function scrollToPage(n) {
-  $('read-stage').scrollTop = pageTop(n);
+  const stage = $('read-stage');
+  // Row snapping off for the move: the pages there do not exist until syncSlots
+  // makes them, and the browser would snap back to the nearest ones that do.
+  stage.classList.remove('snap-rows');
+  stage.scrollTop = pageTop(n);
   syncSlots();
+  syncSnap();
 }
 
 function setLoading(on) {
@@ -716,10 +832,12 @@ export function closeBook(remember = false) {
   if (R.doc) { try { R.doc.destroy(); } catch {} R.doc = null; }
   R.id = null; R.templates = null; R.zoom = 1;
   R.training = false; R.hasText = null;
+  R.lastSingle = 0;
   const stage = $('read-stage');
-  if (stage) { stage.scrollTop = 0; stage.style.touchAction = 'pan-y'; }
+  if (stage) { stage.scrollTop = 0; stage.style.touchAction = 'pan-y'; stage.classList.remove('snap-rows'); }
   document.body.classList.remove('reading');
   document.body.classList.remove('read-immersive');   // never leave the chrome hidden
+  setSpread(false);
   const reader = $('read-reader'), shelf = $('read-shelf');
   if (reader) reader.classList.add('hidden');
   if (shelf) shelf.classList.remove('hidden');
@@ -847,11 +965,13 @@ function setZoomAbout(newZoom, clientX, clientY) {
   const baseX = (stage.scrollLeft + vx) / R.zoom;               // same point in base units
   const baseY = (stage.scrollTop + vy) / R.zoom;
   R.zoom = newZoom;
+  if (newZoom !== 1) stage.classList.remove('snap-rows');       // no row snapping while zoomed
   layout();                                                     // resize the column
   stage.scrollLeft = baseX * newZoom - vx;
   stage.scrollTop  = baseY * newZoom - vy;
   stage.style.touchAction = newZoom > 1 ? 'pan-x pan-y' : 'pan-y';
   syncSlots();
+  if (newZoom === 1) syncSnap();
   scheduleReRender();
 }
 
@@ -886,14 +1006,20 @@ function scheduleReRender() {
 let lastInnerW = window.innerWidth;
 const onResize = debounce(() => {
   if (!R.doc || $('read-reader').classList.contains('hidden')) return;
-  if (window.innerWidth === lastInnerW) return;   // height-only (address bar) → leave zoom/scroll alone
+  const want = wantSpread();
+  if (want === R.spread) {
+    if (!R.spread) {
+      if (window.innerWidth === lastInnerW) { syncSpreadBtn(); return; }   // height-only (address bar) → leave zoom/scroll alone
+    } else {
+      // Two-page view: a whole spread is fitted to the HEIGHT too, so a height
+      // change counts — but only when it really changes the page's size (on a
+      // phone held sideways the pages are fitted to the width, so it does not).
+      const g = geometry();
+      if (g.colW === R.baseColW && g.pageW === R.basePageW) { lastInnerW = window.innerWidth; return; }
+    }
+  }
   lastInnerW = window.innerWidth;
-  const keep = R.page;
-  R.zoom = 1;
-  $('read-stage').style.touchAction = 'pan-y';
-  layout();
-  scrollToPage(keep);
-  for (const n of R.slots.keys()) renderSlot(n);   // width changed → re-render crisp
+  relayout();   // back to zoom 1 at the same page; re-renders crisp
 }, 200);
 
 // ── diagram → board (Stage 2) ────────────────────────────────────────────────
@@ -1190,7 +1316,8 @@ export function init() {
   $('read-page-ind').onclick = jumpToPage;
   // Immersive reading: hide the app header + tab bar so the page fills the screen.
   // The reader's own bar stays, so this same button (and Back) always gets you out.
-  $('read-fullscreen').onclick = () => document.body.classList.toggle('read-immersive');
+  $('read-fullscreen').onclick = toggleFullscreen;
+  $('read-spread').onclick = toggleSpread;
   $('read-training').onclick = toggleTraining;
 
   const stage = $('read-stage');
