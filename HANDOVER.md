@@ -2,6 +2,14 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **STREAK LINE REWORDED (v159, 2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian.**
+  "7 days to 15 days" read as two day-counts. Adrian chose option A of four: the line
+  under "Day N" on Profile is now "Next flame in {n} days" / "Próxima llama en {n} días",
+  and with one day left "Next flame tomorrow" / "Próxima llama mañana"
+  (`streak_next_goal`, `streak_next_goal_one` in `js/i18n.js`; the `{tier}` replace in
+  `js/app.js` removed). Seen in headless Chrome at 375x812, EN and ES, light and dark,
+  with a seeded 40-day streak ("in 20 days"). The "tomorrow" wording is read, not seen.
+
 - **OFFLINE ART: BADGES, FLAMES, AVATARS AND KAEL SURVIVE OFFLINE AND SURVIVE AN UPDATE
   (v158, 2026-10-07). COMMITTED LOCALLY, NOT PUSHED - pushing deploys, ask Adrian.
   NOT yet checked on Adrian's phone.**

@@ -7171,7 +7171,7 @@ export const Profile = {
       // from zero — otherwise every bar past the early tiers looks nearly full.
       const from = cur ? cur.days : 0;
       pct = Math.max(0, Math.min(100, Math.round(((days - from) / (next.days - from)) * 100)));
-      nextLine = tn('streak_next_goal', next.days - days).replace('{tier}', next.label[lang]);
+      nextLine = tn('streak_next_goal', next.days - days);
     } else {
       pct = 100;
       nextLine = t('streak_top_tier');
