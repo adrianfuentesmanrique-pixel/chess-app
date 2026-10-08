@@ -70,9 +70,15 @@ are in `CLAUDE.md` under "Finish by pushing".
   - **Screens opened and looked at (375px):** `settings-` and `profile-` × `es-light`,
     `es-dark`, `en-light`, `en-dark` (the 8 signed-out ones), plus `settings-on-es-dark`,
     `settings-failed-en-light`, `profile-on-en-light`.
-  - **Still owed (plan Step 14):** Adrian opens `https://chesstrainingcenter.app/?remind=1`
-    on his phone, turns Daily reminder On in Settings, and says which hint line shows and
-    whether the switch stays On. Record the answer here.
+  - **Adrian's phone, first try (2026-10-08, plan Step 14):** he pasted `VAPID_PRIVATE_KEY`
+    into GitHub and deleted the file. On his phone (Brave) the switch went back to Off
+    with the hint "Could not turn it on. In Brave: Settings, Privacy, …". **That hint is
+    shown for ANY failure inside `Notifications.enable()`** (subscribe refused, the
+    Firestore write refused or timed out, offline), so the Brave switch is the likely
+    cause, not a proven one. He was asked to turn on Brave's "Use Google services for
+    push messaging", restart Brave and try again. **Still owed: his answer after that.**
+    If it still fails with the Brave switch on, the cause is elsewhere — check the
+    `pushSubs` write against the live rules first.
 
 - **DAILY STREAK REMINDER, TASK 1 OF 4: THE `pushSubs` RULES ARE LIVE (2026-10-08, `ac3062e`).**
   Rules only. No app code, no `sw.js` change, no job. Tasks 2, 3 and 4 are still to build.
