@@ -17,6 +17,25 @@ Do the task, verify it, commit, then tell me to start a new conversation.
 Do not drift into a second task. If I ask for something unrelated, say so and
 suggest a fresh session.
 
+## Finish by pushing (my rule since 2026-10-08)
+When the work is verified and committed, **push to `main` without asking me** —
+pushing is what deploys, and a job that is not live is not finished. Then check
+that the live `sw.js` shows the new version and say so.
+
+Stop and ask me instead of pushing only when something is still mine to decide:
+- `firestore.rules` or the indexes changed — I run `npm.cmd run rules:deploy`
+  first, and the push waits for that.
+- A choice about how the feature behaves is still open, or you built something
+  I did not ask for.
+- A check is failing, or something could not be verified and going live with it
+  is a real risk — say which.
+- The push would carry commits that are not this session's, or `main` has moved
+  and does not merge cleanly.
+
+Never push with `--force`. Stage only your own files; another session's unstaged
+files stay where they are. This rule goes into the prompt you hand over, in
+place of any "ask me before pushing" line.
+
 ## ALWAYS end by writing the next session's prompt — do not wait to be asked
 I am not a programmer, so I cannot write these myself. Every session ends with a
 copy-paste prompt for the next one, in a fenced block, **without me asking for

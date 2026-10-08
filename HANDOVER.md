@@ -1,10 +1,18 @@
 # Chess app — where things stand (updated 2026-10-07)
 
+## STANDING RULE (Adrian, 2026-10-08): finish the job by pushing
+
+A session ends with `git push` to `main`, WITHOUT asking, once the work is verified and
+committed. Every older line in this file that says "NOT pushed - ask Adrian" is history,
+not the rule. The full wording, and the cases where a session must stop and ask instead,
+are in `CLAUDE.md` under "Finish by pushing".
+
 ## Already done and pushed — do NOT redo these
 
 - **THE DUEL "AVISARLE / TELL THEM" SHARE CARRIES A LINK, AND THE CHALLENGER COMES BACK
-  TO THE WAITING SCREEN (v171, 2026-10-08). COMMITTED, NOT PUSHED — Adrian has not been
-  asked yet. NOT YET TRIED ON A REAL PHONE.** Adrian reported (1) the share was plain
+  TO THE WAITING SCREEN (v171, 2026-10-08). PUSHED AND LIVE (283dd7a, pushed by Adrian;
+  the live `sw.js` says v171). NOT YET TRIED ON A REAL PHONE - the two-phone WhatsApp
+  test is still owed.** Adrian reported (1) the share was plain
   text with no link, (2) after pressing it he was in WhatsApp and could not get back to
   the challenge.
   - **The message** (`pulso_tell_text`, `PulsoUI.tell()`): "Ana te reta a un Duelo en
@@ -6380,6 +6388,8 @@ Working on C:\Users\Adrian\chess-app. Read HANDOVER.md first.
   Read graphify-out/GRAPH_REPORT.md instead — it is 8 KB.
 - js/endgames-data.js (212 KB) is data. Grep only.
 - One task per conversation. Tell me to /clear when this one is finished.
+- Finish by pushing to main without asking, unless I still have something to
+  decide (see CLAUDE.md, "Finish by pushing").
 ```
 
 ## Structural debt — splitting js/app.js (IN PROGRESS)
