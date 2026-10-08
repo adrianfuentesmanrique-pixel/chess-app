@@ -77,6 +77,37 @@ service cloud.firestore {
         && after().lang in ['es','en'];
     }
 
+    // One document per device subscribed to the daily streak reminder (standard
+    // Web Push, not FCM tokens — the fcmTokens block above is unused and stays).
+    // Owner-only in every direction. The hourly job reads these with a
+    // read-only service account, which does not consult these rules.
+    //
+    // The endpoint allowlist is a real control: the job sends an HTTP request
+    // to whatever address is stored, so without it a user could make the job
+    // call an address of their choosing. The job checks the same list again.
+    // matches() tests the WHOLE string, hence the trailing .* ; dots are
+    // written [.] so nothing depends on how a backslash survives this file.
+    //
+    // The id is the SHA-256 of the endpoint, worked out on the device. Only its
+    // shape is checked here: the data is private to its owner, so a wrong hash
+    // harms nobody but the device that wrote it.
+    match /users/{userId}/pushSubs/{subId} {
+      allow read, list, delete: if signedIn() && me() == userId;
+
+      allow create, update: if signedIn() && me() == userId
+        && subId.matches('^[0-9a-f]{64}$')
+        && after().keys().hasOnly(['endpoint','p256dh','auth','createdAt','platform','lang'])
+        && after().keys().hasAll(['endpoint','p256dh','auth','createdAt','platform','lang'])
+        && after().endpoint is string
+        && after().endpoint.size() <= 2048
+        && after().endpoint.matches('^https://(fcm[.]googleapis[.]com|[a-z0-9.-]+[.]push[.]apple[.]com|updates[.]push[.]services[.]mozilla[.]com|[a-z0-9.-]+[.]notify[.]windows[.]com)/.*')
+        && after().p256dh is string && after().p256dh.size() <= 256
+        && after().auth is string && after().auth.size() <= 64
+        && after().createdAt == request.time
+        && after().platform in ['android','ios','desktop','other']
+        && after().lang in ['es','en'];
+    }
+
     match /leaderboard/{uid} {
       allow read: if true;
 
