@@ -2133,8 +2133,23 @@ body.read-spread #read-reader {
 .pulso-foot .status-bar { flex: 1 1 auto; min-width: 0; min-height: 62px; }
 .pulso-streak { flex: 0 0 auto; background: var(--gold); color: #1a1300; font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 20px; }
 .pulso-leave { display: block; margin: 6px 0 0 auto; }
+/* The result: the same pane with the head, the board and the status line gone. */
+#pulso-game.ended .pulso-head, #pulso-game.ended .rush-board-stack, #pulso-game.ended .pulso-foot { display: none; }
+#pulso-game.ended .pulso-bar { margin-top: 30px; }
+.pulso-result { text-align: center; }
+.pulso-result img { display: block; margin: 8px auto 0; }
+.pulso-result h2 { margin: 8px 0 4px; font-size: 22px; }
+.pulso-result .hint { margin: 0 auto; max-width: 30ch; }
 .pulso-end { text-align: center; }
-.pulso-end h2 { margin: 10px 0 8px; font-size: 20px; }
+.pulso-end-tally { margin: 12px 0 4px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pulso-end .hint { margin: 8px 0 0; }
+.pulso-end-row { display: flex; gap: 8px; margin-top: 10px; }
+.pulso-end-row .btn { margin-top: 0; }
+#pulso-end-back { flex: 1 1 auto; }
+#pulso-rematch:disabled { opacity: .55; cursor: default; }
+/* The friend has asked for a rematch: the same button, in gold. */
+#pulso-rematch.wants { background: var(--gold); color: #1a1300; }
+.pubprofile-pulso { text-align: center; margin: 0 0 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
   .pulso-flame, .pulso-flame img { transition: none; }
 }

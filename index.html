@@ -656,6 +656,15 @@
         </span>
         <span id="pulso-timer" class="elo-badge"></span>
       </div>
+      <!-- The result screen (spec 7.6) is this pane with class "ended": the
+           head, the board and the status line go, this block and #pulso-end
+           come, and the bar stays frozen where the match left it. The picture
+           is stand-in art until icons/pulso/ arrives. -->
+      <div id="pulso-result" class="pulso-result hidden">
+        <img src="streaks/flame3.png" alt="" width="120" height="120">
+        <h2 id="pulso-end-line" role="status"></h2>
+        <p id="pulso-end-sub" class="hint hidden"></p>
+      </div>
       <!-- 21 places: the centre and 10 steps to each end. My end is the right
            one. The flame is stand-in art until icons/pulso/ arrives. -->
       <div id="pulso-bar" class="pulso-bar" role="img">
@@ -675,10 +684,17 @@
         <div id="pulso-status" class="status-bar"></div>
       </div>
       <button id="pulso-leave" class="btn small pulso-leave" data-i18n="pulso_leave"></button>
-      <!-- How it ended, in one line. The result screen proper replaces this. -->
+      <!-- Under the frozen bar: our tally, the rematch (one button with three
+           faces — ask, waiting, "wants a rematch"), share and Back. -->
       <div id="pulso-end" class="pulso-end hidden">
-        <h2 id="pulso-end-line" role="status"></h2>
-        <button id="pulso-end-back" class="btn primary btn-wide" data-i18n="back"></button>
+        <p id="pulso-end-tally" class="pulso-end-tally"></p>
+        <p id="pulso-rematch-note" class="hint hidden" role="status"></p>
+        <button id="pulso-rematch" class="btn primary btn-wide"></button>
+        <button id="pulso-rematch-cancel" class="btn btn-wide hidden" data-i18n="cancel"></button>
+        <div class="pulso-end-row">
+          <button id="pulso-share" class="btn">📤</button>
+          <button id="pulso-end-back" class="btn" data-i18n="back"></button>
+        </div>
       </div>
     </div>
   </section>
@@ -1122,6 +1138,9 @@
     <div class="row hidden" style="justify-content:center; margin:0 0 14px;">
       <button id="pubprofile-add-friend" class="btn primary"></button>
     </div>
+    <!-- Our Pulso score, on a friend I have played. It comes from my own match
+         document with them (PulsoUI.tallyLine), so nobody else is shown it. -->
+    <p id="pubprofile-pulso" class="hint pubprofile-pulso hidden"></p>
     <div class="row wrap profile-elo-row">
       <div class="elo-card"><span data-i18n="puzzle_elo"></span><b id="pubprofile-elo-puzzle"></b></div>
       <div class="elo-card"><span data-i18n="opening_elo"></span><b id="pubprofile-elo-opening"></b></div>

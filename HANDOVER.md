@@ -2,6 +2,66 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO SESSION 6 OF 7 DONE: THE RESULT SCREEN, REMATCH FROM BOTH SIDES, THE TALLY ON
+  THE FRIEND'S PROFILE, SHARE CARD, DAILY-STREAK CREDIT (v166, 2026-10-07). COMMITTED
+  LOCALLY, NOT PUSHED - ask Adrian. Sessions 2 to 6 are all unpushed (origin/main was
+  still 53f4c6d). Only session 7 (Adrian's art + release) is left.**
+  Changed: `js/pulso-match.js`, `js/pulso-ui.js`, `js/leaderboard.js`, `index.html`,
+  `css/style.css`, three `export`s in `js/app.js` (`shareStatCard`, `Streak`,
+  `STREAK_MIN_RUSH_SOLVED`), `sw.js` (`CACHE` v165 -> v166, no new file).
+  `firestore.rules`, `js/pulso.js`, `js/firebase.js` and `js/i18n.js` are untouched - no
+  word was added.
+  - **The result screen is the match pane with class `ended`** on `#pulso-game`: CSS hides
+    the head, the board and the status line; `#pulso-result` (picture, `#pulso-end-line`,
+    `#pulso-end-sub`) shows above the bar and `#pulso-end` (`#pulso-end-tally`,
+    `#pulso-rematch-note`, `#pulso-rematch`, `#pulso-rematch-cancel`, `#pulso-share`,
+    `#pulso-end-back`) below it. The bar and the two score lines are the match's own
+    elements, left frozen; the scores gain "· N ✗" once it has ended. Because it lives on
+    the match pane, `PulsoMatch.id` stays set and Kael stays quiet over it.
+  - **`PulsoMatch.result` is the last `'done'` copy of the document** and the whole screen
+    is drawn from it - a rematch puts the document back to `'invited'` with every counter
+    at 0. `show()` keeps the pane while `result` is set, whatever the document does, and
+    drops it only on Back, or when the document goes `'live'` with a `startAt` that is not
+    the result's (a new match: `stop()` then `begin()`).
+  - **Rematch needed no rule change and no new write.** Revancha = `PulsoUI.challenge()`
+    (the ordinary challenge over the finished document); the result screen reads
+    `PulsoUI.wait` for "Esperando a {n}…" + Cancel (`PulsoUI.cancel()`), and for
+    "{n} no respondió" / "{n} dijo que ahora no" (existing words) with the button asking
+    again. The friend's side: `PulsoMatch.wanted(live)` -> class `wants` (gold) and
+    `pulso_rematch_wants`; tapping it is `PulsoUI.accept(m)` - `accept` now takes the
+    match, default `incoming()`. `paintBanner()` holds the banner AND the gold dot back
+    while that match's result screen is up; Back lets the banner through.
+  - **"…en {t}" is measured on the phone:** `PulsoMatch.took` = shared clock minus
+    `startAt + 6 s` at the paint that first sees the flame at an end (or `'done'`). The
+    document has no end time. Measured 31 s said against 31.1 s on the tool's watch.
+  - **Tally:** `PulsoUI.tallyLine(friendUid, always)` -> `pulso_tally`. On the result
+    screen always; on the public profile (`#pubprofile-pulso`, set in
+    `PublicProfile.open()`) only when the two have a finished match. It is read from
+    `PulsoUI.matches`, so nobody else can be shown it. Draws (`dr`) are stored but not
+    shown anywhere - the words have no place for them.
+  - **Streak:** `PulsoMatch.credit(m)` calls `Streak.recordActivity()` once per match when
+    I solved `STREAK_MIN_RUSH_SOLVED` or more - on the result screen, and in `leave(then)`
+    for a forfeit that goes straight to another screen. Nothing else is written: no ELO,
+    no Rush best, no badge count. (`recordActivity` itself runs `Badges.checkNew()`, as it
+    does for every other activity - a streak badge can follow from the streak.)
+  - **Share:** `PulsoMatch.card()` -> `shareStatCard({ ⚔, the ending's title,
+    "Pulso · mine–theirs" }, 'pulso.png')`.
+  - **VERIFIED:** `tools/emu-verify-pulso-ui.mjs` extended, **198 of 198**, about 12 min,
+    no console errors. All seven endings read on both phones (the forfeit-to-another-tab
+    case only on the phone that stayed, by design). Really tapped: Revancha, the gold
+    button, Cancel, Back, the banner's Accept / Not now, 📤, the friend's row in Friends.
+    Seeded: the clock of the four rematch matches (startAt moved 186 s back), the 6-minute
+    old rematch, opening the Friends screen (a call), `navigator.share` (a stand-in that
+    records the file). Carolina is a third tab on 127.0.0.2. Screenshots looked at: won,
+    lost, draw, friend left, waiting, gold button, declined, profile - ES/EN, light/dark.
+    Also: test:tree 142/142, test:rules 399/399, test:precache OK (40 files),
+    cdp-verify-rush 64/64, emu-verify-pulso --quick 48/48.
+  - **Known, left:** the picture on the result screen is the stand-in flame for every
+    ending (pulso-win/lose/draw.png are session 7) and it shows its faint square in light
+    mode; if both tap Revancha in the same second the slower one gets the "could not be
+    sent" toast and then the gold button; "Challenge to a Pulso" in the Friends row menu
+    and on the profile is still not built and is in no session.
+
 - **PULSO SESSION 5 OF 7 DONE: THE MATCH ITSELF - COUNTDOWN, BAR, SOLVE/MISTAKE, CLOCK,
   LEAVE, A ONE-LINE ENDING. NO RESULT SCREEN, NO REMATCH (v164, 2026-10-07). COMMITTED
   LOCALLY, NOT PUSHED - ask Adrian. Sessions 2 to 5 are all unpushed (origin/main was

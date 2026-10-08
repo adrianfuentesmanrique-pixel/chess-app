@@ -3,7 +3,7 @@
 // against the Firestore EMULATOR running the real firestore.rules. Dev tool,
 // not shipped.
 //
-//   node tools/emu-verify-pulso-ui.mjs <outDir>     about 9 minutes; screenshots go to <outDir>
+//   node tools/emu-verify-pulso-ui.mjs <outDir>     about 12 minutes; screenshots go to <outDir>
 //
 // How: like tools/emu-verify-pulso.mjs it starts the emulator and serves the
 // app folder with stand-ins for three SDK files — but here index.html itself
@@ -29,6 +29,17 @@
 //             that Ana leaves under the countdown
 // Each one also goes through the countdown, three solves by Ana (the streak
 // pull) and 20 really-waited seconds for the "no signal" note.
+//
+// THE RESULT SCREEN AND THE REMATCH (session 6) ride on those matches. Every
+// one of the seven endings is read on both phones: won / lost by pull
+// (es-light), on the clock (es-dark, en-dark), on fewer mistakes and a draw
+// (es-light, two rematches), friend left / you left (en-light, en-dark). A
+// rematch is asked for and accepted from each side, taken back, left to run
+// out and refused; the tally is read on the friend's public profile by Ana
+// and by Luis and looked for on Carolina's phone (a third tab, 127.0.0.2);
+// the share card, the daily streak and Kael's silence are checked in es-light.
+// The rematch matches are ended by moving startAt 186 s into the past (seeded)
+// rather than waited out.
 //
 // REALLY TOUCHED (CDP Input.dispatchTouchEvent): ☰ and the Puzzles entry, every
 // mode chip, Challenge, Tell them, Cancel, Accept, Not now, Challenge again,
@@ -91,7 +102,7 @@ const PORT = 9300 + Math.floor(Math.random() * 600);
 const WEB = 9900 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-pulso-ui-'));
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 1500000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 2100000).unref();
 
 const ALICE = 'alice_uid', BOB = 'bob_uid', CAROL = 'carol_uid';   // alice sorts first: she is player "a"
 const AB = `${ALICE}_${BOB}`;
@@ -151,6 +162,9 @@ const server = http.createServer((req, res) => {
   });
 });
 await new Promise(r => server.listen(WEB, '127.0.0.1', r));
+// A third loopback address, so Carolina's phone has storage of its own too.
+const server2 = http.createServer((q, r) => server.emit('request', q, r));
+await new Promise(r => server2.listen(WEB, '127.0.0.2', r));
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const req = (url, method = 'GET') => new Promise((res, rej) => {
@@ -268,7 +282,8 @@ async function openTab(who, host, uid) {
         document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());
         const app = await import('/js/app.js'), ui = await import('/js/pulso-ui.js'), fb = await import('/js/firebase.js');
         const pm = await import('/js/pulso-match.js'), { Chess } = await import('/vendor/chess.js');
-        window.__t = { app, P: ui.PulsoUI, M: pm.PulsoMatch, fb,
+        const fr = await import('/js/friends.js'), db = await import('/js/db.js');
+        window.__t = { app, P: ui.PulsoUI, M: pm.PulsoMatch, fb, F: fr.Friends, db,
           // The middle of every square of the match board, as a finger finds it.
           pts: () => { const o = {}; document.querySelectorAll('#pulso-board .sq').forEach(q => { const r = q.getBoundingClientRect(); o[q.dataset.sq] = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }); return o; },
           // A legal move that is not the answer, not a promotion and not mate.
@@ -370,6 +385,24 @@ async function openTab(who, host, uid) {
         id: g.current ? g.current.id : null, at: M.id ? M.at() : null, live: g.running, free: g.board.interactive,
         now: __t.fb.pulsoServerNow(), offset: __t.fb.pulsoClockOffset(), listeners: window.__listeners,
         fits: document.getElementById('pulso-leave').getBoundingClientRect().bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth };`),
+    // The result screen as it stands.
+    result: () => ev(`
+      const b = document.getElementById('pulso-rematch'), bar = document.getElementById('pulso-bar'), fl = document.getElementById('pulso-flame').getBoundingClientRect();
+      const cs = getComputedStyle(bar), br = bar.getBoundingClientRect(), bl = parseFloat(cs.borderLeftWidth);
+      const back = document.getElementById('pulso-end-back').getBoundingClientRect();
+      const probe = document.createElement('i'); probe.style.background = 'var(--gold)'; document.body.appendChild(probe);
+      const gold = getComputedStyle(probe).backgroundColor; probe.remove();
+      return { up: __t.vis('#pulso-result') && __t.vis('#pulso-end'), title: __t.txt('#pulso-end-line'),
+        sub: __t.vis('#pulso-end-sub') ? __t.txt('#pulso-end-sub') : '', their: __t.txt('#pulso-their-score'), my: __t.txt('#pulso-my-score'),
+        tally: __t.txt('#pulso-end-tally'), btn: b.textContent, gold: b.classList.contains('wants'), goldBg: getComputedStyle(b).backgroundColor === gold, off: b.disabled,
+        cancel: __t.vis('#pulso-rematch-cancel'), note: __t.vis('#pulso-rematch-note') ? __t.txt('#pulso-rematch-note') : '',
+        p: parseFloat(bar.style.getPropertyValue('--p')), flame: (fl.left + fl.width / 2 - br.left - bl) / (br.width - bl - parseFloat(cs.borderRightWidth)),
+        bar: __t.vis('#pulso-bar'), art: __t.vis('#pulso-result img'),
+        gone: !__t.vis('#pulso-board') && !__t.vis('#pulso-timer') && !__t.vis('#pulso-status') && !__t.vis('#pulso-leave') && !__t.vis('#pulso-countdown'),
+        share: __t.vis('#pulso-share'), back: __t.vis('#pulso-end-back'), banner: __t.vis('#pulso-banner'),
+        dot: document.getElementById('tabmenu-btn').classList.contains('pulso-dot'),
+        fits: back.bottom <= innerHeight && document.documentElement.scrollWidth <= innerWidth,
+        kael: document.getElementById('kael-bubble').classList.contains('show'), id: __t.M.id, credited: __t.M.credited, streak: __t.app.Streak.count };`),
     see: () => ev(`return { screen: __t.app.activeScreen, lobby: __t.vis('#pulso-lobby'), waiting: __t.vis('#pulso-waiting'),
       game: __t.vis('#pulso-game'), banner: __t.vis('#pulso-banner'), bannerText: __t.txt('#pulso-banner-who'),
       title: __t.txt('#pulso-wait-title'), clock: __t.txt('#pulso-wait-clock'), note: __t.vis('#pulso-note') ? __t.txt('#pulso-note') : '',
@@ -386,11 +419,17 @@ const T = {
   es: { getReady: '¡Prepárate!', streak: '¡Racha! ×2', quiet: 'Sin señal de Luis', leaveQ: '¿Salir? Perderás este Pulso.', you: 'Tú', timeUp: '¡Se acabó el tiempo!',
     wonPull: '¡Ganaste el Pulso!', lostPull: 'Ana se llevó la llama', wonTime: '¡Ganaste a tiempo!', lostTime: 'Ana ganó a tiempo', youLeft: 'Abandonaste', left: n => `${n} abandonó`,
     challenge: 'Retar', waiting: 'Esperando a Luis…', invite: 'Ana te reta a un Pulso', noAnswer: 'Luis no respondió', declined: 'Luis dijo que ahora no',
-    offline: 'Pulso necesita conexión', tally: 'Tú 3 · 2', update: 'Uno de los dos tiene que actualizar la app', signin: 'Inicia sesión para retar a un amigo', preparing: 'Preparando…' },
+    offline: 'Pulso necesita conexión', tally: 'Tú 3 · 2', update: 'Uno de los dos tiene que actualizar la app', signin: 'Inicia sesión para retar a un amigo', preparing: 'Preparando…',
+    wonErrors: 'Empate en la barra — ganaste por menos errores', lostErrors: n => `Empate en la barra — ${n} ganó por menos errores`, draw: 'Tablas',
+    sub: /^Arrastraste la llama hasta tu lado en (\d):(\d\d)\.$/, rematch: '⚔ Revancha', wants: n => `${n} quiere la revancha — Aceptar`, waitingFor: n => `Esperando a ${n}…`,
+    inviteBy: n => `${n} te reta a un Pulso`, declinedBy: n => `${n} dijo que ahora no`, noAnswerBy: n => `${n} no respondió`, line: (a, n, b) => `Pulso: Tú ${a} · ${n} ${b}`, row: (a, b) => `Tú ${a} · ${b}` },
   en: { getReady: 'Get ready!', streak: 'Streak! ×2', quiet: 'No signal from Luis', leaveQ: 'Leave? You will lose this Pulso.', you: 'You', timeUp: "Time's up!",
     wonPull: 'You won the Pulso!', lostPull: 'Ana took the flame', wonTime: 'You won on time!', lostTime: 'Ana won on time', youLeft: 'You left', left: n => `${n} left`,
     challenge: 'Challenge', waiting: 'Waiting for Luis…', invite: 'Ana challenges you to a Pulso', noAnswer: 'Luis did not answer', declined: 'Luis said not now',
-    offline: 'Pulso needs a connection', tally: 'You 3 · 2', update: 'One of you needs to update the app', signin: 'Sign in to challenge a friend', preparing: 'Preparing…' },
+    offline: 'Pulso needs a connection', tally: 'You 3 · 2', update: 'One of you needs to update the app', signin: 'Sign in to challenge a friend', preparing: 'Preparing…',
+    wonErrors: 'Level on the bar — you won on fewer mistakes', lostErrors: n => `Level on the bar — ${n} won on fewer mistakes`, draw: 'Draw',
+    sub: /^You dragged the flame to your side in (\d):(\d\d)\.$/, rematch: '⚔ Rematch', wants: n => `${n} wants a rematch — Accept`, waitingFor: n => `Waiting for ${n}…`,
+    inviteBy: n => `${n} challenges you to a Pulso`, declinedBy: n => `${n} said not now`, noAnswerBy: n => `${n} did not answer`, line: (a, n, b) => `Pulso: You ${a} · ${n} ${b}`, row: (a, b) => `You ${a} · ${b}` },
 };
 const LUIS = '#pulso-list .fr-row:nth-child(2) button';   // Carolina sorts first
 
@@ -428,6 +467,89 @@ try {
   const backToLobby = async () => {
     for (const tab of [ana, luis]) if (await tab.ev(`return __t.vis('#pulso-end-back')`)) await tab.tap('#pulso-end-back');
     await ana.until('the lobby', `__t.vis('#pulso-lobby')`);
+  };
+
+  // ── the result screen and the rematch ─────────────────────────────────
+  const NAME = { ana: 'Ana', luis: 'Luis' }, UIDS = { ana: ALICE, luis: BOB };
+  const score = (who, s, m) => `${who} · ${s} ✓ · ${m} ✗`;
+  const RESULT = `__t.vis('#pulso-result') && __t.vis('#pulso-end')`;
+  // One phone's result screen, read whole. `want`: title, sub (a pattern, or
+  // none), my, their, tally, p.
+  const resultOn = async (tag, what, tab, w, want) => {
+    await tab.until('the result screen', RESULT, 12000);
+    await tab.send('Page.bringToFront');
+    await sleep(450);
+    const r = await tab.result();
+    check(`[${tag}] ${what} — ${NAME[tab.who]}'s result screen: "${want.title}"${want.sub ? ' with its sub-line' : ''}, ${want.my} | ${want.their}, "${want.tally}", the flame frozen at ${want.p}; the board, clock and Leave gone; Revancha, share and Back all on screen at 375 px; no banner, no Kael`,
+      r.up && r.title === want.title && (want.sub ? want.sub.test(r.sub) : r.sub === '') && r.my === want.my && r.their === want.their && r.tally === want.tally
+      && Math.abs(r.p - want.p) < 0.001 && Math.abs(r.flame - want.p) < 0.03 && r.bar && r.art && r.gone && r.share && r.back && r.fits
+      && r.btn === w.rematch && !r.gold && !r.off && !r.cancel && !r.note && !r.banner && !r.kael && r.id === AB, r);
+    return r;
+  };
+  // `from` taps Revancha while `to` is still on the result screen. Returns
+  // the list of puzzles of the match that had just ended.
+  const askRematch = async (tag, w, from, to, { shots = false } = {}) => {
+    const before = [await from.result(), await to.result()], old = await stored(`pulso/${AB}`);
+    await from.tap('#pulso-rematch');
+    await from.until('"Waiting for…"', `__t.txt('#pulso-rematch') === ${JSON.stringify(w.waitingFor(NAME[to.who]))} && __t.P.matches.some(m => m.status === 'invited' && !m.pending)`);
+    await to.until('the gold button', `document.getElementById('pulso-rematch').classList.contains('wants')`);
+    await to.send('Page.bringToFront');
+    await sleep(300);
+    const f = await from.result(), g = await to.result(), d = await stored(`pulso/${AB}`);
+    const same = (x, y) => x.up && x.title === y.title && x.my === y.my && x.their === y.their && x.tally === y.tally && x.p === y.p;
+    check(`[${tag}] ${NAME[from.who]} taps Revancha (real tap) on the result screen: the button reads "${w.waitingFor(NAME[to.who])}", is spent, and Cancel appears; stored invited, host ${NAME[from.who]}, every counter 0, the tally kept — and the result screen still shows the match as it ended`,
+      f.btn === w.waitingFor(NAME[to.who]) && f.off && f.cancel && !f.gold && same(f, before[0]) && d.status === 'invited' && d.host === UIDS[from.who]
+      && d.aS + d.aM + d.aP + d.bS + d.bM + d.bP === 0 && d.startAt === null && d.aW === old.aW && d.bW === old.bW && d.dr === old.dr,
+      { btn: f.btn, off: f.off, cancel: f.cancel, status: d.status, host: d.host, my: [before[0].my, f.my] });
+    check(`[${tag}] …and on ${NAME[to.who]}'s result screen the same button turns gold: "${w.wants(NAME[from.who])}", live, no Cancel, NO banner and no gold dot on top of it, the match still as it ended`,
+      g.btn === w.wants(NAME[from.who]) && g.gold && g.goldBg && !g.off && !g.cancel && !g.banner && !g.dot && same(g, before[1]) && g.fits,
+      { btn: g.btn, gold: g.gold, goldBg: g.goldBg, banner: g.banner, dot: g.dot, fits: g.fits });
+    if (shots) { await from.shot(`${tag}-rematch-waiting`); await to.shot(`${tag}-rematch-wants`); }
+    return old.pz;
+  };
+  // `to` taps the gold button: both phones go to a new countdown.
+  const takeRematch = async (tag, w, to, oldPz) => {
+    await to.tap('#pulso-rematch');
+    await Promise.all([ana, luis].map(t => t.until('the new countdown', `__t.vis('#pulso-countdown') && !__t.vis('#pulso-result') && __t.M.list && __t.M.game.current`, 15000)));
+    const d = await stored(`pulso/${AB}`), [a, l] = await both();
+    check(`[${tag}] ${NAME[to.who]} taps the gold button (real tap): BOTH phones leave the result screen for a new countdown — a board again, the clock at 3:00, the flame dead centre, a fresh list of puzzles, a new start stamp from the server`,
+      d.status === 'live' && d.pz !== oldPz && Math.abs(d.startAt - Date.now()) < 9000 && [a, l].every(x => x.pane && x.count && !x.end && x.timer === '⏱ 3:00' && x.p === 0.5 && x.id === d.pz.slice(0, 5)),
+      { status: d.status, fresh: d.pz !== oldPz, timers: [a.timer, l.timer], ends: [a.end, l.end], ids: [a.id, l.id, d.pz.slice(0, 5)] });
+    return d;
+  };
+  // Seeded: the clock is moved to its end instead of being waited out.
+  const runOutClock = async () => {
+    await seed(`pulso/${AB}`, { startAt: new Date(Date.now() - 186e3) }, true);
+    await Promise.all([ana, luis].map(t => t.until('the result screen', RESULT, 30000)));
+    return stored(`pulso/${AB}`);
+  };
+  const boardsOpen = () => Promise.all([ana, luis].map(t => t.until('the boards opening', `!__t.vis('#pulso-countdown') && __t.M.game.board.interactive`, 12000)));
+  // A match with nobody moving, ended on the clock: the flame dead centre,
+  // the same mistakes — a draw. `tally` is [Ana's wins, Luis's].
+  const drawn = async (tag, w, tally, draws) => {
+    const de = await runOutClock();
+    check(`[${tag}] the clock runs out (seeded) with the flame dead centre and no mistakes on either side: stored done, reason time, winner "draw", the draws counter ${draws}, the wins untouched`,
+      de.status === 'done' && de.reason === 'time' && de.winner === 'draw' && de.dr === draws && de.aW === tally[0] && de.bW === tally[1], de);
+    await resultOn(tag, 'a draw', ana, w, { title: w.draw, my: score(w.you, 0, 0), their: score('Luis', 0, 0), tally: w.line(tally[0], 'Luis', tally[1]), p: 0.5 });
+    await resultOn(tag, 'a draw', luis, w, { title: w.draw, my: score(w.you, 0, 0), their: score('Ana', 0, 0), tally: w.line(tally[1], 'Ana', tally[0]), p: 0.5 });
+    await ana.shot(`${tag}-result-draw`);
+  };
+
+  // What a match must not touch, and the one thing it may.
+  const stats = tab => tab.ev(`const d = __t.db; return { streak: __t.app.Streak.count, badge: __t.txt('#streak-badge span'),
+    elo: await d.kvGet('puzzleElo', 1200), rush: await d.kvGet('rushBestScore', 0), r180: await d.kvGet('rushBest180', 0), r300: await d.kvGet('rushBest300', 0),
+    badges: Object.keys(await d.kvGet('earnedBadges', {})).sort() };`);
+  const plainAgain = tab => tab.until('a plain Revancha again', `!document.getElementById('pulso-rematch').classList.contains('wants')`, 6000);
+  // A friend's public profile, reached from the Friends list. SEEDED: the
+  // Friends screen is opened by a call; the row is really tapped.
+  const profileOf = async (tab, row, name) => {
+    await tab.ev(`__t.F.open();`);
+    await tab.until('the friends list', `__t.app.activeScreen === 'friends' && document.querySelectorAll('#friends-list .fr-row').length >= ${row}`, 12000);
+    await tab.tap(`#friends-list .fr-row:nth-child(${row}) .fr-name`);
+    await tab.until('the profile', `__t.app.activeScreen === 'public-profile' && __t.txt('#pubprofile-name') === '${name}'`, 12000);
+    await sleep(400);
+    return tab.ev(`return { line: __t.vis('#pubprofile-pulso') ? __t.txt('#pubprofile-pulso') : '', raw: __t.txt('#pubprofile-pulso'), matches: __t.P.matches.length,
+      listeners: window.__listeners, ever: window.__listenersEver, fits: document.documentElement.scrollWidth <= innerWidth };`);
   };
 
   // From Accept to a match under way: the countdown, three solves by Ana (the
@@ -488,7 +610,7 @@ try {
     return { ids, startAt: d.startAt };
   };
 
-  const byPull = async (tag, w, { ids }) => {
+  const byPull = async (tag, w, { ids, startAt, stats0, lang, scheme }) => {
     console.log('A mistake on each side, then Ana pulls the whole bar');
     let a, l;
     const miss = await luis.miss();
@@ -512,6 +634,7 @@ try {
     let n = 0;
     for (; n < 12 && await ana.ev(`const m = __t.M.match(); return m.aP - m.bP < 10;`); n++) await ana.solve();
     await Promise.all([ana, luis].map(t => t.until('the ending', `__t.vis('#pulso-end')`, 10000)));
+    const wonAfter = Date.now() - startAt - 6000;
     [a, l] = await both();
     const de = await stored(`pulso/${AB}`);
     check(`Ana pulls the whole bar (${n} more solves, real taps): BOTH phones show the ending — "${w.wonPull}" on hers, "${w.lostPull}" on his`, a.end === w.wonPull && l.end === w.lostPull, [a.end, l.end]);
@@ -519,14 +642,113 @@ try {
       de.status === 'done' && de.winner === ALICE && de.reason === 'pull' && de.aW === 4 && de.bW === 2 && de.dr === 0 && de.aP - de.bP >= 10, de);
     check('both boards are frozen, the flame is at Ana\'s end on both phones, Leave is gone and Back is there',
       !a.free && !l.free && !a.live && !l.live && !a.leave && !l.leave && a.p === 1 && l.p === 0 && !a.streak);
-    await ana.shot(`${tag}-ended-won`);
-    await luis.shot(`${tag}-ended-lost`);
-    await backToLobby();
-    await luis.until('the lobby', `__t.vis('#pulso-lobby')`);
-    await ana.until('the new tally', `__t.rows()[1] && __t.rows()[1].tally === 'Tú 4 · 2'`, 4000).catch(() => {});
+    console.log('The result screen');
+    const N = de.aS;
+    const ra = await resultOn(tag, 'won by pulling the whole bar', ana, w, { title: w.wonPull, sub: w.sub, my: score(w.you, N, 1), their: score('Luis', 1, 1), tally: w.line(4, 'Luis', 2), p: 1 });
+    await resultOn(tag, 'lost by pull', luis, w, { title: w.lostPull, my: score(w.you, 1, 1), their: score('Ana', N, 1), tally: w.line(2, 'Ana', 4), p: 0 });
+    const tm = w.sub.exec(ra.sub), said = tm ? tm[1] * 60 + +tm[2] : NaN;
+    check(`the time in "${ra.sub}" is the play time Ana's phone measured: ${said} s said, ${(wonAfter / 1000).toFixed(1)} s on this tool's own watch from startAt + 6 s to seeing the ending`,
+      said > 0 && Math.abs(said - wonAfter / 1000) < 6, { said, wonAfter });
+    await ana.shot(`${tag}-result-won`);
+    await luis.shot(`${tag}-result-lost`);
+
+    await sleep(900);      // past the 400 ms after which a new streak flame is announced
+    const s1 = await Promise.all([ana, luis].map(stats)), ka = await ana.result(), kl = await luis.result();
+    check(`the daily streak: Ana solved ${N} (3 or more) and her streak went ${stats0[0].streak} → ${s1[0].streak}, the flame in her header reads ${s1[0].badge}; Luis solved 1 and his stayed at ${s1[1].streak}`,
+      stats0[0].streak === 0 && s1[0].streak === 1 && s1[0].badge === '1' && ka.credited && stats0[1].streak === 0 && s1[1].streak === 0 && !kl.credited, { before: stats0.map(x => x.streak), after: s1.map(x => x.streak) });
+    const untouched = (x, y) => x.elo === y.elo && x.rush === y.rush && x.r180 === y.r180 && x.r300 === y.r300;
+    check('…and nothing else of either player moved: puzzle ELO and the Rush best scores are what they were before the match',
+      untouched(stats0[0], s1[0]) && untouched(stats0[1], s1[1]), { before: stats0, after: s1 });
+    const kael = await ana.ev(`__t.app.KaelQuotes.show({ text: 'a mission reminder' }); return document.getElementById('kael-bubble').classList.contains('show');`);
+    check('Kael says nothing over the result screen: the new-flame announcement Ana\'s streak has just earned was dropped, and a bubble the app tries to show does not appear',
+      !ka.kael && kael === false && ka.id === AB, { showing: ka.kael, tried: kael });
+
+    await ana.ev(`window.__shared = null; navigator.canShare = () => true; navigator.share = async d => { window.__shared = { files: (d.files || []).map(f => [f.name, f.type, f.size]) }; };`);
+    await ana.tap('#pulso-share');
+    await ana.until('the share sheet', `window.__shared`, 6000);
+    const shared = await ana.ev(`return window.__shared`), card = await ana.ev(`return __t.M.card()`);
+    check(`📤 (real tap) hands the share sheet one picture, pulso.png, and the card it was drawn from is ⚔ · "${w.wonPull}" · "Pulso · ${N}–1"`,
+      shared.files.length === 1 && shared.files[0][0] === 'pulso.png' && shared.files[0][1] === 'image/png' && shared.files[0][2] > 8000
+      && card.emoji === '⚔' && card.title === w.wonPull && card.subtitle === `Pulso · ${N}–1`, { shared, card });
+
+    console.log('Rematch: Ana asks, Luis takes it — and that match ends level on the bar');
+    let pz = await askRematch(tag, w, ana, luis, { shots: true });
+    await takeRematch(tag, w, luis, pz);
+    await boardsOpen();
+    await ana.solve();
+    await ana.miss();
+    await storedUntil(x => x.aM === 1);
+    const dx = await runOutClock();
+    check('Ana solved one and gave it back with a mistake; the clock runs out (seeded) with the flame dead centre: stored done, reason time, winner LUIS on fewer mistakes, the tally 4-3',
+      dx.status === 'done' && dx.reason === 'time' && dx.winner === BOB && dx.aP === 0 && dx.bP === 0 && dx.aM === 1 && dx.bM === 0 && dx.aW === 4 && dx.bW === 3 && dx.dr === 0, dx);
+    const rx = await resultOn(tag, 'lost on fewer mistakes', ana, w, { title: w.lostErrors('Luis'), my: score(w.you, 1, 1), their: score('Luis', 0, 0), tally: w.line(4, 'Luis', 3), p: 0.5 });
+    const rl = await resultOn(tag, 'won on fewer mistakes', luis, w, { title: w.wonErrors, my: score(w.you, 0, 0), their: score('Ana', 1, 1), tally: w.line(3, 'Ana', 4), p: 0.5 });
+    check('…and a match with fewer than 3 solves does not count toward the streak: Luis, who has now won one, still has none, and this match was not counted for Ana either',
+      rl.streak === 0 && !rl.credited && !rx.credited && rx.streak === 1, { luis: [rl.streak, rl.credited], ana: [rx.streak, rx.credited] });
+    await ana.shot(`${tag}-result-lost-on-mistakes`);
+    await luis.shot(`${tag}-result-won-on-mistakes`);
+
+    console.log('Rematch: Luis asks, Ana takes it — a draw');
+    pz = await askRematch(tag, w, luis, ana);
+    await takeRematch(tag, w, ana, pz);
+    await drawn(tag, w, [4, 3], 1);
+
+    console.log('A rematch taken back, one that runs out, one refused');
+    await askRematch(tag, w, ana, luis);
+    await ana.tap('#pulso-rematch-cancel');
+    await plainAgain(luis);
+    await ana.until('asking again', `__t.txt('#pulso-rematch') === ${JSON.stringify(w.rematch)} && !document.getElementById('pulso-rematch').disabled`);
+    const dc = await storedUntil(x => x.status === 'idle');
+    let xa = await ana.result(), xl = await luis.result();
+    check('Ana taps Cancel under her rematch: stored idle; both result screens are back to a plain, live "⚔ Revancha" and neither is told anything',
+      dc.status === 'idle' && [xa, xl].every(r => r.up && r.btn === w.rematch && !r.gold && !r.off && !r.cancel && !r.note && !r.banner), { status: dc.status, ana: xa.btn, luis: xl.btn });
+
+    await askRematch(tag, w, ana, luis);
+    await seed(`pulso/${AB}`, { invitedAt: new Date(Date.now() - 6 * 60e3) }, true);
+    await ana.until('told', `__t.vis('#pulso-rematch-note')`, 6000);
+    await plainAgain(luis);
+    xa = await ana.result(); xl = await luis.result();
+    check(`a rematch 6 minutes old (seeded): Ana's result screen says "${w.noAnswerBy('Luis')}" and her button asks again; Luis's gold button is a plain Revancha again, with no banner; nothing was written for it`,
+      xa.up && xa.note === w.noAnswerBy('Luis') && xa.btn === w.rematch && !xa.off && !xa.cancel && xl.up && xl.btn === w.rematch && !xl.gold && !xl.banner
+      && (await stored(`pulso/${AB}`)).status === 'invited', { note: xa.note, ana: xa.btn, luis: xl.btn });
+    await ana.shot(`${tag}-rematch-no-answer`);
+
+    await askRematch(tag, w, ana, luis);       // over the run-out one: the rules take it
+    await luis.tap('#pulso-end-back');
+    await luis.until('the banner', `__t.vis('#pulso-lobby') && __t.vis('#pulso-banner') && __t.txt('#pulso-banner-who') === ${JSON.stringify(w.inviteBy('Ana'))}`, 6000);
+    check('Luis taps Volver with Ana\'s rematch still open: he is in the lobby, and now it reaches him as the ordinary banner', (await luis.see()).lobby);
+    await luis.shot(`${tag}-rematch-as-banner`);
+    await luis.tap('#pulso-decline');
+    await ana.until('told', `__t.vis('#pulso-rematch-note') && __t.txt('#pulso-rematch-note') === ${JSON.stringify(w.declinedBy('Luis'))}`, 6000);
+    xa = await ana.result();
+    check(`…he taps "Ahora no": Ana's result screen says "${w.declinedBy('Luis')}", her button asks again, stored idle`,
+      xa.up && xa.btn === w.rematch && !xa.off && !xa.cancel && (await stored(`pulso/${AB}`)).status === 'idle', { note: xa.note, btn: xa.btn });
+    await ana.shot(`${tag}-rematch-declined`);
+    await ana.tap('#pulso-end-back');
+    await ana.until('the lobby', `__t.vis('#pulso-lobby')`);
+    await ana.until('the new tally', `__t.rows()[1] && __t.rows()[1].tally === ${JSON.stringify(w.row(4, 3))}`, 4000).catch(() => {});
     a = await ana.see();
-    check('"Volver" is the lobby on both phones; Ana\'s row for Luis reads the new tally; still one listener each',
-      a.lobby && !a.game && a.rows[1].tally === 'Tú 4 · 2' && a.listeners === 1 && (await luis.see()).listeners === 1, a.rows);
+    const ll = await luis.see();
+    check('"Volver" is the lobby on both phones — not the waiting screen saying "said not now" a second time; Ana\'s row for Luis reads the new tally; still one listener each',
+      a.lobby && !a.game && !a.waiting && ll.lobby && a.rows[1].tally === w.row(4, 3) && a.listeners === 1 && ll.listeners === 1, a.rows);
+
+    console.log('The tally on the public profile');
+    const pa = await profileOf(ana, 2, 'Luis');
+    await ana.shot(`${tag}-profile-tally`);
+    const pl = await profileOf(luis, 1, 'Ana');
+    check(`Ana opens Luis's public profile (real tap on his row in Friends): "${w.line(4, 'Luis', 3)}"; Luis opens Ana's: "${w.line(3, 'Ana', 4)}" — each from the listener already running (still one, and only one ever opened)`,
+      pa.line === w.line(4, 'Luis', 3) && pl.line === w.line(3, 'Ana', 4) && pa.listeners === 1 && pl.listeners === 1 && pa.ever === 1 && pa.fits && pl.fits, { ana: pa, luis: pl });
+    const pc0 = await profileOf(ana, 1, 'Carolina');
+    check('Ana opens Carolina\'s profile — a friend she has never played: no Pulso line', pc0.line === '' && pc0.raw === '', pc0);
+    const carol = await openTab('carol', '127.0.0.2', CAROL);
+    await carol.load(lang, scheme);
+    const pc = await profileOf(carol, 1, 'Ana');
+    check('Carolina — Ana\'s friend, on a third phone — opens Ana\'s public profile: NO Pulso line, and her own listener, under the real rules, was handed no match document at all',
+      pc.line === '' && pc.raw === '' && pc.matches === 0 && pc.listeners === 1, pc);
+    await carol.shot(`${tag}-profile-seen-by-carolina`);
+    await carol.send('Page.close').catch(() => {});
+    await luis.ev(`__t.app.showScreen('analysis');`);
+    await openPulso(ana);
   };
 
   const cutOff = async (tag, w, { startAt }) => {
@@ -566,6 +788,14 @@ try {
     const dz = await stored(`pulso/${AB}`);
     check(`[${tag}] back online: Luis is told "${w.lostTime}"; the solve he made cut off arrived too late and the rules refused it (stored bS still 0)`,
       l.end === w.lostTime && dz.bS === 0 && dz.status === 'done' && dz.winner === ALICE, { end: l.end, bS: dz.bS });
+    await resultOn(tag, 'won on the clock', ana, w, { title: w.wonTime, my: score(w.you, 3, 0), their: score('Luis', 0, 0), tally: w.line(4, 'Luis', 2), p: 0.7 });
+    await resultOn(tag, 'lost on the clock', luis, w, { title: w.lostTime, my: score(w.you, 0, 0), their: score('Ana', 3, 0), tally: w.line(2, 'Ana', 4), p: 0.3 });
+    await ana.shot(`${tag}-result-won-on-time`);
+    await luis.shot(`${tag}-result-lost-on-time`);
+    await askRematch(tag, w, luis, ana, { shots: true });
+    await luis.tap('#pulso-rematch-cancel');
+    await plainAgain(ana);
+    await storedUntil(x => x.status === 'idle');
     await backToLobby();
   };
 
@@ -599,7 +829,31 @@ try {
     check(`[${tag}] Yes: Luis is on Analysis, his board stopped; stored done, reason left, winner Ana (the tally 4-2); Ana is told "${w.left('Luis')}" at once`,
       de.status === 'done' && de.reason === 'left' && de.winner === ALICE && de.aW === 4 && de.bW === 2 && a.end === w.left('Luis') && !a.free
       && await luis.ev(`return __t.M.id === null && !__t.M.game.running`), { end: a.end, de });
-    await ana.shot(`${tag}-friend-left`);
+    await resultOn(tag, 'the friend left', ana, w, { title: w.left('Luis'), my: score(w.you, 3, 0), their: score('Luis', 0, 0), tally: w.line(4, 'Luis', 2), p: 0.7 });
+    await ana.shot(`${tag}-result-friend-left`);
+
+    console.log('A rematch to a friend who has left the result screen: the ordinary banner');
+    const old = await stored(`pulso/${AB}`);
+    await ana.tap('#pulso-rematch');
+    await luis.until('the banner', `__t.vis('#pulso-banner') && __t.txt('#pulso-banner-who') === ${JSON.stringify(w.inviteBy('Ana'))}`, 8000);
+    const ra = await ana.result(), ls = await luis.see();
+    check(`[${tag}] Ana asks for a rematch; Luis had left for Analysis, so it reaches him there as the ordinary banner — "${w.inviteBy('Ana')}" — while Ana's result screen reads "${w.waitingFor('Luis')}" with Cancel`,
+      ls.banner && ls.screen === 'analysis' && ra.up && ra.btn === w.waitingFor('Luis') && ra.off && ra.cancel, { btn: ra.btn, screen: ls.screen });
+    await luis.tap('#pulso-accept');
+    await Promise.all([ana, luis].map(t => t.until('the new countdown', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-countdown') && !__t.vis('#pulso-result')`, 15000)));
+    const dn = await stored(`pulso/${AB}`);
+    check(`[${tag}] Luis taps Accept on the banner: Ana's result screen and Luis's Analysis both give way to the new countdown, with a fresh list`,
+      dn.status === 'live' && dn.pz !== old.pz && !(await luis.see()).banner, { status: dn.status });
+    await drawn(tag, w, [4, 2], 1);
+    await askRematch(tag, w, luis, ana, { shots: true });
+    await ana.tap('#pulso-end-back');
+    await ana.until('the banner', `__t.vis('#pulso-lobby') && __t.vis('#pulso-banner') && __t.txt('#pulso-banner-who') === ${JSON.stringify(w.inviteBy('Luis'))}`, 6000);
+    await ana.tap('#pulso-decline');
+    await luis.until('told', `__t.vis('#pulso-rematch-note') && __t.txt('#pulso-rematch-note') === ${JSON.stringify(w.declinedBy('Ana'))}`, 6000);
+    const rl = await luis.result();
+    check(`[${tag}] Ana taps Back instead of the gold button: the lobby, and Luis's rematch as the banner; she taps "Not now" — Luis's result screen reads "${w.declinedBy('Ana')}" and his button asks again`,
+      rl.up && rl.btn === w.rematch && !rl.off && !rl.cancel && (await stored(`pulso/${AB}`)).status === 'idle', { note: rl.note, btn: rl.btn });
+    await luis.shot(`${tag}-rematch-declined`);
     await backToLobby();
   };
 
@@ -634,7 +888,10 @@ try {
     const de = await stored(`pulso/${AB}`);
     check(`[${tag}] both phones reach the end of the clock together and both try to record it: stored once — done, reason time, winner Ana, tally 4-2 — "${w.wonTime}" / "${w.lostTime}"`,
       de.status === 'done' && de.reason === 'time' && de.winner === ALICE && de.aW === 4 && de.bW === 2 && de.dr === 0 && a.end === w.wonTime && l.end === w.lostTime, { ends: [a.end, l.end], de });
-    await luis.shot(`${tag}-ended-lost-on-time`);
+    await resultOn(tag, 'won on the clock', ana, w, { title: w.wonTime, my: score(w.you, 3, 0), their: score('Luis', 2, 0), tally: w.line(4, 'Luis', 2), p: 0.6 });
+    await resultOn(tag, 'lost on the clock', luis, w, { title: w.lostTime, my: score(w.you, 2, 0), their: score('Ana', 3, 0), tally: w.line(2, 'Ana', 4), p: 0.4 });
+    await ana.shot(`${tag}-result-won-on-time`);
+    await luis.shot(`${tag}-result-lost-on-time`);
     await backToLobby();
 
     console.log('A second match, left under the countdown');
@@ -654,7 +911,13 @@ try {
     const dl = await stored(`pulso/${AB}`);
     check(`[${tag}] Ana taps Leave under the countdown and says Yes: "${w.youLeft}" on her phone, "${w.left('Ana')}" on Luis's; stored reason left, winner Luis, tally 4-3`,
       a.end === w.youLeft && l.end === w.left('Ana') && dl.status === 'done' && dl.reason === 'left' && dl.winner === BOB && dl.aW === 4 && dl.bW === 3 && !a.count && !l.count, { ends: [a.end, l.end], dl });
-    await ana.shot(`${tag}-you-left`);
+    await resultOn(tag, 'you left', ana, w, { title: w.youLeft, my: score(w.you, 0, 0), their: score('Luis', 0, 0), tally: w.line(4, 'Luis', 3), p: 0.5 });
+    await resultOn(tag, 'the friend left', luis, w, { title: w.left('Ana'), my: score(w.you, 0, 0), their: score('Ana', 0, 0), tally: w.line(3, 'Ana', 4), p: 0.5 });
+    await ana.shot(`${tag}-result-you-left`);
+    await luis.shot(`${tag}-result-friend-left`);
+    const pz = await askRematch(tag, w, luis, ana, { shots: true });
+    await takeRematch(tag, w, ana, pz);
+    await drawn(tag, w, [4, 3], 1);
     await backToLobby();
   };
 
@@ -694,6 +957,7 @@ try {
     }
 
     console.log('Challenge → banner → accept');
+    const stats0 = await Promise.all([ana, luis].map(stats));
     l = await luis.see();
     check(`[${tag}] before any challenge Luis has no banner`, !l.banner && l.screen === 'analysis');
     await ana.tap(LUIS);
@@ -733,7 +997,7 @@ try {
     await Promise.all([ana, luis].map(t => t.until('the match', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-game')`, 15000)));
     check(`[${tag}] Accept reads "${w.preparing}" and is spent while the puzzle files load; Luis had them before accepting`,
       (prep[0] === w.preparing ? prep[1] === true : true) && await luis.ev(`return __t.P.bands === 'ready'`), prep);
-    const played = await opening(tag, w);
+    const played = { ...await opening(tag, w), stats0, lang, scheme };
     if (tag === 'es-light') await byPull(tag, w, played);
     if (tag === 'es-dark') await cutOff(tag, w, played);
     if (tag === 'en-light') await leaving(tag, w, played);
@@ -875,5 +1139,6 @@ console.log(`Promotions answered through userMove() rather than the picker: ${pr
 console.log(`Screenshots: ${OUT}`);
 chrome.kill();
 server.close();
+server2.close();
 try { fs.rmSync(profile, { recursive: true, force: true }); } catch {}
 process.exit(failed || bad.length || other.length ? 1 : 0);

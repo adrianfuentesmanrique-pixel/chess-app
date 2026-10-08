@@ -8,6 +8,7 @@ import * as db from './db.js';
 import { ENDGAME_CATEGORIES } from './endgames-data.js';
 import { Auth, fetchLeaderboard } from './firebase.js';
 import { avatarHtml } from './avatars.js';
+import { PulsoUI } from './pulso-ui.js';
 import { $, esc, segInit, showScreen, monthStr, radarThemes, openRadarPicker, RADAR_MIN, Profile }
   from './app.js';
 
@@ -192,6 +193,12 @@ export const PublicProfile = {
 
     $('pubprofile-name').textContent = data.profileName || '?';
     $('pubprofile-avatar-wrap').innerHTML = avatarHtml(data.avatarId, 64);
+    // Our Pulso score against this friend, from the Pulso listener's copy of
+    // our own match document — no read is made for it, and a profile opened
+    // by anybody else has no such document to show.
+    const pulso = isSelf ? '' : PulsoUI.tallyLine(entry.uid);
+    $('pubprofile-pulso').textContent = pulso;
+    $('pubprofile-pulso').classList.toggle('hidden', !pulso);
 
     const puzzleElo = data.puzzleElo ?? 1200;
     const themeElo = data.puzzleThemeElo ?? {};

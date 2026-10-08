@@ -1,7 +1,8 @@
 // Pulso — the match itself: the countdown both phones share, the bar and its
-// flame, a solve and a mistake, the friend's moves arriving, the clock, leaving,
-// and one plain line saying how it ended. The result screen proper is not here.
-// Spec: docs/superpowers/plans/2026-10-pulso.md, sections 3, 4, 5 and 7.4, 7.5.
+// flame, a solve and a mistake, the friend's moves arriving, the clock, leaving
+// — and the result screen with its rematch, which is this same pane once the
+// match is over.
+// Spec: docs/superpowers/plans/2026-10-pulso.md, sections 3, 4, 5 and 7.4 to 7.7.
 //
 // THE BOARD IS RUSH'S. `game` below is Rush's own engine (js/app.js) run over
 // the pulso-* elements: it is given a different prefix and its own three hooks
@@ -28,7 +29,7 @@ import { Sound } from './sound.js';
 import { PUZZLES } from './puzzles.js';
 import { PULSO, resolveList, markerPos } from './pulso.js';
 import { pulsoMove, finishPulso, pulsoServerNow } from './firebase.js';
-import { $, askConfirm, showScreen, Rush, KaelQuotes } from './app.js';
+import { askConfirm, showScreen, Rush, KaelQuotes, Streak, STREAK_MIN_RUSH_SOLVED, shareStatCard } from './app.js';
 import { PulsoUI } from './pulso-ui.js';
 
 const QUIET_MS = 20_000;   // the friend's numbers have not moved for this long: "no signal"
@@ -46,6 +47,12 @@ export const PulsoMatch = {
   pulls: null,      // [mine, theirs] last painted, to tell who has just pulled
   ticker: null,
   asking: false,    // the "Leave?" question is on screen
+  // The match as it ENDED: the last 'done' copy of the document. The result
+  // screen is drawn from this, because a rematch asked for by either of us
+  // puts the document back to 'invited' with every counter at 0.
+  result: null,
+  took: null,       // how long the play had run when it was decided, measured on this phone
+  credited: false,  // this match has already counted toward the daily streak
 
   init() {
     const g = this.game = Object.assign(Object.create(Rush), {
@@ -59,11 +66,21 @@ export const PulsoMatch = {
       onMistake: run => this.attempt(false, run),
     });
     g.board = new Board(g.el('board'), { onMove: mv => g.userMove(mv), onSound: type => Sound.play(type), premove: true });
-    const back = () => { this.stop(); PulsoUI.sync(); };
+    const back = () => {
+      // A rematch of mine that was refused or ran out has been read on the
+      // result screen; the waiting screen does not say it again. One still
+      // out carries on there.
+      if (PulsoUI.wait && PulsoUI.wait.ended) PulsoUI.wait = null;
+      this.stop();
+      PulsoUI.sync();
+    };
     // Once a match is past saving (nobody closed it and no result ever came)
     // there is nothing left to forfeit: Leave is just the way out.
     g.el('leave').onclick = () => (this.holds() ? this.leave(null) : back());
     g.el('end-back').onclick = back;
+    g.el('rematch').onclick = () => this.rematch();
+    g.el('rematch-cancel').onclick = () => PulsoUI.cancel();
+    g.el('share').onclick = () => this.share();
   },
 
   match() { return (this.id && PulsoUI.matches.find(m => m.id === this.id)) || null; },
@@ -78,10 +95,18 @@ export const PulsoMatch = {
   // until Back is tapped.
   show() {
     let m = this.match();
+    const r = this.result;
+    if (r) {
+      // The result screen stays through whatever happens to the document next
+      // — a rematch asked for, taken back, refused, run out — until Back, or
+      // until a NEW match starts on it (a start stamp that is not this one's).
+      if (!m || (m.status === 'live' && m.startAt !== r.startAt)) this.stop();
+      // A result this phone claimed and the server refused: play goes on.
+      else if (m.status === 'live') { this.result = null; this.took = null; }
     // Not inPlay(): a phone cut off when the clock ran out keeps its stopped
     // board until it hears the result, however long that takes. A new
     // challenge over the same document ('invited') is what moves it on.
-    if (this.id && !(m && (m.status === 'live' || m.status === 'done'))) this.stop();
+    } else if (this.id && !(m && (m.status === 'live' || m.status === 'done'))) this.stop();
     if (!this.id) {
       m = PulsoUI.matches.find(x => PulsoUI.inPlay(x));
       if (!m) return false;
@@ -101,6 +126,9 @@ export const PulsoMatch = {
     this.theirMoves = m[them + 'S'] + m[them + 'M'];
     this.theirAt = Date.now();
     this.pulls = null;
+    this.result = null;
+    this.took = null;
+    this.credited = false;
     // Kael keeps quiet for as long as `id` is set (KaelQuotes.show in
     // js/app.js); anything he was already saying goes now.
     KaelQuotes.hide();
@@ -114,6 +142,7 @@ export const PulsoMatch = {
     this.ticker = null;
     this.id = null;
     this.list = null;
+    this.result = null;
     const g = this.game;
     if (!g) return;
     g.stop();
@@ -158,8 +187,12 @@ export const PulsoMatch = {
   // Five times a second while a match is up; each line only touches the page
   // when what it shows has changed.
   paint() {
-    const m = this.match(), g = this.game;
-    if (!m) return;
+    const live = this.match(), g = this.game;
+    if (!live) return;
+    if (live.status === 'done') this.result = live;
+    // Once it is over the match is read as it ended, whatever the document
+    // has gone on to since (see `result`).
+    const m = this.result || live;
     const me = m.me, them = me === 'a' ? 'b' : 'a';
     const name = PulsoUI.nameOf(m.friend);
     const set = (id, text) => { const el = g.el(id); if (el.textContent !== text) el.textContent = text; };
@@ -170,6 +203,9 @@ export const PulsoMatch = {
     const endAt = playAt + PULSO.PLAY_MS;
     const done = m.status === 'done';
     const phase = done ? 'done' : now < playAt + GO_MS ? 'count' : now < endAt ? 'play' : 'over';
+    // The result is shown only once the server has said so — one this phone
+    // has only claimed can still be refused — except my own decision to leave.
+    const ended = done && (!m.pending || live !== m || (m.reason === 'left' && m.winner !== PulsoUI.uid));
 
     // The puzzles. The friend's phone loaded them before accepting and the
     // host's before challenging; a phone that reloaded the app has to fetch
@@ -235,8 +271,10 @@ export const PulsoMatch = {
     const av = avatarHtml(PulsoUI.person(m.friend)?.avatarId, 36);
     if (g.el('their-av').innerHTML !== av) g.el('their-av').innerHTML = av;
     set('their-name', name);
-    set('their-score', `${name} · ${m[them + 'S']} ✓`);
-    set('my-score', `${t('history_you')} · ${m[me + 'S']} ✓`);
+    // Solved while it is being played; solved and mistakes once it is over.
+    const marks = k => `${m[k + 'S']} ✓` + (ended ? ` · ${m[k + 'M']} ✗` : '');
+    set('their-score', `${name} · ${marks(them)}`);
+    set('my-score', `${t('history_you')} · ${marks(me)}`);
     const moves = m[them + 'S'] + m[them + 'M'];
     if (moves !== this.theirMoves) { this.theirMoves = moves; this.theirAt = Date.now(); }
     const quiet = phase === 'play' && Date.now() - this.theirAt >= QUIET_MS;
@@ -262,14 +300,94 @@ export const PulsoMatch = {
     }
     this.pulls = pulls;
     g.el('streak').classList.toggle('hidden', !(phase === 'play' && m[me + 'K'] >= 2));
+    // "…in 1:48". The document keeps no end time, so it is this phone's own
+    // reading of the shared clock at the moment the flame got there.
+    const decided = done || Math.abs(pos) >= PULSO.WIN;
+    if (!decided) this.took = null;
+    else if (this.took === null && playAt !== Infinity) this.took = Math.max(0, Math.min(PULSO.PLAY_MS, now - playAt));
 
-    // How it ended. Only once the server has said so — a result this phone has
-    // only claimed can still be refused — except my own decision to leave.
-    const ended = done && (!m.pending || (m.reason === 'left' && m.winner !== PulsoUI.uid));
-    if (ended) set('end-line', this.endLine(m, name));
+    // The result screen: this pane, with the board put away.
+    g.el('game').classList.toggle('ended', ended);
+    g.el('result').classList.toggle('hidden', !ended);
     g.el('end').classList.toggle('hidden', !ended);
     g.el('leave').classList.toggle('hidden', ended);
     g.el('status').classList.toggle('hidden', ended);
+    if (ended) this.paintResult(m, live, name);
+  },
+
+  // The friend has asked for a rematch and it is still open.
+  wanted(live) {
+    return live.status === 'invited' && live.host === live.friend && PulsoUI.inviteOpen(live);
+  },
+
+  // What the result screen adds to the frozen bar and the two scores: how it
+  // ended, our tally, and the rematch button in whichever of its three states
+  // the document and my own challenge (PulsoUI.wait) put it.
+  paintResult(m, live, name) {
+    const g = this.game;
+    const set = (id, text) => {
+      const el = g.el(id);
+      if (el.textContent !== text) el.textContent = text;
+      return el;
+    };
+    this.credit(m);
+    set('end-line', this.endLine(m, name));
+    const s = Math.round((this.took || 0) / 1000);
+    const sub = m.reason === 'pull' && m.winner === PulsoUI.uid && this.took !== null
+      ? t('pulso_won_pull_sub').replace('{t}', `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`) : '';
+    set('end-sub', sub).classList.toggle('hidden', !sub);
+    set('end-tally', PulsoUI.tallyLine(m.friend, true));
+
+    const w = PulsoUI.wait && PulsoUI.wait.uid === m.friend ? PulsoUI.wait : null;
+    const wants = this.wanted(live);
+    const preparing = PulsoUI.accepting === live.id;
+    const out = !wants && !!w && !w.ended;     // my own rematch is with the friend
+    const btn = set('rematch', wants ? (preparing ? t('pulso_preparing') : t('pulso_rematch_wants').replace('{n}', name))
+      : out ? t('pulso_waiting').replace('{n}', name) : t('pulso_rematch'));
+    btn.classList.toggle('wants', wants);
+    const off = wants ? preparing : out || PulsoUI.sending || PulsoUI.bands !== 'ready' || !navigator.onLine;
+    if (btn.disabled !== off) btn.disabled = off;
+    g.el('rematch-cancel').classList.toggle('hidden', !out);
+    // The friend said no, or the 5 minutes ran out: said here, and the button
+    // is back to asking.
+    const note = !wants && w && w.ended ? t(w.ended === 'declined' ? 'pulso_declined' : 'pulso_no_answer').replace('{n}', name) : '';
+    set('rematch-note', note).classList.toggle('hidden', !note);
+    if (PulsoUI.bands === 'idle') PulsoUI.loadBands();
+  },
+
+  // Revancha. The friend's rematch waiting on my screen is accepted — the same
+  // path as the banner's Accept; otherwise mine is sent, which is an ordinary
+  // challenge over the finished document.
+  rematch() {
+    const live = this.match();
+    if (!live || !this.result) return;
+    if (this.wanted(live)) PulsoUI.accept(live);
+    else PulsoUI.challenge(live.friend);
+  },
+
+  // A match in which I solved 3 or more is a day's work for the streak, like a
+  // Rush run — once per match. Nothing else of the player's is touched: no
+  // rating, no badge count, no leaderboard, no Rush best.
+  credit(m) {
+    if (this.credited || !m || m[m.me + 'S'] < STREAK_MIN_RUSH_SOLVED) return;
+    this.credited = true;
+    Streak.recordActivity();
+  },
+
+  // The share card: how it ended, and the two solved counts, mine first.
+  card() {
+    const r = this.result;
+    if (!r) return null;
+    const them = r.me === 'a' ? 'b' : 'a';
+    return {
+      emoji: '⚔',
+      title: this.endLine(r, PulsoUI.nameOf(r.friend)),
+      subtitle: `Pulso · ${r[r.me + 'S']}–${r[them + 'S']}`,
+    };
+  },
+  share() {
+    const card = this.card();
+    if (card) shareStatCard(card, 'pulso.png');
   },
 
   endLine(m, name) {
@@ -294,7 +412,9 @@ export const PulsoMatch = {
     if (!yes) return;
     // Not awaited: with no signal the write waits in the queue.
     if (this.holds()) finishPulso(this.id, { left: true }).catch(e => console.warn('Leaving the Pulso was not recorded', e));
-    if (then) { this.stop(); showScreen(then); } else PulsoUI.sync();
+    // Leaving for another screen never reaches the result, where a match is
+    // otherwise counted toward the streak.
+    if (then) { this.credit(this.match()); this.stop(); showScreen(then); } else PulsoUI.sync();
   },
 
   // showScreen() asks this before it leaves the Pulso screen. True means "not

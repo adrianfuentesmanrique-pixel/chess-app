@@ -207,6 +207,16 @@ export const PulsoUI = {
     return null;
   },
   nameOf(uid) { return this.person(uid)?.profileName || '?'; },
+  // "Pulso: Tú 3 · Ana 2" — on the result screen and on that friend's public
+  // profile (spec D4, option A). Read from my own match document with them,
+  // which only the two of us can read, so nobody else is ever shown it. ''
+  // when we have never finished a match, unless `always`.
+  tallyLine(friendUid, always = false) {
+    const m = this.uid ? this.withFriend(friendUid) : null;
+    const mine = m ? m[m.me + 'W'] : 0, theirs = m ? m[(m.me === 'a' ? 'b' : 'a') + 'W'] : 0;
+    if (!always && !(mine + theirs)) return '';
+    return t('pulso_tally').replace('{a}', mine).replace('{b}', theirs).replace('{n}', this.nameOf(friendUid));
+  },
   vsHtml(friendUid) {
     return avatarHtml(this.person(this.uid)?.avatarId, 56) +
       '<span class="pulso-vs-mark" aria-hidden="true">⚔</span>' +
@@ -413,13 +423,17 @@ export const PulsoUI = {
 
   paintBanner() {
     const m = this.uid ? this.incoming() : null;
-    const show = !!m && !this.busy();
+    // A rematch asked for while I am still on that match's result screen is
+    // the gold button there (spec 7.7), not a banner as well. Once I leave
+    // that screen it is an ordinary challenge and the banner shows.
+    const onResult = !!m && activeScreen === 'pulso' && !!PulsoMatch.result && PulsoMatch.id === m.id;
+    const show = !!m && !onResult && !this.busy();
     const name = m ? this.nameOf(m.host) : '';
     const preparing = !!m && this.accepting === m.id;
-    const key = JSON.stringify([getLang(), m && m.id, show, name, m && this.person(m.host)?.avatarId, preparing]);
+    const key = JSON.stringify([getLang(), m && m.id, show, onResult, name, m && this.person(m.host)?.avatarId, preparing]);
     if (key === this.bannerKey) return;
     this.bannerKey = key;
-    const dot = !!m && !show;
+    const dot = !!m && !show && !onResult;
     $('tabmenu-btn')?.classList.toggle('pulso-dot', dot);
     document.querySelector('#tabbar button[data-screen="puzzles"]')?.classList.toggle('pulso-dot', dot);
     $('pulso-banner').classList.toggle('hidden', !show);
@@ -432,9 +446,10 @@ export const PulsoUI = {
   },
 
   // Accept: the puzzle files first, then the check that all 60 are on this
-  // phone, and only then the write — the clock runs from that write.
-  async accept() {
-    const m = this.incoming();
+  // phone, and only then the write — the clock runs from that write. The
+  // banner accepts the challenge it shows; the result screen's gold button
+  // passes the rematch it is offering.
+  async accept(m = this.incoming()) {
     if (!m || this.accepting) return;
     if (!navigator.onLine) { toast(t('pulso_offline')); return; }
     this.accepting = m.id;

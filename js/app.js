@@ -833,7 +833,7 @@ async function shareCanvas(canvas, filename) {
   toast(t('saved'));
 }
 
-async function shareStatCard(cardOpts, filename) {
+export async function shareStatCard(cardOpts, filename) {
   const canvas = renderStatCard(cardOpts);
   const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
   const file = new File([blob], filename, { type: 'image/png' });
@@ -906,7 +906,7 @@ function streakIcon(days) {
   return idx >= 0 ? STREAK_TIERS[idx].icon : 'flame1';
 }
 
-const Streak = {
+export const Streak = {
   count: 0,
   lastDate: null,
 
@@ -996,7 +996,7 @@ const Streak = {
 // still records the new day — Streak.recordActivity() ignores repeat calls
 // on a day it has already banked.
 const STREAK_MIN_MOVES = 10;
-const STREAK_MIN_RUSH_SOLVED = 3;
+export const STREAK_MIN_RUSH_SOLVED = 3;   // a Pulso match counts by the same number (js/pulso-match.js)
 
 function noteStreakMove(obj) {
   obj.streakMoves = (obj.streakMoves || 0) + 1;
