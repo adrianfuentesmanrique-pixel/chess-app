@@ -2066,7 +2066,9 @@ body.read-spread #read-reader {
    Only existing tokens. The lobby rows are .fr-row; the cards are
    .profile-card. */
 .pulso-hero { text-align: center; margin: 10px 0 12px; }
-.pulso-hero img { display: block; margin: 0 auto; }
+.pulso-hero img { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+.pulso-hero .pulso-empty-art, #pulso-lobby.no-friends .pulso-hero-art { display: none; }
+#pulso-lobby.no-friends .pulso-empty-art { display: block; }
 .pulso-hero .hint { margin: 4px auto 0; max-width: 30ch; }
 .pulso-title { font-size: 26px; font-weight: 800; letter-spacing: .32em; margin-right: -.32em; color: var(--gold); }
 #pulso-list { display: grid; gap: 6px; margin: 10px 0; }
@@ -2122,7 +2124,11 @@ body.read-spread #read-reader {
   position: absolute; top: 50%; left: calc(var(--p) * 100%); width: 40px; height: 40px;
   margin: -26px 0 0 -20px; transition: left .25s ease; pointer-events: none;
 }
-.pulso-flame img { display: block; width: 100%; height: 100%; transform-origin: 50% 85%; transition: transform .25s ease; }
+.pulso-flame img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; transform-origin: 50% 85%; transition: transform .25s ease; }
+/* The plain flame and the hot one share a footprint and a base line. */
+.pulso-flame .hot,
+.pulso-bar.hot-me .pulso-flame img:not(.hot), .pulso-bar.hot-them .pulso-flame img:not(.hot) { opacity: 0; }
+.pulso-bar.hot-me .pulso-flame .hot, .pulso-bar.hot-them .pulso-flame .hot { opacity: 1; }
 .pulso-bar.hot-me .pulso-flame img { transform: scale(1.4) rotate(14deg); }
 .pulso-bar.hot-them .pulso-flame img { transform: scale(1.4) rotate(-14deg); }
 .pulso-bar.hot-me.hot-them .pulso-flame img { transform: scale(1.4); }

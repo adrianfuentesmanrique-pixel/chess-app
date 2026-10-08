@@ -625,8 +625,10 @@
         <button data-v="pulso" class="on" data-i18n="mode_pulso"></button>
       </div>
       <div class="pulso-hero">
-        <!-- Stand-in art until icons/pulso/ arrives. -->
-        <img src="streaks/flame3.png" alt="" width="96" height="96">
+        <!-- The second picture takes the first one's place while the player
+             has no friends to challenge (#pulso-lobby.no-friends). -->
+        <img class="pulso-hero-art" src="icons/pulso/pulso-hero.png" alt="" width="320" height="200">
+        <img class="pulso-empty-art" src="icons/pulso/pulso-empty.png" alt="" width="160" height="160">
         <div class="pulso-title">PULSO</div>
         <p class="hint" data-i18n="pulso_tagline"></p>
       </div>
@@ -659,17 +661,18 @@
       <!-- The result screen (spec 7.6) is this pane with class "ended": the
            head, the board and the status line go, this block and #pulso-end
            come, and the bar stays frozen where the match left it. The picture
-           is stand-in art until icons/pulso/ arrives. -->
+           is pulso-win, pulso-lose or pulso-draw: PulsoMatch.paintResult. -->
       <div id="pulso-result" class="pulso-result hidden">
-        <img src="streaks/flame3.png" alt="" width="120" height="120">
+        <img id="pulso-result-art" src="icons/pulso/pulso-draw.png" alt="" width="200" height="200">
         <h2 id="pulso-end-line" role="status"></h2>
         <p id="pulso-end-sub" class="hint hidden"></p>
       </div>
       <!-- 21 places: the centre and 10 steps to each end. My end is the right
-           one. The flame is stand-in art until icons/pulso/ arrives. -->
+           one. Two flames, one on top of the other: the hot one shows while a
+           streak pull is on (.hot-me / .hot-them), so the swap loads nothing. -->
       <div id="pulso-bar" class="pulso-bar" role="img">
         <span class="pulso-bar-mid"></span>
-        <span id="pulso-flame" class="pulso-flame"><img src="streaks/flame3.png" alt="" width="40" height="40"></span>
+        <span id="pulso-flame" class="pulso-flame"><img src="icons/pulso/pulso-marker.png" alt="" width="40" height="40"><img class="hot" src="icons/pulso/pulso-marker-hot.png" alt="" width="40" height="40"></span>
       </div>
       <div class="pulso-ends">
         <span id="pulso-their-score"></span>

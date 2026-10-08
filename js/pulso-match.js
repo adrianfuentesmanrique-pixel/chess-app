@@ -331,6 +331,10 @@ export const PulsoMatch = {
       return el;
     };
     this.credit(m);
+    // The picture: mine if I won, the other one if I lost, the two of us on a draw.
+    const art = `icons/pulso/pulso-${m.winner === 'draw' ? 'draw' : m.winner === PulsoUI.uid ? 'win' : 'lose'}.png`;
+    const pic = document.getElementById('pulso-result-art');
+    if (pic.getAttribute('src') !== art) pic.setAttribute('src', art);
     set('end-line', this.endLine(m, name));
     const s = Math.round((this.took || 0) / 1000);
     const sub = m.reason === 'pull' && m.winner === PulsoUI.uid && this.took !== null

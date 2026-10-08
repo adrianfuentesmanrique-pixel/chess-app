@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v166';
+const CACHE = 'chess-training-center-v167';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -45,7 +45,7 @@ const CACHE_FIRST = /\/(vendor|pieces|pieces2|icons|streaks|avatars)\//;
 // avatars/ is top-level files only: "avatars/CTC new arts" is the 137 MB of
 // source drawings for tools/build_*.py, which the app never loads.
 const ART_CACHE = 'ctc-art-1';
-const ART_RE = /\/(icons\/(badges|kael)|streaks|avatars)\//;
+const ART_RE = /\/(icons\/(badges|kael|pulso)|streaks|avatars)\//;
 // Versioned caches that may hold today's art from a first fetch: the art last
 // changed during v62. What a phone already has is moved across at install
 // instead of being downloaded again.
@@ -53,6 +53,8 @@ const ART_WAS = k => +(k.match(/^chess-training-center-v(\d+)$/) || [])[1] >= 63
 const names = (dir, list) => list.split(' ').map(n => `${dir}/${n}.png`);
 const ART = [
   ...names('icons/kael', 'kael-bust kael-welcome'),
+  ...names('icons/pulso',
+    'pulso-draw pulso-empty pulso-hero pulso-lose pulso-marker pulso-marker-hot pulso-win'),
   ...names('icons/badges',
     'beat_engine_0 beat_engine_1 beat_engine_2 beat_engine_3 beat_engine_4 beat_engine_5 ' +
     'beat_engine_6 beat_engine_7 beat_engine_all daily_180 daily_1825 daily_270 daily_30 ' +

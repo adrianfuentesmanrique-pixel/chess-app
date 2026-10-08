@@ -104,7 +104,7 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-pulso-ui-'));
 fs.mkdirSync(OUT, { recursive: true });
 setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 2100000).unref();
 
-const ALICE = 'alice_uid', BOB = 'bob_uid', CAROL = 'carol_uid';   // alice sorts first: she is player "a"
+const ALICE = 'alice_uid', BOB = 'bob_uid', CAROL = 'carol_uid', DORA = 'dora_uid';   // alice sorts first: she is player "a"
 const AB = `${ALICE}_${BOB}`;
 
 const SDK = '/vendor/firebase-10.14.1/';
@@ -165,6 +165,9 @@ await new Promise(r => server.listen(WEB, '127.0.0.1', r));
 // A third loopback address, so Carolina's phone has storage of its own too.
 const server2 = http.createServer((q, r) => server.emit('request', q, r));
 await new Promise(r => server2.listen(WEB, '127.0.0.2', r));
+// A fourth, for Dora, who has no friends.
+const server3 = http.createServer((q, r) => server.emit('request', q, r));
+await new Promise(r => server3.listen(WEB, '127.0.0.3', r));
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const req = (url, method = 'GET') => new Promise((res, rej) => {
@@ -214,7 +217,7 @@ const matchDoc = over => ({
   pz: PZ_OLD, aS: 0, aM: 0, aK: 0, aP: 0, bS: 0, bM: 0, bK: 0, bP: 0, winner: ALICE, reason: 'pull', aW: 3, bW: 2, dr: 0, ...over });
 
 await fetch(`http://${EMU}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
-for (const [uid, first, user, avatar] of [[ALICE, 'Ana', 'ana_m', 'owl'], [BOB, 'Luis', 'luis77', 'lion'], [CAROL, 'Carolina', 'caro', 'raven']]) {
+for (const [uid, first, user, avatar] of [[ALICE, 'Ana', 'ana_m', 'owl'], [BOB, 'Luis', 'luis77', 'lion'], [CAROL, 'Carolina', 'caro', 'raven'], [DORA, 'Dora', 'dora_s', 'wolf']]) {
   await seed(`users/${uid}`, { firstName: first, lastName: 'Test', username: user, profileName: first, avatarId: avatar });
   await seed(`leaderboard/${uid}`, { profileName: first, username: user, usernameLower: user, avatarId: avatar, puzzleElo: 1200 });
 }
@@ -379,6 +382,10 @@ async function openTab(who, host, uid) {
         danger: document.getElementById('pulso-timer').classList.contains('danger'),
         p: parseFloat(bar.style.getPropertyValue('--p')), flame: (fl.left + fl.width / 2 - br.left - bl) / (br.width - bl - parseFloat(cs.borderRightWidth)),
         hotMe: bar.classList.contains('hot-me'), hotThem: bar.classList.contains('hot-them'),
+        mk: (() => { const [a, b] = document.querySelectorAll('#pulso-flame img'), on = e => getComputedStyle(e).opacity === '1', box = e => e.getBoundingClientRect();
+          return { plain: on(a) && !on(b), hot: on(b) && !on(a), loaded: [a, b].every(e => e.complete && e.naturalWidth === 128),
+            files: /icons\\/pulso\\/pulso-marker\\.png$/.test(a.src) && /icons\\/pulso\\/pulso-marker-hot\\.png$/.test(b.src),
+            same: Math.abs(box(a).bottom - box(b).bottom) < 0.5 && Math.abs(box(a).left - box(b).left) < 0.5 && Math.abs(box(a).width - box(b).width) < 0.5 }; })(),
         streak: __t.vis('#pulso-streak') ? __t.txt('#pulso-streak') : '', quiet: __t.vis('#pulso-quiet') ? __t.txt('#pulso-quiet') : '',
         their: __t.txt('#pulso-their-score'), my: __t.txt('#pulso-my-score'), name: __t.txt('#pulso-their-name'),
         end: __t.vis('#pulso-end') ? __t.txt('#pulso-end-line') : '', leave: __t.vis('#pulso-leave'),
@@ -398,6 +405,13 @@ async function openTab(who, host, uid) {
         cancel: __t.vis('#pulso-rematch-cancel'), note: __t.vis('#pulso-rematch-note') ? __t.txt('#pulso-rematch-note') : '',
         p: parseFloat(bar.style.getPropertyValue('--p')), flame: (fl.left + fl.width / 2 - br.left - bl) / (br.width - bl - parseFloat(cs.borderRightWidth)),
         bar: __t.vis('#pulso-bar'), art: __t.vis('#pulso-result img'),
+        pic: (() => { const e = document.querySelector('#pulso-result img'), b = e.getBoundingClientRect();
+          return { src: e.getAttribute('src'), loaded: e.complete && e.naturalWidth === 512, w: b.width, h: b.height, only: document.querySelectorAll('#pulso-result img').length === 1 }; })(),
+        mk: (() => { const [a, b] = document.querySelectorAll('#pulso-flame img'), on = e => getComputedStyle(e).opacity === '1', box = e => e.getBoundingClientRect();
+          return { plain: on(a) && !on(b), hot: on(b) && !on(a), loaded: [a, b].every(e => e.complete && e.naturalWidth === 128),
+            files: /icons\\/pulso\\/pulso-marker\\.png$/.test(a.src) && /icons\\/pulso\\/pulso-marker-hot\\.png$/.test(b.src),
+            same: Math.abs(box(a).bottom - box(b).bottom) < 0.5 && Math.abs(box(a).left - box(b).left) < 0.5 && Math.abs(box(a).width - box(b).width) < 0.5 }; })(),
+        top: scrollY,
         gone: !__t.vis('#pulso-board') && !__t.vis('#pulso-timer') && !__t.vis('#pulso-status') && !__t.vis('#pulso-leave') && !__t.vis('#pulso-countdown'),
         share: __t.vis('#pulso-share'), back: __t.vis('#pulso-end-back'), banner: __t.vis('#pulso-banner'),
         dot: document.getElementById('tabmenu-btn').classList.contains('pulso-dot'),
@@ -484,6 +498,16 @@ try {
       r.up && r.title === want.title && (want.sub ? want.sub.test(r.sub) : r.sub === '') && r.my === want.my && r.their === want.their && r.tally === want.tally
       && Math.abs(r.p - want.p) < 0.001 && Math.abs(r.flame - want.p) < 0.03 && r.bar && r.art && r.gone && r.share && r.back && r.fits
       && r.btn === w.rematch && !r.gold && !r.off && !r.cancel && !r.note && !r.banner && !r.kael && r.id === AB, r);
+    // The art. A win is every title that says I won, the friend leaving included.
+    const pic = want.title === w.draw ? 'draw' : [w.wonPull, w.wonTime, w.wonErrors, w.left('Ana'), w.left('Luis')].includes(want.title) ? 'win' : 'lose';
+    await tab.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 667, deviceScaleFactor: 2, mobile: true });
+    await sleep(250);
+    const s = await tab.result();
+    await tab.shot(`${tag}-art-result-${pic}-${tab.who}-667`);
+    await tab.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
+    check(`[${tag}] …the picture on ${NAME[tab.who]}'s result screen is pulso-${pic}.png, loaded, 200 px, the only one; the plain flame on the bar; and on a 375 x 667 phone the whole screen, Back included, fits without scrolling`,
+      r.pic.src === `icons/pulso/pulso-${pic}.png` && r.pic.loaded && r.pic.w === 200 && r.pic.h === 200 && r.pic.only && r.mk.plain && r.mk.loaded && s.fits && s.top === 0 && s.back,
+      { pic: r.pic, marker: r.mk, fits667: s.fits, scrolled: s.top });
     return r;
   };
   // `from` taps Revancha while `to` is still on the result screen. Returns
@@ -567,6 +591,8 @@ try {
       { labels: [a.label, l.label], puzzle: [a.id, l.id, ids[0]], timer: [a.timer, l.timer] });
     check(`[${tag}] both phones have measured the server's clock and agree on it to within half a second`,
       Math.abs(a.now - l.now) < 500, { anaOffset: Math.round(a.offset), luisOffset: Math.round(l.offset), apartMs: Math.round(a.now - l.now) });
+    check(`[${tag}] the marker on the bar is pulso-marker.png on both phones, loaded, with the hot one lying unseen exactly under it (same box, same base line)`,
+      [a, l].every(g => g.mk.plain && g.mk.loaded && g.mk.files && g.mk.same), [a.mk, l.mk]);
     await ana.shot(`${tag}-countdown`);
     await Promise.all([ana, luis].map(t => t.until('the boards opening', `!__t.vis('#pulso-countdown') && __t.M.game.board.interactive`, 9000)));
     const playT0 = Date.now();
@@ -583,6 +609,8 @@ try {
     [a, l] = await both();
     check(`[${tag}] two in a row: "${w.streak}" on Ana's phone, the flame grown on her side on both phones`,
       a.streak === w.streak && a.hotMe && !a.hotThem && l.hotThem && !l.hotMe && !l.streak, { ana: [a.streak, a.hotMe], luis: [l.hotThem, l.streak] });
+    check(`[${tag}] …and the flame shown is now pulso-marker-hot.png on both phones, standing on the same base line as the plain one`,
+      [a, l].every(g => g.mk.hot && g.mk.loaded && g.mk.same), [a.mk, l.mk]);
     const p3 = await ana.solve();
     const d3 = await storedUntil(x => x.aS === 3);
     check(`[${tag}] the third solve pulls 2: stored aS 3, aK 3, aP 4, and nothing of Luis's has moved`,
@@ -631,6 +659,7 @@ try {
     a = await ana.game();
     check('Ana plays a wrong move: she gives back 1 and her streak ends — "¡Racha! ×2" gone, the flame back to its size',
       da.aM === 1 && da.aK === 0 && da.aP === 3 && !a.streak && !a.hotMe && await barAt(ana, 3), da);
+    check('…and the picture on her bar is the plain flame again', a.mk.plain && !a.mk.hot, a.mk);
     let n = 0;
     for (; n < 12 && await ana.ev(`const m = __t.M.match(); return m.aP - m.bP < 10;`); n++) await ana.solve();
     await Promise.all([ana, luis].map(t => t.until('the ending', `__t.vis('#pulso-end')`, 10000)));
@@ -939,7 +968,30 @@ try {
       a.rows.length === 2 && a.rows[0].name === 'Carolina' && a.rows[0].tally === '—' && a.rows[1].name === 'Luis' && a.rows[1].tally === w.tally, a.rows);
     check(`[${tag}] both Challenge buttons are live once the six puzzle files are in`, a.rows.every(r => r.btn === w.challenge && !r.off));
     check(`[${tag}] the lit chip is Pulso on every strip`, await ana.ev(`return [...document.querySelectorAll('.puzzle-modes')].every(s => s.querySelector('.on').dataset.v === 'pulso')`));
+    const art = tab => tab.ev(`const h = document.querySelector('#pulso-lobby .pulso-hero-art'), e = document.querySelector('#pulso-lobby .pulso-empty-art'), hb = h.getBoundingClientRect(), eb = e.getBoundingClientRect();
+      return { hero: hb.width > 0, heroBox: [hb.width, hb.height], heroLoaded: h.complete && h.naturalWidth === 640 && /icons\\/pulso\\/pulso-hero\\.png$/.test(h.src),
+        empty: eb.width > 0, emptyBox: [eb.width, eb.height], emptyLoaded: e.complete && e.naturalWidth === 320 && /icons\\/pulso\\/pulso-empty\\.png$/.test(e.src),
+        old: document.querySelectorAll('#screen-pulso img[src*="streaks/"]').length, wide: document.documentElement.scrollWidth <= innerWidth,
+        note: __t.vis('#pulso-note') ? __t.txt('#pulso-note') : '', btn: __t.vis('#pulso-note-btn'), rows: __t.rows().length };`);
+    const ha = await art(ana);
+    check(`[${tag}] the lobby shows pulso-hero.png, loaded, 320 x 200; the empty-lobby picture is not shown; no stand-in flame is left anywhere on the Pulso screen`,
+      ha.hero && ha.heroLoaded && ha.heroBox[0] === 320 && ha.heroBox[1] === 200 && !ha.empty && ha.old === 0 && ha.wide, ha);
     await ana.shot(`${tag}-lobby`);
+    // Dora has an account and no friends (a fourth phone, 127.0.0.3).
+    const dora = await openTab('dora', '127.0.0.3', DORA);
+    await dora.load(lang, scheme);
+    await dora.tap('#tabmenu-btn');
+    await dora.tap('#tabbar button[data-screen="puzzles"]');
+    await dora.until('the Puzzles screen', `__t.app.activeScreen === 'puzzles'`);
+    await dora.tap('#screen-puzzles .puzzle-modes [data-v="pulso"]');
+    await dora.until('the lobby with no friends', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-lobby') && __t.F.friendsLoaded && __t.vis('#pulso-note-btn')`, 15000);
+    await dora.send('Page.bringToFront');
+    await sleep(300);
+    const hd = await art(dora);
+    check(`[${tag}] Dora has no friends: her lobby shows pulso-empty.png, loaded, 160 px, in place of the hero, over the "add a friend" line and its button, and no rows`,
+      hd.empty && hd.emptyLoaded && hd.emptyBox[0] === 160 && hd.emptyBox[1] === 160 && !hd.hero && !!hd.note && hd.btn && hd.rows === 0 && hd.wide, hd);
+    await dora.shot(`${tag}-art-lobby-no-friends`);
+    await dora.send('Page.close').catch(() => {});
 
     if (tag === 'es-light') {
       await ana.tap('#screen-pulso .puzzle-modes [data-v="rush"]');
@@ -1140,5 +1192,6 @@ console.log(`Screenshots: ${OUT}`);
 chrome.kill();
 server.close();
 server2.close();
+server3.close();
 try { fs.rmSync(profile, { recursive: true, force: true }); } catch {}
 process.exit(failed || bad.length || other.length ? 1 : 0);

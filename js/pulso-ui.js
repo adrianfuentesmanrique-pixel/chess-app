@@ -298,6 +298,7 @@ export const PulsoUI = {
     else if (!friends.length) { note = t('pulso_no_friends'); btn = [t('friends_btn'), () => Friends.open()]; }
     else if (this.bands === 'failed') note = t('puzzles_unavailable');
     else if (this.bands !== 'ready') note = t('pulso_loading');
+    $('pulso-lobby').classList.toggle('no-friends', note === t('pulso_no_friends'));
     $('pulso-note').textContent = note;
     $('pulso-note').classList.toggle('hidden', !note);
     const nb = $('pulso-note-btn');

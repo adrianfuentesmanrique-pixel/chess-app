@@ -47,7 +47,7 @@ export function keptFiles(root = ROOT) {
 // The art sw.js fetches at install into its own cache (ART), against what is
 // on disk and what the app can ask for. A badge, flame or avatar that is not
 // listed only reaches a phone the first time it is shown online.
-const ART_DIRS = ['icons/badges', 'icons/kael', 'streaks', 'avatars'];   // top-level .png only
+const ART_DIRS = ['icons/badges', 'icons/kael', 'icons/pulso', 'streaks', 'avatars'];   // top-level .png only
 export function checkArt(root = ROOT) {
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
   const m = sw.match(/const ART = \[([\s\S]*?)\n\];/);

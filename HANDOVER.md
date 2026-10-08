@@ -2,6 +2,62 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO SESSION 7 OF 7: ADRIAN'S ART IS IN THE APP (v167, 2026-10-07). COMMITTED
+  LOCALLY, NOT PUSHED - ask Adrian. Sessions 2 to 7 are all unpushed (origin/main was
+  still 53f4c6d). Left after the push: check the live site serves v167 and the art, then
+  one real match on two phones.**
+  Changed: `index.html`, `css/style.css`, `js/pulso-match.js` (4 lines in `paintResult`),
+  `js/pulso-ui.js` (1 line in `renderLobby`), `sw.js`, `tools/check-precache.mjs`,
+  `tools/emu-verify-pulso-ui.mjs`; new `icons/pulso/` (7 PNGs) and
+  `tools/build_pulso_art.py`. `firestore.rules` is untouched since 53f4c6d - no rules
+  deploy. No word added, nothing about how a match, the result or the rematch behave.
+  - **Where the art comes from:** Adrian generates each picture on a flat MAGENTA
+    backdrop, any size, JPEG is fine (same method as the badges). The seven sources are
+    in `C:\Users\Adrian\Downloads\pulso` (NOT in the repo). `python
+    tools/build_pulso_art.py C:\Users\Adrian\Downloads\pulso` keys the magenta out, crops
+    to what is visible, fits each to its size and writes `icons/pulso/*.png`; it picks a
+    source by a word in its file name (hero, win, lose, draw, empty, marker, hot). Over
+    120 KB a file is reduced to 256 colours (hero, win, lose, draw were). Sizes: hero
+    640x400 60 KB, win/lose/draw 512x512 46/48/58 KB, empty 320x320 119 KB, markers
+    128x128 15/19 KB. Three things the script had to learn: the badges' `ART_FLOOR` of 26
+    left a pink rim on light pages (6 here, plus a de-spill); the generator leaves stray
+    pixels in the corners that stretch the crop box (the mask is thinned before the box
+    is taken); and the two markers are cropped with ONE shared box so they keep the same
+    footprint and base line. **Redrawing a file under the same name needs an `ART_CACHE`
+    bump in `sw.js`** (see the comment there).
+  - **The four places:** lobby hero = `.pulso-hero-art` (320x200). Empty lobby =
+    `.pulso-empty-art` (160 px) in the SAME slot: `renderLobby` puts class `no-friends`
+    on `#pulso-lobby` when the note is `pulso_no_friends`, and CSS swaps the two. Result
+    = `#pulso-result-art` (200 px), its `src` set in `PulsoMatch.paintResult`: `draw` if
+    `m.winner === 'draw'`, `win` if it is `PulsoUI.uid`, else `lose` (so "friend left" is
+    a win and "you left" a loss). Marker = TWO stacked `<img>` in `#pulso-flame`, the
+    second with class `hot`; CSS shows it on `.hot-me` / `.hot-them` by opacity, so the
+    swap loads nothing and cannot jump. The 1.4 scale and the 14-degree tilt are kept
+    (the tilt says whose streak it is).
+  - **Verified:** `test:tree` 142/0, `test:rules` 399/0, `test:precache` OK and now 142
+    art files (was 135), `emu-verify-pulso.mjs --quick` 48 of 48,
+    `emu-verify-pulso-ui.mjs` **232 of 232** (the old 198 + 34 new), no console errors.
+    New in that tool: a fourth user, Dora (127.0.0.3), who has no friends; the hero and
+    the empty picture in every language/scheme; the plain marker, the hot one and plain
+    again; and after EVERY result screen which of win/lose/draw is shown, loaded, 200 px,
+    with the whole screen re-measured on a 375 x 667 phone (it fits, Back included).
+    Screenshots looked at: lobby, empty lobby, bar plain and hot, win, lose, draw, light
+    and dark, ES and EN. The faint square of the stand-in flame is gone.
+  - **`cdp-verify-rush.mjs` did NOT come back 64 of 64, and it is not this session's
+    doing** (nothing Rush reads was touched). Three runs: 63/64, 44/44 then stopped,
+    63/64. (a) "pickNext: 38-40 different puzzles out of 40 at every position" got 37 at
+    the fourth position (target rating 1065) twice - a dice check sitting right on its
+    threshold there. (b) Once, after the three-strikes ending in ES/dark, a Kael bubble
+    was over `#rush-exit` when the tool went to tap it. Both want a look in a Rush
+    session of their own.
+  - **Told Adrian, his to judge:** the lose picture runs off its frame, so the cloak ends
+    in a straight cut on the right; the draw picture's flame has a faint pink glow on the
+    light page (painted that way on the magenta); the hot marker's sparks are a few dots
+    at 40 px - the white core is what tells the two apart.
+  - Spec section 8's "share card" use of the hero is NOT built (the share card is still
+    `shareStatCard` with text only), and section 6's "Challenge to a Pulso" in the Friends
+    row menu and on a public profile is still not built. Neither was in scope.
+
 - **PULSO SESSION 6 OF 7 DONE: THE RESULT SCREEN, REMATCH FROM BOTH SIDES, THE TALLY ON
   THE FRIEND'S PROFILE, SHARE CARD, DAILY-STREAK CREDIT (v166, 2026-10-07). COMMITTED
   LOCALLY, NOT PUSHED - ask Adrian. Sessions 2 to 6 are all unpushed (origin/main was
