@@ -9,6 +9,71 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **DAILY STREAK REMINDER, TASK 2 OF 4: THE APP SIDE IS LIVE BEHIND `?remind=1` (2026-10-08, `a6ec42e`, v174).**
+  The switch, the hour picker, the Profile row and the service worker's push handler.
+  **Nothing is sent yet** — the hourly job is Task 3, the phone test and removing the gate
+  are Task 4. `firestore.rules` was not touched.
+  - **The gate:** the Settings block and the Profile row are drawn only on a device whose
+    local key `remindPreview` is true; opening the app once with `?remind=1` sets it.
+    **Signing out wipes the whole local kv store (it always did), so it wipes the gate
+    too: open `?remind=1` again after a sign-out.**
+  - **What exists:** `js/notifications.js` (the `Notifications` object: `init`, `state`,
+    `enable`, `disable`, `setHour`, `refresh`, `clearDaily`, `section`, `profileRow`);
+    `js/remind-time.js` (pure: `utcHourFor`, `hourLabel`, `keyBytes`, `sameBytes`) with
+    `tests/unit/remind-time.test.js`; in `js/firebase.js` `saveReminderPrefs`, `savePushSub`,
+    `deletePushSub`, `prunePushSubs`, `dropThisDevicePush`, `pushSubIdOf`; in `sw.js` the
+    `push` and `notificationclick` listeners, `REMIND_TEXT`, and the `ctc-notif` cache
+    (kept out of the version wipe); `js/vapid-public.js` (`VAPID_PUBLIC_KEY`, generated);
+    `icons/notif/daily.png` (192px, 51.8 KB) and `icons/notif/badge.png` (96px white knight
+    on transparent — `logo-mark.png` HAS transparency, so the badge was kept).
+  - **Wired in `js/app.js`:** `openSettings()` after `privHint`; `Profile.renderStreakLadder()`
+    last line; boot, after the FIRST `await Streak.init();`; the `visibilitychange`
+    listener; the boot `Auth.onChange(async …)` after ITS `await Streak.init();` (the other
+    `Auth.onChange(` is Profile's one-liner and was left alone); `Streak.recordActivity()`
+    after `this.lastDate = today;`. `index.html`: `#profile-remind-row` under the ladder.
+  - **Clean-up:** `Auth.signOut()` calls `dropThisDevicePush()` first; `Auth.deleteAccount()`
+    lists and deletes every `pushSubs` document before `users/{uid}`, then drops this
+    device's subscription before `deleteUser`.
+  - **Privacy wording:** the spec's four paragraphs are in `js/legal-data.js` (sections 1
+    and 8, ES and EN); `LAST_UPDATED` is `2026-10-08`.
+  - **The signing key:** made once by `tools/reminder/make-vapid-keys.mjs`. The public half
+    is committed. The private half was written to `C:\Users\Adrian\ctc-vapid-private.txt`,
+    never read or printed by the session; Adrian pastes it into the GitHub secret
+    `VAPID_PRIVATE_KEY` and deletes the file. **Never run that script again** (it refuses
+    while `js/vapid-public.js` exists): a new pair kills every stored subscription.
+  - **Where the plan's draft was changed, and why:**
+    (1) `dropThisDevicePush()` gives the Firestore delete 4 seconds — a delete waits
+    forever offline and would have frozen sign-out.
+    (2) `Notifications.store()` throws if nothing was stored, so the switch can never read
+    On without a document (found by the headless tool).
+    (3) `subscription()` replaces a subscription only when the browser REPORTS a different
+    key; a browser that reports none is left alone instead of re-subscribing on every open.
+    (4) The push handler also survives a readable non-object payload (`null`).
+    (5) The On/Off words reuse `sound_on` / `sound_off`; `remind_on` / `remind_off` were
+    not added. (6) One id helper (`pushSubIdOf` in `js/firebase.js`), not two copies.
+    (7) `tools/resize-notif.mjs` drops the two lowest colour bits: 62.4 KB → 51.8 KB, the
+    spec asks for under 60. (8) One CSS line, `#remind-seg button:disabled`, dims the
+    locked pair like the app's other locked buttons. (9) The public key lives in
+    `js/vapid-public.js` (the plan), not inside `js/notifications.js` (the spec's wording).
+  - **Tests:** `test:tree` 142 → 147 pass, 0 fail (the 5 in `remind-time.test.js`);
+    `test:precache` OK, 40 → 43 imported files, 142 art files; `test:rules` 435 pass,
+    0 fail, unchanged.
+  - **Headless:** `node tools/cdp-verify-remind.mjs <outDir>` — 42/42 PASS, 0 console
+    errors. It serves `sw.js` (the other cdp tools 404 it). Covers: the gate; the block and
+    the row in ES/EN, light/dark at 375px; the Profile row opening Settings on the block;
+    a failed switch-on going back to Off with the Brave hint; pushes in EN and ES, n = 1,
+    4 and 11; same-day repeat silent; `not json` and `null` still show a notification;
+    `recordActivity()` closing the reminder; sign-out clean-up, then the switch reads Off.
+    **Not covered, needs a real login:** a document actually written to `pushSubs` under
+    the live rules, and a real delivery. Headless Chrome DOES hand out a subscription, so
+    "On" there is painted from memory with `Auth.user` set by hand; nothing is written.
+  - **Screens opened and looked at (375px):** `settings-` and `profile-` × `es-light`,
+    `es-dark`, `en-light`, `en-dark` (the 8 signed-out ones), plus `settings-on-es-dark`,
+    `settings-failed-en-light`, `profile-on-en-light`.
+  - **Still owed (plan Step 14):** Adrian opens `https://chesstrainingcenter.app/?remind=1`
+    on his phone, turns Daily reminder On in Settings, and says which hint line shows and
+    whether the switch stays On. Record the answer here.
+
 - **DAILY STREAK REMINDER, TASK 1 OF 4: THE `pushSubs` RULES ARE LIVE (2026-10-08, `ac3062e`).**
   Rules only. No app code, no `sw.js` change, no job. Tasks 2, 3 and 4 are still to build.
   - **What exists:** `match /users/{userId}/pushSubs/{subId}` in `firestore.rules`, directly
