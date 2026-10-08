@@ -76,9 +76,13 @@ are in `CLAUDE.md` under "Finish by pushing".
     shown for ANY failure inside `Notifications.enable()`** (subscribe refused, the
     Firestore write refused or timed out, offline), so the Brave switch is the likely
     cause, not a proven one. He was asked to turn on Brave's "Use Google services for
-    push messaging", restart Brave and try again. **Still owed: his answer after that.**
-    If it still fails with the Brave switch on, the cause is elsewhere — check the
-    `pushSubs` write against the live rules first.
+    push messaging", restart Brave and try again.
+  - **Second try, same day: IT WORKS.** With Brave's switch on, the app's switch stays On
+    and the hint reads "One reminder a day, only if you have not trained yet." `on` is
+    only set after `savePushSub` and `saveReminderPrefs` both succeeded, so his account
+    now has a `pushSubs` document accepted by the live rules and `notifPrefs.daily: true`
+    at 19:00. So the Brave switch WAS the cause, and Brave on his phone has it off by
+    default. Step 14 is closed; nothing has been sent yet (Task 3).
 
 - **DAILY STREAK REMINDER, TASK 1 OF 4: THE `pushSubs` RULES ARE LIVE (2026-10-08, `ac3062e`).**
   Rules only. No app code, no `sw.js` change, no job. Tasks 2, 3 and 4 are still to build.
