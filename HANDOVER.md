@@ -9,6 +9,63 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **DAILY STREAK REMINDER, TASK 3 OF 4: THE HOURLY JOB IS LIVE AND REALLY SENDS (2026-10-08, `bb0c088`, no cache bump — v174).**
+  `.github/workflows/streak-reminder.yml` runs at minute 17 of every hour on GitHub Actions.
+  **No shipped file changed, `firestore.rules` and the indexes were not touched, nothing costs
+  money.** The gate (`?remind=1`) is still on, so Adrian is the only user who can be reminded.
+  Task 4 (his phone, the Play data-safety form, then removing the gate) is what remains.
+  - **What exists:** `tools/reminder/due.mjs` (pure: `ENDPOINT_OK`, `MAX_SUBS`, `usableSub`,
+    `localParts`, `isDue`, `hoursToHandle`, `hourIso`), `tools/reminder/plan.mjs` (decides the
+    hours, remembers the new one BEFORE sending), `tools/reminder/send.mjs` (reads who is due,
+    sends), `tools/reminder/package.json` + lockfile (`web-push` 3.6.7, `@google-cloud/firestore`
+    9.3.1, exact, `npm audit` 0 advisories on 2026-10-08), and three test files:
+    `tests/unit/reminder-due.test.js`, `reminder-hours.test.js`, `reminder-safety.test.js`.
+    `test:tree` went 147 -> 184 pass, 0 fail; `test:rules` 435 pass; `test:precache` OK.
+  - **The secrets:** `GCP_SA_KEY` (service account `streak-reminder`, role Cloud Datastore
+    Viewer only — Adrian created it in the Google Cloud console with no billing prompt) and
+    `VAPID_PRIVATE_KEY`. Both exist in GitHub only. Neither was ever on this PC for testing.
+  - **The dry run Adrian read out (run #1, 2026-10-08 20:37 UTC, green):**
+    `***"dryRun":true,"hours":1,"matched":0,"due":0,"subs":0,"sent":0,"gone":0,"failed":0,"skipped":0,"errorCodes":***`
+    **The `***` are not an error.** GitHub hides anything in a public log that matches a line of
+    a secret, and the key file's first and last lines are a lone `{` and `}`, so every curly
+    bracket in the job's output is starred. Read it as `{...,"errorCodes":{}}`. An error would
+    still be readable: `"errorCodes":***"firestore:7":1***`. The query ran with no error, so
+    **no composite index is needed**.
+  - **NOT YET SEEN, owed to Task 4:** a run with `matched: 1` (Adrian sets his hour to the
+    current hour and runs the dry run again), and **whether a real reminder reached his phone**
+    — he has not answered yet. Ask him first thing.
+  - **Where the job differs from the plan's draft, all deliberate:**
+    1. **Half-hour time zones.** The app stores the UTC hour rounded DOWN (`utcHourFor` in
+       `js/remind-time.js`: 19:00 in India -> 13 UTC), so the only run that asks about such a
+       user happens at 18:47 their time. The plan's rule ("the local hour is the chosen hour or
+       up to two after") called that not due, and no later run ever asked again: India, Iran,
+       Newfoundland etc. would never have been reminded. `isDue` now works in minutes: the
+       chosen local time must fall in the UTC hour running now or one of the two before it,
+       same local day. Whole-hour zones behave exactly as the spec says (never early, up to
+       two hours late). **Adrian was told and did not object; it is a job-only change.**
+    2. `usableSub()` and `MAX_SUBS` moved into `due.mjs` so the two Task 1 audit items (five
+       subscriptions per user; skip an empty key) have unit tests.
+    3. `reminder-safety.test.js` READS `send.mjs`, `plan.mjs` and the workflow and fails on a
+       Firestore write call, an unlisted log line, a new trigger, an unpinned action, a secret
+       outside the Send step, or `npm install`. **If you add a log line you must add it to that
+       test's list — that is the point.**
+    4. `send.mjs` catches a crash and prints fixed words (Node would print the error message,
+       which can hold an endpoint), and each push has a 15 second timeout.
+    5. The workflow has FOUR pinned `uses:` lines, not three (the cache action is used twice).
+       Hashes re-checked with `git ls-remote --tags` on 2026-10-08: unchanged.
+  - **Known limits, accepted:** a reminder set for 00:00 in a half-hour zone is not sent (the
+    run falls on the previous local day). After a clock change, a user who has not opened the
+    app since may miss one reminder or get it an hour late — `Notifications.refresh()` corrects
+    the stored hour at the next app open. GitHub may start a run 10 to 30 minutes late and
+    **pauses the schedule after 60 days with no commit to the repo** (it emails first). A red
+    run emails Adrian. Each run leaves a tiny cache entry (`reminder-state-…`); GitHub evicts
+    old ones itself.
+  - **Reading a run's line:** `matched` = users whose stored hour is this one with the switch
+    on; `due` = of those, streak alive and today not credited; `subs` = usable subscriptions;
+    `sent` / `gone` (404, 410: dead subscription) / `failed` (with the status under
+    `errorCodes`; 401 or 403 = the signing key halves do not match); `skipped` = bad endpoint
+    or empty key. `firestore:7` = the role is missing; `firestore:9` = an index is wanted.
+
 - **DAILY STREAK REMINDER, TASK 2 OF 4: THE APP SIDE IS LIVE BEHIND `?remind=1` (2026-10-08, `a6ec42e`, v174).**
   The switch, the hour picker, the Profile row and the service worker's push handler.
   **Nothing is sent yet** — the hourly job is Task 3, the phone test and removing the gate
