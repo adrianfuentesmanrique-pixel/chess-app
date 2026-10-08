@@ -165,6 +165,8 @@ export const Auth = {
   // previous identity's stats in place (remote missing that key) or, for
   // a brand-new account, push them to Firestore as if they belonged to it.
   async signOut() {
+    // First, while the login can still delete this device's reminder document.
+    await dropThisDevicePush();
     await db.clearSyncedProfileData();
     await signOut(auth);
   },
@@ -228,6 +230,15 @@ export const Auth = {
         console.warn(`Could not list homework (${field}) — proceeding anyway`, e);
       }
     }
+    // Reminder subscriptions live UNDER users/{uid}; deleting the parent does
+    // not delete them, so they go first.
+    try {
+      const snap = await getDocs(pushSubsCol(uid));
+      snap.forEach(d => paths.push(['users', uid, 'pushSubs', d.id]));
+    } catch (e) {
+      if (e.code !== 'permission-denied') throw e;
+      console.warn('Could not list push subscriptions — proceeding anyway', e);
+    }
     paths.push(['leaderboard', uid], ['users', uid]);
     for (const path of paths) {
       try {
@@ -237,6 +248,7 @@ export const Auth = {
         console.warn(`Could not delete ${path.join('/')} (permission-denied) — proceeding anyway`, e);
       }
     }
+    await dropThisDevicePush();
     await deleteUser(user);
   },
 };
@@ -1808,6 +1820,78 @@ async function pullOrBootstrap(uid) {
     suppressSync = false;
   }
   updatePublicLeaderboardDoc(uid).catch(e => console.error('Leaderboard publish failed', e));
+}
+
+// ───────── Daily streak reminder (Web Push) ─────────
+// Spec: docs/superpowers/specs/2026-10-08-daily-streak-reminder-design.md
+// One document per subscribed device under users/{uid}/pushSubs. The hourly job
+// (tools/reminder/) reads these and the four fields below; it writes nothing.
+const pushSubsCol = uid => collection(firestore, 'users', uid, 'pushSubs');
+
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// The id a subscription is stored under: the SHA-256 of its endpoint.
+export const pushSubIdOf = sub => sha256Hex(sub.endpoint);
+
+// The four fields go in ONE write so the job never sees a switch that is on
+// with no hour. merge:true merges INTO notifPrefs, leaving its other keys alone.
+export async function saveReminderPrefs({ remindHourLocal, notifyHourUtc, timeZone, daily }) {
+  const user = auth.currentUser;
+  if (!user) return;
+  await setDoc(doc(firestore, 'users', user.uid),
+    { remindHourLocal, notifyHourUtc, timeZone, notifPrefs: { daily } }, { merge: true });
+}
+
+// Stores this device's subscription; returns its document id.
+// serverTimestamp(), never Date.now(): the rule is `createdAt == request.time`.
+export async function savePushSub(sub, platform, lang) {
+  const user = auth.currentUser;
+  if (!user) return null;
+  const j = sub.toJSON();
+  const id = await sha256Hex(j.endpoint);
+  await setDoc(doc(pushSubsCol(user.uid), id), {
+    endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+    createdAt: serverTimestamp(), platform, lang,
+  });
+  return id;
+}
+
+export async function deletePushSub(id) {
+  const user = auth.currentUser;
+  if (!user || !id) return;
+  await deleteDoc(doc(pushSubsCol(user.uid), id));
+}
+
+// Keeps the `keep` newest subscriptions and deletes the rest. Returns how many
+// remain. This is the only clean-up there is: the job cannot delete.
+export async function prunePushSubs(keep = 5) {
+  const user = auth.currentUser;
+  if (!user) return 0;
+  const snap = await getDocs(query(pushSubsCol(user.uid), orderBy('createdAt', 'desc')));
+  const extra = snap.docs.slice(keep);
+  await Promise.all(extra.map(d => deleteDoc(d.ref)));
+  return snap.docs.length - extra.length;
+}
+
+// Sign-out and account deletion: stop this device receiving the account's
+// reminders. Every step is best-effort — it runs right before the login goes
+// away and must never block that. A Firestore delete waits forever while
+// offline, so it gets a few seconds and no more.
+export async function dropThisDevicePush() {
+  try {
+    const id = await db.kvGet('pushSubId', null);
+    if (id) await Promise.race([deletePushSub(id), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000))]);
+  } catch (e) { console.warn('[remind] delete', e); }
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const sub = await reg?.pushManager?.getSubscription();
+    if (sub) await sub.unsubscribe();
+  } catch (e) { console.warn('[remind] unsubscribe', e); }
+  await db.kvSet('pushSubId', null);
+  await db.kvSet('remindOn', false);
 }
 
 onAuthStateChanged(auth, async (user) => {

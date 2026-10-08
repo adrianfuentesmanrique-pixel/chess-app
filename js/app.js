@@ -33,6 +33,7 @@ import { PulsoMatch } from './pulso-match.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { Activity } from './activity.js';
+import { Notifications } from './notifications.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -960,6 +961,7 @@ export const Streak = {
     if (this.lastDate && isYesterday(this.lastDate, today)) this.count += 1;
     else this.count = 1;
     this.lastDate = today;
+    Notifications.clearDaily();
     await db.kvSet('streakCount', this.count);
     await db.kvSet('streakLastDate', this.lastDate);
     const best = await db.kvGet('bestStreak', 0);
@@ -6993,6 +6995,8 @@ function openSettings() {
       toast(t(v === 'private' ? 'privacy_now_private' : 'privacy_now_public'));
     });
     const privHint = document.createElement('p'); privHint.className = 'hint'; privHint.textContent = t('privacy_hint');
+    // daily reminder — the block comes from js/notifications.js
+    const remindEls = Notifications.section(segInit);
 
     // Lichess link — optional, only the Analysis tab's Internet search uses it.
     const lLi = document.createElement('label'); lLi.className = 'fld-label'; lLi.textContent = 'Lichess';
@@ -7029,7 +7033,7 @@ function openSettings() {
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
     const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('close');
     ok.onclick = () => close(null);
-    box.append(l1, seg, l2, seg2, l3, seg3, lVar, segVar, l4, seg4, lPriv, segPriv, privHint, lTour, tourBtn, lLi, liBtn, lLegal, legalRow, ...accountEls, about, ok);
+    box.append(l1, seg, l2, seg2, l3, seg3, lVar, segVar, l4, seg4, lPriv, segPriv, privHint, ...remindEls, lTour, tourBtn, lLi, liBtn, lLegal, legalRow, ...accountEls, about, ok);
   });
 }
 
@@ -7302,6 +7306,7 @@ export const Profile = {
     if (btn) btn.onclick = () => { this.streakLadderOpen = !this.streakLadderOpen; this.renderStreakLadder(); };
     const how = el.querySelector('.streak-how-btn');
     if (how) how.onclick = () => { this.streakHowOpen = !this.streakHowOpen; this.renderStreakLadder(); };
+    Notifications.profileRow(openSettings);
   },
 
   // The rules the flame actually follows, in the one place the flame lives.
@@ -7706,14 +7711,21 @@ async function main() {
   Setup.init();
   await Themes.init();
   await Streak.init();
+  await Notifications.init();
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') Streak.checkDay();
+    if (document.visibilityState === 'visible') {
+      Streak.checkDay();
+      Notifications.refresh().catch(() => {});
+    }
   });
   await DailyMissions.init();
   setTimeout(() => DailyMissions.remindIfIncomplete(), 45000);
   Auth.onChange(async () => {
     // remote data may have just replaced local kv values (sign-in) — refresh live views
     await Streak.init();
+    Notifications.on = !!(await db.kvGet('remindOn', false));
+    Notifications.profileRow();
+    Notifications.refresh().catch(() => {});
     if (Puzzles.loaded) {
       Puzzles.elo = await db.kvGet('puzzleElo', 1200);
       Puzzles.themeElo = await db.kvGet('puzzleThemeElo', {});

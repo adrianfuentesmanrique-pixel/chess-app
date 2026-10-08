@@ -8,7 +8,7 @@
 // commercially — no template can account for your specific business
 // structure, but this covers the categories a reviewer would expect to see.
 
-const LAST_UPDATED = '2026-10-06';
+const LAST_UPDATED = '2026-10-08';
 
 export const LEGAL_TERMS = {
   es: {
@@ -184,7 +184,7 @@ export const LEGAL_PRIVACY = {
     sections: [
       {
         h: '1. Qué datos recopilamos',
-        p: `Si usas la App sin cuenta, tus datos (progreso, partidas, ajustes) se guardan solo en el almacenamiento local de tu dispositivo/navegador y no llegan a nuestros servidores. Si creas una cuenta, recopilamos: correo electrónico, nombre, apellido, nombre de usuario, fecha de nacimiento (para verificar edad mínima), y los datos de progreso que generas al usar la App (ELO estimado, rachas, partidas guardadas, logros, ajustes). Si usas Google para iniciar sesión, recibimos tu nombre, correo y foto de perfil según los permitas en tu cuenta de Google.`,
+        p: `Si usas la App sin cuenta, tus datos (progreso, partidas, ajustes) se guardan solo en el almacenamiento local de tu dispositivo/navegador y no llegan a nuestros servidores. Si creas una cuenta, recopilamos: correo electrónico, nombre, apellido, nombre de usuario, fecha de nacimiento (para verificar edad mínima), y los datos de progreso que generas al usar la App (ELO estimado, rachas, partidas guardadas, logros, ajustes). Si usas Google para iniciar sesión, recibimos tu nombre, correo y foto de perfil según los permitas en tu cuenta de Google. Si activas el recordatorio diario, también guardamos la hora que elegiste, la zona horaria de tu dispositivo y una suscripción push creada por tu navegador (una dirección en el servicio push de tu navegador y dos claves de cifrado) para que el recordatorio llegue a ese dispositivo. Al desactivar el recordatorio, cerrar sesión o eliminar tu cuenta, esa suscripción se elimina.`,
       },
       {
         h: '2. Base legal y finalidad del tratamiento',
@@ -212,7 +212,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '8. Servicios externos',
-        p: `La búsqueda de partidas en internet de la función "Explorar" es opcional y requiere que conectes tu cuenta de Lichess. Inicias sesión en lichess.org: nunca vemos tu contraseña y no pedimos permiso para leer ni cambiar nada de tu cuenta. Lichess entrega una clave de acceso que se guarda solo en tu dispositivo, no en nuestros servidores, y que puedes borrar cuando quieras con "Desconectar". Solo cuando usas la búsqueda, la posición actual del tablero (formato FEN) se envía a Lichess junto con esa clave, por lo que Lichess puede asociar la consulta a tu cuenta. No recibimos ni guardamos tu nombre de usuario de Lichess. El motor de ajedrez (Stockfish) se ejecuta localmente en tu dispositivo; la posición de tus partidas no se envía a servidores externos para el análisis del motor.`,
+        p: `La búsqueda de partidas en internet de la función "Explorar" es opcional y requiere que conectes tu cuenta de Lichess. Inicias sesión en lichess.org: nunca vemos tu contraseña y no pedimos permiso para leer ni cambiar nada de tu cuenta. Lichess entrega una clave de acceso que se guarda solo en tu dispositivo, no en nuestros servidores, y que puedes borrar cuando quieras con "Desconectar". Solo cuando usas la búsqueda, la posición actual del tablero (formato FEN) se envía a Lichess junto con esa clave, por lo que Lichess puede asociar la consulta a tu cuenta. No recibimos ni guardamos tu nombre de usuario de Lichess. El motor de ajedrez (Stockfish) se ejecuta localmente en tu dispositivo; la posición de tus partidas no se envía a servidores externos para el análisis del motor. Los recordatorios se entregan mediante el servicio push de tu propio navegador (Google en Chrome y la mayoría de navegadores Android, Apple en Safari, Mozilla en Firefox). El mensaje va cifrado para tu dispositivo y solo contiene el tipo de recordatorio, tu idioma y el número de tu racha. Un proceso automático que se ejecuta en GitHub decide una vez por hora a quién le toca; solo lee la hora del recordatorio, la zona horaria, la última fecha de racha y el número de racha, y no modifica nada.`,
       },
       {
         h: '9. Tus derechos',
@@ -238,7 +238,7 @@ export const LEGAL_PRIVACY = {
     sections: [
       {
         h: '1. What data we collect',
-        p: `If you use the App without an account, your data (progress, games, settings) is stored only in your device/browser's local storage and never reaches our servers. If you create an account, we collect: email, first name, last name, username, date of birth (to verify minimum age), and the progress data you generate using the App (estimated ELO, streaks, saved games, achievements, settings). If you sign in with Google, we receive your name, email, and profile photo as permitted by your Google account settings.`,
+        p: `If you use the App without an account, your data (progress, games, settings) is stored only in your device/browser's local storage and never reaches our servers. If you create an account, we collect: email, first name, last name, username, date of birth (to verify minimum age), and the progress data you generate using the App (estimated ELO, streaks, saved games, achievements, settings). If you sign in with Google, we receive your name, email, and profile photo as permitted by your Google account settings. If you turn on the daily reminder, we also store the hour you chose, your device's time zone, and a push subscription created by your browser (an address at your browser's push service and two encryption keys) so the reminder can reach that device. Turning the reminder off, signing out or deleting your account removes that subscription.`,
       },
       {
         h: '2. Legal basis and purpose of processing',
@@ -266,7 +266,7 @@ export const LEGAL_PRIVACY = {
       },
       {
         h: '8. External services',
-        p: `The internet game search in the "Explore" feature is optional and requires you to connect your Lichess account. You sign in on lichess.org: we never see your password and we request no permission to read or change anything in your account. Lichess issues an access key that is stored only on your device, not on our servers, and that you can delete at any time with "Disconnect". Only when you use the search, the current board position (FEN format) is sent to Lichess together with that key, so Lichess can associate the request with your account. We do not receive or store your Lichess username. The chess engine (Stockfish) runs locally on your device; your game positions are not sent to external servers for engine analysis.`,
+        p: `The internet game search in the "Explore" feature is optional and requires you to connect your Lichess account. You sign in on lichess.org: we never see your password and we request no permission to read or change anything in your account. Lichess issues an access key that is stored only on your device, not on our servers, and that you can delete at any time with "Disconnect". Only when you use the search, the current board position (FEN format) is sent to Lichess together with that key, so Lichess can associate the request with your account. We do not receive or store your Lichess username. The chess engine (Stockfish) runs locally on your device; your game positions are not sent to external servers for engine analysis. Reminders are delivered through your browser's own push service (Google for Chrome and most Android browsers, Apple for Safari, Mozilla for Firefox). The message is encrypted for your device and contains only the reminder type, your language and your streak number. An automated job running on GitHub decides once an hour who is due; it reads only the reminder hour, time zone, last streak date and streak number, and changes nothing.`,
       },
       {
         h: '9. Your rights',

@@ -527,6 +527,18 @@ const DICT = {
     es: 'Controla lo que ven los demás jugadores cuando abren tu perfil desde la clasificación. En privado solo verán tu avatar, tu nombre y tus ELO. Tú siempre ves tu perfil completo.',
     en: 'Controls what other players see when they open your profile from the leaderboard. When private, they only see your avatar, your name, and your ELO ratings. You always see your own full profile.',
   },
+  // Daily streak reminder (Settings sheet + the Profile streak card). The On/Off
+  // pair reuses sound_on / sound_off.
+  remind_section: { es: 'Recordatorio diario', en: 'Daily reminder' },
+  remind_hour: { es: 'Hora', en: 'Hour' },
+  remind_hint: { es: 'Un recordatorio al día, solo si aún no has entrenado.', en: 'One reminder a day, only if you have not trained yet.' },
+  remind_signed_out: { es: 'Inicia sesión para usar los recordatorios.', en: 'Sign in to use reminders.' },
+  remind_unsupported: { es: 'Este navegador no puede mostrar notificaciones.', en: 'This browser cannot show notifications.' },
+  remind_ios_install: { es: 'Primero añade la app a tu pantalla de inicio.', en: 'Add the app to your Home Screen first.' },
+  remind_denied: { es: 'Las notificaciones están bloqueadas. Permítelas en los ajustes del teléfono para esta app.', en: "Notifications are blocked. Allow them in your phone's settings for this app." },
+  remind_failed: { es: 'No se pudo activar. En Brave: Ajustes, Privacidad, "Usar servicios de Google para mensajes push".', en: 'Could not turn it on. In Brave: Settings, Privacy, "Use Google services for push messaging".' },
+  remind_row_off: { es: 'Recordatorio diario: desactivado', en: 'Daily reminder: off' },
+  remind_row_on: { es: 'Recordatorio diario: {h}', en: 'Daily reminder: {h}' },
   privacy_now_private: { es: 'Tu perfil ahora es privado.', en: 'Your profile is now private.' },
   privacy_now_public: { es: 'Tu perfil ahora es público.', en: 'Your profile is now public.' },
   pubprofile_private: {

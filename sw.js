@@ -1,8 +1,11 @@
-const CACHE = 'chess-training-center-v173';
+const CACHE = 'chess-training-center-v174';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
 const SHARE_CACHE = 'ctc-shared-inbox';
+// Remembers the date of the last daily reminder shown, so a repeat on the same
+// day is silent. Kept OUT of the version wipe in `activate`, like SHARE_CACHE.
+const NOTIF_CACHE = 'ctc-notif';
 // Heavy files fetched on first use that must outlive an update: they live in
 // their own cache, which `activate` does not wipe. Without it every CACHE bump
 // threw the 7 MB engine away and the bot and the analysis evaluation could not
@@ -88,6 +91,9 @@ const ASSETS = [
   'js/engine.js',
   'js/i18n.js',
   'js/firebase.js',
+  'js/notifications.js',
+  'js/remind-time.js',
+  'js/vapid-public.js',
   'js/puzzles.js',
   'js/pulso.js',
   'js/pulso-ui.js',
@@ -179,7 +185,7 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => keys.filter(k => k !== CACHE && k !== SHARE_CACHE && k !== KEEP_CACHE && k !== ART_CACHE))
+    caches.keys().then(keys => keys.filter(k => k !== CACHE && k !== SHARE_CACHE && k !== KEEP_CACHE && k !== ART_CACHE && k !== NOTIF_CACHE))
       .then(old => tidyKeep(old).catch(err => console.warn('[sw] keep', err))
         .then(() => Promise.all(old.map(k => caches.delete(k)))))
       .then(() => self.clients.claim())
@@ -223,6 +229,65 @@ async function tidyKeep(old) {
     }
   }
 }
+
+// ───────── Daily streak reminder ─────────
+// The hourly job (tools/reminder/) sends {"t":"daily","lang":"es","n":11},
+// encrypted for this device. The words live HERE so a wording change ships with
+// the app and no personal text travels.
+const REMIND_TEXT = {
+  es: { title: 'Tu racha te espera',
+        body: n => n === 1 ? 'Mantén viva tu racha de 1 día: entrena hoy.'
+                           : `Mantén viva tu racha de ${n} días: entrena hoy.` },
+  en: { title: 'Your streak is waiting',
+        body: n => `Keep your ${n}-day streak alive: train today.` },
+};
+// Same rule as todayStr() in js/app.js: the device's local date.
+function localDay() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+self.addEventListener('push', e => {
+  // EVERY path through here must end in showNotification(), inside waitUntil().
+  // A push that shows nothing makes the browser put up its own "this site was
+  // updated in the background" notice; and without waitUntil() the worker can
+  // be stopped before anything is drawn. That includes a payload that cannot
+  // be read, which falls through to the Spanish default below.
+  e.waitUntil((async () => {
+    let d = {};
+    try { d = (e.data && e.data.json()) || {}; } catch (_) {}
+    const text = REMIND_TEXT[d.lang] || REMIND_TEXT.es;
+    const n = Number.isInteger(d.n) && d.n > 0 ? d.n : 1;
+    // A second reminder on the same day (a moved hour, a repeated run) replaces
+    // the first without a sound: same tag, silent.
+    let repeat = false;
+    try {
+      const c = await caches.open(NOTIF_CACHE);
+      const last = await c.match('/__ctc-last-daily');
+      repeat = !!last && (await last.text()) === localDay();
+      await c.put('/__ctc-last-daily', new Response(localDay()));
+    } catch (_) {}
+    await self.registration.showNotification(text.title, {
+      body: text.body(n),
+      icon: 'icons/notif/daily.png',
+      badge: 'icons/notif/badge.png',
+      tag: 'daily',
+      renotify: false,
+      silent: repeat,
+      data: { url: './' },
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    // Bring an open copy to the front rather than opening a second one.
+    for (const c of list) if ('focus' in c) return c.focus();
+    return self.clients.openWindow(url);
+  }));
+});
 
 self.addEventListener('fetch', e => {
   // Web Share Target endpoint. A file shared to the app (WhatsApp → Share → CTC)
