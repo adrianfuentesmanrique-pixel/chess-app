@@ -9,6 +9,11 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **ENDGAME EXPLANATIONS SAY "BLOQUEADOS", NOT "TRABADOS" (v173, 2026-10-08).** Adrian:
+  "trabados" makes no sense; the title of the same endgame says "Peones bloqueados".
+  The six Spanish explanations in `js/endgames-data.js` that used it now say
+  "bloqueados". Text only; no key, id or English text changed.
+
 - **THE HEADER FLAME IS GREY UNTIL TODAY IS CREDITED (v172, 2026-10-08).** Adrian: "when
   a new day starts, there is no difference in the flame". Now a live streak that has
   not been credited today shows the same art in grey with YESTERDAY'S number; the first

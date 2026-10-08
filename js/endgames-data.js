@@ -85,7 +85,7 @@ export const ENDGAMES = [
     moves: ["h2g3","a8b7","g3f4","b7c7","f4e5","c7d7","e5d5","d7c7","d5e6","c7c8","e6d6","c8b7","d6d7","b7b8"],
     result: 'win',
     comment: {
-      es: 'Con los peones trabados en b5 y b6, decide qué rey alcanza una casilla junto al peón rival. Las blancas necesitan a6 o c6, y el negro no puede cubrir ambas. La marcha desde h2 llega a tiempo y cae el peón de b6.',
+      es: 'Con los peones bloqueados en b5 y b6, decide qué rey alcanza una casilla junto al peón rival. Las blancas necesitan a6 o c6, y el negro no puede cubrir ambas. La marcha desde h2 llega a tiempo y cae el peón de b6.',
       en: 'With the pawns locked on b5 and b6, the game is decided by which king reaches a square beside the enemy pawn. White needs a6 or c6, and Black cannot cover both. The march from h2 arrives in time and b6 falls.',
     },
   },
@@ -129,7 +129,7 @@ export const ENDGAMES = [
     moves: ["c4d4","d6d7","d4e5","d7e7","e5f5","e7d6","f5g6","d6d5","g6h6","d5e6","h6g7"],
     result: 'win',
     comment: {
-      es: 'Los peones h trabados son el verdadero objetivo, no el peón pasado de d. El rey blanco rodea por g6 para ganar el peón de h6. El negro se lleva el peón d, pero el nuevo pasado de h corona antes.',
+      es: 'Los peones h bloqueados son el verdadero objetivo, no el peón pasado de d. El rey blanco rodea por g6 para ganar el peón de h6. El negro se lleva el peón d, pero el nuevo pasado de h corona antes.',
       en: 'The blocked h-pawns are the real target, not the passed d-pawn. White walks the king round through g6 to win the pawn on h6. Black collects the d-pawn, but the new h-passer promotes first.',
     },
   },
@@ -474,7 +474,7 @@ export const ENDGAMES = [
     moves: ["f4e4","f6e6","e4d4"],
     result: 'win',
     comment: {
-      es: 'Los peones a están trabados y a3 solo lo puede sostener el rey. Las blancas se dirigen a b3 mientras el rey negro está demasiado lejos para volver. El peón f no interviene en absoluto en la victoria.',
+      es: 'Los peones a están bloqueados y a3 solo lo puede sostener el rey. Las blancas se dirigen a b3 mientras el rey negro está demasiado lejos para volver. El peón f no interviene en absoluto en la victoria.',
       en: 'The a-pawns are locked and a3 can only be held by the king. White sets off for b3 while the black king is too far away to get back. The f-pawn plays no part in the win at all.',
     },
   },
@@ -625,7 +625,7 @@ export const ENDGAMES = [
     moves: ["f7g7","b6c6","g7h7","c6b6","a2a3","b6a5","h7g6","a5a4","g6f5","a4a3","f5e4","a3b3","e4d3","b3a2"],
     result: 'draw',
     comment: {
-      es: 'El rey blanco sale de caza y gana el peón de h7, pero la actividad corta por los dos lados. El rey negro incursiona en el flanco de dama y se lleva el peón a a cambio. Con los peones c trabados, ninguno logra un peón pasado.',
+      es: 'El rey blanco sale de caza y gana el peón de h7, pero la actividad corta por los dos lados. El rey negro incursiona en el flanco de dama y se lleva el peón a a cambio. Con los peones c bloqueados, ninguno logra un peón pasado.',
       en: 'White\'s king goes hunting and wins the pawn on h7, but activity cuts both ways. Black\'s king raids the queenside and takes the a-pawn in return. With the c-pawns locked, neither side can force a passed pawn through.',
     },
   },
@@ -1735,7 +1735,7 @@ export const ENDGAMES = [
     moves: ["c5c6","h3h4","c6b6","h4h5","b6h6","f4f1","h6h5","f1f4","h5h1","f4d4","h1a1","d4g4","a1a4","g4g3"],
     result: 'draw',
     comment: {
-      es: 'El negro coloca la torre detrás del peón h y obliga a las blancas a perder tiempo defendiéndolo. Txh5 elimina el pasado y, después, solo quedan los peones a trabados. Ninguno de los dos puede crear una segunda debilidad.',
+      es: 'El negro coloca la torre detrás del peón h y obliga a las blancas a perder tiempo defendiéndolo. Txh5 elimina el pasado y, después, solo quedan los peones a bloqueados. Ninguno de los dos puede crear una segunda debilidad.',
       en: 'Black puts the rook behind the h-pawn and makes White spend time defending it. Rxh5 removes the passer, and after that only the blocked a-pawns remain. Neither side can create a second weakness.',
     },
   },
@@ -1892,7 +1892,7 @@ export const ENDGAMES = [
     moves: ["d3d4","c1d2","d4e5","d2e3","e5f6","e3d4","f6g6","d4e3","g8b8","e3d2","b8b5","f3e4","g6f6","d2c3"],
     result: 'draw',
     comment: {
-      es: 'Los peones g están trabados, así que el único objetivo es el peón de g4, y el alfil lo protege sin problemas. El rey negro intenta rodear, pero el alfil lo aparta con jaques cada vez. Con una sola debilidad que atacar, la calidad de más no basta.',
+      es: 'Los peones g están bloqueados, así que el único objetivo es el peón de g4, y el alfil lo protege sin problemas. El rey negro intenta rodear, pero el alfil lo aparta con jaques cada vez. Con una sola debilidad que atacar, la calidad de más no basta.',
       en: 'The g-pawns are locked, so the only target is the pawn on g4, and the bishop guards it comfortably. Black\'s king tries to come round, but the bishop checks it away each time. With a single weakness to attack, the extra exchange is not enough.',
     },
   },
