@@ -364,8 +364,6 @@ const DICT = {
   pulso_not_now: { es: 'Ahora no', en: 'Not now' },
   pulso_preparing: { es: 'Preparando…', en: 'Preparing…' },
   pulso_update_needed: { es: 'Uno de los dos tiene que actualizar la app', en: 'One of you needs to update the app' },
-  pulso_holding: { es: '¡Reto aceptado!', en: 'Challenge accepted!' },
-  pulso_holding_sub: { es: 'La partida de Pulso llega en la próxima versión de la app.', en: 'The Pulso match itself arrives in the next version of the app.' },
   pulso_streak_on: { es: '¡Racha! ×2', en: 'Streak! ×2' },
   pulso_no_signal: { es: 'Sin señal de {n}', en: 'No signal from {n}' },
   pulso_leave: { es: 'Abandonar', en: 'Leave' },

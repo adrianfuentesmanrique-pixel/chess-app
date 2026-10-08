@@ -613,8 +613,8 @@
 
   <!-- ══════════ PULSO ══════════ -->
   <!-- A live 1-v-1 puzzle tug-of-war between two friends. js/pulso-ui.js shows
-       one pane at a time: the lobby, waiting for an answer, and (until the
-       match screen is built) a holding state once a challenge is accepted. -->
+       one pane at a time: the lobby, waiting for an answer, and the match
+       (js/pulso-match.js), which is Rush's engine over the pulso-* elements. -->
   <section id="screen-pulso" class="screen hidden">
     <div id="pulso-lobby">
       <h2 class="sr-only" data-i18n="mode_pulso"></h2>
@@ -647,12 +647,38 @@
         <button id="pulso-wait-back" class="btn btn-wide hidden" data-i18n="back"></button>
       </div>
     </div>
-    <div id="pulso-holding" class="hidden">
-      <div class="profile-card pulso-card">
-        <div id="pulso-hold-vs" class="pulso-vs"></div>
-        <h2 data-i18n="pulso_holding"></h2>
-        <p class="hint" data-i18n="pulso_holding_sub"></p>
-        <button id="pulso-hold-back" class="btn btn-wide" data-i18n="back"></button>
+    <div id="pulso-game" class="hidden">
+      <div class="pulso-head">
+        <span id="pulso-their-av"></span>
+        <span class="pulso-who">
+          <b id="pulso-their-name" class="ellipsis"></b>
+          <span id="pulso-quiet" class="pulso-quiet hidden" role="status"></span>
+        </span>
+        <span id="pulso-timer" class="elo-badge"></span>
+      </div>
+      <!-- 21 places: the centre and 10 steps to each end. My end is the right
+           one. The flame is stand-in art until icons/pulso/ arrives. -->
+      <div id="pulso-bar" class="pulso-bar" role="img">
+        <span class="pulso-bar-mid"></span>
+        <span id="pulso-flame" class="pulso-flame"><img src="streaks/flame3.png" alt="" width="40" height="40"></span>
+      </div>
+      <div class="pulso-ends">
+        <span id="pulso-their-score"></span>
+        <span id="pulso-my-score"></span>
+      </div>
+      <div class="rush-board-stack">
+        <div id="pulso-board" class="board-wrap"></div>
+        <div id="pulso-countdown" class="rush-countdown hidden"><span></span></div>
+      </div>
+      <div class="pulso-foot">
+        <span id="pulso-streak" class="pulso-streak hidden" data-i18n="pulso_streak_on"></span>
+        <div id="pulso-status" class="status-bar"></div>
+      </div>
+      <button id="pulso-leave" class="btn small pulso-leave" data-i18n="pulso_leave"></button>
+      <!-- How it ended, in one line. The result screen proper replaces this. -->
+      <div id="pulso-end" class="pulso-end hidden">
+        <h2 id="pulso-end-line" role="status"></h2>
+        <button id="pulso-end-back" class="btn primary btn-wide" data-i18n="back"></button>
       </div>
     </div>
   </section>

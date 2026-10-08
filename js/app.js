@@ -29,6 +29,7 @@ import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
+import { PulsoMatch } from './pulso-match.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { Activity } from './activity.js';
@@ -1178,6 +1179,14 @@ export let activeScreen = 'analysis';
 
 export function showScreen(name) {
   const prev = activeScreen;
+  // A Pulso match in play is not walked out of by accident: the menu, a swipe
+  // and the back gesture all get "Leave? You will lose this Pulso." first, and
+  // PulsoMatch comes back here if the answer is yes. A back gesture has
+  // already taken its history entry, so that entry is put back.
+  if (prev === 'pulso' && name !== 'pulso' && PulsoMatch.leaving(name)) {
+    if (poppingTab) { try { history.pushState({ tab: prev }, ''); tabStack.push(prev); } catch {} }
+    return;
+  }
   activeScreen = name;
   for (const s of SCREENS) $('screen-' + s).classList.toggle('hidden', s !== name);
   document.querySelectorAll('#tabbar button').forEach(b =>
@@ -1199,6 +1208,9 @@ export function showScreen(name) {
   // Leaving the Rush screen ends the run. Without this the clock kept ticking
   // on a hidden board and the run "finished" while the player was elsewhere.
   if (name !== 'rush') Rush.stop();
+  // The same for a Pulso board. The match itself goes on without this phone:
+  // either it was just forfeited (above), or it was already over.
+  if (name !== 'pulso') PulsoMatch.stop();
   if (name === 'pulso') PulsoUI.onEnter();
   if (name === 'puzzles' || name === 'blind' || name === 'rush' || name === 'pulso') syncPuzzleModeSeg(name);
   if (name !== prev) pushTabHistory(name);
@@ -7641,7 +7653,7 @@ async function main() {
   // The badge card waits out a timed Rush run (it must never cover that board)
   // and the streak celebration (one celebration at a time).
   BadgeCard.init({
-    isBusy: () => Rush.running || Date.now() < Streak.celebratingUntil,
+    isBusy: () => Rush.running || PulsoMatch.holds() || Date.now() < Streak.celebratingUntil,
     open: () => {
       showScreen('profile');
       // Profile.refresh() redraws the page first; scroll once it has.

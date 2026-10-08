@@ -2097,3 +2097,44 @@ body.read-spread #read-reader {
 }
 #tabbar button.pulso-dot::after { margin-left: auto; }
 #tabmenu-btn.pulso-dot::after { position: absolute; top: 5px; right: 3px; }
+
+/* ── Pulso: the match ─────────────────────────────────────────────────────
+   The bar is the one new component. The friend's half is --accent, mine is
+   --gold; --p is where the flame stands, 0 (the friend's end) to 1 (mine). */
+.pulso-head { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.pulso-who { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; line-height: 1.2; }
+.pulso-quiet { font-size: 12px; color: var(--warning); }
+#pulso-timer { font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+#pulso-timer.danger { background: var(--danger); }
+.pulso-bar {
+  --p: .5; --cap: 8px;
+  position: relative; height: 22px; margin: 16px 0 4px; border-radius: 11px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--accent) 60%, var(--panel2)) 0 50%,
+    color-mix(in srgb, var(--gold) 60%, var(--panel2)) 50% 100%);
+  border-left: var(--cap) solid var(--gold); border-right: var(--cap) solid var(--gold);
+  transition: box-shadow .15s;
+}
+.pulso-bar.hit-them { box-shadow: 0 0 0 3px var(--accent2); }
+.pulso-bar.hit-me { box-shadow: 0 0 0 3px var(--gold); }
+.pulso-bar-mid { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
+.pulso-flame {
+  position: absolute; top: 50%; left: calc(var(--p) * 100%); width: 40px; height: 40px;
+  margin: -26px 0 0 -20px; transition: left .25s ease; pointer-events: none;
+}
+.pulso-flame img { display: block; width: 100%; height: 100%; transform-origin: 50% 85%; transition: transform .25s ease; }
+.pulso-bar.hot-me .pulso-flame img { transform: scale(1.4) rotate(14deg); }
+.pulso-bar.hot-them .pulso-flame img { transform: scale(1.4) rotate(-14deg); }
+.pulso-bar.hot-me.hot-them .pulso-flame img { transform: scale(1.4); }
+.pulso-ends { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+.pulso-ends span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pulso-foot { display: flex; align-items: center; gap: 8px; }
+/* Two lines high always, so the streak chip arriving does not move Leave. */
+.pulso-foot .status-bar { flex: 1 1 auto; min-width: 0; min-height: 62px; }
+.pulso-streak { flex: 0 0 auto; background: var(--gold); color: #1a1300; font-weight: 800; font-size: 13px; padding: 3px 9px; border-radius: 20px; }
+.pulso-leave { display: block; margin: 6px 0 0 auto; }
+.pulso-end { text-align: center; }
+.pulso-end h2 { margin: 10px 0 8px; font-size: 20px; }
+@media (prefers-reduced-motion: reduce) {
+  .pulso-flame, .pulso-flame img { transition: none; }
+}

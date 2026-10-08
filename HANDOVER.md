@@ -2,6 +2,75 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO SESSION 5 OF 7 DONE: THE MATCH ITSELF - COUNTDOWN, BAR, SOLVE/MISTAKE, CLOCK,
+  LEAVE, A ONE-LINE ENDING. NO RESULT SCREEN, NO REMATCH (v164, 2026-10-07). COMMITTED
+  LOCALLY, NOT PUSHED - ask Adrian. Sessions 2 to 5 are all unpushed (origin/main was
+  still 53f4c6d); pushed now, a match can be played end to end and ends on one line of
+  text with a Back button.**
+  New `js/pulso-match.js` (`PulsoMatch`), `#pulso-game` in `index.html` in place of
+  `#pulso-holding`, a "Pulso: the match" block at the end of `css/style.css`.
+  `sw.js`: `js/pulso-match.js` in `ASSETS`, `CACHE` v163 -> v164. `firestore.rules` and
+  `js/pulso.js` are untouched. `pulso_holding` / `pulso_holding_sub` removed from
+  `js/i18n.js`; no word was added (the "Tú"/"You" on the bar is the existing
+  `history_you`, "time's up" is `rush_time_up`).
+  - **Why a new file:** same reason as `js/pulso-ui.js` - `js/app.js` is too big to read.
+    `js/app.js` got: the import, a guard at the top of `showScreen`, `PulsoMatch.stop()`
+    beside `Rush.stop()`, and `PulsoMatch.holds()` in the badge card's `isBusy`.
+  - **How it sits on Rush:** `PulsoMatch.game = Object.assign(Object.create(Rush), {...})`
+    with `prefix: 'pulso'`, its own copy of every field the engine keeps, and three hooks:
+    `pickNext` (= `list[at()]`, the list is `resolveList(m.pz, PUZZLES)`), `onSolve`,
+    `onMistake` (both -> `PulsoMatch.attempt(solved, run)`). `Rush.loadNext/userMove/
+    applyUci/live/stop` are used as they are. `Rush.countIn/tick/updateHud/start/finish`
+    are NOT used: the countdown and the clock are painted from `pulsoServerNow()` in
+    `PulsoMatch.paint()` (5 times a second while a match is up), not counted.
+  - **Who decides the pane:** `PulsoUI.render()` asks `PulsoMatch.show()`; true = the
+    `game` pane. `show()` begins a match that is `PulsoUI.inPlay`, and keeps the one it
+    has while its document is `live` or `done` (so a phone cut off at the end keeps its
+    stopped board until it hears the result). Back (`#pulso-end-back`) -> `stop()`.
+  - **Every number on the screen is the document's.** The bar is
+    `markerPos(myPull, theirPull)` -> the CSS variable `--p` on `#pulso-bar` (0 = the
+    friend's end, 1 = mine, right). `hot-me` / `hot-them` = that side's streak is 2+.
+    The puzzle index is solved + mistakes from the document (`at()`), which is also how
+    a reloaded phone rejoins.
+  - **Moves:** `pulsoMove(id, solved)` is never awaited and its refusal is a
+    `console.warn`. 350 ms after a solve, 1200 ms after a mistake, no strikes;
+    "No quedan puzzles" at 60.
+  - **Ending the match:** `PulsoUI.close()` calls `finishPulso` for every live match on
+    every listener delivery and every 3 s from `sync()` - on any screen, so a phone that
+    never opened the board still closes it. Not while `navigator.onLine` is false. The
+    board stops at startAt + 186 s ("¡Se acabó el tiempo!"); the result is written from
+    189 s. The ending line shows only once the server has confirmed `done` (or for my
+    own Leave). `PulsoMatch.endLine()` picks the word; session 6's result screen should
+    replace `#pulso-end`, not `endLine()`.
+  - **Leave:** `showScreen` calls `PulsoMatch.leaving(name)` first; while a match
+    `holds()` it opens `askConfirm(pulso_leave_confirm)` and returns without changing
+    screen (a back gesture's history entry is pushed back). Yes ->
+    `finishPulso(id, {left: true})`, not awaited.
+  - **THE CLOCK PROBLEM CARRIED FROM SESSION 3 IS FIXED** without touching the rules:
+    new `syncPulsoClock()` in `js/firebase.js`. A phone with no measurement writes
+    `clockAt: serverTimestamp()` to its OWN `users/{uid}` (private, no field allowlist)
+    and reads it back from the server - 1 write + 1 read, at most once per session,
+    started by `PulsoUI.sync()` only while a challenge or a match is open. So the
+    friend's phone measures when the banner arrives and a reloaded phone when the
+    listener delivers the live match. Also new: a measurement whose write took over 3 s
+    is thrown away (`PULSO_CLOCK_MAX_MS`), in `measurePulsoClock()` too. Measured with
+    Luis's `Date.now` 7 s fast: offset -7001 ms before accepting, -6992 ms after a
+    reload mid-match, the two phones 3 to 15 ms apart.
+  - **Verified:** `test:tree` 142 pass; `test:rules` 399 pass; `test:precache` OK, 40
+    files; `tools/emu-verify-pulso.mjs --quick` 48 of 48; `tools/cdp-verify-rush.mjs`
+    64 of 64; `tools/emu-verify-pulso-ui.mjs` **137 of 137** (was 65), zero console
+    errors, about 9 minutes. It now plays five matches between the two tabs - see the
+    top of that file for what each one is, what is tapped and what is seeded. The full
+    3:09 clock is really waited once (es-dark: ended 189.7 s after the start).
+  - **Known, left alone:** a Kael "mission" bubble can appear over the end of a match
+    (it does over Rush too). The stand-in flame shows a faint square in light mode
+    (Adrian's art, session 7). The bar's "felt" flash on a pull (`hit-me`/`hit-them`,
+    150 ms) is built but no check measures it.
+  - **For session 6:** nothing credits the daily streak yet; the lobby tally already
+    updates (it is read from `aW`/`bW`); `#pulso-end` is the placeholder; a rematch is
+    just `sendPulsoChallenge` over the `done` document - `PulsoMatch.show()` drops the
+    old match as soon as the document turns `invited`.
+
 - **PULSO SESSION 4 OF 7 DONE: LOBBY, CHALLENGE, WAITING SCREEN, INCOMING BANNER - NO
   MATCH SCREEN (v163, 2026-10-07). COMMITTED LOCALLY, NOT PUSHED - ask Adrian, and
   RECOMMEND NOT PUSHING until the match exists (session 5): pushed now, players would

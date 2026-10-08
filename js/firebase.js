@@ -11,7 +11,7 @@ import {
   deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider,
 } from '../vendor/firebase-10.14.1/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
+  getFirestore, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
   // Masterclass. onSnapshot drives the live board — watchLiveState() below is
   // the only place in the app that opens a Firestore listener at all.
   addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot,
@@ -669,7 +669,10 @@ function measurePulsoClock() {
   // t1 is only ever set when the write succeeded, so a refused write (whose
   // snapshot snaps back to the old stamp) can never finish a measurement.
   if (c.server !== null && c.t1 !== null) {
-    pulsoOffset = clockOffset(c.server, c.t0, c.t1);
+    // A write that waited for a signal says nothing about the time: the
+    // measurement is out by half of however long it waited. syncPulsoClock()
+    // takes another when this one is dropped.
+    if (c.t1 - c.t0 <= PULSO_CLOCK_MAX_MS) pulsoOffset = clockOffset(c.server, c.t0, c.t1);
     pulsoClock = null;
   }
 }
@@ -685,12 +688,53 @@ async function stampedPulsoWrite(id, field, write) {
   measurePulsoClock();
 }
 
-// null until this phone has sent a challenge or accepted one in this session
-// (so also after reloading the app in the middle of a match).
+// null until this phone has measured: by sending a challenge, by accepting
+// one, or through syncPulsoClock() below.
 export function pulsoClockOffset() { return pulsoOffset; }
 // The server's clock as best this phone knows it. Count down to
 // startAt + PULSO.COUNTDOWN_MS against this, never against Date.now().
 export function pulsoServerNow() { return Date.now() + (pulsoOffset || 0); }
+
+// The measurement for a phone that has made neither of those two writes in
+// this session: one that reloaded the app in the middle of a match, and the
+// friend's phone from the moment a challenge reaches it. Without it that phone
+// would count down by its own clock, which can be seconds out.
+//
+// The Pulso rules let nothing be stamped during a match (a move may touch only
+// my four counters), so the stamp goes on my OWN private document instead —
+// users/{uid}, which only I can read or write and which has no list of allowed
+// fields — and is read straight back from the server. One write and one read,
+// at most once per session, and only when a challenge or a match is open
+// (PulsoUI.sync() is the caller). `clockAt` means nothing to anything else.
+//
+// Resolves true once this phone has an offset. Safe to call again and again:
+// it does nothing while a measurement is being taken or once there is one.
+const PULSO_CLOCK_MAX_MS = 3000;
+let pulsoSyncing = null;
+export function syncPulsoClock() {
+  const user = auth.currentUser;
+  // pulsoClock: a challenge or an accept of mine is being measured right now.
+  if (pulsoOffset !== null || !user || pulsoClock) return Promise.resolve(pulsoOffset !== null);
+  if (!pulsoSyncing) {
+    pulsoSyncing = (async () => {
+      const ref = doc(firestore, 'users', user.uid);
+      try {
+        const t0 = Date.now();
+        await setDoc(ref, { clockAt: serverTimestamp() }, { merge: true });
+        const t1 = Date.now();
+        const at = (await getDocFromServer(ref)).get('clockAt');
+        if (pulsoOffset === null && at && t1 - t0 <= PULSO_CLOCK_MAX_MS && auth.currentUser === user) {
+          pulsoOffset = clockOffset(at.toMillis(), t0, t1);
+        }
+      } catch (e) {
+        console.warn('Pulso clock was not measured', e);
+      }
+      pulsoSyncing = null;
+      return pulsoOffset !== null;
+    })();
+  }
+  return pulsoSyncing;
+}
 
 // Challenge a friend: the first one ever and every later one, rematch included.
 // `pz` is the 300-character list from packIds(buildList(PUZZLES)).

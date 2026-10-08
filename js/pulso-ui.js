@@ -1,7 +1,8 @@
-// Pulso — everything before the match: the lobby (my friends, each with a
-// Challenge button and our tally), the waiting screen after I challenge, the
-// banner an incoming challenge puts on whatever screen I am on, and a plain
-// holding state once a challenge is accepted. The match itself is not here.
+// Pulso — everything around the match: the lobby (my friends, each with a
+// Challenge button and our tally), the waiting screen after I challenge, and
+// the banner an incoming challenge puts on whatever screen I am on. The match
+// itself is js/pulso-match.js; this file hands it the screen and records the
+// result.
 // Spec: docs/superpowers/plans/2026-10-pulso.md, sections 4, 6 and 7.1 to 7.3.
 //
 // In its own file because js/app.js is already too big to read in one go.
@@ -23,8 +24,9 @@ import { PUZZLES, ensureBand } from './puzzles.js';
 import { PULSO, bandsNeeded, buildList, packIds, resolveList } from './pulso.js';
 import {
   Auth, watchPulso, sendPulsoChallenge, cancelPulso, declinePulso, acceptPulso,
-  pulsoServerNow, fetchLeaderboardByUids,
+  pulsoServerNow, pulsoClockOffset, syncPulsoClock, finishPulso, fetchLeaderboardByUids,
 } from './firebase.js';
+import { PulsoMatch } from './pulso-match.js';
 import { Friends } from './friends.js';
 import { Masterclass } from './masterclass.js';
 import { $, esc, toast, modal, showScreen, activeScreen, Rush, Play } from './app.js';
@@ -32,6 +34,10 @@ import { $, esc, toast, modal, showScreen, activeScreen, Rush, Play } from './ap
 // The host's phone calls a challenge run out a moment after the server would,
 // so "Challenge again" is never sent while the rules still count the old one.
 const HOST_MARGIN_MS = 1000;
+// How often the clock alone has another go at recording a result, and at
+// measuring the server's time when the last try failed.
+const CLOSE_EVERY_MS = 3000;
+const CLOCK_RETRY_MS = 10000;
 
 const named = (key, name) => t(key).replace('{n}', name);
 
@@ -51,16 +57,18 @@ export const PulsoUI = {
   accepting: null,    // the pairId being prepared after I tapped Accept
   dropped: null,      // the pairId I have just cancelled, until the listener agrees
   timer: null,
+  closedAt: 0,        // when the clock last tried to record a result
+  clockAt: 0,         // when the server's time was last asked for
   lobbyKey: '',
   bannerKey: '',
 
   init() {
+    PulsoMatch.init();
     $('pulso-how').onclick = () => this.how();
     $('pulso-tell').onclick = () => this.tell();
     $('pulso-cancel').onclick = () => this.cancel();
     $('pulso-again').onclick = () => { const w = this.wait; if (w) this.challenge(w.uid); };
     $('pulso-wait-back').onclick = () => { this.wait = null; this.sync(); };
-    $('pulso-hold-back').onclick = () => showScreen('puzzles');
     $('pulso-accept').onclick = () => this.accept();
     $('pulso-decline').onclick = () => this.decline();
     for (const ev of ['online', 'offline']) {
@@ -127,9 +135,29 @@ export const PulsoUI = {
     // waiting for. Both phones go to the Pulso screen.
     if (list.some(m => this.inPlay(m) && prev.get(m.id) === 'invited')) {
       this.wait = null;
-      if (activeScreen !== 'pulso') { showScreen('pulso'); return; }
+      if (activeScreen !== 'pulso') { this.close(); showScreen('pulso'); return; }
     }
+    this.close();
     this.sync();
+  },
+
+  // Record the result of any match that has one. finishPulso() works out for
+  // itself whether there is anything to record: a full pull the server has
+  // confirmed, or the clock (plus grace) having run out. It runs on every
+  // delivery and, through sync(), on the clock — on whatever screen I am, so
+  // a match is closed even by a phone that never opened the board. Both
+  // phones do this; the second is refused and that is fine.
+  //
+  // Not without a connection: the claim would sit in the queue, built on
+  // numbers that may be missing the friend's last moves.
+  close() {
+    if (!navigator.onLine) return;
+    this.closedAt = Date.now();
+    for (const m of this.matches) {
+      if (m.status === 'live' && m.startAt !== null) {
+        finishPulso(m.id).catch(e => console.warn('A Pulso result was not recorded', e));
+      }
+    }
   },
 
   // Everything on screen follows from the state above. Called after every
@@ -147,6 +175,15 @@ export const PulsoUI = {
       if (m && m.status === 'invited' && !this.inviteOpen(m, HOST_MARGIN_MS)) w.ended = 'no_answer';
     }
     const open = this.matches.some(m => this.inviteOpen(m, HOST_MARGIN_MS) || this.inPlay(m));
+    if (open && Date.now() - this.closedAt >= CLOSE_EVERY_MS) this.close();
+    // Every time on these screens is the SERVER's. A phone that has not sent
+    // or accepted a challenge in this session has not measured it yet — the
+    // friend's phone when the banner arrives, any phone that reloaded the app
+    // in the middle of a match — so it is measured here, once.
+    if (open && navigator.onLine && pulsoClockOffset() === null && Date.now() - this.clockAt >= CLOCK_RETRY_MS) {
+      this.clockAt = Date.now();
+      syncPulsoClock().then(ok => { if (ok) this.sync(); });
+    }
     if (open && !this.timer) this.timer = setInterval(() => this.sync(), 1000);
     if (!open && this.timer) { clearInterval(this.timer); this.timer = null; }
     this.paintBanner();
@@ -226,12 +263,11 @@ export const PulsoUI = {
       const mine = this.matches.find(m => m.host === this.uid && m.id !== this.dropped && this.inviteOpen(m, HOST_MARGIN_MS));
       if (mine) this.wait = { uid: mine.friend, seen: true, ended: null };
     }
-    const live = this.matches.find(m => this.inPlay(m));
-    const pane = live ? 'holding' : this.wait ? 'waiting' : 'lobby';
-    for (const p of ['lobby', 'waiting', 'holding']) $('pulso-' + p).classList.toggle('hidden', p !== pane);
+    // The match in play — or the one just played, until Back is tapped.
+    const pane = PulsoMatch.show() ? 'game' : this.wait ? 'waiting' : 'lobby';
+    for (const p of ['lobby', 'waiting', 'game']) $('pulso-' + p).classList.toggle('hidden', p !== pane);
     if (pane === 'lobby') this.renderLobby();
     if (pane === 'waiting') this.renderWaiting();
-    if (pane === 'holding') $('pulso-hold-vs').innerHTML = this.vsHtml(live.friend);
   },
 
   renderLobby() {
@@ -366,11 +402,11 @@ export const PulsoUI = {
 
   // ── the incoming banner ────────────────────────────────────────────────
 
-  // A challenge never interrupts a Rush run, a game against the engine or a
-  // live Masterclass. There the banner waits as a gold dot on ☰ and on the
+  // A challenge never interrupts a Pulso match, a Rush run, a game against the
+  // engine or a live Masterclass. There the banner waits as a gold dot on ☰ and on the
   // Puzzles entry, and comes back when they finish.
   busy() {
-    return Rush.running
+    return Rush.running || PulsoMatch.holds()
       || (activeScreen === 'play' && !!Play.chess && !Play.over && Play.chess.history().length > 0)
       || (activeScreen === 'masterclass' && !!(Masterclass.live || Masterclass.liveState));
   },
