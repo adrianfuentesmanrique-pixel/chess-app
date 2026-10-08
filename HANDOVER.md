@@ -9,6 +9,44 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **DAILY STREAK REMINDER, TASK 4 OF 4: THE GATE IS GONE, THE SWITCH IS LIVE FOR EVERYONE — THE PHONE TEST IS STILL OWED (2026-10-08, `ace1290`, v175).**
+  **Out of the plan's order, by Adrian's decision.** The plan said: remove the gate only after
+  a real reminder reached his phone. He could not be due on 2026-10-08 (he had trained), and
+  on his phone the Settings block was not showing at all even after opening `?remind=1`
+  (cause never found: the live site served v174 correctly and nothing in the code strips the
+  parameter; a sign-out wiping the local store is the likely start of it). He chose to remove
+  the gate first and test the next day. `firestore.rules` and the indexes were not touched.
+  - **What changed:** `js/notifications.js` lost the `preview` field, the two `remindPreview`
+    lines in `init()`, the early return in `section()`, and `profileRow()` now just removes
+    `hidden`. Grep `preview` in that file: no hits. The kv key `remindPreview` is no longer
+    read; old devices keep a harmless leftover. `tools/cdp-verify-remind.mjs` no longer uses
+    `?remind=1`; its first block now checks that a FRESH profile shows the Profile row and the
+    Settings block and asks for no permission.
+  - **Verified:** `test:tree` 184 pass, 0 fail; `test:precache` OK (43 imported, 142 art);
+    `test:rules` 435 pass, 0 fail — same before and after. The harness: 42/42 PASS, 0 console
+    errors, 14 screenshots (not 8); the 8 signed-out ones (Settings and Profile, 375px, ES and
+    EN, light and dark) were opened and looked at.
+  - **NOT PROVED — do not write this up as done:** no real reminder has reached any phone.
+    On 2026-10-08 the only run of the job was the manual dry run (#1, 20:37 UTC, matched 0);
+    no scheduled run had happened yet. Still owed, by Adrian, on a day he has not yet trained:
+    (1) the switch reads On and stays On on his phone at v175; (2) he sets the hour (current
+    hour if before minute 10, else the next), closes the app, and a reminder arrives after the
+    minute-17 run — did it buzz, picture, text, does a tap open the app, does training clear
+    it; (3) hour moved forward by one: the repeat arrives without a buzz. If nothing arrives
+    in 45 minutes, read the run's JSON line (Task 3 entry below says what each number means).
+    **If the test fails, put the gate back first (revert `ace1290`, bump the cache), then find
+    out why.**
+  - **Play Store data safety: NOT DONE, answer unknown.** Adrian still has to open Play
+    Console, App content, Data safety and declare "Device or other IDs": collected, not
+    shared, optional, purpose App functionality — and say what was there before. With the gate
+    gone this matters for every user who switches the reminder on.
+  - **Known limits (unchanged, see the Task 3 entry):** GitHub may start a run 10 to 30
+    minutes late and **pauses the schedule after 60 days with no commit**; a red run emails
+    Adrian; 00:00 in a half-hour zone is not sent; one late or missed reminder after a clock
+    change; signing out turns the switch off on that device; Brave ships with "Use Google
+    services for push messaging" OFF and the app shows "Could not turn it on" for ANY failure
+    to switch on. `docs/superpowers/plans/2026-08-17-notifications.md` is marked superseded.
+
 - **DAILY STREAK REMINDER, TASK 3 OF 4: THE HOURLY JOB IS LIVE AND REALLY SENDS (2026-10-08, `bb0c088`, no cache bump — v174).**
   `.github/workflows/streak-reminder.yml` runs at minute 17 of every hour on GitHub Actions.
   **No shipped file changed, `firestore.rules` and the indexes were not touched, nothing costs
