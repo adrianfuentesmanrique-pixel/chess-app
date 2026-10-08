@@ -2,6 +2,29 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **PULSO IS NOW CALLED "DUELO" (ES) / "DUEL" (EN) ON SCREEN (v169, 2026-10-08).
+  COMMITTED LOCALLY, NOT PUSHED - ask Adrian. ONLY THE VISIBLE WORD CHANGED.** Adrian
+  found "Pulso" unclear in English (chess.com calls its version Puzzle Battle), first
+  asked for "Challenge", then chose Duel / Duelo himself. Name check: no chess.com,
+  Lichess or Chessable mode is called Duel; one small third-party app describes a
+  "puzzle duel" in its store text; "Challenge" was rejected because both big sites use
+  it for inviting a friend to a game and our own button already says it.
+  - **Nothing internal was renamed and nothing must be:** the Firestore collection
+    `pulso/`, `firestore.rules`, every `pulso_*` i18n key, every `#pulso-*` id and
+    `.pulso-*` class, `js/pulso*.js`, `icons/pulso/`, `PulsoUI`, `PulsoMatch`, the screen
+    name `'pulso'`, `data-v="pulso"` and the shared file name `pulso.png`. In code,
+    comments, tools and this file the mode is still "Pulso".
+  - Changed: 9 values in `js/i18n.js` (`mode_pulso`, `pulso_challenge_menu`,
+    `pulso_offline`, `pulso_tell_text`, `pulso_invite`, `pulso_leave_confirm`,
+    `pulso_won_pull`, `pulso_tally`) plus ONE new key `pulso_name` (Duelo / Duel); the
+    lobby word is now `data-i18n="pulso_name"` with `text-transform: uppercase` instead
+    of a hard-coded PULSO; the share card's subtitle uses `t('pulso_name')`; `sw.js`
+    `CACHE` v168 -> v169; the expected words in `tools/emu-verify-pulso-ui.mjs`.
+  - **Verified:** `test:tree` 142/0, `test:precache` OK, `cdp-verify-puzzle-modes.mjs`
+    40 of 40 (the chip reads "⚔ Duelo" / "⚔ Duel", not cut short at 320 px),
+    `emu-verify-pulso-ui.mjs` 232 of 232, no console errors. Lobby looked at in ES light
+    (375 and 320) and EN dark.
+
 - **THE FOUR PUZZLE-MODE CHIPS ARE TWO ROWS OF TWO (v168, 2026-10-07). PUSHED AND LIVE
   (907b674): Adrian said yes; chesstrainingcenter.app serves `sw.js` v168, the grid rule
   in `css/style.css`, four strips without `scroll`, and the new `SWIPE_SAFE`.** Adrian's ask after seeing Pulso live: the strip of

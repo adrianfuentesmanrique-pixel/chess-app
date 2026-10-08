@@ -2073,7 +2073,7 @@ body.read-spread #read-reader {
 .pulso-hero .pulso-empty-art, #pulso-lobby.no-friends .pulso-hero-art { display: none; }
 #pulso-lobby.no-friends .pulso-empty-art { display: block; }
 .pulso-hero .hint { margin: 4px auto 0; max-width: 30ch; }
-.pulso-title { font-size: 26px; font-weight: 800; letter-spacing: .32em; margin-right: -.32em; color: var(--gold); }
+.pulso-title { font-size: 26px; font-weight: 800; letter-spacing: .32em; margin-right: -.32em; color: var(--gold); text-transform: uppercase; }
 #pulso-list { display: grid; gap: 6px; margin: 10px 0; }
 .pulso-row-end { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .pulso-row-end .btn { margin-top: 0; }

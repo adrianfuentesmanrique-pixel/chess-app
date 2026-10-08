@@ -386,7 +386,7 @@ export const PulsoMatch = {
     return {
       emoji: '⚔',
       title: this.endLine(r, PulsoUI.nameOf(r.friend)),
-      subtitle: `Pulso · ${r[r.me + 'S']}–${r[them + 'S']}`,
+      subtitle: `${t('pulso_name')} · ${r[r.me + 'S']}–${r[them + 'S']}`,
     };
   },
   share() {

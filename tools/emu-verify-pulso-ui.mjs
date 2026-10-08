@@ -430,20 +430,20 @@ async function openTab(who, host, uid) {
 let promoByCall = 0;
 const SKEW = 7000;      // how fast Luis's phone runs in the last combination
 const T = {
-  es: { getReady: '¡Prepárate!', streak: '¡Racha! ×2', quiet: 'Sin señal de Luis', leaveQ: '¿Salir? Perderás este Pulso.', you: 'Tú', timeUp: '¡Se acabó el tiempo!',
-    wonPull: '¡Ganaste el Pulso!', lostPull: 'Ana se llevó la llama', wonTime: '¡Ganaste a tiempo!', lostTime: 'Ana ganó a tiempo', youLeft: 'Abandonaste', left: n => `${n} abandonó`,
-    challenge: 'Retar', waiting: 'Esperando a Luis…', invite: 'Ana te reta a un Pulso', noAnswer: 'Luis no respondió', declined: 'Luis dijo que ahora no',
-    offline: 'Pulso necesita conexión', tally: 'Tú 3 · 2', update: 'Uno de los dos tiene que actualizar la app', signin: 'Inicia sesión para retar a un amigo', preparing: 'Preparando…',
+  es: { getReady: '¡Prepárate!', streak: '¡Racha! ×2', quiet: 'Sin señal de Luis', leaveQ: '¿Salir? Perderás este Duelo.', you: 'Tú', timeUp: '¡Se acabó el tiempo!',
+    wonPull: '¡Ganaste el Duelo!', lostPull: 'Ana se llevó la llama', wonTime: '¡Ganaste a tiempo!', lostTime: 'Ana ganó a tiempo', youLeft: 'Abandonaste', left: n => `${n} abandonó`,
+    challenge: 'Retar', waiting: 'Esperando a Luis…', invite: 'Ana te reta a un Duelo', noAnswer: 'Luis no respondió', declined: 'Luis dijo que ahora no',
+    offline: 'El Duelo necesita conexión', tally: 'Tú 3 · 2', update: 'Uno de los dos tiene que actualizar la app', signin: 'Inicia sesión para retar a un amigo', preparing: 'Preparando…',
     wonErrors: 'Empate en la barra — ganaste por menos errores', lostErrors: n => `Empate en la barra — ${n} ganó por menos errores`, draw: 'Tablas',
     sub: /^Arrastraste la llama hasta tu lado en (\d):(\d\d)\.$/, rematch: '⚔ Revancha', wants: n => `${n} quiere la revancha — Aceptar`, waitingFor: n => `Esperando a ${n}…`,
-    inviteBy: n => `${n} te reta a un Pulso`, declinedBy: n => `${n} dijo que ahora no`, noAnswerBy: n => `${n} no respondió`, line: (a, n, b) => `Pulso: Tú ${a} · ${n} ${b}`, row: (a, b) => `Tú ${a} · ${b}` },
-  en: { getReady: 'Get ready!', streak: 'Streak! ×2', quiet: 'No signal from Luis', leaveQ: 'Leave? You will lose this Pulso.', you: 'You', timeUp: "Time's up!",
-    wonPull: 'You won the Pulso!', lostPull: 'Ana took the flame', wonTime: 'You won on time!', lostTime: 'Ana won on time', youLeft: 'You left', left: n => `${n} left`,
-    challenge: 'Challenge', waiting: 'Waiting for Luis…', invite: 'Ana challenges you to a Pulso', noAnswer: 'Luis did not answer', declined: 'Luis said not now',
-    offline: 'Pulso needs a connection', tally: 'You 3 · 2', update: 'One of you needs to update the app', signin: 'Sign in to challenge a friend', preparing: 'Preparing…',
+    inviteBy: n => `${n} te reta a un Duelo`, declinedBy: n => `${n} dijo que ahora no`, noAnswerBy: n => `${n} no respondió`, line: (a, n, b) => `Duelo: Tú ${a} · ${n} ${b}`, row: (a, b) => `Tú ${a} · ${b}` },
+  en: { getReady: 'Get ready!', streak: 'Streak! ×2', quiet: 'No signal from Luis', leaveQ: 'Leave? You will lose this Duel.', you: 'You', timeUp: "Time's up!",
+    wonPull: 'You won the Duel!', lostPull: 'Ana took the flame', wonTime: 'You won on time!', lostTime: 'Ana won on time', youLeft: 'You left', left: n => `${n} left`,
+    challenge: 'Challenge', waiting: 'Waiting for Luis…', invite: 'Ana challenges you to a Duel', noAnswer: 'Luis did not answer', declined: 'Luis said not now',
+    offline: 'A Duel needs a connection', tally: 'You 3 · 2', update: 'One of you needs to update the app', signin: 'Sign in to challenge a friend', preparing: 'Preparing…',
     wonErrors: 'Level on the bar — you won on fewer mistakes', lostErrors: n => `Level on the bar — ${n} won on fewer mistakes`, draw: 'Draw',
     sub: /^You dragged the flame to your side in (\d):(\d\d)\.$/, rematch: '⚔ Rematch', wants: n => `${n} wants a rematch — Accept`, waitingFor: n => `Waiting for ${n}…`,
-    inviteBy: n => `${n} challenges you to a Pulso`, declinedBy: n => `${n} said not now`, noAnswerBy: n => `${n} did not answer`, line: (a, n, b) => `Pulso: You ${a} · ${n} ${b}`, row: (a, b) => `You ${a} · ${b}` },
+    inviteBy: n => `${n} challenges you to a Duel`, declinedBy: n => `${n} said not now`, noAnswerBy: n => `${n} did not answer`, line: (a, n, b) => `Duel: You ${a} · ${n} ${b}`, row: (a, b) => `You ${a} · ${b}` },
 };
 const LUIS = '#pulso-list .fr-row:nth-child(2) button';   // Carolina sorts first
 
@@ -696,9 +696,9 @@ try {
     await ana.tap('#pulso-share');
     await ana.until('the share sheet', `window.__shared`, 6000);
     const shared = await ana.ev(`return window.__shared`), card = await ana.ev(`return __t.M.card()`);
-    check(`📤 (real tap) hands the share sheet one picture, pulso.png, and the card it was drawn from is ⚔ · "${w.wonPull}" · "Pulso · ${N}–1"`,
+    check(`📤 (real tap) hands the share sheet one picture, pulso.png, and the card it was drawn from is ⚔ · "${w.wonPull}" · "Duelo · ${N}–1"`,
       shared.files.length === 1 && shared.files[0][0] === 'pulso.png' && shared.files[0][1] === 'image/png' && shared.files[0][2] > 8000
-      && card.emoji === '⚔' && card.title === w.wonPull && card.subtitle === `Pulso · ${N}–1`, { shared, card });
+      && card.emoji === '⚔' && card.title === w.wonPull && card.subtitle === `Duelo · ${N}–1`, { shared, card });
 
     console.log('Rematch: Ana asks, Luis takes it — and that match ends level on the bar');
     let pz = await askRematch(tag, w, ana, luis, { shots: true });
@@ -1034,7 +1034,7 @@ try {
       await ana.tap('#pulso-tell');
       const shared = await ana.ev(`return window.__shared`);
       check('"Avisarle" hands the share sheet the text from the spec, and nothing else',
-        shared && shared.text === 'Te reto a un Pulso en Chess Training Center. Abre la app — tienes 5 minutos.' && Object.keys(shared).length === 1, shared);
+        shared && shared.text === 'Te reto a un Duelo en Chess Training Center. Abre la app — tienes 5 minutos.' && Object.keys(shared).length === 1, shared);
     }
 
     if (tag === 'en-dark') {
