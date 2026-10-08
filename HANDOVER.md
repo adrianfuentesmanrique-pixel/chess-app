@@ -2,6 +2,53 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **THE DUEL "AVISARLE / TELL THEM" SHARE CARRIES A LINK, AND THE CHALLENGER COMES BACK
+  TO THE WAITING SCREEN (v171, 2026-10-08). COMMITTED, NOT PUSHED — Adrian has not been
+  asked yet. NOT YET TRIED ON A REAL PHONE.** Adrian reported (1) the share was plain
+  text with no link, (2) after pressing it he was in WhatsApp and could not get back to
+  the challenge.
+  - **The message** (`pulso_tell_text`, `PulsoUI.tell()`): "Ana te reta a un Duelo en
+    Chess Training Center. Tienes 5 minutos: https://chesstrainingcenter.app/?duel=<uid>"
+    (EN likewise). The link is INSIDE the text (some apps drop a link passed beside it)
+    and is the constant `LINK` in `js/pulso-ui.js`, never `location.origin`. `?duel=`,
+    not `?pulso=`, because the address is visible in WhatsApp. All it carries is the
+    challenger's uid, which `/leaderboard` already shows anyone.
+  - **Opening it** (`PulsoUI.init()` reads and removes `?duel=` at once, keeping any
+    other query; `PulsoUI.follow()` acts once the app is up, `Auth.known` is true and the
+    listener has heard from the server). Adrian's decision: the link NEVER accepts - it
+    opens the Duel screen and the existing gold banner (Not now / Accept) is the
+    challenge. Invited friend, challenge open -> Duel screen + banner. Challenger's own
+    link -> waiting screen. Ran out / cancelled -> lobby line `pulso_link_expired`. Not
+    friends -> `pulso_link_strangers` (name read from `/leaderboard`). Signed out -> the
+    Duel screen's existing "sign in" button; the link is kept in memory and followed
+    after sign-in. Own link too late -> `pulso_gone`. A uid nobody has -> the lobby,
+    nothing said. Not a uid at all -> ignored, Analysis as always. The line is
+    `PulsoUI.notice`, shown in `#pulso-note`, cleared on the next entry to the screen.
+  - **The challenger** : when the app STARTS with my own challenge still open and the
+    screen is still Analysis, `follow()` goes to the Duel screen (which rebuilds the
+    waiting screen). Once per launch (`fresh`), never later.
+  - **Report (2) was NOT reproduced** (needs a phone). What the code showed: every start
+    ended on `showScreen('analysis')` and nothing led back to Duel. Fixed by design.
+    While WhatsApp is in front the app cannot pull the user back; they return with Back /
+    recent apps, or by tapping their own link.
+  - **New in other files:** `Auth.known` in `js/firebase.js` (false until Firebase has
+    answered; `Auth.onChange` alone is not enough - "nobody is signed in" can arrive
+    before a module is listening). `PulsoUI.boot()` is called in `js/app.js` right after
+    the start-up `showScreen('analysis')`. `watchPulso`'s `{ fromCache }` is now used
+    (`PulsoUI.loaded`). Still ONE listener. **`firestore.rules` unchanged - no rules
+    deploy.** `CACHE` v170 -> v171.
+  - **Known limits.** Whether the https link opens the installed TWA or a Brave tab is
+    Android's doing - unverified. If the v170 boot guard reloads a failed start, the link
+    is already out of the address and is lost. `tell()` uses the name already on the
+    waiting screen; if it has not loaded it shares "?".
+  - **Verified:** `test:tree` 142/0, `test:rules` 399/0, `test:precache` OK,
+    `tools/emu-verify-pulso.mjs --quick` 48/48, `tools/emu-verify-pulso-ui.mjs` 285 of
+    285 (the old 232, minus the old share-text check, plus 54), no console errors; 375px
+    light/dark ES/EN screenshots looked at. The tool has a new `--links` flag (only the
+    link scenes, about 3 minutes) and a `?later=` signed-out phone with
+    `window.__signIn()`. `navigator.share` is a stand-in there; the sign-in form is not
+    filled in.
+
 - **THE START-UP CAN NO LONGER END ON THE SPLASH (v170, 2026-10-08). PUSHED AND
   LIVE 2026-10-08 — live `sw.js` says v170 and the live page carries the boot guard; the
   `boot-watchdog` branch and the `chess-app-boot` worktree are removed. Sentry has had

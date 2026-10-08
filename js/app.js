@@ -7708,6 +7708,7 @@ async function main() {
   });
   $('btn-settings').onclick = openSettings;
   showScreen('analysis');
+  PulsoUI.boot();
   // make sure at least one base exists so saving is one tap
   const bases = await db.listBases();
   if (!bases.length) await db.createBase(t('my_games'));

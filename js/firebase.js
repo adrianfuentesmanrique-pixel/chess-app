@@ -104,6 +104,9 @@ let suppressSync = false;
 
 export const Auth = {
   user: null,
+  // False until Firebase has said who is signed in, or that nobody is. Until
+  // then `user: null` means "not known yet", not "signed out".
+  known: false,
   needsProfileCompletion: false,
   listeners: [],
 
@@ -1809,6 +1812,7 @@ async function pullOrBootstrap(uid) {
 
 onAuthStateChanged(auth, async (user) => {
   Auth.user = user;
+  Auth.known = true;
   if (user) {
     try { await pullOrBootstrap(user.uid); } catch (e) { console.error('Firestore pull failed', e); }
   }

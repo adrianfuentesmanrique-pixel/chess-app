@@ -39,7 +39,13 @@ const HOST_MARGIN_MS = 1000;
 const CLOSE_EVERY_MS = 3000;
 const CLOCK_RETRY_MS = 10000;
 
-const named = (key, name) => t(key).replace('{n}', name);
+// The address "Tell them" shares. Always the real one, whatever this page was
+// loaded from. All it carries is the challenger's uid, which /leaderboard
+// already shows anyone; it only tells the app where to look. Who may accept is
+// still the rules' business.
+const LINK = 'https://chesstrainingcenter.app/?duel=';
+
+const named = (key, name) => t(key).replaceAll('{n}', () => name);
 
 export const PulsoUI = {
   uid: null,          // whose listener is running, or null
@@ -61,9 +67,26 @@ export const PulsoUI = {
   clockAt: 0,         // when the server's time was last asked for
   lobbyKey: '',
   bannerKey: '',
+  // Arriving (see follow()). `link` is the ?duel= the app was opened with:
+  // { host, shown }, or null once it has been followed.
+  link: null,
+  notice: '',         // what a link that led nowhere has to say, in the lobby
+  up: false,          // the app has finished starting and put its first screen up
+  loaded: false,      // the listener has heard from the server for this user
+  fresh: true,        // nothing has been followed since the app started
 
   init() {
     PulsoMatch.init();
+    // The link is read once and taken out of the address straight away, so a
+    // reload or a shared screenshot never carries it again.
+    const q = new URLSearchParams(location.search);
+    const host = q.get('duel');
+    if (host !== null) {
+      q.delete('duel');
+      const rest = q.toString();
+      history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+      if (/^\w{1,128}$/.test(host)) this.link = { host, shown: false };
+    }
     $('pulso-how').onclick = () => this.how();
     $('pulso-tell').onclick = () => this.tell();
     $('pulso-cancel').onclick = () => this.cancel();
@@ -77,6 +100,10 @@ export const PulsoUI = {
     Auth.onChange(() => this.onAuth());
     this.onAuth();
   },
+
+  // Called by js/app.js once its own first screen is up, so nothing below is
+  // undone by the start of the app.
+  boot() { this.up = true; this.follow(); },
 
   // The one place the listener starts and stops. Auth.onChange also fires when
   // nothing about WHO is signed in has changed, so the uid is compared first —
@@ -95,9 +122,12 @@ export const PulsoUI = {
       this.accepting = null;
       this.dropped = null;
       this.sending = false;
-      if (uid) this.stop = watchPulso(list => this.onMatches(list));
+      this.loaded = false;
+      this.notice = '';
+      if (uid) this.stop = watchPulso((list, meta) => this.onMatches(list, meta));
     }
     if (activeScreen === 'pulso') this.onEnter(); else this.sync();
+    this.follow();
   },
 
   // ── what the listener says ─────────────────────────────────────────────
@@ -119,10 +149,11 @@ export const PulsoUI = {
       .sort((a, b) => a.invitedAt - b.invitedAt)[0] || null;
   },
 
-  onMatches(list) {
+  onMatches(list, meta) {
     const prev = this.prev;
     this.prev = new Map(list.map(m => [m.id, m.status]));
     this.matches = list;
+    if (!meta || !meta.fromCache) this.loaded = true;
     if (!list.some(m => m.id === this.dropped && m.status === 'invited')) this.dropped = null;
     const w = this.wait;
     if (w && !w.ended) {
@@ -139,6 +170,62 @@ export const PulsoUI = {
     }
     this.close();
     this.sync();
+    this.follow();
+  },
+
+  // ── arriving ───────────────────────────────────────────────────────────
+
+  // Where the app goes by itself, decided once: when it has started, it is
+  // known who is signed in, and the listener has heard from the server.
+  //  - Opened from a "Tell them" link: the Duel screen. The challenge is the
+  //    banner there, never accepted by the link itself, since a preview or a
+  //    slip of the finger must not start a match. A link that leads nowhere
+  //    says why in the lobby.
+  //  - Started with my own challenge still out (Android closed the app while
+  //    I was telling my friend): back to the waiting screen, not Analysis.
+  // Signed out, the link waits on the Duel screen's "sign in" and is followed
+  // after that.
+  follow() {
+    // Auth.known and not Auth.onChange: Firebase can answer "nobody" before
+    // this file is listening.
+    if (!this.up || !Auth.known) return;
+    const link = this.link, fresh = this.fresh;
+    if (!Auth.user) {
+      this.fresh = false;
+      if (link && !link.shown) { link.shown = true; showScreen('pulso'); }
+      return;
+    }
+    if (!this.uid || !this.loaded) return;
+    this.link = null;
+    this.fresh = false;
+    const mine = this.matches.some(m => m.host === this.uid && this.inviteOpen(m, HOST_MARGIN_MS));
+    if (!link) {
+      if (fresh && mine && activeScreen === 'analysis') showScreen('pulso');
+      return;
+    }
+    if (activeScreen !== 'pulso') showScreen('pulso');
+    if (link.host === this.uid) {
+      if (!mine) { this.notice = t('pulso_gone'); this.sync(); }
+      return;
+    }
+    const m = this.withFriend(link.host);
+    if (m && (this.inPlay(m) || (m.host === link.host && this.inviteOpen(m)))) return;
+    this.deadLink(link.host, !!m);
+  },
+
+  // The link's challenge is not there for me: it ran out or was taken back,
+  // or its sender and I are not friends. A uid nobody has says nothing.
+  async deadLink(host, played) {
+    const uid = this.uid;
+    try {
+      if (!played && !Friends.friendsLoaded) await Friends.loadFriends();
+      const friend = Friends.friends.find(f => f.uid === host);
+      const who = friend || this.people[host] || (await fetchLeaderboardByUids([host]))[host];
+      if (!who || uid !== this.uid) return;
+      this.people[host] = who;
+      this.notice = named(played || friend ? 'pulso_link_expired' : 'pulso_link_strangers', who.profileName || '?');
+      this.sync();
+    } catch (e) { console.error('Reading a Duel link failed', e); }
   },
 
   // Record the result of any match that has one. finishPulso() works out for
@@ -231,6 +318,7 @@ export const PulsoUI = {
   onEnter() {
     // A waiting screen that has already said how it ended is not shown twice.
     if (this.wait && this.wait.ended) this.wait = null;
+    this.notice = '';
     if (this.uid && navigator.onLine) {
       this.loadBands();
       if (!Friends.friendsLoaded && !this.friendsBusy) {
@@ -277,7 +365,7 @@ export const PulsoUI = {
   renderLobby() {
     const offline = !navigator.onLine;
     const friends = this.uid ? Friends.friends : [];
-    const key = JSON.stringify([getLang(), this.uid, offline, this.bands, this.sending, Friends.friendsLoaded,
+    const key = JSON.stringify([getLang(), this.uid, offline, this.bands, this.sending, Friends.friendsLoaded, this.notice,
       friends.map(f => [f.uid, f.profileName, f.username, f.avatarId]),
       this.matches.map(m => [m.id, m.status, this.inviteOpen(m, HOST_MARGIN_MS), this.inPlay(m), m.aW, m.bW])]);
     if (key === this.lobbyKey) return;
@@ -292,6 +380,8 @@ export const PulsoUI = {
     else if (!friends.length) { note = t('pulso_no_friends'); btn = [t('friends_btn'), () => Friends.open()]; }
     else if (this.bands === 'failed') note = t('puzzles_unavailable');
     else if (this.bands !== 'ready') note = t('pulso_loading');
+    // What a link that led nowhere has to say comes before any of those.
+    if (this.uid && this.notice) note = this.notice;
     $('pulso-lobby').classList.toggle('no-friends', note === t('pulso_no_friends'));
     $('pulso-note').textContent = note;
     $('pulso-note').classList.toggle('hidden', !note);
@@ -376,10 +466,12 @@ export const PulsoUI = {
   },
 
   // There is no notification, so the challenger says it themselves: the
-  // phone's own share sheet, text only. Where there is no share sheet (a
-  // desktop browser) the text is copied instead.
+  // phone's own share sheet, text only: my name, the 5 minutes and the link,
+  // which is inside the text because some apps drop a link passed beside it.
+  // Where there is no share sheet (a desktop browser) the text is copied
+  // instead.
   async tell() {
-    const text = t('pulso_tell_text');
+    const text = named('pulso_tell_text', this.nameOf(this.uid)).replace('{u}', LINK + this.uid);
     if (navigator.share) {
       try { await navigator.share({ text }); return; } catch (e) { if (e.name === 'AbortError') return; }
     }

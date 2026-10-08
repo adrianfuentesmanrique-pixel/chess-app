@@ -3,13 +3,16 @@
 // against the Firestore EMULATOR running the real firestore.rules. Dev tool,
 // not shipped.
 //
-//   node tools/emu-verify-pulso-ui.mjs <outDir>     about 12 minutes; screenshots go to <outDir>
+//   node tools/emu-verify-pulso-ui.mjs <outDir>     about 14 minutes; screenshots go to <outDir>
+//   node tools/emu-verify-pulso-ui.mjs <outDir> --links   only the "Tell them" link scenes, about 3 minutes
 //
 // How: like tools/emu-verify-pulso.mjs it starts the emulator and serves the
 // app folder with stand-ins for three SDK files — but here index.html itself
 // is loaded, so the app has to believe somebody is signed in:
 //   firebase-auth.js        onAuthStateChanged() really calls back, with a fake
-//                           user whose uid is ?uid= ; signOut() calls back null
+//                           user whose uid is ?uid= ; signOut() calls back null;
+//                           a phone opened with ?later= instead starts signed
+//                           out and window.__signIn() signs that user in
 //   firebase-firestore.js   the real one, pointed at the emulator and signed in
 //                           as ?uid= (mockUserToken); onSnapshot is counted, so
 //                           "exactly one listener" is a number, not a belief
@@ -40,6 +43,16 @@
 // the share card, the daily streak and Kael's silence are checked in es-light.
 // The rematch matches are ended by moving startAt 186 s into the past (seeded)
 // rather than waited out.
+//
+// THE "TELL THEM" LINK, in all four combinations before anything else: the
+// text handed to the share sheet (navigator.share is a stand-in that records
+// what it is given: a share sheet cannot be tapped through in headless
+// Chrome), then the app OPENED ON the link (?duel=<uid>) by the invited
+// friend, by the challenger, by a stranger (Dora), signed out and then signed
+// in, after the 5 minutes, and with a made-up uid; and the challenger's phone
+// reloaded with no link at all. The link is always tried on this tool's own
+// address: that chesstrainingcenter.app opens the installed app is Android's
+// doing and can only be seen on a phone.
 //
 // REALLY TOUCHED (CDP Input.dispatchTouchEvent): ☰ and the Puzzles entry, every
 // mode chip, Challenge, Tell them, Cancel, Accept, Not now, Challenge again,
@@ -87,7 +100,7 @@ if (!process.argv.includes('--inner')) {
   if (!jdk) { console.error('No Java 11+ found; the Firestore emulator needs it (see tests/run-rules-tests.mjs).'); process.exit(1); }
   const res = spawnSync('npx',
     ['firebase', 'emulators:exec', '--only', 'firestore', '--project', 'chess-training-center',
-      `"node tools/emu-verify-pulso-ui.mjs ${JSON.stringify(path.resolve(OUT)).slice(1, -1).replace(/\\\\/g, '/')} --inner"`],
+      `"node tools/emu-verify-pulso-ui.mjs ${JSON.stringify(path.resolve(OUT)).slice(1, -1).replace(/\\\\/g, '/')} --inner${process.argv.includes('--links') ? ' --links' : ''}"`],
     { cwd: ROOT, stdio: 'inherit', shell: true, env: { ...process.env, JAVA_HOME: jdk, PATH: `${path.join(jdk, 'bin')};${process.env.PATH}` } });
   process.exit(res.status ?? 1);
 }
@@ -115,7 +128,7 @@ const SHIMS = {
     import { getFirestore as real, connectFirestoreEmulator, onSnapshot as realSnap } from './firebase-firestore.real.js';
     export function getFirestore(app) {
       const f = real(app);
-      const uid = ${UID};
+      const uid = ${UID} || new URLSearchParams(location.search).get('later');
       connectFirestoreEmulator(f, '${EMU_HOST}', ${EMU_PORT}, uid ? { mockUserToken: { sub: uid } } : {});
       return f;
     }
@@ -129,8 +142,10 @@ const SHIMS = {
   [SDK + 'firebase-auth.js']: `
     const no = () => { throw new Error('auth is a stand-in here'); };
     const uid = ${UID};
-    const auth = { currentUser: uid ? { uid, email: uid + '@example.test', displayName: uid, providerData: [{ providerId: 'password' }] } : null };
+    const user = uid => ({ uid, email: uid + '@example.test', displayName: uid, providerData: [{ providerId: 'password' }] });
+    const auth = { currentUser: uid ? user(uid) : null };
     const cbs = [];
+    window.__signIn = () => { auth.currentUser = user(new URLSearchParams(location.search).get('later')); for (const cb of cbs) cb(auth.currentUser); };
     export function getAuth() { return auth; }
     export function onAuthStateChanged(a, cb) { cbs.push(cb); setTimeout(() => cb(auth.currentUser), 0); return () => {}; }
     export async function signOut() { auth.currentUser = null; for (const cb of cbs) cb(null); }
@@ -240,8 +255,8 @@ const check = (name, ok, detail) => {
 };
 
 // One phone.
-async function openTab(who, host, uid) {
-  const url = `http://${host}:${WEB}/${uid ? '?uid=' + uid : ''}`;
+async function openTab(who, host, uid, later) {
+  const url = `http://${host}:${WEB}/${uid ? '?uid=' + uid : later ? '?later=' + later : ''}`;
   const target = await req(`http://127.0.0.1:${PORT}/json/new?about:blank`, 'PUT');
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise(r => ws.on('open', r));
@@ -273,12 +288,15 @@ async function openTab(who, host, uid) {
   const tab = {
     who, ev, send,
     // (Re)loads the app in a language and a colour scheme, and waits for sign-in.
-    async load(lang, scheme) {
+    // With `duel` the app is opened on a "Tell them" link from that uid.
+    async load(lang, scheme, duel) {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await send('Page.navigate', { url });
       await sleep(1500);
       await ev(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1');`);
-      await send('Page.reload', {});
+      if (duel) await send('Page.navigate', { url: url + (url.includes('?') ? '&' : '?') + 'duel=' + duel });
+      else await send('Page.reload', {});
+      await sleep(300);
       for (let i = 0; i < 60 && await ev(`return document.readyState`) !== 'complete'; i++) await sleep(100);
       await sleep(2500);
       await ev(`
@@ -436,6 +454,8 @@ const T = {
     offline: 'El Duelo necesita conexión', tally: 'Tú 3 · 2', update: 'Uno de los dos tiene que actualizar la app', signin: 'Inicia sesión para retar a un amigo', preparing: 'Preparando…',
     wonErrors: 'Empate en la barra — ganaste por menos errores', lostErrors: n => `Empate en la barra — ${n} ganó por menos errores`, draw: 'Tablas',
     sub: /^Arrastraste la llama hasta tu lado en (\d):(\d\d)\.$/, rematch: '⚔ Revancha', wants: n => `${n} quiere la revancha — Aceptar`, waitingFor: n => `Esperando a ${n}…`,
+    tell: 'Ana te reta a un Duelo en Chess Training Center. Tienes 5 minutos: https://chesstrainingcenter.app/?duel=alice_uid',
+    linkExpired: 'El reto de Ana ya caducó. Los retos duran 5 minutos.', linkStrangers: 'Solo los amigos de Ana pueden aceptar su Duelo. Añade a Ana en Amigos primero.', gone: 'Ese reto ya no está disponible',
     inviteBy: n => `${n} te reta a un Duelo`, declinedBy: n => `${n} dijo que ahora no`, noAnswerBy: n => `${n} no respondió`, line: (a, n, b) => `Duelo: Tú ${a} · ${n} ${b}`, row: (a, b) => `Tú ${a} · ${b}` },
   en: { getReady: 'Get ready!', streak: 'Streak! ×2', quiet: 'No signal from Luis', leaveQ: 'Leave? You will lose this Duel.', you: 'You', timeUp: "Time's up!",
     wonPull: 'You won the Duel!', lostPull: 'Ana took the flame', wonTime: 'You won on time!', lostTime: 'Ana won on time', youLeft: 'You left', left: n => `${n} left`,
@@ -443,6 +463,8 @@ const T = {
     offline: 'A Duel needs a connection', tally: 'You 3 · 2', update: 'One of you needs to update the app', signin: 'Sign in to challenge a friend', preparing: 'Preparing…',
     wonErrors: 'Level on the bar — you won on fewer mistakes', lostErrors: n => `Level on the bar — ${n} won on fewer mistakes`, draw: 'Draw',
     sub: /^You dragged the flame to your side in (\d):(\d\d)\.$/, rematch: '⚔ Rematch', wants: n => `${n} wants a rematch — Accept`, waitingFor: n => `Waiting for ${n}…`,
+    tell: 'Ana challenges you to a Duel in Chess Training Center. You have 5 minutes: https://chesstrainingcenter.app/?duel=alice_uid',
+    linkExpired: 'The challenge from Ana has expired. Challenges last 5 minutes.', linkStrangers: 'Only friends of Ana can accept this Duel. Add Ana in Friends first.', gone: 'That challenge is no longer open',
     inviteBy: n => `${n} challenges you to a Duel`, declinedBy: n => `${n} said not now`, noAnswerBy: n => `${n} did not answer`, line: (a, n, b) => `Duel: You ${a} · ${n} ${b}`, row: (a, b) => `You ${a} · ${b}` },
 };
 const LUIS = '#pulso-list .fr-row:nth-child(2) button';   // Carolina sorts first
@@ -461,6 +483,120 @@ try {
   const reset = async () => {
     await seed(`pulso/${AB}`, { status: 'done' }, true);
     await Promise.all([ana, luis].map(t => t.until('the match reset', `!__t.P.matches.some(m => m.status === 'invited' || m.status === 'live')`)));
+  };
+
+  // ── the "Tell them" link ───────────────────────────────────────────────
+  const links = async (tag, w, lang, scheme) => {
+    const invited = ago => matchDoc({ status: 'invited', invitedAt: new Date(Date.now() - ago), startAt: null, winner: null, reason: null });
+    const clean = (tab, q) => tab.ev(`return location.search === ${JSON.stringify(q)} && !location.hash`);
+    const noteIs = text => `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-lobby') && __t.vis('#pulso-note') && __t.txt('#pulso-note') === ${JSON.stringify(text)}`;
+    let a, l;
+
+    console.log('"Tell them": the text and its link');
+    await openPulso(ana);
+    await ana.tap(LUIS);
+    await ana.until('the waiting screen', `__t.vis('#pulso-waiting')`);
+    await ana.until('the invitation confirmed', `__t.P.matches.some(m => m.status === 'invited' && !m.pending)`);
+    await ana.ev(`window.__shared = null; navigator.share = async d => { window.__shared = d; };`);
+    await ana.tap('#pulso-tell');
+    const shared = await ana.ev(`return window.__shared`);
+    check(`[${tag}] "Tell them" hands the share sheet (a stand-in) one text: Ana's name, the 5 minutes and the link with her uid, and nothing else`,
+      shared && shared.text === w.tell && Object.keys(shared).length === 1, shared);
+    check(`[${tag}] …and after sharing Ana is still on the waiting screen`, (await ana.see()).waiting);
+
+    console.log('The challenger\'s phone starts again');
+    await ana.load(lang, scheme);
+    await ana.until('the waiting screen by itself', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-waiting')`, 10000);
+    a = await ana.see();
+    check(`[${tag}] Ana's app is started again with her challenge still out: it opens on the waiting screen by itself, the countdown still running, one listener`,
+      a.waiting && !a.lobby && a.title === w.waiting && /^[34]:\d\d$/.test(a.clock) && a.listeners === 1 && await ana.ev(`return window.__listenersEver === 1`), { title: a.title, clock: a.clock });
+    await ana.shot(`${tag}-link-challenger-back`);
+    await ana.load(lang, scheme, ALICE);
+    await ana.until('the waiting screen from her own link', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-waiting')`, 10000);
+    check(`[${tag}] Ana taps her own link: the waiting screen, and the address is clean`, (await ana.see()).title === w.waiting && await clean(ana, '?uid=' + ALICE));
+
+    console.log('The friend opens the link');
+    await luis.load(lang, scheme, ALICE);
+    await luis.until('the Duel screen with the banner', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-banner') && __t.txt('#pulso-banner-who') === ${JSON.stringify(w.invite)}`, 10000);
+    l = await luis.see();
+    check(`[${tag}] Luis opens the link: the Duel screen with Ana's banner in front (Not now / Accept), no notice, one listener`,
+      l.screen === 'pulso' && l.lobby && !l.game && l.banner && l.bannerText === w.invite && !l.note && l.listeners === 1 && await luis.ev(`return __t.vis('#pulso-accept') && __t.vis('#pulso-decline')`), l);
+    check(`[${tag}] …the link accepted nothing: still "invited", no start time`, await (async () => { const d = await stored(`pulso/${AB}`); return d.status === 'invited' && d.startAt === null; })());
+    check(`[${tag}] …and the link is gone from Luis's address`, await clean(luis, '?uid=' + BOB), await luis.ev(`return location.href`));
+    await luis.shot(`${tag}-link-friend`);
+    if (tag === 'es-light') {
+      await luis.tap('#pulso-accept');
+      await Promise.all([ana, luis].map(t => t.until('the match', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-game')`, 15000)));
+      check('Accept on that banner starts the match on both phones', (await stored(`pulso/${AB}`)).status === 'live');
+    }
+
+    console.log('After the 5 minutes');
+    await seed(`pulso/${AB}`, invited(6 * 60e3));
+    await luis.load(lang, scheme, ALICE);
+    await luis.until('told it ran out', noteIs(w.linkExpired), 10000);
+    l = await luis.see();
+    check(`[${tag}] Luis opens the link 6 minutes late (seeded): the Duel screen says whose challenge ran out, no banner, Ana still listed, address clean`,
+      l.note === w.linkExpired && !l.banner && l.rows.length === 1 && await clean(luis, '?uid=' + BOB), l);
+    await luis.shot(`${tag}-link-expired`);
+    await luis.tap('#tabmenu-btn');
+    await luis.tap('#tabbar button[data-screen="puzzles"]');
+    await luis.until('the Puzzles screen', `__t.app.activeScreen === 'puzzles'`);
+    await luis.tap('#screen-puzzles .puzzle-modes [data-v="pulso"]');
+    await luis.until('the lobby', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-lobby')`);
+    check(`[${tag}] …and the notice is said once: gone when he comes back to the Duel screen`, !(await luis.see()).note);
+    if (tag === 'es-light') {
+      await ana.load(lang, scheme);
+      await sleep(2500);
+      check('Ana starts the app with a challenge of hers that has run out: Analysis as always', (await ana.see()).screen === 'analysis');
+      await ana.load(lang, scheme, ALICE);
+      await ana.until('told', noteIs(w.gone), 10000);
+      check('Ana taps her own link too late: the lobby says "Ese reto ya no está disponible"', (await ana.see()).note === w.gone);
+      const carol = await openTab('carol-link', '127.0.0.2', CAROL);
+      await carol.load(lang, scheme, ALICE);
+      await carol.until('told', noteIs(w.linkExpired), 10000);
+      check('Carolina, a friend Ana has never challenged, opens the link: told the challenge has run out', true);
+      await carol.send('Page.close').catch(() => {});
+      await luis.load(lang, scheme, 'nobody_uid');
+      await luis.until('the Duel screen', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-lobby')`, 10000);
+      await sleep(2000);
+      l = await luis.see();
+      check('a link with a uid nobody has: the Duel lobby, nothing said, address clean', l.lobby && !l.note && !l.banner && await clean(luis, '?uid=' + BOB), l);
+      await luis.load(lang, scheme, 'a%2Fb%20c');
+      await sleep(2000);
+      check('a link that is not a uid at all: Analysis as always, address clean', (await luis.see()).screen === 'analysis' && await clean(luis, '?uid=' + BOB));
+    }
+
+    console.log('A stranger opens the link');
+    await seed(`pulso/${AB}`, invited(0));
+    const dora = await openTab('dora-link', '127.0.0.3', DORA);
+    await dora.load(lang, scheme, ALICE);
+    await dora.until('told they are not friends', noteIs(w.linkStrangers), 15000);
+    const d = await dora.see();
+    check(`[${tag}] Dora is not Ana's friend: the Duel screen says only Ana's friends can accept, with the button to Friends; no banner, nothing stored for the two of them`,
+      d.note === w.linkStrangers && !d.banner && d.rows.length === 0 && await dora.ev(`return __t.vis('#pulso-note-btn') && document.documentElement.scrollWidth <= innerWidth`)
+      && await clean(dora, '?uid=' + DORA) && await stored(`pulso/${ALICE}_${DORA}`) === null, d);
+    await dora.send('Page.bringToFront');
+    await dora.shot(`${tag}-link-stranger`);
+    await dora.send('Page.close').catch(() => {});
+
+    console.log('Signed out, then signed in');
+    const guest = await openTab('guest', '127.0.0.3', null, BOB);
+    await guest.load(lang, scheme, ALICE);
+    await guest.until('the Duel screen asking to sign in', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-note-btn') && __t.txt('#pulso-note-btn') === ${JSON.stringify(w.signin)}`, 10000);
+    let g = await guest.see();
+    check(`[${tag}] signed out: the link opens the Duel screen on "${w.signin}", no banner, no listener, address clean`,
+      g.screen === 'pulso' && g.rows.length === 0 && !g.banner && g.listeners === 0 && await clean(guest, '?later=' + BOB), g);
+    await guest.shot(`${tag}-link-signed-out`);
+    await guest.tap('#pulso-note-btn');
+    await guest.until('the Profile screen', `__t.app.activeScreen === 'profile'`);
+    await guest.ev(`window.__signIn();`);     // seeded: the sign-in form is not filled in
+    await guest.until('the Duel screen with the banner', `__t.app.activeScreen === 'pulso' && __t.vis('#pulso-banner') && __t.txt('#pulso-banner-who') === ${JSON.stringify(w.invite)}`, 15000);
+    g = await guest.see();
+    check(`[${tag}] …and once signed in (as Luis) it carries on by itself: back on the Duel screen with Ana's banner, one listener`, g.screen === 'pulso' && g.banner && g.listeners === 1, g);
+    await guest.send('Page.close').catch(() => {});
+
+    await seed(`pulso/${AB}`, matchDoc({}));
+    await ana.load(lang, scheme); await luis.load(lang, scheme);
   };
 
   // ── the match ──────────────────────────────────────────────────────────
@@ -960,6 +1096,9 @@ try {
     await ana.load(lang, scheme); await luis.load(lang, scheme);
     let a, l;
 
+    await links(tag, w, lang, scheme);
+    if (process.argv.includes('--links')) continue;
+
     console.log('Opening Pulso');
     await openPulso(ana);
     a = await ana.see();
@@ -1028,14 +1167,6 @@ try {
     l = await luis.see();
     check(`[${tag}] Luis, on the Analysis screen, gets the banner with Ana's name`, l.banner && l.screen === 'analysis' && l.bannerText === w.invite, l.bannerText);
     await luis.shot(`${tag}-banner`);
-
-    if (tag === 'es-light') {
-      await ana.ev(`window.__shared = null; navigator.share = async d => { window.__shared = d; };`);
-      await ana.tap('#pulso-tell');
-      const shared = await ana.ev(`return window.__shared`);
-      check('"Avisarle" hands the share sheet the text from the spec, and nothing else',
-        shared && shared.text === 'Te reto a un Duelo en Chess Training Center. Abre la app — tienes 5 minutos.' && Object.keys(shared).length === 1, shared);
-    }
 
     if (tag === 'en-dark') {
       await luis.until('the clock measured', `__t.fb.pulsoClockOffset() !== null`, 10000);
