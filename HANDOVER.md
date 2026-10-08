@@ -9,6 +9,26 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **DAILY STREAK REMINDER: DESIGNED, NOT BUILT (2026-10-08). Spec + plan only, no feature code.**
+  Spec `docs/superpowers/specs/2026-10-08-daily-streak-reminder-design.md`, plan
+  `docs/superpowers/plans/2026-10-08-daily-streak-reminder.md` (four tasks, one session each).
+  - **It is free and needs no card.** The parked `2026-08-17-notifications.md` says there
+    is no way round Blaze; that is WRONG for this feature. Do not follow its Task 2 or
+    Tasks 4 to 7. Its rules (Task 1, `fcmTokens`) stay live and unused.
+  - **Adrian's decisions:** standard Web Push, NOT Firebase messaging (`getToken()` is
+    officially deprecated, read from Firebase's page 2026-10-08); live streak only; off
+    until switched on, picker starts at 19:00; switch in Settings after Privacy plus one
+    row on the Profile streak card; a service-account key (keyless is the fallback).
+  - **The sender** is an hourly GitHub Actions job with a read-only service account
+    (`streak-reminder`, Cloud Datastore Viewer only). It writes nothing to Firestore and
+    remembers the last hour it handled in the Actions cache, so a late or repeated run
+    never sends twice.
+  - **Costs Adrian one rules deploy** (new `users/{uid}/pushSubs`), in session 1.
+  - **Not answered yet:** whether the Cloud console lets Adrian create a key for the
+    `streak-reminder` account. It is asked again in plan Task 3 Step 8; nothing before
+    that depends on it.
+  - Rules suite on the day: 399 pass, 0 fail, nothing touched.
+
 - **ENDGAME EXPLANATIONS SAY "BLOQUEADOS", NOT "TRABADOS" (v173, 2026-10-08).** Adrian:
   "trabados" makes no sense; the title of the same endgame says "Peones bloqueados".
   The six Spanish explanations in `js/endgames-data.js` that used it now say
