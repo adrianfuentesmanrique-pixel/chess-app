@@ -1,0 +1,10 @@
+{
+  "name": "ctc-streak-reminder",
+  "private": true,
+  "type": "module",
+  "description": "The hourly daily-streak reminder job. Runs on GitHub Actions only; nothing here ships to the app.",
+  "dependencies": {
+    "@google-cloud/firestore": "9.3.1",
+    "web-push": "3.6.7"
+  }
+}

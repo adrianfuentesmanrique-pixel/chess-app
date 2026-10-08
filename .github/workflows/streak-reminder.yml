@@ -1,0 +1,71 @@
+# The daily streak reminder. Runs hourly, reads who is due, sends a Web Push.
+# Spec: docs/superpowers/specs/2026-10-08-daily-streak-reminder-design.md
+#
+# SAFETY — do not loosen any of these without reading section 7 of the spec
+# (tests/unit/reminder-safety.test.js reads this file and fails if one is):
+#  * Triggers are schedule and workflow_dispatch ONLY. Never pull_request or
+#    pull_request_target: this workflow holds a key that reads every user's data.
+#  * This repository is PUBLIC and so are these logs. The scripts print counts.
+#  * Every action is pinned to a full commit hash, not a tag.
+#  * The job writes nothing to Firestore. Its service account can only read.
+name: Streak reminder
+
+on:
+  schedule:
+    - cron: '17 * * * *'   # minute 17: the top of the hour is when GitHub is slowest to start
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Count only: send nothing and leave the remembered hour alone'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: streak-reminder
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020   # v4.4.0
+        with:
+          node-version: '24'
+      - name: Install from the lockfile
+        working-directory: tools/reminder
+        run: npm ci --ignore-scripts
+      - name: Restore the remembered hour
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830   # v4.3.0
+        with:
+          path: .reminder-state
+          key: reminder-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: reminder-state-
+      - name: Decide which hours to handle
+        id: plan
+        working-directory: tools/reminder
+        run: node plan.mjs ../../.reminder-state/last-hour.txt
+      # Saved BEFORE sending: if this step fails the job stops and nothing is
+      # sent. A failed run loses reminders; it never repeats them.
+      - name: Remember the new hour
+        if: env.DRY_RUN != 'true' && steps.plan.outputs.hours != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830   # v4.3.0
+        with:
+          path: .reminder-state
+          key: reminder-state-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Send
+        if: steps.plan.outputs.hours != ''
+        working-directory: tools/reminder
+        env:
+          HOURS: ${{ steps.plan.outputs.hours }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: node send.mjs
