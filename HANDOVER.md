@@ -2,6 +2,71 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **THE START-UP CAN NO LONGER END ON THE SPLASH (v170, 2026-10-08). COMMITTED, NOT
+  PUSHED — pushing deploys, Adrian decides.** Users reported the app "stays white and
+  never opens". Adrian's answers: the logo IS on the pale screen (so it is `#splash`),
+  closing and reopening does NOT fix it, Play Store app; start date unknown.
+  - **THE FIELD CAUSE IS NOT PROVEN.** Nobody has looked at Sentry for 2026-10-07/08 yet.
+    What was proven is that six different faults each left the bare splash up for good,
+    with nothing on screen and nothing reported, on the committed v168:
+    main() rejecting (made here by the app's IndexedDB refusing to open - the only one of
+    the six that would ALSO survive reopening on a real phone); an IndexedDB open that
+    never answers; a module that 404s; `js/app.js` with its connection cut; the
+    v159 -> today update where the new file `js/pulso.js` fails; the same where it never
+    answers. A seventh (update where the changed `js/firebase.js` fails) did NOT give a
+    bare splash: the old worker served the old file, the link error reached
+    `window.onerror` and the old "Something went wrong" overlay came up.
+  - **The fix, three parts.** (1) A boot guard inside the dependency-free inline script
+    at the top of `index.html` (`bootFail`, `showBootPanel`, `freshStart`,
+    `window.__bootFail`, `window.__bootDone`): a definite failure before the app has
+    started -> ONE automatic reload per app session (`sessionStorage` `ctcBootRetry`),
+    then the panel `#boot-fail` (ES/EN from `localStorage.lang`, light/dark) and a Sentry
+    event "Boot failed (reason): ...". Still on the splash after 20 s (`BOOT_LIMIT`) ->
+    the panel in its "taking too long" wording with NO reload, and it removes itself if
+    the app does finish - a slow first launch or update is not thrown away. (2)
+    `js/app.js`: `main().catch` calls `window.__bootFail('main', e)`, the line that hides
+    the splash calls `window.__bootDone()`, and the module `<script>` tag has an
+    `onerror` (a failed module download fires there and nowhere else). (3) `sw.js`
+    `networkFirst()`: in a launch that has already been given new files, a file whose
+    download fails is tried once more and then the request FAILS (`again()`,
+    `Response.error()`) instead of the old cached copy being served next to a new
+    `js/app.js`; a file with no cached copy gets one retry. `CACHE` v169 -> v170.
+  - **The panel's Reload button is more than a reload (`freshStart`)** - because a plain
+    reload reopens the same stored copy, and reopening was reported not to help. It makes
+    one real request; if the network answers it deletes the `chess-training-center-v*`
+    cache and unregisters the service worker, then reloads (main() registers the worker
+    again). With no network it only reloads. It never touches IndexedDB, localStorage,
+    the engine cache or the art cache.
+  - **The one Sentry issue Adrian pasted (2026-10-08, 1 event, 0 users, Safari 26 on a
+    Mac) is a DIFFERENT fault, also fixed here:** `TypeError: Cannot read properties of
+    undefined (reading 'mw')` thrown inside Google's `www.gstatic.com/recaptcha/...
+    recaptcha__en.js` (App Check loads it in `js/firebase.js`). It is Google's code and
+    cannot be fixed from here; what WAS ours is that the crash guard treated it as an app
+    crash and put the full-screen "Something went wrong" panel over a working app
+    (reproduced against the live v169). `notOurs()` in `index.html` now also skips any
+    error whose file is on another site (everything the app runs is self-hosted), and
+    Sentry's `denyUrls` drops the reCAPTCHA ones. It is NOT the white screen: wrong
+    device, and that panel is dark with a button, not the splash.
+  - **What this does NOT do:** if a phone's IndexedDB really is broken, the app still
+    cannot start - it now says so and reports it, instead of a silent splash. Starting
+    without the database would be a real change to the app and was not attempted. The
+    worker fix only acts from the NEXT update on: the v169 -> v170 step is still served
+    by the v169 worker; the guard covers it because it lives in the new `index.html`.
+    NOT changed: the install step still skips an asset that fails (`c.add().catch`) and
+    still uses the browser's HTTP cache - no evidence either one has bitten.
+  - **Verified:** new `tools/cdp-verify-boot.mjs <outDir>` (own server, real worker, the
+    version before served out of git at 4e90e53, about 4 minutes): 12 scenarios, every one
+    ends as the app or the panel and, once the fault is lifted, the button opens the app
+    (the reCAPTCHA one ends as the app on its first load, no panel, no overlay);
+    a normal launch opens in 1.7 s warm / 1.6 s first visit, the same as before the fix,
+    with no panel and 0 console errors. `SHOTS=1` takes only the panel screenshots
+    (both wordings, ES/EN, light/dark, 375 px - all eight looked at; the navy mark sits on
+    a light tile in dark mode). `test:tree` 142/0; `test:precache` OK (40 files, 142 art);
+    `cdp-verify-puzzle-modes.mjs` 40 of 40; `emu-verify-pulso-ui.mjs` 232 of 232, no console errors.
+  - **Built in a separate worktree** (`C:\Users\Adrian\chess-app-boot`, branch
+    `boot-watchdog`) because another session was editing `index.html` and `sw.js` in the
+    main folder at the time (the Duelo rename, v169); rebased onto it.
+
 - **PULSO IS NOW CALLED "DUELO" (ES) / "DUEL" (EN) ON SCREEN (v169, 2026-10-08).
   PUSHED AND LIVE (9986b16): Adrian said yes; the live `sw.js` is v169 and the live
   `js/i18n.js` has `pulso_name` and no visible "Pulso" left. ONLY THE VISIBLE WORD

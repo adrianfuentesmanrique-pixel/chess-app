@@ -7726,9 +7726,12 @@ async function main() {
   const elapsed = Date.now() - splashStart;
   setTimeout(async () => {
     $('splash').classList.add('hide');
+    window.__bootDone?.();   // the boot guard in index.html stands down
     const onboarded = await Onboarding.maybeShow();
     if (!onboarded) setTimeout(() => KaelQuotes.showRandom(), 900);
   }, Math.max(0, 1500 - elapsed));
 }
 
-main().catch(e => { window.__mainError = (e && e.stack) || String(e); console.error('MAIN FAILED', e); });
+// A main() that rejects leaves the splash up for good: hand it to the boot guard
+// in index.html (one reload, then a "could not start" panel).
+main().catch(e => { window.__mainError = (e && e.stack) || String(e); console.error('MAIN FAILED', e); window.__bootFail?.('main', e); });

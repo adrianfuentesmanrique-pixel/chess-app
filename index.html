@@ -29,7 +29,9 @@
       window.Sentry.onLoad(function () {
         Sentry.init({
           denyUrls: [/^chrome-extension:\/\//, /^moz-extension:\/\//,
-                     /^safari-extension:\/\//, /^webkit-masked-url:/, /^chrome:\/\//],
+                     /^safari-extension:\/\//, /^webkit-masked-url:/, /^chrome:\/\//,
+                     // Google's reCAPTCHA (App Check): its own exceptions, not ours to fix.
+                     /^https:\/\/www\.gstatic\.com\/recaptcha\//],
           ignoreErrors: [
             'Script error.',
             // Benign browser noise, not a fault in anything we ship.
@@ -91,6 +93,12 @@
   var FOREIGN = /^(chrome|moz|safari|ms-browser)-extension:|^webkit-masked-url:|^chrome:/;
   function notOurs(e) {
     if (e.filename && FOREIGN.test(e.filename)) return true;
+    // A script from another site. Everything the app runs is served from its
+    // own address, so this is never app code — it is Google's reCAPTCHA (loaded
+    // by App Check in js/firebase.js) or the Sentry loader. reCAPTCHA threw
+    // "Cannot read properties of undefined (reading 'mw')" on 2026-10-08 and
+    // this guard covered a working app with the crash panel for it.
+    if (/^https?:/.test(e.filename || '') && e.filename.indexOf(location.origin + '/') !== 0) return true;
     // No filename AND no stack means the browser withheld the details because
     // the script was cross-origin; there is nothing here we could act on.
     if (!e.filename && !(e.error && e.error.stack) && /^Script error\.?$/i.test(e.message || '')) return true;
@@ -98,11 +106,134 @@
   }
   window.addEventListener('error', function (e) {
     if (notOurs(e)) { console.warn('[crash-guard] ignoring third-party error', e.message); return; }
+    if (bootFail('error', e.error || e.message)) return;
     showCrashOverlay(e.error || e.message);
   });
   window.addEventListener('unhandledrejection', function (e) {
+    if (bootFail('error', e.reason)) return;
     showCrashOverlay(e.reason);
   });
+
+  // ---- Boot guard: the start-up must never END on the splash. ----
+  // #splash only goes away on the last line of main() in js/app.js. Until then
+  // three things used to leave it up for good, with nothing on screen and
+  // nothing reported: a module that did not download (that error never reaches
+  // window), main() rejecting, and a start-up that simply never finishes (a
+  // database open or a request that gets no answer).
+  //  - a definite failure -> ONE automatic reload per app session, then the panel;
+  //  - still on the splash after BOOT_LIMIT -> the panel, with NO reload: a first
+  //    launch or an update on a weak signal can honestly take longer, and a
+  //    reload would throw away what it has downloaded. If the app does finish
+  //    starting, the panel goes away by itself.
+  // js/app.js calls window.__bootDone() where it hides the splash, and
+  // window.__bootFail() from main().catch; the module <script> tag at the foot
+  // of this file calls __bootFail from its onerror.
+  var BOOT_LIMIT = 20000, RETRY_KEY = 'ctcBootRetry';
+  var booted = false, leaving = false, panel = null;
+  var bootTimer = setTimeout(function () { bootFail('timeout', 'still on the splash after ' + BOOT_LIMIT + ' ms'); }, BOOT_LIMIT);
+  function retried() { try { return sessionStorage.getItem(RETRY_KEY) === '1'; } catch (e) { return true; } }
+  // Returns true when the failure belongs to the start-up and is handled here.
+  function bootFail(reason, detail) {
+    if (booted) return false;
+    console.error('[boot-guard]', reason, detail);
+    if (leaving) return true;
+    if (reason !== 'timeout' && !retried()) {
+      try { sessionStorage.setItem(RETRY_KEY, '1'); leaving = true; location.reload(); return true; } catch (e) { leaving = false; }
+    }
+    if (!panel) {
+      try {
+        if (window.Sentry && Sentry.captureException) {
+          Sentry.captureException(new Error('Boot failed (' + reason + '): ' + ((detail && detail.message) || detail)));
+        }
+      } catch (e) {}
+    }
+    showBootPanel(reason === 'timeout');
+    return true;
+  }
+  window.__bootFail = bootFail;
+  window.__bootDone = function () {
+    booted = true;
+    clearTimeout(bootTimer);
+    try { sessionStorage.removeItem(RETRY_KEY); } catch (e) {}
+    if (panel) { panel.remove(); panel = null; }
+  };
+  function showBootPanel(slow) {
+    if (panel) return;
+    var lang = 'es', dark = false;
+    try { lang = localStorage.getItem('lang') || 'es'; } catch (e) {}
+    var isEs = lang !== 'en';
+    try {
+      var cl = document.body ? document.body.classList : null;
+      dark = cl && cl.contains('mode-dark') ? true : cl && cl.contains('mode-light') ? false
+           : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch (e) {}
+    // Same colours as --bg / the splash title / the gold accent in css/style.css,
+    // written out here because the stylesheet may be the file that did not load.
+    var bg = dark ? '#0e131a' : '#f6f7fb', fg = dark ? '#f5f7fa' : '#102a43';
+    panel = document.createElement('div');
+    panel.id = 'boot-fail';
+    panel.setAttribute('role', 'alert');
+    panel.setAttribute('style',
+      'position:fixed;inset:0;z-index:999998;background:' + bg + ';color:' + fg + ';box-sizing:border-box;' +
+      'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+      'gap:16px;padding:24px;text-align:center;font-family:system-ui,sans-serif;');
+    var logo = document.createElement('img');
+    logo.alt = '';
+    // The mark is navy: on the dark background it sits on a light tile.
+    logo.setAttribute('style', 'width:84px;height:auto;' + (dark ? 'background:#f6f7fb;border-radius:20px;padding:14px;' : ''));
+    logo.onerror = function () { logo.remove(); };
+    logo.src = 'icons/logo-mark.png';
+    var title = document.createElement('div');
+    title.setAttribute('style', 'font-size:20px;font-weight:700;');
+    title.textContent = slow ? (isEs ? 'Está tardando demasiado' : 'This is taking too long')
+                             : (isEs ? 'No se pudo abrir la app' :'The app could not start');
+    var body = document.createElement('div');
+    body.setAttribute('style', 'opacity:.8;max-width:300px;font-size:15px;line-height:1.45;');
+    body.textContent = slow
+      ? (isEs ? 'Puedes seguir esperando o tocar Recargar.' : 'You can keep waiting, or tap Reload.')
+      : (isEs ? 'Puede ser la conexión. Toca Recargar para intentarlo de nuevo.'
+              : 'It may be the connection. Tap Reload to try again.');
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = isEs ? 'Recargar' : 'Reload';
+    btn.setAttribute('style',
+      'min-height:48px;padding:12px 32px;border-radius:12px;border:none;font:inherit;font-size:16px;' +
+      'font-weight:700;cursor:pointer;background:' + (dark ? '#f4c15d' : '#102a43') + ';color:' + (dark ? '#0e131a' : '#fff') + ';');
+    btn.onclick = function () {
+      btn.disabled = true;
+      btn.style.opacity = '.6';
+      btn.textContent = isEs ? 'Recargando…' : 'Reloading…';
+      freshStart();
+    };
+    panel.appendChild(logo);
+    panel.appendChild(title);
+    panel.appendChild(body);
+    panel.appendChild(btn);
+    (document.body || document.documentElement).appendChild(panel);
+  }
+  // The Reload button. A plain reload cannot help a phone whose stored copy of
+  // the app is itself the problem — it opens that same copy again, every time.
+  // So when the network really answers (a real request, not navigator.onLine),
+  // the stored app CODE and the service worker are dropped first and the reload
+  // takes everything fresh; main() registers the worker again. With no network
+  // nothing is dropped: the stored copy is then the only copy there is.
+  // Never touched: the player's data (IndexedDB, localStorage), the engine and
+  // the art, which live in caches of their own (see sw.js).
+  function freshStart() {
+    var gone = false;
+    function go() { if (!gone) { gone = true; location.reload(); } }
+    setTimeout(go, 8000);
+    try {
+      fetch('manifest.webmanifest?boot=' + Date.now(), { cache: 'no-store' }).then(function (r) {
+        if (!r.ok || gone) return;
+        return caches.keys().then(function (keys) {
+          return Promise.all(keys.filter(function (k) { return /^chess-training-center-v\d+$/.test(k); })
+            .map(function (k) { return caches.delete(k); }));
+        }).then(function () { return navigator.serviceWorker.getRegistrations(); })
+          .then(function (regs) { return Promise.all(regs.map(function (g) { return g.unregister(); })); });
+      }).catch(function () {}).then(go);
+    } catch (e) { go(); }
+  }
 })();
 </script>
 <link rel="manifest" href="manifest.webmanifest">
@@ -1258,6 +1389,8 @@
 </div>
 
 <script src="vendor/chart.umd.js"></script>
-<script type="module" src="js/app.js"></script>
+<!-- onerror: a module that fails to DOWNLOAD (js/app.js or anything it imports)
+     fires here and nowhere else — see the boot guard at the top of this file. -->
+<script type="module" src="js/app.js" onerror="window.__bootFail && window.__bootFail('load', 'js/app.js or a module it imports did not load')"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v169';
+const CACHE = 'chess-training-center-v170';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -331,7 +331,9 @@ async function networkFirst(e) {
     // Nothing stored for this file: only the network can answer.
     // cache: 'no-store' bypasses the browser's own HTTP disk cache, which can
     // otherwise silently serve a stale response for an unchanged URL.
-    const res = await fetch(e.request, { cache: 'no-store' });
+    // One more try before giving up: a module that does not arrive stops the
+    // whole start-up (the boot guard in index.html then reloads the page).
+    const res = await fetch(e.request, { cache: 'no-store' }).catch(() => fetch(e.request, { cache: 'no-store' }));
     // Clone synchronously — see the cache-first branch above.
     if (res.ok && !(nav && new URL(e.request.url).search)) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
     return res;
@@ -359,10 +361,20 @@ async function networkFirst(e) {
     new Promise(r => { timer = setTimeout(r, NET_TIMEOUT, 'slow'); }),
   ]);
   clearTimeout(timer);
-  if (got === 'slow' && L.changed) return fresh.then(use, () => cached);   // an update is loading: wait it out
+  if (got === 'slow' && L.changed) return fresh.then(use, again);   // an update is loading: wait it out
   if (got === 'slow' || got === 'failed') {
-    if (!L.changed) L.giveUp();
+    if (L.changed) return again();
+    L.giveUp();
     return cached;
   }
   return use(got);
+
+  // This launch has already been handed new files, and this file's download
+  // failed. The cached copy is the OLD file: served next to a new js/app.js it
+  // is a start-up that cannot link ("does not provide an export named …"). So
+  // one more try, and after that the request FAILS — the boot guard in
+  // index.html reloads, and that launch is one version from top to bottom.
+  function again() {
+    return fetch(e.request, { cache: 'no-store' }).catch(() => Response.error());
+  }
 }
