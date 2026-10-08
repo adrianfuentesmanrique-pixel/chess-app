@@ -524,6 +524,9 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .seg.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .seg.scroll::-webkit-scrollbar { display: none; }
 .seg.scroll button { flex: 0 0 auto; }
+/* The four puzzle modes: two rows of two, every one in sight and the same size. */
+.seg.puzzle-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.seg.puzzle-modes button { min-width: 0; min-height: 40px; padding: 8px 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .elo-badge {
   background: var(--accent2); color: #fff; font-weight: 700;
   padding: 4px 12px; border-radius: 20px; font-size: 14px;

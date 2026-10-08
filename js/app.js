@@ -1378,7 +1378,7 @@ function goAdjacentTab(dir) {
 // and not the next is worse than one that never fires there. The walk below
 // then catches any other real horizontal scroller.
 const SWIPE_SAFE = '.modal-back, .drag-ghost, input, textarea, select, ' +
-  '.seg.scroll, .plog, #puzzle-actions, .nag-bar, .movelist, #read-stage, ' +
+  '.seg.scroll, .puzzle-modes, .plog, #puzzle-actions, .nag-bar, .movelist, #read-stage, ' +
   '#rush-countdown'; // Rush's count-in lies over its board, which keeps every touch (boardOwnsTouch)
 
 // The board acts the moment a finger lands (board.js _tap runs on pointerdown),

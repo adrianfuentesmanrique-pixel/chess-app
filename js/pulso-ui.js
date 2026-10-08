@@ -239,12 +239,6 @@ export const PulsoUI = {
       }
     }
     this.sync();
-    // Pulso is the fourth chip and does not fit beside the other three on a
-    // phone: bring the lit one into view, once the screen has been laid out.
-    requestAnimationFrame(() => {
-      const seg = document.querySelector('#screen-pulso .puzzle-modes'), on = seg.querySelector('[data-v="pulso"]');
-      seg.scrollLeft += on.getBoundingClientRect().right - seg.getBoundingClientRect().right;
-    });
   },
 
   // The six files a match draws from (spec section 4, "Before the clock

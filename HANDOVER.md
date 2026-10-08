@@ -2,6 +2,30 @@
 
 ## Already done and pushed — do NOT redo these
 
+- **THE FOUR PUZZLE-MODE CHIPS ARE TWO ROWS OF TWO (v168, 2026-10-07). COMMITTED
+  LOCALLY, NOT PUSHED - ask Adrian.** Adrian's ask after seeing Pulso live: the strip of
+  Puzzles / Blindfold / Puzzle Rush / Pulso scrolled sideways and showed only a sliver of
+  Pulso. Now `.seg.puzzle-modes` is a 2-column grid (CSS, next to `.seg.scroll`): four
+  equal pills, 175 x 40 at 375 px, 147 x 40 at 320 px, same order, no label cut short.
+  - The four strips in `index.html` lost the class `scroll`; `.puzzle-modes` was added to
+    `SWIPE_SAFE` in `js/app.js` so a sideways drag on the chips still does not switch
+    tabs; the "bring the lit chip into view" `requestAnimationFrame` in `PulsoUI.open()`
+    is gone (nothing scrolls). `sw.js` `CACHE` v167 -> v168.
+  - **Cost, told to Adrian:** the second row is 46 px. On a 375 x 667 phone the Puzzles
+    screen's ⏮ ◀ ▶ ⏭ row under the board is now cut by the bottom edge (it just fitted
+    before); the board still fits. Blindfold, Rush and Pulso have room to spare.
+  - **Verified:** new `tools/cdp-verify-puzzle-modes.mjs <outDir>` (its own server, half a
+    minute) 40 of 40 - all four screens, ES/EN, light/dark at 375 x 667 plus ES light at
+    320, every chip really tapped; `test:tree` 142/0; `test:precache` OK;
+    `emu-verify-pulso-ui.mjs` 232 of 232, no console errors.
+  - **Two old tools are OUT OF DATE, not broken by this:** `cdp-verify-swipe-modes.mjs`
+    (145 pass, 16 fail) and `cdp-verify-tabheads.mjs` (297 pass, 4 fail). Every failure is
+    a Blindfold check written before v136 gave Blindfold a start panel with "Go" - they
+    expect the countdown and the rating badge the moment the screen opens. All their
+    mode-chip checks pass. NOTE both take the app's URL first: `node tools/<tool>.mjs
+    http://localhost:<port> <outDir>` against a running dev server; an outDir alone dies
+    with "Cannot set properties of null (setting 'scrollTop')".
+
 - **PULSO SESSION 7 OF 7: ADRIAN'S ART IS IN THE APP (v167, 2026-10-07). PUSHED AND
   LIVE: Adrian said yes, 53f4c6d..35bc875 went to main (sessions 2 to 7, plus the badge
   card v162 and the quiet Kael v165). Checked on chesstrainingcenter.app after the
