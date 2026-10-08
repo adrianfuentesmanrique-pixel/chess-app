@@ -2,10 +2,13 @@
 
 ## Already done and pushed — do NOT redo these
 
-- **PULSO SESSION 7 OF 7: ADRIAN'S ART IS IN THE APP (v167, 2026-10-07). COMMITTED
-  LOCALLY, NOT PUSHED - ask Adrian. Sessions 2 to 7 are all unpushed (origin/main was
-  still 53f4c6d). Left after the push: check the live site serves v167 and the art, then
-  one real match on two phones.**
+- **PULSO SESSION 7 OF 7: ADRIAN'S ART IS IN THE APP (v167, 2026-10-07). PUSHED AND
+  LIVE: Adrian said yes, 53f4c6d..35bc875 went to main (sessions 2 to 7, plus the badge
+  card v162 and the quiet Kael v165). Checked on chesstrainingcenter.app after the
+  deploy: `sw.js` is v167 with `pulso` in `ART_RE` and the seven names in `ART`; all
+  seven PNGs come back 200 `image/png`, byte for byte the local files; `index.html` has
+  no `streaks/flame3.png` left. The only thing left is ONE REAL MATCH ON TWO PHONES,
+  which only Adrian can do - he has the steps.**
   Changed: `index.html`, `css/style.css`, `js/pulso-match.js` (4 lines in `paintResult`),
   `js/pulso-ui.js` (1 line in `renderLobby`), `sw.js`, `tools/check-precache.mjs`,
   `tools/emu-verify-pulso-ui.mjs`; new `icons/pulso/` (7 PNGs) and
