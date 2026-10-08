@@ -2,8 +2,10 @@
 
 ## Already done and pushed — do NOT redo these
 
-- **THE START-UP CAN NO LONGER END ON THE SPLASH (v170, 2026-10-08). COMMITTED, NOT
-  PUSHED — pushing deploys, Adrian decides.** Users reported the app "stays white and
+- **THE START-UP CAN NO LONGER END ON THE SPLASH (v170, 2026-10-08). PUSHED AND
+  LIVE 2026-10-08 — live `sw.js` says v170 and the live page carries the boot guard; the
+  `boot-watchdog` branch and the `chess-app-boot` worktree are removed. Sentry has had
+  no "Boot failed (" data before this date.** Users reported the app "stays white and
   never opens". Adrian's answers: the logo IS on the pale screen (so it is `#splash`),
   closing and reopening does NOT fix it, Play Store app; start date unknown.
   - **THE FIELD CAUSE IS NOT PROVEN.** Nobody has looked at Sentry for 2026-10-07/08 yet.
