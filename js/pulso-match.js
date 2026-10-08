@@ -28,7 +28,7 @@ import { Sound } from './sound.js';
 import { PUZZLES } from './puzzles.js';
 import { PULSO, resolveList, markerPos } from './pulso.js';
 import { pulsoMove, finishPulso, pulsoServerNow } from './firebase.js';
-import { $, askConfirm, showScreen, Rush } from './app.js';
+import { $, askConfirm, showScreen, Rush, KaelQuotes } from './app.js';
 import { PulsoUI } from './pulso-ui.js';
 
 const QUIET_MS = 20_000;   // the friend's numbers have not moved for this long: "no signal"
@@ -101,6 +101,9 @@ export const PulsoMatch = {
     this.theirMoves = m[them + 'S'] + m[them + 'M'];
     this.theirAt = Date.now();
     this.pulls = null;
+    // Kael keeps quiet for as long as `id` is set (KaelQuotes.show in
+    // js/app.js); anything he was already saying goes now.
+    KaelQuotes.hide();
     this.ticker = setInterval(() => this.paint(), 200);
   },
 

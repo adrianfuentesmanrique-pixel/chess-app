@@ -472,6 +472,12 @@ try {
     check(`[${tag}] at 375 px the whole match, Leave included, is on screen without scrolling on both phones`, a.fits && l.fits && a.leave && l.leave);
     await ana.shot(`${tag}-streak`);
     await luis.shot(`${tag}-behind`);
+    // Kael: what the app would say on its own is dropped during a match.
+    const kael = await ana.ev(`
+      const K = __t.app.KaelQuotes, up = () => document.getElementById('kael-bubble').classList.contains('show');
+      K.show({ text: 'a mission reminder' }); const during = up();
+      return { during };`);
+    check(`[${tag}] Kael keeps quiet during the match: a bubble the app tries to show does not appear`, kael.during === false, kael);
 
     await ana.until('the note', `__t.vis('#pulso-quiet')`, 30000);
     const waited = Date.now() - playT0;
@@ -798,6 +804,8 @@ try {
       await luis.until('the invitation', `__t.P.incoming()`);
       await sleep(1300);
       l = await luis.see();
+      check('…and Kael keeps quiet during the Rush run too: a bubble the app tries to show does not appear',
+        await luis.ev(`__t.app.KaelQuotes.show({ text: 'a mission reminder' }); return !document.getElementById('kael-bubble').classList.contains('show') && __t.app.Rush.running`));
       check('Luis is in a Rush run: no banner over it, a gold dot on ☰ instead',
         !l.banner && l.screen === 'rush' && await luis.ev(`return document.getElementById('tabmenu-btn').classList.contains('pulso-dot') && __t.app.Rush.running`));
       await luis.ev(`__t.app.showScreen('analysis');`);   // seeded: the run is ended by leaving it

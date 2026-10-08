@@ -597,7 +597,7 @@ export const KaelQuotes = {
     // people complained about.
     $('kael-fab').onclick = () => {
       if ($('kael-bubble').classList.contains('show')) this.hide();
-      else this.showRandom();
+      else this.show(this.pick(), 6000, true);
     };
     // The bubble only takes input while it is actually visible (CSS gives it
     // pointer-events only under .show) — see the note on #kael-corner.
@@ -625,7 +625,11 @@ export const KaelQuotes = {
     return { text: item.q, author: item.a };
   },
 
-  show(item, duration = 6000) {
+  // Kael says nothing over a timed Rush run or a Pulso match: a bubble there
+  // covers the corner of a board the player is racing on. What he would have
+  // said is dropped, not saved up. `asked` is the player tapping Kael himself.
+  show(item, duration = 6000, asked = false) {
+    if (!asked && (Rush.running || PulsoMatch.id)) return;
     const bubble = $('kael-bubble');
     const title = item.title ? `<b class="kael-quote-title">${esc(item.title)}</b>` : '';
     const cta = item.cta ? `<span class="kael-quote-cta">${esc(item.cta)}</span>` : '';
@@ -5092,6 +5096,7 @@ export const Rush = {
     this.usedIds = new Set();
     PuzzleLog.reset('rush');           // the strip shows one run at a time
     this.duration = +segValue(this.el('duration'));
+    KaelQuotes.hide();                 // nothing of Kael's is left over the board
     this.timeLeft = this.duration;
     this.score = 0;
     this.strikes = 0;

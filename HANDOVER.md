@@ -62,8 +62,14 @@
     errors, about 9 minutes. It now plays five matches between the two tabs - see the
     top of that file for what each one is, what is tapped and what is seeded. The full
     3:09 clock is really waited once (es-dark: ended 189.7 s after the start).
-  - **Known, left alone:** a Kael "mission" bubble can appear over the end of a match
-    (it does over Rush too). The stand-in flame shows a faint square in light mode
+  - **KAEL IS QUIET DURING RUSH AND PULSO (v165, same day, Adrian asked).**
+    `KaelQuotes.show(item, duration, asked)` in `js/app.js` returns without showing
+    anything while `Rush.running` or `PulsoMatch.id` is set (the match pane is up,
+    ending included); what he would have said is dropped, not saved up. `asked = true`
+    is only the player tapping Kael himself. `Rush.start()` and `PulsoMatch.begin()`
+    call `KaelQuotes.hide()` so nothing is left over the board. Checked in
+    `tools/emu-verify-pulso-ui.mjs`, now **142 of 142**; Rush tool still 64 of 64.
+  - **Known, left alone:** the stand-in flame shows a faint square in light mode
     (Adrian's art, session 7). The bar's "felt" flash on a pull (`hit-me`/`hit-them`,
     150 ms) is built but no check measures it.
   - **For session 6:** nothing credits the daily streak yet; the lobby tally already
