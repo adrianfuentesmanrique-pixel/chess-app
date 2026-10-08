@@ -2,8 +2,9 @@
 
 ## Already done and pushed — do NOT redo these
 
-- **THE FOUR PUZZLE-MODE CHIPS ARE TWO ROWS OF TWO (v168, 2026-10-07). COMMITTED
-  LOCALLY, NOT PUSHED - ask Adrian.** Adrian's ask after seeing Pulso live: the strip of
+- **THE FOUR PUZZLE-MODE CHIPS ARE TWO ROWS OF TWO (v168, 2026-10-07). PUSHED AND LIVE
+  (907b674): Adrian said yes; chesstrainingcenter.app serves `sw.js` v168, the grid rule
+  in `css/style.css`, four strips without `scroll`, and the new `SWIPE_SAFE`.** Adrian's ask after seeing Pulso live: the strip of
   Puzzles / Blindfold / Puzzle Rush / Pulso scrolled sideways and showed only a sliver of
   Pulso. Now `.seg.puzzle-modes` is a 2-column grid (CSS, next to `.seg.scroll`): four
   equal pills, 175 x 40 at 375 px, 147 x 40 at 320 px, same order, no label cut short.
