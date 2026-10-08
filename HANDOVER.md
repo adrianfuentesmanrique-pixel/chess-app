@@ -9,6 +9,27 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **DAILY STREAK REMINDER, TASK 1 OF 4: THE `pushSubs` RULES ARE LIVE (2026-10-08, `ac3062e`).**
+  Rules only. No app code, no `sw.js` change, no job. Tasks 2, 3 and 4 are still to build.
+  - **What exists:** `match /users/{userId}/pushSubs/{subId}` in `firestore.rules`, directly
+    after the `fcmTokens` block. Owner-only read, list, create, update, delete; exactly six
+    fields (`endpoint`, `p256dh`, `auth`, `createdAt`, `platform`, `lang`); id is 64
+    lowercase hex; `createdAt == request.time`; endpoint allowlist (Google, Apple, Mozilla,
+    Windows). Tests in `tests/rules/pushsubs.test.js`.
+  - **Deployed:** Adrian ran `npm.cmd run rules:deploy` and said it deployed, 2026-10-08.
+  - **Tests:** `npm.cmd run test:rules` went 399 → 435 pass, 0 fail. The new file adds 36
+    tests (the plan said 23: its 23 are there unchanged, plus 13 for disguised hosts such
+    as `https://fcm.googleapis.com@evil…`, overwriting with a bad address, and non-text keys).
+  - **Checked in the emulator, both as the plan assumed:** `matches()` tests the whole
+    string (no-path address and a 65-character id are refused, so the trailing `/.*` is
+    needed); `createdAt == request.time` accepts `serverTimestamp()` and refuses a number
+    or a device-made date. The plan's rules block went in unchanged.
+  - **Audit (firebase-security-rules-auditor), nothing fixed, two notes:** empty `p256dh` /
+    `auth` strings are storable (harms only that user's own reminder); rules cannot cap
+    how many documents an account stores, so **the job's `limit(5)` per user in plan
+    Task 3 is the control and must not be dropped.**
+  - The `fcmTokens` block and `tests/rules/notifications.test.js` were not touched.
+
 - **DAILY STREAK REMINDER: DESIGNED, NOT BUILT (2026-10-08). Spec + plan only, no feature code.**
   Spec `docs/superpowers/specs/2026-10-08-daily-streak-reminder-design.md`, plan
   `docs/superpowers/plans/2026-10-08-daily-streak-reminder.md` (four tasks, one session each).
