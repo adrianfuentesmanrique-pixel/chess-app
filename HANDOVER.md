@@ -9,6 +9,38 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **THE HEADER FLAME IS GREY UNTIL TODAY IS CREDITED (v172, 2026-10-08).** Adrian: "when
+  a new day starts, there is no difference in the flame". Now a live streak that has
+  not been credited today shows the same art in grey with YESTERDAY'S number; the first
+  thing that counts turns it to colour and the number goes up by one, with no reload.
+  - **The rule** is `Streak.isPending()` in `js/app.js`: count above 0 and
+    `streakLastDate` is not today (local midnight, `todayStr()`). It is worked out on
+    every paint. NOTHING new is stored and no key was renamed - do not add a "grey" flag.
+  - **Header**: `Streak.render()` sets `.streak-badge.pending` (css/style.css:
+    `grayscale(1)` + opacity .75 on the art, the number in `var(--muted)`). Streak 0 and
+    a streak broken by a missed day are UNCHANGED (coloured art at half strength, `.zero`).
+  - **Turning to colour**: `Streak.recordActivity()` - the one function every mode
+    credits through - passes `lit` to `render()`, which plays the existing `streak-pop`
+    bounce once (`.streak-badge.lit`; off under reduce-motion). A tier-up on the same
+    action wins and looks as it always did.
+  - **Midnight with the app open**: `Streak.checkDay()` compares today with
+    `Streak.paintedFor` and re-runs `init()` if the day moved. It is called when the app
+    comes back to the front (`visibilitychange` in the boot code) and at the top of
+    `showScreen()`. No timer, by Adrian's choice - an app that sits in front untouched
+    over midnight changes on the next screen change. Two midnights -> 0, and the 0 is saved.
+  - **Profile** (Adrian: yes, same rule): `renderStreakLadder()` gives the 64px flame
+    `locked pending` (grey, still, no haze, opacity .75). "Day 5", the bar and the
+    ladder rows are unchanged - the earned tier row stays in colour on purpose.
+  - **No new text** (Adrian's choice). The only wording change: the header tooltip was
+    the fixed Spanish "Racha diaria" for everyone; it is now `streak_daily`
+    (Racha diaria / Daily streak) through `data-i18n-aria`.
+  - **Checked**: `node tools/cdp-verify-streak-grey.mjs <outDir>` 33 of 33, 0 console
+    errors - yesterday credited -> grey 5; one puzzle really tapped -> colour 6; already
+    credited -> colour on load; missed day and no streak -> as before; the clock pushed
+    forward one and two days with the app open; 375px, light AND dark, ES AND EN,
+    screenshots looked at. `test:tree` 142 pass, `test:precache` OK. No
+    `firestore.rules` change.
+
 - **THE DUEL "AVISARLE / TELL THEM" SHARE CARRIES A LINK, AND THE CHALLENGER COMES BACK
   TO THE WAITING SCREEN (v171, 2026-10-08). PUSHED AND LIVE (283dd7a, pushed by Adrian;
   the live `sw.js` says v171). NOT YET TRIED ON A REAL PHONE - the two-phone WhatsApp

@@ -102,6 +102,12 @@ body { display: flex; flex-direction: column; height: 100dvh; }
 #app-title-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .streak-badge { font-size: 15px; font-weight: 700; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .streak-badge.zero { opacity: .5; }
+/* A live streak that has not been credited today: the same art in grey with
+   yesterday's number, until the first thing that counts. Less faded than the
+   Profile's locked tiers (.4) because the number still has to be read. */
+.streak-badge.pending .streak-icon-img { filter: grayscale(1); opacity: .75; }
+.streak-badge.pending span { color: var(--muted); }
+.streak-badge.lit { animation: streak-pop .6s ease; }
 /* The streak art is square, so width and height are both set. It used to be
    height-only with width:auto because the source images ran 134-354px wide at
    a fixed 160 tall, which no square box could hold. */
@@ -121,7 +127,7 @@ body { display: flex; flex-direction: column; height: 100dvh; }
   100% { transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .streak-badge.tier-up { animation: none; }
+  .streak-badge.tier-up, .streak-badge.lit { animation: none; }
   .streak-icon-img { transition: none; }
 }
 .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px 8px; }
@@ -587,7 +593,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .streak-now { display: flex; align-items: center; gap: 12px; margin: 2px 0 12px; position: relative; }
 .streak-now-icon { width: 64px; height: 64px; flex: 0 0 auto; display: block; position: relative; z-index: 1; }
 .streak-now-icon.locked { filter: grayscale(1); opacity: .4; }
-.streak-now-text { flex: 1; min-width: 0; }
+.streak-now-icon.locked.pending { opacity: .75; }.streak-now-text { flex: 1; min-width: 0; }
 .streak-now-day { font-size: 18px; font-weight: 700; color: var(--gold); }
 .streak-now-next { font-size: 13px; color: var(--muted); margin: 2px 0 8px; }
 .streak-now-bar { height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; }

@@ -929,9 +929,29 @@ export const Streak = {
     this.render();
   },
 
+  // A live streak whose day has not been credited yet: the flame is drawn grey
+  // with yesterday's number until recordActivity() runs. It is worked out from
+  // lastDate every time and never stored — a saved flag would go stale at
+  // midnight, which is exactly the moment it has to change.
+  isPending() {
+    return this.count > 0 && this.lastDate !== todayStr();
+  },
+
+  // The app can stay open past midnight, and nothing else re-reads the date.
+  // Called when the app comes back to the front and on every screen change; it
+  // is one string compare unless the day really moved, and then init() does the
+  // work — grey after one midnight, 0 after a missed day.
+  paintedFor: null,
+  async checkDay() {
+    if (!this.paintedFor || this.paintedFor === todayStr()) return;
+    await this.init();
+    if (activeScreen === 'profile') Profile.renderStreakLadder();
+  },
+
   async recordActivity() {
     const today = todayStr();
     if (this.lastDate === today) { this.render(); return; }
+    const wasPending = this.isPending();
     // Snapshot the tier before the count moves, so crossing into a new one is
     // a detectable event rather than a silent re-render. A broken-and-restarted
     // streak reads as a tier-up too (0 -> day 1), which is intentional — coming
@@ -946,7 +966,7 @@ export const Streak = {
     if (this.count > best) await db.kvSet('bestStreak', this.count);
     const newTier = streakTierIndex(this.count);
     const tierUp = newTier > prevTier;
-    this.render({ tierUp });
+    this.render({ tierUp, lit: wasPending });
     if (tierUp) this.celebrateTier(newTier);
     // The badge card holds itself back until celebratingUntil has passed.
     Badges.checkNew();
@@ -974,13 +994,17 @@ export const Streak = {
 
   // tierUp is deliberately transient: the enlarged/glowing header icon marks
   // the moment it changed, then falls back to the compact status size on the
-  // next render or app open.
-  render({ tierUp = false } = {}) {
+  // next render or app open. `lit` is the same idea for the smaller moment the
+  // grey flame turns to colour; a tier-up on the same action wins.
+  render({ tierUp = false, lit = false } = {}) {
+    this.paintedFor = todayStr();
     const el = $('streak-badge');
     if (!el) return;
     el.innerHTML = `<img src="streaks/${streakIcon(this.count)}.png" alt="" class="streak-icon-img"><span>${this.count}</span>`;
     el.classList.toggle('zero', this.count === 0);
+    el.classList.toggle('pending', this.isPending());
     el.classList.toggle('tier-up', tierUp);
+    el.classList.toggle('lit', lit && !tierUp);
   },
 };
 
@@ -1192,6 +1216,7 @@ export function showScreen(name) {
     return;
   }
   activeScreen = name;
+  Streak.checkDay();
   for (const s of SCREENS) $('screen-' + s).classList.toggle('hidden', s !== name);
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.classList.toggle('on', b.dataset.screen === name));
@@ -7254,10 +7279,15 @@ export const Profile = {
     // document, so `streaks/x.png` became `css/streaks/x.png` and 404'd.
     // document.baseURI gives the same absolute URL the <img> below resolves to,
     // so the browser reuses the one cached file rather than fetching a second.
+    // A streak still waiting for today (Streak.isPending) is drawn like the
+    // header's: grey and still, no haze, but less faded than day 0 so "Day 5"
+    // beside it does not read as lost. `locked` is what stops the flicker.
     const nowIcon = streakIcon(days);
     const hazeUrl = new URL(`streaks/${nowIcon}.png`, document.baseURI).href;
-    el.innerHTML = `<div class="streak-now${days > 0 ? ' has-flame' : ''}"${days > 0 ? ` style="--streak-icon:url(&quot;${hazeUrl}&quot;)"` : ''}>
-        <img class="streak-now-icon${days > 0 ? '' : ' locked'}" src="streaks/${nowIcon}.png" alt="">
+    const pending = Streak.isPending();
+    const lit = days > 0 && !pending;
+    el.innerHTML = `<div class="streak-now${lit ? ' has-flame' : ''}"${lit ? ` style="--streak-icon:url(&quot;${hazeUrl}&quot;)"` : ''}>
+        <img class="streak-now-icon${lit ? '' : ' locked'}${pending ? ' pending' : ''}" src="streaks/${nowIcon}.png" alt="">
         <div class="streak-now-text">
           <div class="streak-now-day">${esc(dayLine)}</div>
           <div class="streak-now-next">${esc(nextLine)}</div>
@@ -7676,6 +7706,9 @@ async function main() {
   Setup.init();
   await Themes.init();
   await Streak.init();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') Streak.checkDay();
+  });
   await DailyMissions.init();
   setTimeout(() => DailyMissions.remindIfIncomplete(), 45000);
   Auth.onChange(async () => {

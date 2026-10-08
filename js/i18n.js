@@ -960,6 +960,7 @@ const DICT = {
   edit_profile: { es: 'Editar perfil', en: 'Edit profile' },
   edit_profile_title: { es: 'Editar perfil', en: 'Edit profile' },
   streak_progress: { es: 'Progreso de racha', en: 'Streak progress' },
+  streak_daily: { es: 'Racha diaria', en: 'Daily streak' },
   streak_day_n: { es: 'Día {n}', en: 'Day {n}' },
   streak_none: { es: 'Aún no tienes racha', en: 'No streak yet' },
   streak_none_hint: { es: 'Juega hoy para empezarla', en: 'Play today to start one' },
