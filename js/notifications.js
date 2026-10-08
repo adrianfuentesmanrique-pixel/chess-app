@@ -38,12 +38,9 @@ export const Notifications = {
   on: false,          // this device has the reminder switched on
   hour: DEFAULT_HOUR,
   failed: false,      // the last attempt to switch on did not work
-  preview: false,     // the UI is drawn only on a device that opened ?remind=1
   focusOnOpen: false, // the Profile row asks Settings to scroll to this block
 
   async init() {
-    if (new URLSearchParams(location.search).get('remind') === '1') await db.kvSet('remindPreview', true);
-    this.preview = !!(await db.kvGet('remindPreview', false));
     this.on = !!(await db.kvGet('remindOn', false));
     this.hour = +(await db.kvGet('remindHourLocal', DEFAULT_HOUR));
     this.refresh().catch(e => console.warn('[remind] refresh', e));
@@ -184,7 +181,6 @@ export const Notifications = {
   // The Settings block. Returns the elements for openSettings() to append; the
   // same createElement + .seg pattern as every other block in that sheet.
   section(segInit) {
-    if (!this.preview) return [];
     const label = document.createElement('label'); label.className = 'fld-label'; label.textContent = t('remind_section');
     label.id = 'remind-label';
     const seg = document.createElement('div'); seg.className = 'seg'; seg.id = 'remind-seg';
@@ -230,8 +226,7 @@ export const Notifications = {
     if (open) this.openSettings = open;
     const el = document.getElementById('profile-remind-row');
     if (!el) return;
-    el.classList.toggle('hidden', !this.preview);
-    if (!this.preview) return;
+    el.classList.remove('hidden');
     el.textContent = this.state() === 'on'
       ? t('remind_row_on').replace('{h}', hourLabel(this.hour))
       : t('remind_row_off');

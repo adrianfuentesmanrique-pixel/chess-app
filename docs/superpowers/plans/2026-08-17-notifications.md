@@ -4,6 +4,8 @@
 
 > ## ⛔ PARKED — 2026-08-20. Do not start Task 2, 3, 4, 5, 6 or 7.
 >
+> **SUPERSEDED for the daily reminder (2026-10-08):** it was built the free way, without Blaze — see `docs/superpowers/plans/2026-10-08-daily-streak-reminder.md`.
+>
 > **Adrian has decided not to put a card on this project.** Blaze is therefore
 > not happening, and every remaining task in this plan depends on it. This is a
 > settled decision, not an open question — do not re-pitch it, do not re-cost

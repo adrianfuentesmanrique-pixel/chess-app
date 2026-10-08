@@ -108,9 +108,9 @@ await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints
 const checks = [];
 const check = (name, ok, detail) => { checks.push({ name, ok: !!ok }); console.log((ok ? '  PASS ' : '  FAIL ') + name + (detail !== undefined ? ' — ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)) : '')); };
 
-// `query` is '' or '?remind=1'. The kv seed is written on a first visit and
-// read by the app on the reload, as in tools/cdp-verify-streak-grey.mjs.
-async function load(lang, scheme, query = '', seed = {}) {
+// The kv seed is written on a first visit and read by the app on the reload,
+// as in tools/cdp-verify-streak-grey.mjs.
+async function load(lang, scheme, seed = {}) {
   const kv = { onboardingDone: true, tourDone: 'done', earnedBadges: {}, soundEnabled: false,
     streakCount: 11, streakLastDate: null, bestStreak: 11, colorMode: scheme, remindOn: false, pushSubId: null, ...seed };
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
@@ -119,7 +119,7 @@ async function load(lang, scheme, query = '', seed = {}) {
   await evalP(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1');
     const db = await import('${APP_URL}/js/db.js');
     for (const [k, v] of Object.entries(${JSON.stringify(kv)})) await db.kvSet(k, v);`);
-  await send('Page.navigate', { url: APP_URL + '/' + query });
+  await send('Page.navigate', { url: APP_URL + '/' });
   await sleep(3500);
   await killModals();
   await evalP(`const app = await import('${APP_URL}/js/app.js');
@@ -162,21 +162,21 @@ const TEXT = {
 };
 
 async function run() {
-  // 1 ── the gate: without ?remind=1 nothing is drawn
+  // 1 ── no gate: a fresh profile draws the row and the block, and asks for nothing
   await load('es', 'light');
   await openProfile();
   let row = await profileRow();
-  check('gate, no ?remind=1: the Profile row is hidden', row.hidden && !row.shown, row);
+  check('fresh profile: the Profile row is shown', !row.hidden && row.shown, row);
   await openSettings();
-  check('gate, no ?remind=1: Settings has no reminder block', (await settingsBlock()) === null && await evalP(`return !!document.querySelector('.modal-box');`));
-  check('gate, no ?remind=1: nothing asked for permission, nothing subscribed',
-    await evalP(`const reg = await navigator.serviceWorker.ready; return (await reg.pushManager.getSubscription()) === null && (await __t.db.kvGet('remindPreview', false)) === false;`));
+  check('fresh profile: Settings has the reminder block', (await settingsBlock()) !== null);
+  check('fresh profile: nothing asked for permission, nothing subscribed',
+    await evalP(`const reg = await navigator.serviceWorker.ready; return (await reg.pushManager.getSubscription()) === null && (await __t.db.kvGet('remindOn', false)) === false;`));
 
-  // 2 ── with ?remind=1, signed out: the block is there, switched off and locked.
+  // 2 ── signed out: the block is there, switched off and locked.
   //      8 pictures: Settings and Profile, each language, light and dark.
   for (const [lang, scheme] of [['es', 'light'], ['es', 'dark'], ['en', 'light'], ['en', 'dark']]) {
     const tag = `${lang.toUpperCase()}/${scheme}`, T = TEXT[lang];
-    await load(lang, scheme, '?remind=1');
+    await load(lang, scheme);
     await openSettings();
     const s = await settingsBlock();
     check(`${tag} Settings: label, On/Off pair, 24 hours 00:00..23:00 with 19:00 chosen`,
@@ -203,7 +203,7 @@ async function run() {
   //      real login every Firestore helper returns at once, so nothing is written.
   for (const [lang, scheme] of [['es', 'dark'], ['en', 'light']]) {
     const tag = `${lang.toUpperCase()}/${scheme}`, T = TEXT[lang];
-    await load(lang, scheme, '?remind=1');
+    await load(lang, scheme);
     await evalP(`__t.fb.Auth.user = { uid: 'headless' };`);
     await openSettings();
     let s = await settingsBlock();
@@ -233,7 +233,7 @@ async function run() {
   }
 
   // 5 ── the service worker's push handler
-  await load('es', 'light', '?remind=1');
+  await load('es', 'light');
   await evalP(`await navigator.serviceWorker.ready; return true;`);
   for (let i = 0; i < 40 && !registrationId; i++) await sleep(250);
   check('service worker registered (v' + await evalP(`return (await caches.keys()).find(k => /^chess-training-center-v/.test(k)) || '?';`) + ')', !!registrationId);
@@ -276,7 +276,7 @@ async function run() {
   const after = await evalP(`return { id: await __t.db.kvGet('pushSubId', 'unset'), on: await __t.db.kvGet('remindOn', 'unset'),
     sub: await (await navigator.serviceWorker.ready).pushManager.getSubscription() };`);
   check('sign-out clean-up: pushSubId is null, remindOn is false, no browser subscription', after.id === null && after.on === false && after.sub === null, after);
-  await send('Page.navigate', { url: APP_URL + '/?remind=1' });
+  await send('Page.navigate', { url: APP_URL + '/' });
   await sleep(3500);
   await killModals();
   await openSettings();
