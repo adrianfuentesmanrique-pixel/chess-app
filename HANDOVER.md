@@ -3,7 +3,9 @@
 ## Already done and pushed — do NOT redo these
 
 - **PULSO IS NOW CALLED "DUELO" (ES) / "DUEL" (EN) ON SCREEN (v169, 2026-10-08).
-  COMMITTED LOCALLY, NOT PUSHED - ask Adrian. ONLY THE VISIBLE WORD CHANGED.** Adrian
+  PUSHED AND LIVE (9986b16): Adrian said yes; the live `sw.js` is v169 and the live
+  `js/i18n.js` has `pulso_name` and no visible "Pulso" left. ONLY THE VISIBLE WORD
+  CHANGED.** Adrian
   found "Pulso" unclear in English (chess.com calls its version Puzzle Battle), first
   asked for "Challenge", then chose Duel / Duelo himself. Name check: no chess.com,
   Lichess or Chessable mode is called Duel; one small third-party app describes a
