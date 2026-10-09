@@ -35,6 +35,8 @@ import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { Activity } from './activity.js';
 import { Notifications } from './notifications.js';
+import { shouldInvite, MAX_ASKS } from './remind-invite.js';
+import { hourLabel } from './remind-time.js';
 import Tour from './tour.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -950,7 +952,9 @@ export const Streak = {
     if (activeScreen === 'profile') Profile.renderStreakLadder();
   },
 
-  async recordActivity() {
+  // midGame: the day was credited by a move on a live board, not by finishing
+  // something. Kael's reminder invitation then waits for a screen change.
+  async recordActivity({ midGame = false } = {}) {
     const today = todayStr();
     if (this.lastDate === today) { this.render(); return; }
     const wasPending = this.isPending();
@@ -962,6 +966,7 @@ export const Streak = {
     if (this.lastDate && isYesterday(this.lastDate, today)) this.count += 1;
     else this.count = 1;
     this.lastDate = today;
+    RemindInvite.owe(midGame);
     Notifications.clearDaily();
     await db.kvSet('streakCount', this.count);
     await db.kvSet('streakLastDate', this.lastDate);
@@ -1027,8 +1032,71 @@ export const STREAK_MIN_RUSH_SOLVED = 3;   // a Pulso match counts by the same n
 
 function noteStreakMove(obj) {
   obj.streakMoves = (obj.streakMoves || 0) + 1;
-  if (obj.streakMoves >= STREAK_MIN_MOVES) Streak.recordActivity();
+  if (obj.streakMoves >= STREAK_MIN_MOVES) Streak.recordActivity({ midGame: true });
 }
+
+// ═════════════════════ REMINDER INVITATION ═════════════════════
+// Kael asks once whether to switch the daily reminder on, so nobody has to find
+// it in Settings. Once more a week after a "Not now", then never; the rule is
+// js/remind-invite.js. The phone's own permission question comes only from the
+// Yes button, through Notifications.enable() — there is no second way to subscribe.
+// Spec: docs/superpowers/specs/2026-10-09-reminder-invitation-design.md
+export const RemindInvite = {
+  owed: false,     // a day was credited in this session and nobody was asked yet
+  showing: false,
+
+  // Finishing something is a pause, so ask shortly after — and again once a
+  // streak celebration or a badge card has had its turn. A move on a live
+  // board is not a pause.
+  owe(midGame) {
+    this.owed = true;
+    if (!midGame) for (const ms of [1800, 7000, 15000]) this.soon(ms);
+  },
+
+  soon(ms = 600) {
+    if (this.owed) setTimeout(() => this.maybe().catch(e => console.warn('[remind] invite', e)), ms);
+  },
+
+  kael(text, buttons) {
+    return modal((box, close) => {
+      box.innerHTML = `<h3>🦉 Kael</h3><p>${esc(text)}</p>`;
+      const row = document.createElement('div'); row.className = 'row';
+      buttons.forEach(([label, onTap], i) => {
+        const b = document.createElement('button');
+        b.className = i ? 'btn' : 'btn primary'; b.textContent = label;
+        b.onclick = () => close(onTap());
+        row.append(b);
+      });
+      box.append(row);
+    });
+  },
+
+  async maybe() {
+    if (!this.owed || this.showing) return;
+    const busy = Rush.running || PulsoMatch.holds() || Date.now() < Streak.celebratingUntil
+      || !!BadgeCard.current || BadgeCard.queue.length > 0 || $('modal-root').childElementCount > 0;
+    const asks = +(await db.kvGet('remindAskCount', 0));
+    const lastAsk = +(await db.kvGet('remindAskLast', 0));
+    if (this.showing || !shouldInvite({ owed: this.owed, state: Notifications.state(), asks, lastAsk,
+      now: Date.now(), online: navigator.onLine, busy })) return;
+    this.showing = true;
+    this.owed = false;
+    await db.kvSet('remindAskCount', asks + 1);
+    await db.kvSet('remindAskLast', Date.now());
+    const h = hourLabel(Notifications.hour);
+    // enable() is called INSIDE the tap: the permission prompt needs the gesture.
+    const result = await this.kael(t('remind_invite_text').replace('{h}', h), [
+      [t('remind_invite_yes'), () => { db.kvSet('remindAskCount', MAX_ASKS); return Notifications.enable(); }],
+      [t('remind_invite_no'), () => null],
+    ]);
+    this.showing = false;
+    Notifications.profileRow();
+    if (result === 'on') toast(t('remind_invite_done').replace('{h}', h), 4000);
+    else if (result === 'denied' || result === 'failed') await this.kael(t(Notifications.hintKey()), [[t('remind_invite_ok'), () => null]]);
+    // Swiped the phone's question away, or the first "Not now".
+    else if (result || asks === 0) toast(t('remind_invite_later'), 3200);
+  },
+};
 
 // ═════════════════════ DAILY MISSIONS ═════════════════════
 
@@ -1247,6 +1315,7 @@ export function showScreen(name) {
   if (name === 'puzzles' || name === 'blind' || name === 'rush' || name === 'pulso') syncPuzzleModeSeg(name);
   if (name !== prev) pushTabHistory(name);
   updateTabMenu();
+  RemindInvite.soon();
 }
 
 // ── tab history & swipe navigation ─────────────────────────────────────────
@@ -2438,7 +2507,7 @@ export const Analysis = {
     // emits several lines a second, so the guard also keeps this cheap.
     if (this._streakEngineDate !== todayStr()) {
       this._streakEngineDate = todayStr();
-      Streak.recordActivity();
+      Streak.recordActivity({ midGame: true });
     }
     const el = $('ana-engine-lines');
     el.innerHTML = '';

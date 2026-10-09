@@ -539,6 +539,12 @@ const DICT = {
   remind_failed: { es: 'No se pudo activar. En Brave: Ajustes, Privacidad, "Usar servicios de Google para mensajes push".', en: 'Could not turn it on. In Brave: Settings, Privacy, "Use Google services for push messaging".' },
   remind_row_off: { es: 'Recordatorio diario: desactivado', en: 'Daily reminder: off' },
   remind_row_on: { es: 'Recordatorio diario: {h}', en: 'Daily reminder: {h}' },
+  remind_invite_text: { es: 'Hoy ya cumpliste. Si mañana a las {h} aún no has entrenado, ¿te aviso? Un solo aviso al día, para que no pierdas tu racha.', en: 'Today is done. If you have not trained by {h} tomorrow, shall I remind you? One reminder a day, so you do not lose your streak.' },
+  remind_invite_yes: { es: 'Sí, avísame', en: 'Yes, remind me' },
+  remind_invite_no: { es: 'Ahora no', en: 'Not now' },
+  remind_invite_ok: { es: 'Entendido', en: 'Got it' },
+  remind_invite_done: { es: 'Hecho. Te aviso a las {h}. Puedes cambiar la hora en Ajustes.', en: 'Done. I will remind you at {h}. You can change the hour in Settings.' },
+  remind_invite_later: { es: 'Está bien. Lo encuentras en Ajustes cuando quieras.', en: 'All right. It is in Settings whenever you want it.' },
   privacy_now_private: { es: 'Tu perfil ahora es privado.', en: 'Your profile is now private.' },
   privacy_now_public: { es: 'Tu perfil ahora es público.', en: 'Your profile is now public.' },
   pubprofile_private: {

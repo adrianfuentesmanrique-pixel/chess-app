@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v177';
+const CACHE = 'chess-training-center-v178';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -93,6 +93,7 @@ const ASSETS = [
   'js/firebase.js',
   'js/notifications.js',
   'js/remind-time.js',
+  'js/remind-invite.js',
   'js/vapid-public.js',
   'js/puzzles.js',
   'js/pulso.js',

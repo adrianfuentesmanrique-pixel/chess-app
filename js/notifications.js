@@ -10,6 +10,7 @@ import { t, getLang } from './i18n.js';
 import { Auth, saveReminderPrefs, savePushSub, deletePushSub, prunePushSubs, dropThisDevicePush, pushSubIdOf } from './firebase.js';
 import { utcHourFor, hourLabel, keyBytes, sameBytes } from './remind-time.js';
 import { VAPID_PUBLIC_KEY } from './vapid-public.js';
+import { MAX_ASKS } from './remind-invite.js';
 
 const DEFAULT_HOUR = 19;
 const KEY = keyBytes(VAPID_PUBLIC_KEY);
@@ -208,6 +209,8 @@ export const Notifications = {
     };
     paint();
     segInit(seg, async v => {
+      // Whoever uses this switch knows where it is: Kael's invitation is closed.
+      db.kvSet('remindAskCount', MAX_ASKS);
       if (v === 'on') await this.enable(); else await this.disable();
       paint();              // a failed switch-on falls back to Off here
       this.profileRow();

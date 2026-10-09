@@ -9,6 +9,34 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **KAEL INVITES THE USER TO THE DAILY REMINDER, ONCE (2026-10-09, v178).**
+  Spec, with Adrian's answers ("all yes"): `docs/superpowers/specs/2026-10-09-reminder-invitation-design.md`.
+  - **What it does.** A signed-in user whose reminder is plainly off gets Kael's dialog
+    ("Today is done. If you have not trained by {h} tomorrow, shall I remind you?") with
+    `Sí, avísame | Ahora no`. After finishing something (puzzle, Rush, Blindfold, endgame,
+    lesson) it comes about 2 s later; when the day was credited by the 10th move on a live
+    board (Play, Openings, Analysis) it waits for the next screen change. It also waits for a
+    Rush run, a Pulso match, the streak celebration, a badge card, another dialog, and offline.
+  - **How often.** Once; once more 7 days or more after a "Not now"; never a third time. A
+    "Yes" closes it for good whatever the phone answers, and so does using the Settings switch
+    by hand. Remembered on this device only: kv `remindAskCount`, `remindAskLast` (NOT synced,
+    nothing in the cloud or the rules knows about it).
+  - **Who never sees it.** Every `Notifications.state()` except `off`: on, denied, signed-out,
+    unsupported, failed, ios-needs-install.
+  - **The phone's question** is asked only by `Notifications.enable()`, called inside the Yes
+    tap. If it is refused, or the Brave road fails, Kael shows the existing `remind_denied` /
+    `remind_failed` text with one button.
+  - **Where.** `js/remind-invite.js` (new, imports nothing, in the precache list):
+    `shouldInvite`, `MAX_ASKS`, `ASK_AGAIN_MS`. `RemindInvite` in `js/app.js` (`owe`, `soon`,
+    `maybe`, `kael`); `Streak.recordActivity({ midGame })`; one call at the end of `showScreen`.
+    Strings: `remind_invite_*` in `js/i18n.js`.
+  - **Checked.** `test:tree` 191 -> 200 pass, 0 fail; `test:precache` OK (44 -> 45 files, 142
+    art); `test:rules` 435 pass, 0 fail (rules untouched). `node tools/cdp-verify-remind-invite.mjs
+    <outDir>`: 62 pass, 0 fail, screenshots at 375px in ES/EN, light/dark, opened and looked at.
+  - **NOT proved by tools, owed from Adrian's phone:** that the phone's real permission
+    question appears after "Yes" and not before, and that a reminder then arrives. Headless
+    Chrome cannot show that question; its answer was supplied through CDP.
+
 - **BLINDFOLD "LIST MODE": A SECOND WAY TO PLAY, ASKED FOR BY A TESTER (2026-10-09, v177).**
   Spec, with Adrian's answers: `docs/superpowers/specs/2026-10-09-blindfold-list-mode-design.md`.
   - **What it does.** The Blindfold start panel has a two-button switch, `👁 Ver posición |
