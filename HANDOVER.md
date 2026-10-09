@@ -45,8 +45,10 @@ are in `CLAUDE.md` under "Finish by pushing".
     If reminders stop: Cloudflare, Workers & Pages (reach it by "Manage Workers" from the
     domain's Workers Routes page, or Compute in the account menu), the Worker's Observability
     tab shows "GitHub answered <status>"; 401/403 means the token was revoked or lost access.
-    Not seen yet: a reminder landing on the phone from a timer-started run (delivery from
-    hand-started dispatch runs was proved three times; the path is the same).
+    **Proved end to end the same day:** runs #8, #9, #10 started themselves at 16:05, 17:05,
+    18:05 UTC with the Send step run; Adrian moved his hour to 14:00 and the reminder reached
+    his phone at 14:05 Panama from the 19:05 UTC timer run, nothing pressed. (He first
+    reported "no notification" at 13:00: his hour was still 10:00, already sent that day.)
   - **His request, BUILT the same day (v176):** the art looked too small. `icons/notif/daily.png`
     (192x192) already fills its square; the thumbnail size is the phone's. `showNotification`
     in `sw.js` now also passes `image: 'icons/notif/daily-wide.jpg'` (960x480, 44 KB, Kael on
