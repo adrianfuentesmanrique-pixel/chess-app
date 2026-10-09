@@ -9,6 +9,35 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD "LIST MODE": A SECOND WAY TO PLAY, ASKED FOR BY A TESTER (2026-10-09, v177).**
+  Spec, with Adrian's answers: `docs/superpowers/specs/2026-10-09-blindfold-list-mode-design.md`.
+  - **What it does.** The Blindfold start panel has a two-button switch, `👁 Ver posición |
+    📋 Lista` (`👁 See position | 📋 List`), remembered on this device under `blindfoldMode`
+    (NOT a synced key — nothing in the cloud or the rules knows about the mode). In list mode
+    the position is never on the board: the player reads `Blancas: Rg1, Dd3, Ta1, … a2, b2`
+    and `Negras: …` (Adrian's own format: one line a side, K Q R B N then bare pawn squares,
+    letters in the app language), with "Last move: Black played Rxe5" above it, for up to
+    60 s or until "✓ Estoy listo". Then the empty board, solved as before. A peek brings the
+    LIST back for 30 s (same ready button), never the pieces; two peeks, same Kael warning.
+  - **Pay.** Always as a 2-second look, however long the list was read: `BLIND_LIST_PAY_SECONDS`
+    in `js/blind-elo.js`, passed to the unchanged `blindEloResult`. Same `'blindfold'` rating.
+    The result line says "Lista: +14 normal, +14 extra"; list-mode dots in the strip carry 📋.
+  - **Where.** `js/blind-list.js` (new, imports nothing, in the precache list):
+    `blindPieceList`, `blindSanLocal`. `Blind` in `js/app.js`: `mode`, `listOnDone`,
+    `showList`, `fillList`, `closeList`. The seconds picker is hidden in list mode (CSS class
+    `list` on `.blind-time`).
+  - **Mode 1 wording that changed:** the "Change time" button now reads "⚙ Cambiar modo o
+    tiempo / ⚙ Change mode or time" (and its two follow-up lines say "start panel"); Kael's
+    first-peek warning says "this puzzle's extra points". Nothing else in mode 1 changed.
+  - **Checked:** test:tree 184 → 191 pass, 0 fail (7 new); test:precache OK, 43 → 44 imported
+    files, 142 art files; test:rules 435 pass, 0 fail before and after (rules untouched).
+    `node tools/cdp-verify-blind.mjs <outDir>`: 154/154 — the 74 mode-1 checks unchanged in
+    what they pay and time, plus 80 list checks (`… <outDir> list` runs those alone) at 375px
+    in ES and EN, light and dark, real finger taps; screenshots opened: the switch, the list,
+    the longest list (32 pieces, seeded for the picture only), the list peek, the result line.
+  - **Not measured:** whether a minute with a list is easier or harder than a 2-second look.
+    The pay is that one constant.
+
 - **DAILY STREAK REMINDER: PHONE TEST PASSED; GITHUB SKIPPED MOST HOURS, SO A CLOUDFLARE TIMER NOW STARTS THE JOB EVERY HOUR — DEFECT FIXED (2026-10-09, v176).**
   A real reminder reached Adrian's phone (Samsung, the TWA, account Zugzwang, 9-day streak,
   trained 8 Oct, not yet 9 Oct). **Every run that delivered was started BY HAND** (Actions

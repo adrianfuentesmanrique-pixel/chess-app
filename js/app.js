@@ -10,7 +10,8 @@ import { PUZZLES, PUZZLE_THEMES, PUZZLE_PATTERNS, TRACKED_THEMES,
          puzzlesInBand } from './puzzles.js';
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
-import { blindEloResult, blindExtraPreview, blindExtraFactor, blindLongLookFactor, clampBlindSeconds, BLIND_SECONDS_DEFAULT } from './blind-elo.js';
+import { blindEloResult, blindExtraPreview, blindExtraFactor, blindLongLookFactor, clampBlindSeconds, BLIND_SECONDS_DEFAULT, BLIND_LIST_PAY_SECONDS, BLIND_LIST_READ_SECONDS, BLIND_LIST_PEEK_SECONDS } from './blind-elo.js';
+import { blindPieceList, blindSanLocal } from './blind-list.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard,
          MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS,
@@ -4243,9 +4244,11 @@ export const PuzzleLog = {
   // `delta` is the ELO that attempt moved. Null where a puzzle has no rating
   // of its own (a Rush run is scored as one run), and those dots keep showing
   // their position in the strip instead.
-  add(mode, puzzle, solved, delta = null) {
+  // `note` ({ icon, text }) marks a dot as special — a Blindfold puzzle played
+  // in list mode — with the icon on the dot and the text in its label.
+  add(mode, puzzle, solved, delta = null, note = null) {
     if (!puzzle) return;
-    this.logs[mode].push({ puzzle, solved, delta });
+    this.logs[mode].push({ puzzle, solved, delta, note });
     this.render(mode);
   },
 
@@ -4258,9 +4261,10 @@ export const PuzzleLog = {
     this.logs[mode].forEach((entry, i) => {
       const b = document.createElement('button');
       b.className = 'plog-dot ' + (entry.solved ? 'ok' : 'miss');
-      b.textContent = entry.delta == null ? String(i + 1) : eloDeltaText(entry.delta);
+      b.textContent = (entry.note ? entry.note.icon : '') + (entry.delta == null ? String(i + 1) : eloDeltaText(entry.delta));
       const label = `${t('log_review_title').replace('{n}', i + 1)} — ${t(entry.solved ? 'log_solved' : 'log_missed')}` +
-        (entry.delta == null ? '' : ` — ${t('puzzle_elo')} ${eloDeltaText(entry.delta)}`);
+        (entry.delta == null ? '' : ` — ${t('puzzle_elo')} ${eloDeltaText(entry.delta)}`) +
+        (entry.note ? ` — ${entry.note.text}` : '');
       b.title = label;
       b.setAttribute('aria-label', label);
       b.onclick = () => this.review(mode, i);
@@ -5335,6 +5339,10 @@ export const Rush = {
 // pieces vanish — moves still work normally (Board only hides the <img>, it
 // never gates interaction on visibility). "Peek" is the equivalent of a hint:
 // reveal pieces for 5s. The rating maths lives in js/blind-elo.js.
+//
+// List mode (`mode === 'list'`) never shows the position: the player reads it
+// as a written list (js/blind-list.js) for up to 60 s, and a peek brings the
+// list back for 30 s — never the pieces. Same rating, paid as a 2-second look.
 
 export const Blind = {
   board: null,
@@ -5359,6 +5367,8 @@ export const Blind = {
   attemptCount: 0,                       // blindfold puzzles rated so far — the first 10 calibrate fast
   seconds: BLIND_SECONDS_DEFAULT,        // the player's chosen memorising time
   secondsThis: BLIND_SECONDS_DEFAULT,    // the time the CURRENT puzzle was shown for
+  mode: 'look',           // 'look' (see the position) or 'list' (read it); changed only on the start panel
+  listOnDone: null,       // set while the list is on screen: what to do when it closes
   hintWarningSeen: false,
   greetedThisOpen: false,
 
@@ -5373,6 +5383,14 @@ export const Blind = {
       this.updateTimeControl();
     };
     range.onchange = () => { if (!this.timeLocked) db.kvSet('blindfoldSeconds', this.seconds); };
+    $('blind-mode-seg').querySelectorAll('button').forEach(b => {
+      b.onclick = () => {
+        this.mode = b.dataset.v === 'list' ? 'list' : 'look';
+        db.kvSet('blindfoldMode', this.mode);
+        this.updateTimeControl();
+      };
+    });
+    $('blind-ready').onclick = () => this.closeList();
     $('blind-go').onclick = () => this.go();
     $('blind-change-time').onclick = () => this.changeTime();
     $('blind-peek').onclick = () => this.peek();
@@ -5393,6 +5411,8 @@ export const Blind = {
   async loadTimeSettings() {
     this.attemptCount = await db.kvGet('blindfoldAttemptCount', 0);
     this.seconds = clampBlindSeconds(await db.kvGet('blindfoldSeconds', BLIND_SECONDS_DEFAULT));
+    // Not a synced key: the mode is remembered on this device only.
+    this.mode = (await db.kvGet('blindfoldMode', 'look')) === 'list' ? 'list' : 'look';
     this.updateTimeControl();
   },
 
@@ -5402,9 +5422,15 @@ export const Blind = {
 
   updateTimeControl() {
     const range = $('blind-time-range');
+    const list = this.mode === 'list';
     range.value = this.seconds;
     range.disabled = this.timeLocked;
     range.closest('.blind-time').classList.toggle('locked', this.timeLocked);
+    // List mode has no seconds to choose: the picker goes, the pay line says why.
+    range.closest('.blind-time').classList.toggle('list', list);
+    $('blind-mode-seg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === this.mode));
+    $('blind-explain-look').classList.toggle('hidden', list);
+    $('blind-explain-list').classList.toggle('hidden', !list);
     $('blind-time-label').textContent = (this.timeLocked ? '🔒 ' : '') + t('blind_time_label').replace('{n}', this.seconds);
     $('blind-time-hint').textContent = t(this.timeLocked ? 'blind_time_locked' : 'blind_time_hint');
     $('blind-change-time').textContent = t(this.changeArmed ? 'blind_change_time_armed' : 'blind_change_time');
@@ -5412,7 +5438,8 @@ export const Blind = {
     // to work the points out from.
     const s = this.seconds;
     $('blind-pays').textContent =
-      s > BLIND_SECONDS_DEFAULT ? t('blind_bonus_reduced').replace('{s}', s).replace('{p}', Math.round(blindLongLookFactor(s) * 100))
+      list ? t('blind_list_pays')
+      : s > BLIND_SECONDS_DEFAULT ? t('blind_bonus_reduced').replace('{s}', s).replace('{p}', Math.round(blindLongLookFactor(s) * 100))
       : s === BLIND_SECONDS_DEFAULT ? t('blind_bonus_none')
       : t('blind_pays_extra').replace('{s}', s).replace('{p}', Math.round(blindExtraFactor(s) * 100));
   },
@@ -5453,7 +5480,8 @@ export const Blind = {
   // solve earns, and that a peek gives it up. After scoring: what was paid.
   updateBonus() {
     const el = $('blind-bonus');
-    const s = this.secondsThis;
+    const list = this.mode === 'list';
+    const s = list ? BLIND_LIST_PAY_SECONDS : this.secondsThis;
     let msg = '';
     if (this.current && this.eloRecorded) {
       msg = this.paidLine;
@@ -5463,10 +5491,10 @@ export const Blind = {
       } else if (s === BLIND_SECONDS_DEFAULT) {
         msg = t('blind_bonus_none');
       } else if (this.peekedThis) {
-        msg = t('blind_bonus_lost');
+        msg = t(list ? 'blind_list_bonus_lost' : 'blind_bonus_lost');
       } else {
         const extra = Math.max(1, Math.round(blindExtraPreview({ elo: this.elo, rating: this.current.rating, seconds: s })));
-        msg = t('blind_bonus_extra').replace('{s}', s).replace('{n}', extra);
+        msg = t(list ? 'blind_list_bonus_extra' : 'blind_bonus_extra').replace('{s}', s).replace('{n}', extra);
       }
     }
     el.textContent = msg;
@@ -5488,6 +5516,10 @@ export const Blind = {
     clearTimeout(this.countdownTimer);
     clearTimeout(this.peekTimer);
     $('blind-countdown').classList.add('hidden');
+    // A list on screen goes without running what its closing would have done.
+    this.listOnDone = null;
+    $('blind-list').classList.add('hidden');
+    $('blind-board').classList.remove('hidden');
     this.memorising = false;
     // A reply about to land or a solution being played out stops here too:
     // they belong to the puzzle that is being left.
@@ -5504,9 +5536,12 @@ export const Blind = {
     // A peek gives up only the extra for a short look; the puzzle's normal
     // points are still paid in full. All the maths is in js/blind-elo.js.
     const before = this.elo;
+    // List mode is paid as a 2-second look, however long the list was read.
+    const list = this.mode === 'list';
+    const paySeconds = list ? BLIND_LIST_PAY_SECONDS : this.secondsThis;
     const res = blindEloResult({
       elo: this.elo, rating: this.current.rating, win,
-      seconds: this.secondsThis, peeked: this.peekedThis, attemptCount: this.attemptCount,
+      seconds: paySeconds, peeked: this.peekedThis, attemptCount: this.attemptCount,
     });
     this.elo = res.elo;
     this.attemptCount++;
@@ -5517,8 +5552,9 @@ export const Blind = {
     // the badge and the log show (lastDelta).
     const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n);
     const extra = Math.round(res.extra);
-    const key = !win ? 'blind_paid_loss' : extra > 0 ? 'blind_paid_extra' : this.peekedThis && blindExtraFactor(this.secondsThis) > 0 ? 'blind_paid_peeked' : 'blind_paid_normal';
-    this.paidLine = t(key).replace('{s}', this.secondsThis)
+    // blind_paid_loss / _extra / _peeked / _normal, or the blind_paid_list_ four.
+    const kind = !win ? 'loss' : extra > 0 ? 'extra' : this.peekedThis && blindExtraFactor(paySeconds) > 0 ? 'peeked' : 'normal';
+    this.paidLine = t((list ? 'blind_paid_list_' : 'blind_paid_') + kind).replace('{s}', this.secondsThis)
       .replace('{a}', signed(this.lastDelta - extra)).replace('{b}', signed(extra));
     this.timeLocked = false;
     this.updateTimeControl();
@@ -5567,16 +5603,27 @@ export const Blind = {
     this.updateBonus();
     const playerColor = this.chess.turn() === 'w' ? 'b' : 'w';
     this.board.setOrientation(playerColor);
-    this.board.setPiecesHidden(false);
-    this.board.setPosition(this.chess.fen());
+    const listMode = this.mode === 'list';
+    // List mode: the pieces are hidden before the position is set, so it is
+    // never on the board, and the opponent's first move is played unseen —
+    // the list is of the position the player has to solve.
+    this.board.setPiecesHidden(listMode);
+    let first = null;
+    if (listMode) { first = this.applyUci(this.current.moves[0]); this.moveIdx = 1; }
+    this.board.setPosition(this.chess.fen(), first ? { from: first.from, to: first.to } : null);
     this.board.interactive = false;
     this.memorising = true;
-    $('blind-status').textContent = t('blind_watch_now');
+    $('blind-status').textContent = t(listMode ? 'blind_list_read_now' : 'blind_watch_now');
     this.updatePeekBtn();
     this.updateTurnIndicator();
     if (!this.greetedThisOpen) {
       this.greetedThisOpen = true;
       setTimeout(() => KaelQuotes.chatter(pickKael(KAEL_BLINDFOLD), 5000), 900);
+    }
+    if (listMode) {
+      clearTimeout(this.startTimer);
+      this.showList(BLIND_LIST_READ_SECONDS, () => this.hidePieces());
+      return;
     }
     // Two quick taps on Next used to leave two of these pending, and so two
     // countdowns — one of which then hid the pieces every second, for good.
@@ -5605,6 +5652,41 @@ export const Blind = {
         el.textContent = n;
       }
     }, 1000);
+  },
+
+  // List mode: the written position stands where the board is, with a
+  // countdown. It closes at 0 or on "I'm ready", then runs `onDone`.
+  showList(seconds, onDone) {
+    this.listOnDone = onDone;
+    this.fillList();
+    $('blind-board').classList.add('hidden');
+    $('blind-list').classList.remove('hidden');
+    clearInterval(this.countdownTimer);
+    this.startCountdown(seconds, () => this.closeList());
+  },
+
+  // The position as it stands now, and the last move played to reach it.
+  fillList() {
+    const lang = getLang();
+    const pieces = blindPieceList(this.chess.fen(), lang);
+    const last = this.chess.history({ verbose: true }).at(-1);
+    $('blind-list-last').textContent = last
+      ? t(last.color === 'w' ? 'blind_list_last_w' : 'blind_list_last_b').replace('{m}', blindSanLocal(last.san, lang)) : '';
+    $('blind-list-w-label').textContent = `${t('white')}:`;
+    $('blind-list-b-label').textContent = `${t('black')}:`;
+    $('blind-list-w').textContent = pieces.w.join(', ');
+    $('blind-list-b').textContent = pieces.b.join(', ');
+  },
+
+  closeList() {
+    const done = this.listOnDone;
+    if (!done) return;
+    this.listOnDone = null;
+    clearInterval(this.countdownTimer);
+    $('blind-countdown').classList.add('hidden');
+    $('blind-list').classList.add('hidden');
+    $('blind-board').classList.remove('hidden');
+    done();
   },
 
   hidePieces() {
@@ -5636,6 +5718,8 @@ export const Blind = {
     // The pieces are already on show. A peek here would be spent on nothing,
     // and its 5 s timer would hide them under a countdown still running.
     if (this.memorising) return;
+    // List mode: the list of an earlier peek is still up.
+    if (this.listOnDone) return;
     if (this.peeksUsed >= 2) {
       toast(t('blind_no_peeks_toast'));
       return;
@@ -5661,6 +5745,12 @@ export const Blind = {
     this.updatePeekBtn();
     this.updateBonus();
     this.board.clearPremove();
+    // List mode: a peek is the LIST again, never the pieces.
+    if (this.mode === 'list') {
+      this.board.interactive = false;
+      this.showList(BLIND_LIST_PEEK_SECONDS, () => { this.board.interactive = !this.isOver(); });
+      return;
+    }
     this.board.setPiecesHidden(false);
     this.board.interactive = false;
     clearTimeout(this.peekTimer);
@@ -5714,8 +5804,10 @@ export const Blind = {
       this.moveIdx++;
       this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
       // A peek started inside the wait has the pieces on show; its own timer
-      // hides them and hands the board back.
-      this.board.interactive = this.board.piecesHidden;
+      // hides them and hands the board back. The same for a list peek, whose
+      // list is brought up to date with the reply.
+      this.board.interactive = this.board.piecesHidden && !this.listOnDone;
+      if (this.listOnDone) this.fillList();
       this.updateTurnIndicator();
       // Back through userMove, so a wrong pre-move is charged like a hand move.
       this.board.firePremove();
@@ -5743,7 +5835,8 @@ export const Blind = {
   log(solved) {
     if (this.logged || !this.current) return;
     this.logged = true;
-    PuzzleLog.add('blind', this.current, solved, this.lastDelta);
+    PuzzleLog.add('blind', this.current, solved, this.lastDelta,
+      this.mode === 'list' ? { icon: '📋', text: t('blind_log_list') } : null);
   },
 
   async showSolution() {

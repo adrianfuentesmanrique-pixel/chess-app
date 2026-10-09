@@ -1276,6 +1276,23 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 #blind-start { min-height: calc(100dvh - 330px); }
 #blind-start #blind-change-time { display: none; }
 #blind-last-paid:empty { display: none; }
+/* The mode switch: two equal halves, one tap. */
+.seg.blind-mode { display: grid; grid-template-columns: 1fr 1fr; margin: 10px 0 8px; }
+.seg.blind-mode button { min-width: 0; min-height: 44px; text-align: center; }
+/* List mode has no seconds to choose: on the start panel the box goes, during
+   a puzzle only its "change" button is left. */
+#blind-start .blind-time.list { display: none; }
+.blind-time.list label, .blind-time.list input[type=range], .blind-time.list .hint { display: none; }
+.blind-time.list .btn { margin-top: 0; }
+/* The written position. Squares never split across lines ("Kg1," stays whole). */
+.blind-list {
+  margin: 0 0 10px; padding: 12px; border-radius: var(--radius);
+  background: var(--panel); border: 1px solid var(--input-border); border-left: 3px solid var(--gold);
+}
+.blind-list p { margin: 0 0 10px; font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.blind-list p.hint { font-size: 13px; }
+.blind-list p.hint:empty { display: none; }
+.blind-list .btn { width: 100%; margin-top: 4px; }
 
 /* ── comment box ───────────────────────── */
 .comment-box { margin-top: 8px; }

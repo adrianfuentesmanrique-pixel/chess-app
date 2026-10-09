@@ -12,10 +12,18 @@
 //  - A peek cancels ONLY the extra. The normal points are paid in full.
 //  - A loss is the same size whatever the time chosen and whether or not the
 //    player peeked.
+//  - List mode is scored as a 2-second look (BLIND_LIST_PAY_SECONDS).
 
 export const BLIND_SECONDS_MIN = 1;
 export const BLIND_SECONDS_MAX = 20;
 export const BLIND_SECONDS_DEFAULT = 10;
+
+// List mode (the position is read as a written list, never seen) always pays
+// like this many seconds of look, however long the list was read: the normal
+// points in full plus an equal extra, and a peek cancels the extra.
+export const BLIND_LIST_PAY_SECONDS = 2;
+export const BLIND_LIST_READ_SECONDS = 60;   // the list closes itself after this
+export const BLIND_LIST_PEEK_SECONDS = 30;   // a peek brings the list back for this
 
 const NORMAL_K = 32;
 const FAST_K = 192;

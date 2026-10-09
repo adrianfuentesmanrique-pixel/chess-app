@@ -842,7 +842,8 @@
       <button data-v="rush" data-i18n="mode_rush"></button>
       <button data-v="pulso" data-i18n="mode_pulso"></button>
     </div>
-    <p class="hint" data-i18n="blind_explain"></p>
+    <p class="hint" id="blind-explain-look" data-i18n="blind_explain"></p>
+    <p class="hint hidden" id="blind-explain-list" data-i18n="blind_list_explain"></p>
     <!-- Start panel: the memorising time is chosen here, before the first
          board. Blind.showStart() / Blind.go() move the one .blind-time box
          between this panel and the game below. -->
@@ -850,6 +851,12 @@
       <img src="icons/logo-mark.png" class="watermark" alt="">
       <div class="row wrap profile-elo-row">
         <div class="elo-card"><span data-i18n="blindfold_elo"></span><b id="blind-start-elo"></b></div>
+      </div>
+      <!-- The two ways to play: see the position for a few seconds, or read
+           it as a written list. Remembered on this device (blindfoldMode). -->
+      <div class="seg blind-mode" id="blind-mode-seg">
+        <button data-v="look" data-i18n="blind_mode_look"></button>
+        <button data-v="list" data-i18n="blind_mode_list"></button>
       </div>
       <div class="blind-time">
         <label id="blind-time-label" for="blind-time-range"></label>
@@ -871,6 +878,14 @@
       <!-- Before scoring: what the look is worth. After: what it paid. -->
       <div id="blind-bonus" class="blind-bonus" aria-live="polite"></div>
       <div id="blind-countdown" class="blind-countdown hidden"></div>
+      <!-- List mode: stands where the board is, for the opening read and for
+           a peek. The board is not on screen while this is. -->
+      <div id="blind-list" class="blind-list hidden">
+        <p id="blind-list-last" class="hint"></p>
+        <p><b id="blind-list-w-label"></b> <span id="blind-list-w"></span></p>
+        <p><b id="blind-list-b-label"></b> <span id="blind-list-b"></span></p>
+        <button id="blind-ready" class="btn primary big" data-i18n="blind_list_ready"></button>
+      </div>
       <div id="blind-board" class="board-wrap"></div>
       <div class="row" id="blind-actions">
         <button id="blind-peek" class="btn"></button>

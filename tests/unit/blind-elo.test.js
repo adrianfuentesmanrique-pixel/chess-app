@@ -5,7 +5,7 @@
 // Run: npm run test:tree
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blindEloResult, blindExtraFactor, blindLongLookFactor, blindExtraPreview, clampBlindSeconds } from '../../js/blind-elo.js';
+import { blindEloResult, blindExtraFactor, blindLongLookFactor, blindExtraPreview, clampBlindSeconds, BLIND_LIST_PAY_SECONDS } from '../../js/blind-elo.js';
 
 // The formula Blindfold used before the time control existed (K 32, no peek).
 const oldElo = (elo, rating, win) =>
@@ -101,6 +101,20 @@ test('the time extra stays normal-sized during the fast start', () => {
 test('the preview matches what a clean win then pays', () => {
   const args = { elo: 1430, rating: 1590, seconds: 3 };
   near(blindExtraPreview(args), blindEloResult({ ...args, win: true, ...after10 }).extra);
+});
+
+test('list mode pays exactly like a 2-second look: win, peeked win and loss', () => {
+  assert.equal(BLIND_LIST_PAY_SECONDS, 2);
+  assert.equal(blindExtraFactor(BLIND_LIST_PAY_SECONDS), 1);
+  assert.equal(blindLongLookFactor(BLIND_LIST_PAY_SECONDS), 1);
+  const base = { elo: 1500, rating: 1500, seconds: BLIND_LIST_PAY_SECONDS, ...after10 };
+  const clean = blindEloResult({ ...base, win: true });
+  near(clean.normal, 16);
+  near(clean.extra, 16);
+  const peeked = blindEloResult({ ...base, win: true, peeked: true });
+  near(peeked.normal, 16);
+  assert.equal(peeked.extra, 0);
+  near(blindEloResult({ ...base, win: false }).elo, 1484);
 });
 
 test('the rating never drops under 600', () => {

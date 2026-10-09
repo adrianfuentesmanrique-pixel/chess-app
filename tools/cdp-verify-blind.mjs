@@ -3,7 +3,15 @@
 // The in-app pane does not composite, so this drives a real headless Chrome
 // over CDP. Dev tool, not shipped.
 //
-//   node tools/cdp-verify-blind.mjs <outDir>
+//   node tools/cdp-verify-blind.mjs <outDir>          everything
+//   node tools/cdp-verify-blind.mjs <outDir> list     only section 8, List mode
+//
+// Section 8 (v177) is List mode: the mode switch, the written list, the list
+// peek and the result line, in both languages and both themes. REALLY TAPPED
+// there: the two mode buttons, Go, "I'm ready", Peek, Kael's "Got it", Next,
+// Change mode, every chess move. SEEDED there: for the "longest list" picture
+// only, Blind.chess is swapped for the 32-piece position after 1.e4 while
+// Blind.fillList() runs, then put back and the real list redrawn.
 //
 // Since v136 Blindfold opens on a start panel: nothing counts down until Go,
 // and the slider is locked from Go until the puzzle is scored.
@@ -33,6 +41,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { blindEloResult, blindExtraPreview } from '../js/blind-elo.js';
+import { blindPieceList } from '../js/blind-list.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = process.argv[2];
@@ -43,7 +52,7 @@ const WEB = 9900 + Math.floor(Math.random() * 90);
 const APP_URL = `http://localhost:${WEB}`;
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-blind-'));
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 420000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 900000).unref();
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm',
@@ -163,7 +172,18 @@ const state = () => evalP(`${B}
     goText: document.getElementById('blind-go').textContent,
     badge: document.getElementById('blind-elo').textContent, status: document.getElementById('blind-status').textContent,
     stored: await (await import('${APP_URL}/js/db.js')).kvGet('blindfoldSeconds', null),
-    storedAttempts: await (await import('${APP_URL}/js/db.js')).kvGet('blindfoldAttemptCount', null) };`);
+    storedAttempts: await (await import('${APP_URL}/js/db.js')).kvGet('blindfoldAttemptCount', null),
+    mode: Blind.mode, storedMode: await (await import('${APP_URL}/js/db.js')).kvGet('blindfoldMode', null),
+    fen: Blind.chess?.fen(), turn: document.getElementById('blind-turn').textContent,
+    listShown: !document.getElementById('blind-list').classList.contains('hidden'), boardShown: !document.getElementById('blind-board').classList.contains('hidden'),
+    listW: document.getElementById('blind-list-w').parentElement.textContent.trim(), listB: document.getElementById('blind-list-b').parentElement.textContent.trim(),
+    listLast: document.getElementById('blind-list-last').textContent, count: document.getElementById('blind-countdown').textContent,
+    peekBtn: document.getElementById('blind-peek').textContent, readyBtn: document.getElementById('blind-ready').textContent,
+    pickerShown: !!document.getElementById('blind-time-range').offsetParent,
+    segOn: document.querySelector('#blind-mode-seg button.on')?.dataset.v, segText: [...document.querySelectorAll('#blind-mode-seg button')].map(b => b.textContent).join(' | '),
+    explainLook: !!document.getElementById('blind-explain-look').offsetParent, explainList: !!document.getElementById('blind-explain-list').offsetParent,
+    piecesOnBoard: [...document.querySelectorAll('#blind-board img')].filter(i => i.offsetParent && getComputedStyle(i).visibility !== 'hidden' && getComputedStyle(i).opacity !== '0').length,
+    dots: [...document.querySelectorAll('#blind-log .plog-dot')].map(d => d.textContent).join(' ') };`);
 
 // Times the on-screen countdown: from the moment the number appears to the
 // moment it goes. Polled from Node, so good to about a tenth of a second.
@@ -270,16 +290,18 @@ try {
     check('REPRO two quick taps on Next hide the pieces once', hides === 1, hides);
     throw new Error('repro mode only');
   }
+  let st, lay, secs, before, want;
+  if (process.argv[3] !== 'list') {
   // ── 1. first open: default 10 s, fast start ───────────────────────────────
   await load('en', 'light');
   await openBlind();
   const quiet = await staysQuiet(3000);
-  let st = await state();
+  st = await state();
   check('START PANEL: opening Blindfold shows the panel, not a board', st.startShown && !st.gameShown && st.goText === '▶ Go', { start: st.startShown, game: st.gameShown, go: st.goText });
   check('START PANEL: no countdown and no puzzle for 3 s before Go', quiet && st.moves === undefined && !st.counting, { quiet, moves: st.moves });
   check('first open: control reads 10 s', st.label === '⏱ Memorising time: 10 s' && st.range === '10' && !st.locked, st.label);
   check('START PANEL: says what 10 s pays', st.pays === '10 s look: normal points. Choose less time to earn extra.', st.pays);
-  let lay = await layout();
+  lay = await layout();
   check('375px: no sideways scroll and the control fits', lay.docW <= 375 && lay.left >= 0 && lay.right <= 375 && lay.rangeW > 250 && lay.rangeH >= 28, lay);
   check('START PANEL: Go is full width and on screen without scrolling', lay.goW > 300 && lay.goBottom <= 812, { goW: lay.goW, goBottom: lay.goBottom });
   await setSeconds(4);
@@ -289,7 +311,7 @@ try {
   await shot('1-en-light-start-panel');
   await tapEl('#blind-go');
   let midSt, midFinger;
-  let secs = await timeCountdown(async () => {
+  secs = await timeCountdown(async () => {
     await setSeconds(5);                 // the events a drag fires
     midSt = await state();
     await tapSlider(0);                  // a real finger on the 1 s end
@@ -309,10 +331,10 @@ try {
   let lk = await state();
   check('LOCK during the solve (pieces hidden): still 10 s after slider events and a finger', lk.locked && lk.hidden && lk.seconds === 10 && lk.range === '10' && lk.stored === 10, { seconds: lk.seconds, range: lk.range });
   await shot('1-en-light-10s-locked');
-  let before = st;
+  before = st;
   await solve();
   st = await state();
-  let want = blindEloResult({ elo: before.elo, rating: before.rating, win: true, seconds: 10, peeked: false, attemptCount: 0 });
+  want = blindEloResult({ elo: before.elo, rating: before.rating, win: true, seconds: 10, peeked: false, attemptCount: 0 });
   check('clean solve at 10 s, puzzle 1: fast-start points, no extra', st.recorded && close(st.elo, want.elo) && want.extra === 0,
     { before: before.elo, after: st.elo, normal: +want.normal.toFixed(1) });
   check('the attempt count is saved', st.attempts === 1 && st.storedAttempts === 1, st.storedAttempts);
@@ -350,7 +372,7 @@ try {
   await tapEl('#blind-peek');
   await sleep(300);
   const warn = await evalP(`return document.querySelector('.modal-back')?.textContent || '';`);
-  check("Kael's first-peek warning states the new rule", /gives up the extra points/.test(warn) && /normal points in full/.test(warn), warn.slice(0, 140));
+  check("Kael's first-peek warning states the new rule", /gives up this puzzle's extra points/.test(warn) && /normal points in full/.test(warn), warn.slice(0, 140));
   await shot('3-en-light-kael-warning');
   await tapEl('.modal-back .btn.primary');
   await sleep(300);
@@ -428,7 +450,7 @@ try {
   await tapEl('#blind-change-time');
   st = await state();
   check('CHANGE TIME mid-puzzle: books the panel, changes nothing now', st.gameShown && !st.startShown && st.locked && st.seconds === 1 && st.secondsThis === 1
-    && st.changeBtn === '✓ Time panel opens after this puzzle', { btn: st.changeBtn, seconds: st.seconds });
+    && st.changeBtn === '✓ Start panel opens after this puzzle', { btn: st.changeBtn, seconds: st.seconds });
   await shot('4c-en-light-change-time-booked');
   await solve();
   st = await state();
@@ -503,7 +525,7 @@ try {
     st = await state();
     check(`${lang}/${scheme}: Go runs the 3 s countdown, offer line shown`, close(secs, 3, 0.4) && /\+\d+ extra/.test(st.bonus), { secs, bonus: st.bonus });
     check(`${lang}/${scheme}: slider locked and says so`, st.locked && st.lockedLook && st.label.startsWith('🔒') && st.timeHint === (lang === 'es' ? 'Bloqueado hasta que este puzzle se puntúe.' : 'Locked until this puzzle is scored.')
-      && st.changeBtn === (lang === 'es' ? '⏱ Cambiar tiempo' : '⏱ Change time'), { hint: st.timeHint, btn: st.changeBtn });
+      && st.changeBtn === (lang === 'es' ? '⚙ Cambiar modo o tiempo' : '⚙ Change mode or time'), { hint: st.timeHint, btn: st.changeBtn });
     await evalP(`document.querySelector('.blind-time').scrollIntoView({ block: 'end' });`);
     await sleep(200);
     await shot(`6-${lang}-${scheme}-locked`);
@@ -519,6 +541,183 @@ try {
     await sleep(200);
     await shot(`7-${lang}-${scheme}-paid`);
     await setSeconds(20);
+  }
+  }
+
+  // ── 8. LIST MODE: both languages, both themes ─────────────────────────────
+  const L = {
+    en: { seg: '👁 See position | 📋 List', white: 'White:', black: 'Black:', ready: "✓ I'm ready", read: 'Read the list and memorize...', solve: 'Solve it blindfolded!',
+      pays: '📋 List: pays like a 2 s look — a clean solve pays 100% extra on top of the normal points — a peek forfeits it',
+      offer: n => `📋 List: +${n} extra for a clean solve — a peek forfeits it`, lost: 'Extra forfeited by the peek — normal points still on offer',
+      last: /^Last move: (White|Black) played \S+$/, toMove: /^(White|Black) /,
+      extra: (a, b) => `List: ${a} normal, ${b} extra`, peeked: a => `List: ${a} normal, no extra (you peeked)`, loss: a => `List: ${a} — a miss costs the same in both modes`,
+      change: '⚙ Change mode or time', label: '⏱ Memorising time' },
+    es: { seg: '👁 Ver posición | 📋 Lista', white: 'Blancas:', black: 'Negras:', ready: '✓ Estoy listo', read: 'Lee la lista y memoriza…', solve: '¡Resuelve a ciegas!',
+      pays: '📋 Lista: paga como ver la posición 2 s — resolver sin vistazo paga un 100% extra sobre los puntos normales',
+      offer: n => `📋 Lista: +${n} extra si resuelves sin vistazo`, lost: 'Extra perdido por el vistazo — los puntos normales siguen en juego',
+      last: /^Último movimiento: las (blancas|negras) jugaron \S+$/, toMove: /^(Blancas|Negras) /,
+      extra: (a, b) => `Lista: ${a} normal, ${b} extra`, peeked: a => `Lista: ${a} normal, sin extra (usaste un vistazo)`, loss: a => `Lista: ${a} — un fallo cuesta lo mismo en los dos modos`,
+      change: '⚙ Cambiar modo o tiempo', label: '⏱ Tiempo para memorizar' },
+  };
+  const listFits = () => evalP(`const el = document.getElementById('blind-list'); const r = el.getBoundingClientRect();
+    const b = document.getElementById('blind-ready').getBoundingClientRect();
+    return { docW: document.documentElement.scrollWidth, left: r.left, right: r.right, inner: el.scrollWidth <= el.clientWidth + 1, readyW: b.width, readyBottom: b.bottom, h: r.height };`);
+  // Next by finger in list mode; a puzzle with a promotion in it is skipped.
+  const nextList = async () => {
+    for (let tries = 0; tries < 8; tries++) {
+      await tapEl('#blind-next');
+      await sleep(400);
+      const s8 = await state();
+      if (s8.moves.every(m => m.length === 4)) return s8;
+    }
+    throw new Error('no promotion-free puzzle in 8 tries');
+  };
+  const wantList = (s8, lang) => { const l = blindPieceList(s8.fen, lang); return { w: `${L[lang].white} ${l.w.join(', ')}`, b: `${L[lang].black} ${l.b.join(', ')}` }; };
+  let firstList = true;
+  for (const [lang, scheme] of [['en', 'light'], ['es', 'light'], ['en', 'dark'], ['es', 'dark']]) {
+    const T = L[lang], tag = `LIST ${lang}/${scheme}`;
+    await load(lang, scheme);
+    await openBlind();
+    await sleep(1200);
+    st = await state();
+    if (firstList) {
+      await setSeconds(2);
+      st = await state();
+      check(`${tag}: a device that never chose opens in "see position", picker shown`, st.mode === 'look' && st.segOn === 'look' && st.pickerShown && st.explainLook && !st.explainList, { mode: st.mode, seg: st.segOn });
+      await shot(`8-${lang}-${scheme}-switch-look`);
+      await tapEl('#blind-mode-seg [data-v="list"]');
+      st = await state();
+    } else {
+      check(`${tag}: list mode is remembered after a reload`, st.mode === 'list' && st.storedMode === 'list' && st.segOn === 'list', { mode: st.mode, stored: st.storedMode });
+    }
+    check(`${tag}: one tap on the switch: list on, saved, both names in the right language`, st.mode === 'list' && st.storedMode === 'list' && st.segOn === 'list' && st.segText === T.seg, { seg: st.segText, stored: st.storedMode });
+    check(`${tag}: the seconds picker is gone, the pay line and the help text are the list ones`, !st.pickerShown && st.pays === T.pays && st.explainList && !st.explainLook, { picker: st.pickerShown, pays: st.pays });
+    lay = await layout();
+    check(`${tag}: start panel fits 375px, Go on screen`, lay.mode.includes('mode-' + scheme) && lay.docW <= 375 && lay.goBottom <= 812 && lay.goW > 300, { docW: lay.docW, goBottom: lay.goBottom });
+    await shot(`8-${lang}-${scheme}-switch-list`);
+
+    // Go: the list, never the board.
+    await tapEl('#blind-go');
+    await sleep(400);
+    st = await state();
+    if (!st.moves.every(m => m.length === 4)) st = await nextList();
+    let wl = wantList(st, lang);
+    check(`${tag}: Go shows the list and no board, pieces hidden from the start`, st.listShown && !st.boardShown && st.hidden && st.piecesOnBoard === 0 && !st.interactive && st.status === T.read, { list: st.listShown, board: st.boardShown, hidden: st.hidden, status: st.status });
+    check(`${tag}: the list is the position to solve, written as agreed`, st.listW === wl.w && st.listB === wl.b && st.moveIdx === 1, { w: st.listW, b: st.listB });
+    check(`${tag}: last move and whose move are stated`, T.last.test(st.listLast) && T.toMove.test(st.turn), { last: st.listLast, turn: st.turn });
+    check(`${tag}: a 60 s countdown is running, with the ready button`, st.counting && Number(st.count) <= 60 && Number(st.count) >= 57 && st.readyBtn === T.ready, { count: st.count, ready: st.readyBtn });
+    let offer = Math.max(1, Math.round(blindExtraPreview({ elo: st.elo, rating: st.rating, seconds: 2 })));
+    check(`${tag}: the offer line is the 2-second extra`, st.bonus === T.offer(offer), st.bonus);
+    let fit = await listFits();
+    check(`${tag}: the list fits 375px with no sideways scroll`, fit.docW <= 375 && fit.left >= 0 && fit.right <= 375 && fit.inner && fit.readyW > 280, fit);
+    await evalP(`window.scrollTo(0, 0); document.querySelector('#screen-blind').scrollIntoView();`);
+    await sleep(200);
+    await shot(`9-${lang}-${scheme}-list`);
+    // SEEDED for the picture only: the longest list there is, 16 pieces a side.
+    await evalP(`${B} const { Chess } = await import('${APP_URL}/vendor/chess.js'); const keep = Blind.chess; const c = new Chess(); c.move('e4');
+      Blind.chess = c; Blind.fillList(); Blind.chess = keep;`);
+    await sleep(150);
+    fit = await listFits();
+    const long = await state();
+    check(`${tag}: the LONGEST list (32 pieces) fits 375px, ready button on screen`, fit.docW <= 375 && fit.right <= 375 && fit.inner && fit.readyBottom <= 812 && long.listW.split(', ').length === 16 && long.listB.split(', ').length === 16, { ...fit, w: long.listW });
+    await shot(`9b-${lang}-${scheme}-list-longest`);
+    await evalP(`${B} Blind.fillList();`);
+
+    // "I'm ready": the empty board.
+    await tapEl('#blind-ready');
+    await sleep(200);
+    st = await state();
+    check(`${tag}: "I'm ready" closes the list: empty board, ready to solve`, !st.listShown && st.boardShown && st.hidden && st.piecesOnBoard === 0 && st.interactive && !st.counting && st.status === T.solve, { list: st.listShown, board: st.boardShown, interactive: st.interactive, status: st.status });
+    await shot(`9c-${lang}-${scheme}-empty-board`);
+
+    // Peek: the list again, never the pieces.
+    before = st;
+    await tapEl('#blind-peek');
+    await sleep(300);
+    if (await evalP(`return !!document.querySelector('.modal-back');`)) { await tapEl('.modal-back .btn.primary'); await sleep(300); }
+    st = await state();
+    wl = wantList(st, lang);
+    check(`${tag}: a peek shows the LIST for 30 s, the pieces stay hidden`, st.listShown && !st.boardShown && st.hidden && st.piecesOnBoard === 0 && st.counting && Number(st.count) <= 30 && Number(st.count) >= 27 && st.listW === wl.w && st.listB === wl.b, { list: st.listShown, count: st.count, hidden: st.hidden });
+    check(`${tag}: the peek is counted and the extra is marked lost`, st.peeked && /\(1\)/.test(st.peekBtn) && st.bonus === T.lost && st.bonusLost, { btn: st.peekBtn, bonus: st.bonus });
+    await evalP(`window.scrollTo(0, 0); document.querySelector('#screen-blind').scrollIntoView();`);
+    await sleep(200);
+    await shot(`10-${lang}-${scheme}-list-peek`);
+    await tapEl('#blind-ready');
+    await sleep(200);
+    st = await state();
+    check(`${tag}: ready closes the peek, board back in play`, !st.listShown && st.boardShown && st.hidden && st.interactive && !st.counting, { list: st.listShown, interactive: st.interactive });
+    await solve();
+    st = await state();
+    want = blindEloResult({ elo: before.elo, rating: before.rating, win: true, seconds: 2, peeked: true, attemptCount: before.attempts });
+    check(`${tag}: solved after a peek pays the normal points, zero extra`, st.recorded && close(st.elo, want.elo) && want.extra === 0, { gained: +(st.elo - before.elo).toFixed(2) });
+    check(`${tag}: RESULT LINE names the mode and the peek; the dot carries 📋`, st.bonus === T.peeked(parts(before, want).a) && /📋/.test(st.dots), { bonus: st.bonus, dots: st.dots });
+    await evalP(`window.scrollTo(0, 0); document.querySelector('#screen-blind').scrollIntoView();`);
+    await sleep(200);
+    await shot(`11-${lang}-${scheme}-result-peeked`);
+
+    // A clean solve: normal points plus the equal extra.
+    st = await nextList();
+    before = st;
+    await tapEl('#blind-ready');
+    await sleep(200);
+    await solve();
+    st = await state();
+    want = blindEloResult({ elo: before.elo, rating: before.rating, win: true, seconds: 2, peeked: false, attemptCount: before.attempts });
+    let lp = parts(before, want);
+    check(`${tag}: a clean solve pays exactly what a 2-second look pays`, close(st.elo, want.elo) && want.extra > 0 && st.bonus === T.extra(lp.a, lp.b), { gained: +(st.elo - before.elo).toFixed(2), bonus: st.bonus });
+    await evalP(`window.scrollTo(0, 0); document.querySelector('#screen-blind').scrollIntoView();`);
+    await sleep(200);
+    await shot(`11b-${lang}-${scheme}-result-clean`);
+
+    if (firstList) {
+      // The list closes by itself at 60 s, and the time read changes no pay.
+      st = await nextList();
+      before = st;
+      const t60 = await timeCountdown(null, 66000);
+      st = await state();
+      check(`${tag}: at 60 s the list closes by itself and the empty board appears`, t60 !== null && t60 > 58 && t60 < 61.5 && !st.listShown && st.boardShown && st.hidden && st.interactive, { t60, list: st.listShown });
+      // both peeks, then a third tap
+      await tapEl('#blind-peek'); await sleep(250); await tapEl('#blind-ready'); await sleep(200);
+      await tapEl('#blind-peek'); await sleep(250);
+      const p2 = await state();
+      await tapEl('#blind-ready'); await sleep(200);
+      await tapEl('#blind-peek'); await sleep(250);
+      const p3 = await state();
+      check(`${tag}: two peeks per puzzle, the third does nothing`, p2.listShown && /\(0\)/.test(p2.peekBtn) && !p3.listShown && p3.boardShown, { p2: p2.peekBtn, p3list: p3.listShown });
+      // Show solution while a list peek is up would be impossible now (no peeks left): a plain loss instead.
+      await tapEl('#blind-solution');
+      await sleep(400);
+      st = await state();
+      want = blindEloResult({ elo: before.elo, rating: before.rating, win: false, seconds: 2, peeked: true, attemptCount: before.attempts });
+      const lookLoss = blindEloResult({ elo: before.elo, rating: before.rating, win: false, seconds: 10, peeked: false, attemptCount: before.attempts });
+      check(`${tag}: a loss costs the same as in the other mode, and says so`, close(st.elo, want.elo) && close(st.elo, lookLoss.elo) && st.bonus === T.loss(parts(before, want).a) && st.boardShown, { lost: +(st.elo - before.elo).toFixed(2), bonus: st.bonus });
+      await sleep(2500);
+      // Show solution while the opening list is still up: the board comes back.
+      st = await nextList();
+      await tapEl('#blind-solution');
+      await sleep(300);
+      st = await state();
+      check(`${tag}: Show solution with the list up brings the board back and stops the countdown`, !st.listShown && st.boardShown && !st.counting && !st.hidden, { list: st.listShown, counting: st.counting });
+      await sleep(2500);
+      // Back to "see position" through the change button, and back again.
+      await tapEl('#blind-change-time');
+      await sleep(300);
+      st = await state();
+      check(`${tag}: the change button opens the start panel between puzzles`, st.startShown && st.segOn === 'list', { start: st.startShown });
+      await tapEl('#blind-mode-seg [data-v="look"]');
+      st = await state();
+      check(`${tag}: one tap back to "see position": saved, picker back at its own 2 s`, st.mode === 'look' && st.storedMode === 'look' && st.pickerShown && st.seconds === 2 && st.label === `${T.label}: 2 s`, { mode: st.mode, label: st.label });
+      await tapEl('#blind-go');
+      const lookSecs = await timeCountdown();
+      st = await state();
+      check(`${tag}: "see position" still shows the board and runs its own 2 s`, lookSecs !== null && close(lookSecs, 2, 0.4) && !st.listShown && st.boardShown, { lookSecs });
+      await tapEl('#blind-solution');
+      await sleep(3000);
+      await tapEl('#blind-change-time');
+      await sleep(300);
+      await tapEl('#blind-mode-seg [data-v="list"]');
+      firstList = false;
+    }
   }
 } catch (e) {
   check('harness ran to the end', false, String(e.stack || e).slice(0, 600));
