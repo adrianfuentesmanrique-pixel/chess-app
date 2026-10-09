@@ -6,6 +6,8 @@
 //
 //   icons/notif/daily.png  192x192, the whole artwork fitted inside, transparent ground
 //   icons/notif/badge.png   96x96, white on transparent, from the alpha of icons/logo-mark.png
+//   icons/notif/daily-wide.jpg  960x480, the same artwork on navy: the large picture
+//                               Android shows when the notification is expanded
 //
 // No image library on this machine, so headless Chrome does the drawing
 // (same launch and CDP plumbing as tools/cdp-verify-streak-grey.mjs).
@@ -109,8 +111,35 @@ const SHRINK = `async function shrink(src, size, silhouette) {
   return { b64, onNavy: c.toDataURL('image/png').split(',')[1], from: img.width + 'x' + img.height, clear: Math.round(100 * clear / (size * size)) };
 }`;
 
+// In-page: the wide picture. Android crops an expanded notification's image to
+// about 2:1, so a square would lose the ears. The artwork is a bust that already
+// ends in a cut, so it is drawn taller than the banner and runs off the bottom
+// edge: head, hand and brooch all stay inside. Opaque, so JPEG.
+const BANNER = `async function banner(src, w, h) {
+  const img = new Image(); img.src = src; await img.decode();
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  const bg = g.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, w * 0.6);
+  bg.addColorStop(0, '#22386a'); bg.addColorStop(1, '#0f1b33');
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  const ih = Math.round(h * 1.25), iw = Math.round(img.width * ih / img.height);
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, Math.round((w - iw) / 2), Math.round(h * 0.04), iw, ih);
+  return { b64: c.toDataURL('image/jpeg', 0.86).split(',')[1], from: img.width + 'x' + img.height };
+}`;
+const WIDE = ['/Notification/Daily%20reminder.png', 960, 480, 'icons/notif/daily-wide.jpg'];
+
 let bad = false;
 try {
+  {
+    const [src, w, h, out] = WIDE;
+    const r = await send('Runtime.evaluate', { expression: `(async()=>{ ${BANNER}; return banner(${JSON.stringify(src)}, ${w}, ${h}); })()`, awaitPromise: true, returnByValue: true });
+    if (r.exceptionDetails) throw new Error(src + ': ' + JSON.stringify(r.exceptionDetails).slice(0, 400));
+    const file = path.join(ROOT, out);
+    fs.writeFileSync(file, Buffer.from(r.result.value.b64, 'base64'));
+    if (PREVIEW) fs.copyFileSync(file, path.join(PREVIEW, path.basename(out)));
+    console.log(`${out}  ${w}x${h}  from ${r.result.value.from}  ${(fs.statSync(file).size / 1024).toFixed(1)} KB`);
+  }
   for (const [src, size, silhouette, out] of JOBS) {
     const r = await send('Runtime.evaluate', { expression: `(async()=>{ ${SHRINK}; return shrink(${JSON.stringify(src)}, ${size}, ${silhouette}); })()`, awaitPromise: true, returnByValue: true });
     if (r.exceptionDetails) throw new Error(src + ': ' + JSON.stringify(r.exceptionDetails).slice(0, 400));

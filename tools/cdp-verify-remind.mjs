@@ -145,7 +145,7 @@ const openProfile = async () => { await killModals(); await evalP(`__t.app.showS
 const scrollToBlock = async () => { await evalP(`document.getElementById('remind-label').scrollIntoView({ block: 'start' });`); await sleep(300); };
 
 const daily = () => evalP(`const reg = await navigator.serviceWorker.ready;
-  return (await reg.getNotifications({ tag: 'daily' })).map(n => ({ title: n.title, body: n.body, tag: n.tag, silent: n.silent, icon: n.icon, badge: n.badge }));`);
+  return (await reg.getNotifications({ tag: 'daily' })).map(n => ({ title: n.title, body: n.body, tag: n.tag, silent: n.silent, icon: n.icon, image: n.image, badge: n.badge }));`);
 async function push(data) {
   await send('ServiceWorker.deliverPushMessage', { origin: APP_URL, registrationId, data });
   await sleep(900);
@@ -256,6 +256,8 @@ async function run() {
   await evalP(`(await (await navigator.serviceWorker.ready).getNotifications()).forEach(n => n.close());`);
   list = await push('null');
   check('push "null" (readable, but not an object): a notification is still shown', list.length === 1 && list[0].title === 'Tu racha te espera', list);
+  check('push: the large picture is the wide file', list.length === 1 && /icons\/notif\/daily-wide\.jpg$/.test(list[0].image || ''), list[0]);
+  check('icons/notif/daily-wide.jpg is served', await evalP(`const r = await fetch('${APP_URL}/icons/notif/daily-wide.jpg'); return r.ok && r.headers.get('content-type') === 'image/jpeg';`));
   for (const f of ['icons/notif/daily.png', 'icons/notif/badge.png']) {
     check(`${f} is served`, await evalP(`const r = await fetch('${APP_URL}/${f}'); return r.ok && r.headers.get('content-type') === 'image/png';`));
   }

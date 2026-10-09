@@ -35,10 +35,16 @@ are in `CLAUDE.md` under "Finish by pushing".
     Not yet known: whether GitHub settles into hourly runs once the workflow is older (check
     the run list again before building anything). The job was NOT changed; any fix is his call
     and must stay free (no card, no Blaze).
-  - **His request, not built:** the art looks too small. `icons/notif/daily.png` (192x192)
-    already fills its square; the thumbnail size is the phone's. The one lever is adding
-    `image:` to `showNotification` in `sw.js` so a large picture shows when the notification
-    is expanded. He has not said yes or no.
+  - **His request, BUILT the same day (v176):** the art looked too small. `icons/notif/daily.png`
+    (192x192) already fills its square; the thumbnail size is the phone's. `showNotification`
+    in `sw.js` now also passes `image: 'icons/notif/daily-wide.jpg'` (960x480, 44 KB, Kael on
+    navy, made by `tools/resize-notif.mjs` from `Notification/Daily reminder.png`), which
+    Android shows when the notification is EXPANDED. The collapsed thumbnail is unchanged and
+    cannot be made bigger. `test:tree` 184/0, `test:precache` OK (43, 142), `test:rules` 435/0,
+    before and after; the harness is now 44/44 (two new checks), 14 screenshots, the four
+    signed-out Settings ones (375px, ES/EN, light/dark) opened and looked at — no screen changed.
+    **Not yet seen on his phone.** Running the tool also rewrites `daily.png` with different
+    bytes: `git checkout -- icons/notif/daily.png` afterwards.
   - **Play Store data safety: DONE by Adrian 2026-10-09.** Before: the form was complete with
     Personal info 4 of 9 (Name, Email address, User IDs, Other info), App activity 1 of 5 (App
     interactions), App info and performance 1 of 3 (Crash logs); **Device or other IDs was not

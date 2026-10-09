@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v175';
+const CACHE = 'chess-training-center-v176';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -270,6 +270,9 @@ self.addEventListener('push', e => {
     await self.registration.showNotification(text.title, {
       body: text.body(n),
       icon: 'icons/notif/daily.png',
+      // The large picture Android shows when the notification is expanded. The
+      // collapsed thumbnail is `icon`, and its size is the phone's to choose.
+      image: 'icons/notif/daily-wide.jpg',
       badge: 'icons/notif/badge.png',
       tag: 'daily',
       renotify: false,
