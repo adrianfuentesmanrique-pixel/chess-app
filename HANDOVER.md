@@ -9,7 +9,7 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
-- **DAILY STREAK REMINDER: THE PHONE TEST PASSED, BUT GITHUB IS NOT RUNNING THE JOB HOURLY — OPEN DEFECT (2026-10-09, v175, no code change).**
+- **DAILY STREAK REMINDER: PHONE TEST PASSED; GITHUB SKIPPED MOST HOURS, SO A CLOUDFLARE TIMER NOW STARTS THE JOB EVERY HOUR — DEFECT FIXED (2026-10-09, v176).**
   A real reminder reached Adrian's phone (Samsung, the TWA, account Zugzwang, 9-day streak,
   trained 8 Oct, not yet 9 Oct). **Every run that delivered was started BY HAND** (Actions
   page, Run workflow, "Count only" unticked). Only HANDOVER.md changed this session.
@@ -26,15 +26,27 @@ are in `CLAUDE.md` under "Finish by pushing".
     a WhatsApp message landed at the same moment, so the sound could not be attributed;
     (3) that training clears a showing reminder (`Notifications.clearDaily`) — not tried.
     The job's JSON line was not read for any run (the logs need a login); delivery is the proof.
-  - **THE DEFECT: the schedule.** `cron: '17 * * * *'`, yet between the push of `782a8de`
+  - **THE DEFECT, and the fix.** `cron: '17 * * * *'`, yet between the push of `782a8de`
     (8 Oct) and 15:10 UTC on 9 Oct GitHub started only TWO scheduled runs: #2 at 01:14 UTC and
-    #3 at 07:27 UTC. Nothing scheduled for the 7.5 hours after that, including the hour of the
-    test. A run covers its own hour and the two before, so with 6-hour gaps most chosen hours
-    are never sent. **As it stands, users who switch the reminder on will mostly not get it.**
-    Adrian was told at the start of the session and again when the 9:00 reminder did not come.
-    Not yet known: whether GitHub settles into hourly runs once the workflow is older (check
-    the run list again before building anything). The job was NOT changed; any fix is his call
-    and must stay free (no card, no Blaze).
+    #3 at 07:27 UTC (one more, #7, came at 15:19 after a push). A run covers its own hour and
+    the two before, so with 6-hour gaps most chosen hours were never sent.
+    **Fix, Adrian's yes, free, no card: a Cloudflare Worker presses "Run workflow" hourly.**
+    Worker `ctc-reminder-clock` in his Cloudflare account (free plan, the account that holds
+    the domain's DNS), cron trigger `5 * * * *` (UTC), one secret `GITHUB_TOKEN` = a
+    fine-grained GitHub token named `ctc-reminder-clock`, this repository only, Actions read
+    and write, **no expiration**. It POSTs the workflow's `dispatches` endpoint with
+    `dry_run: 'false'`; its public address answers 404. **Proved:** run #8 started at 16:05:49
+    UTC as `workflow_dispatch`, green, with nobody pressing anything.
+    `tools/reminder/cloudflare-clock.js` is a COPY of the Worker's code for the record —
+    nothing deploys it; editing it changes nothing until it is pasted into Cloudflare again.
+    **The workflow, `plan.mjs`, `send.mjs` and `due.mjs` were NOT changed.** GitHub's own
+    schedule stays as a backup; the remembered hour stops doubles. Because of this the runs
+    now show as "workflow_dispatch", not "schedule" — that is correct, not a fault.
+    If reminders stop: Cloudflare, Workers & Pages (reach it by "Manage Workers" from the
+    domain's Workers Routes page, or Compute in the account menu), the Worker's Observability
+    tab shows "GitHub answered <status>"; 401/403 means the token was revoked or lost access.
+    Not seen yet: a reminder landing on the phone from a timer-started run (delivery from
+    hand-started dispatch runs was proved three times; the path is the same).
   - **His request, BUILT the same day (v176):** the art looked too small. `icons/notif/daily.png`
     (192x192) already fills its square; the thumbnail size is the phone's. `showNotification`
     in `sw.js` now also passes `image: 'icons/notif/daily-wide.jpg'` (960x480, 44 KB, Kael on
