@@ -21,6 +21,9 @@ are in `CLAUDE.md` under "Finish by pushing".
     "Yes" closes it for good whatever the phone answers, and so does using the Settings switch
     by hand. Remembered on this device only: kv `remindAskCount`, `remindAskLast` (NOT synced,
     nothing in the cloud or the rules knows about it).
+  - **The picture (v179, Adrian's request after seeing it on his phone).** The dialog shows
+    Kael as the notification does, `icons/notif/daily.png`, in the usual `kael-portrait` tile.
+    The first build had a 🦉 emoji, copied from the Blindfold hint warning; Kael is a horse.
   - **Who never sees it.** Every `Notifications.state()` except `off`: on, denied, signed-out,
     unsupported, failed, ios-needs-install.
   - **The phone's question** is asked only by `Notifications.enable()`, called inside the Yes

@@ -134,7 +134,7 @@ const signIn = () => evalP(`__t.fb.Auth.user = { uid: 'headless' };
   Notification.requestPermission = (...a) => { window.__asked++; return real(...a); };`);
 const dialog = () => evalP(`const box = document.querySelector('#modal-root .modal-box'); if (!box) return null;
   const r = box.getBoundingClientRect();
-  return { text: box.querySelector('p')?.textContent || '', title: box.querySelector('h3')?.textContent || '',
+  return { text: box.querySelector('p')?.textContent || '', title: box.querySelector('img.kael-portrait')?.alt || '', art: (i => !!i && i.complete && i.naturalWidth > 0 && i.src.endsWith('icons/notif/daily.png'))(box.querySelector('img.kael-portrait')),
     btns: [...box.querySelectorAll('button')].map(b => b.textContent),
     fits: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight
       && document.documentElement.scrollWidth <= innerWidth,
@@ -168,7 +168,7 @@ try {
     check(`${tag} nothing on screen before a day is credited`, !(await dialog()) && (await kv('remindAskCount')) === null);
     await credit();
     const d = await waitDialog();
-    check(`${tag} invitation appears after a finished training`, d && d.title.includes('Kael') && d.text === T.ask.replace('{h}', h), d);
+    check(`${tag} invitation appears after a finished training`, d && d.title === 'Kael' && d.art && d.text === T.ask.replace('{h}', h), d);
     check(`${tag} the two buttons, in order`, d && d.btns.join('|') === T.btns.join('|'), d?.btns);
     check(`${tag} fits 375px, buttons not cut`, d && d.fits && d.btnsFit, d);
     check(`${tag} the phone's question has NOT been asked yet`, (await evalP('return window.__asked')) === 0);

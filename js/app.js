@@ -1059,7 +1059,8 @@ export const RemindInvite = {
 
   kael(text, buttons) {
     return modal((box, close) => {
-      box.innerHTML = `<h3>🦉 Kael</h3><p>${esc(text)}</p>`;
+      // Kael as the reminder itself shows him (icons/notif/, the art made for it).
+      box.innerHTML = `<div class="kael-modal-head"><img src="icons/notif/daily.png" class="kael-portrait" alt="Kael" style="width:110px;"></div><p>${esc(text)}</p>`;
       const row = document.createElement('div'); row.className = 'row';
       buttons.forEach(([label, onTap], i) => {
         const b = document.createElement('button');
