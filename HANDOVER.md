@@ -9,6 +9,45 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **DAILY STREAK REMINDER: THE PHONE TEST PASSED, BUT GITHUB IS NOT RUNNING THE JOB HOURLY — OPEN DEFECT (2026-10-09, v175, no code change).**
+  A real reminder reached Adrian's phone (Samsung, the TWA, account Zugzwang, 9-day streak,
+  trained 8 Oct, not yet 9 Oct). **Every run that delivered was started BY HAND** (Actions
+  page, Run workflow, "Count only" unticked). Only HANDOVER.md changed this session.
+  - **Proved on the phone:** Settings shows "Daily reminder" under Privacy and above Lichess,
+    reads On and stays On after two restarts. Hour set to 9:00; manual run #4 (14:43 UTC =
+    09:43 Panama, green, 20 s): the notification arrived stamped 09:43. Text correct, English:
+    "Your streak is waiting" / "Keep your 9-day streak alive: train today." The art is his
+    (Kael); the app icon shows on the left. A tap opened the app and the notification went.
+    Hour moved to 10:00; manual run #5 (15:05 UTC): a second reminder arrived. Run #6, one
+    minute later in the same hour: nothing arrived — correct, `hoursToHandle` never repeats an
+    hour.
+  - **NOT proved, Adrian chose to stop here ("notification is working fine"):** (1) the buzz
+    on the first reminder — his phone was on silent; (2) that the same-day repeat is silent —
+    a WhatsApp message landed at the same moment, so the sound could not be attributed;
+    (3) that training clears a showing reminder (`Notifications.clearDaily`) — not tried.
+    The job's JSON line was not read for any run (the logs need a login); delivery is the proof.
+  - **THE DEFECT: the schedule.** `cron: '17 * * * *'`, yet between the push of `782a8de`
+    (8 Oct) and 15:10 UTC on 9 Oct GitHub started only TWO scheduled runs: #2 at 01:14 UTC and
+    #3 at 07:27 UTC. Nothing scheduled for the 7.5 hours after that, including the hour of the
+    test. A run covers its own hour and the two before, so with 6-hour gaps most chosen hours
+    are never sent. **As it stands, users who switch the reminder on will mostly not get it.**
+    Adrian was told at the start of the session and again when the 9:00 reminder did not come.
+    Not yet known: whether GitHub settles into hourly runs once the workflow is older (check
+    the run list again before building anything). The job was NOT changed; any fix is his call
+    and must stay free (no card, no Blaze).
+  - **His request, not built:** the art looks too small. `icons/notif/daily.png` (192x192)
+    already fills its square; the thumbnail size is the phone's. The one lever is adding
+    `image:` to `showNotification` in `sw.js` so a large picture shows when the notification
+    is expanded. He has not said yes or no.
+  - **Play Store data safety: DONE by Adrian 2026-10-09.** Before: the form was complete with
+    Personal info 4 of 9 (Name, Email address, User IDs, Other info), App activity 1 of 5 (App
+    interactions), App info and performance 1 of 3 (Crash logs); **Device or other IDs was not
+    declared.** Now: Device or other IDs — collected, not shared, not ephemeral, optional
+    ("Users can choose"), purpose App functionality only. Saved, and "Submit 1 change for
+    review" pressed; Managed publishing is off, so it goes live when Google approves.
+    Where it lives now: `https://play.google.com/console/app/app-content/summary` (there is no
+    "Policy" menu and no search box any more — do not send him to either).
+
 - **DAILY STREAK REMINDER, TASK 4 OF 4: THE GATE IS GONE, THE SWITCH IS LIVE FOR EVERYONE — THE PHONE TEST IS STILL OWED (2026-10-08, `ace1290`, v175).**
   **Out of the plan's order, by Adrian's decision.** The plan said: remove the gate only after
   a real reminder reached his phone. He could not be due on 2026-10-08 (he had trained), and
