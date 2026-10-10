@@ -9,6 +9,35 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD HAS ITS OWN THEME AND SETTINGS BUTTONS (2026-10-10, v180).**
+  Spec, with Adrian's answers: `docs/superpowers/specs/2026-10-10-blindfold-theme-and-settings-design.md`.
+  - **What it does.** On the Blindfold start panel, under the rating and above
+    See position | List, one row: a wide theme button that says what is chosen
+    ("🎯 Tema: Aleatorio", "🎯 Tema: Horquilla", "🎯 Temas: 3 elegidos") and the ⚙ square.
+    They open the SAME two sheets the Puzzles screen uses (`Puzzles.openThemePicker(opts)`,
+    `Puzzles.openOptions(opts)` now take whose values to show and where to store them).
+  - **Everything is separate from Puzzles (Adrian's answer).** `Blind.themeFilter` (in
+    memory only, like the Puzzles one), `Blind.difficulty` (kv `blindfoldDifficulty`),
+    `Blind.autoNext` (kv `blindfoldAutoNext`). Neither kv is synced, same as the Puzzles
+    pair. Before v180 Blindfold read `Puzzles.difficulty` and `Puzzles.autoNext`; it starts
+    again at Normal / off for everyone.
+  - **Which puzzles qualify** is `js/blind-pick.js` (imports nothing; 9 unit tests):
+    themed puzzles within 300 points; under 10 of them, widen 100 at a time up to 600 and
+    play what is there; none at all, a puzzle at the level without the theme and one toast
+    (`blind_theme_none`), once per theme choice. A thin theme also loads rating files
+    further out (`ensureForRating(target, 3)`) before settling. Rating and pay unchanged.
+  - **Measured (30,000 puzzles):** targets 800-2300, every theme has 10+ within 300. With
+    the widening to 600 no real theme comes out empty at any rating, so the toast is a
+    safety net (a rating file that failed to load), not something a player normally sees.
+  - **During a puzzle** nothing new: the old button is relabelled "⚙ Cambiar ajustes" /
+    "⚙ Change settings" and still opens the start panel after the current puzzle.
+  - **Verified** with `tools/cdp-verify-blind-theme.mjs` (54/54): 375px, light and dark,
+    Spanish and English, See position and List, start panel and game, 16 screenshots opened
+    and looked at; the taps and what was seeded are listed at the top of the tool.
+    test:tree 200 -> 209, test:precache 45 -> 46 files, test:rules 435 (unchanged).
+  - **Seen once, not chased:** on one run a tap on Go was reported as covered by another
+    element (Kael's corner bubble is the likely one); it did not happen again in two runs.
+
 - **KAEL INVITES THE USER TO THE DAILY REMINDER, ONCE (2026-10-09, v178).**
   Spec, with Adrian's answers ("all yes"): `docs/superpowers/specs/2026-10-09-reminder-invitation-design.md`.
   - **What it does.** A signed-in user whose reminder is plainly off gets Kael's dialog

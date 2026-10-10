@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v179';
+const CACHE = 'chess-training-center-v180';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -114,6 +114,7 @@ const ASSETS = [
   'js/read-training.js',
   'js/blind-elo.js',
   'js/blind-list.js',
+  'js/blind-pick.js',
   'js/diagram.js',
   // Statically imported by js/app.js, so the app cannot start without them.
   // Every file app.js imports at startup MUST be listed here: one that is not

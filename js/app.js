@@ -12,6 +12,7 @@ import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { LEARNING_CATEGORIES } from './learning-data.js';
 import { blindEloResult, blindExtraPreview, blindExtraFactor, blindLongLookFactor, clampBlindSeconds, BLIND_SECONDS_DEFAULT, BLIND_LIST_PAY_SECONDS, BLIND_LIST_READ_SECONDS, BLIND_LIST_PEEK_SECONDS } from './blind-elo.js';
 import { blindPieceList, blindSanLocal } from './blind-list.js';
+import { blindPick, BLIND_PICK_MIN } from './blind-pick.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard,
          MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS,
@@ -4486,11 +4487,13 @@ export const Puzzles = {
     this.updateNavButtons();
   },
 
-  openThemePicker() {
+  // Blindfold opens this same picker for its own theme: it passes the filter
+  // it holds and what Apply should do with the new one.
+  openThemePicker({ filter = this.themeFilter, apply = f => { this.themeFilter = f; this.nextPuzzle(); } } = {}) {
     modal((box, close) => {
       box.innerHTML = `<h3>${t('select_theme')}</h3>`;
-      let mode = this.themeFilter === 'random' ? 'random' : 'themes';
-      let selected = this.themeFilter === 'random' ? new Set() : new Set(this.themeFilter);
+      let mode = filter === 'random' ? 'random' : 'themes';
+      let selected = filter === 'random' ? new Set() : new Set(filter);
 
       const randomRow = document.createElement('label');
       randomRow.className = 'theme-pick-row';
@@ -4545,9 +4548,8 @@ export const Puzzles = {
       const applyBtn = document.createElement('button');
       applyBtn.className = 'btn primary big'; applyBtn.textContent = t('apply');
       applyBtn.onclick = () => {
-        this.themeFilter = mode === 'random' ? 'random' : selected;
         close(null);
-        this.nextPuzzle();
+        apply(mode === 'random' ? 'random' : selected);
       };
       box.appendChild(applyBtn);
     });
@@ -4555,7 +4557,9 @@ export const Puzzles = {
 
   // Difficulty and auto-advance live together: both change how the flow of a
   // session feels rather than what a single puzzle is.
-  openOptions() {
+  // Blindfold opens this same sheet for its own two settings: `owner` holds
+  // difficulty, autoNext and targetRating(), `keys` is where they are stored.
+  openOptions({ owner = this, keys = { difficulty: 'puzzleDifficulty', autoNext: 'puzzleAutoNext' } } = {}) {
     modal((box, close) => {
       box.innerHTML = `<h3>${t('puzzle_options')}</h3>`;
 
@@ -4569,16 +4573,16 @@ export const Puzzles = {
         const b = document.createElement('button');
         b.dataset.v = String(lv.v);
         b.textContent = t(lv.key);
-        if (lv.v === this.difficulty) b.classList.add('on');
+        if (lv.v === owner.difficulty) b.classList.add('on');
         seg.appendChild(b);
       }
       const target = document.createElement('p');
       target.className = 'hint';
       target.style.marginTop = '6px';
       const showTarget = () => {
-        target.textContent = t('difficulty_target').replace('{n}', Math.round(this.targetRating()));
+        target.textContent = t('difficulty_target').replace('{n}', Math.round(owner.targetRating()));
       };
-      segInit(seg, v => { this.difficulty = +v; db.kvSet('puzzleDifficulty', this.difficulty); showTarget(); });
+      segInit(seg, v => { owner.difficulty = +v; db.kvSet(keys.difficulty, owner.difficulty); showTarget(); });
       showTarget();
 
       const diffHint = document.createElement('p');
@@ -4590,8 +4594,8 @@ export const Puzzles = {
       autoRow.style.marginTop = '10px';
       autoRow.innerHTML = `<input type="checkbox"><span>${esc(t('auto_next'))}</span>`;
       const autoCb = autoRow.querySelector('input');
-      autoCb.checked = this.autoNext;
-      autoCb.onchange = () => { this.autoNext = autoCb.checked; db.kvSet('puzzleAutoNext', this.autoNext); };
+      autoCb.checked = owner.autoNext;
+      autoCb.onchange = () => { owner.autoNext = autoCb.checked; db.kvSet(keys.autoNext, owner.autoNext); };
       const autoHint = document.createElement('p');
       autoHint.className = 'hint';
       autoHint.textContent = t('auto_next_hint');
@@ -5438,6 +5442,12 @@ export const Blind = {
   seconds: BLIND_SECONDS_DEFAULT,        // the player's chosen memorising time
   secondsThis: BLIND_SECONDS_DEFAULT,    // the time the CURRENT puzzle was shown for
   mode: 'look',           // 'look' (see the position) or 'list' (read it); changed only on the start panel
+  // Blindfold's own theme, difficulty and auto-next: nothing here is shared
+  // with the Puzzles screen. The theme is not stored, like the Puzzles one.
+  themeFilter: 'random',  // 'random' | Set<themeId>
+  themeMissSaid: false,   // "none of this theme at your level" already shown for this choice
+  difficulty: 0,          // ELO offset applied when picking the next puzzle (kv blindfoldDifficulty)
+  autoNext: false,        // kv blindfoldAutoNext
   listOnDone: null,       // set while the list is on screen: what to do when it closes
   hintWarningSeen: false,
   greetedThisOpen: false,
@@ -5459,6 +5469,13 @@ export const Blind = {
         db.kvSet('blindfoldMode', this.mode);
         this.updateTimeControl();
       };
+    });
+    $('blind-theme-btn').onclick = () => Puzzles.openThemePicker({
+      filter: this.themeFilter,
+      apply: f => { this.themeFilter = f; this.themeMissSaid = false; this.updateTimeControl(); },
+    });
+    $('blind-options').onclick = () => Puzzles.openOptions({
+      owner: this, keys: { difficulty: 'blindfoldDifficulty', autoNext: 'blindfoldAutoNext' },
     });
     $('blind-ready').onclick = () => this.closeList();
     $('blind-go').onclick = () => this.go();
@@ -5483,6 +5500,9 @@ export const Blind = {
     this.seconds = clampBlindSeconds(await db.kvGet('blindfoldSeconds', BLIND_SECONDS_DEFAULT));
     // Not a synced key: the mode is remembered on this device only.
     this.mode = (await db.kvGet('blindfoldMode', 'look')) === 'list' ? 'list' : 'look';
+    // Not synced either, like the Puzzles pair they were split from.
+    this.difficulty = +(await db.kvGet('blindfoldDifficulty', 0)) || 0;
+    this.autoNext = !!(await db.kvGet('blindfoldAutoNext', false));
     this.updateTimeControl();
   },
 
@@ -5504,6 +5524,12 @@ export const Blind = {
     $('blind-time-label').textContent = (this.timeLocked ? '🔒 ' : '') + t('blind_time_label').replace('{n}', this.seconds);
     $('blind-time-hint').textContent = t(this.timeLocked ? 'blind_time_locked' : 'blind_time_hint');
     $('blind-change-time').textContent = t(this.changeArmed ? 'blind_change_time_armed' : 'blind_change_time');
+    // The theme button says what is chosen: Random, the one theme, or how many.
+    const tf = this.themeFilter;
+    $('blind-theme-btn').textContent =
+      tf === 'random' ? t('blind_theme_btn').replace('{x}', t('blind_theme_any'))
+      : tf.size === 1 ? t('blind_theme_btn').replace('{x}', t('theme_' + [...tf][0]))
+      : t('blind_theme_btn_many').replace('{n}', tf.size);
     // Start panel: what the chosen time pays, as a rule — there is no puzzle yet
     // to work the points out from.
     const s = this.seconds;
@@ -5639,11 +5665,9 @@ export const Blind = {
     $('blind-turn').textContent = `${t(turnColor)} ${t('to_move_short')}`;
   },
 
-  // Shares the difficulty offset chosen in the Puzzles options — it is the
-  // same player asking for the same kind of challenge, just without sight of
-  // the pieces.
+  // Blindfold's own difficulty offset, chosen with the ⚙ on the start panel.
   targetRating() {
-    return Math.max(600, Math.min(3000, this.elo + Puzzles.difficulty));
+    return Math.max(600, Math.min(3000, this.elo + this.difficulty));
   },
 
   async nextPuzzle() {
@@ -5656,8 +5680,16 @@ export const Blind = {
     const target = this.targetRating();
     try { await ensureForRating(target); } catch { /* play what is already loaded */ }
     if (!PUZZLES.length) return;
-    const candidates = PUZZLES.filter(p => Math.abs(p.rating - target) <= 300);
-    const list = candidates.length ? candidates : PUZZLES;
+    // Which puzzles qualify is a rule of its own: js/blind-pick.js.
+    const themes = this.themeFilter === 'random' ? null : this.themeFilter;
+    let pick = blindPick(PUZZLES, target, themes);
+    if (themes && (pick.fallback || pick.list.length < BLIND_PICK_MIN)) {
+      // A thin theme: bring in the rating files further out before settling.
+      try { await ensureForRating(target, 3); } catch { /* play what is already loaded */ }
+      pick = blindPick(PUZZLES, target, themes);
+    }
+    if (pick.fallback && !this.themeMissSaid) { this.themeMissSaid = true; toast(t('blind_theme_none')); }
+    const list = pick.list;
     this.current = list[Math.floor(Math.random() * list.length)];
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
@@ -5856,7 +5888,7 @@ export const Blind = {
         this.updatePeekBtn();
         $('blind-share').classList.remove('hidden');
         Streak.recordActivity();
-        if (Puzzles.autoNext) {
+        if (this.autoNext) {
           const solvedPuzzle = this.current;
           setTimeout(() => {
             if (activeScreen === 'blind' && this.current === solvedPuzzle) this.nextPuzzle();

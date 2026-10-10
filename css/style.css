@@ -1276,6 +1276,11 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 #blind-start { min-height: calc(100dvh - 330px); }
 #blind-start #blind-change-time { display: none; }
 #blind-last-paid:empty { display: none; }
+/* Theme and settings, the pair the Puzzles screen has: the theme button takes
+   the width and ellipsises, the gear stays square. */
+#blind-setup-row { flex-wrap: nowrap; gap: 6px; align-items: stretch; margin-top: 10px; }
+#blind-theme-btn { flex: 1 1 auto; min-width: 0; min-height: 44px; text-align: left; }
+#blind-setup-row .btn.ico { width: 44px; }
 /* The mode switch: two equal halves, one tap. */
 .seg.blind-mode { display: grid; grid-template-columns: 1fr 1fr; margin: 10px 0 8px; }
 .seg.blind-mode button { min-width: 0; min-height: 44px; text-align: center; }

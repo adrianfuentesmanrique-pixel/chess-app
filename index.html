@@ -852,6 +852,12 @@
       <div class="row wrap profile-elo-row">
         <div class="elo-card"><span data-i18n="blindfold_elo"></span><b id="blind-start-elo"></b></div>
       </div>
+      <!-- Blindfold's own theme and settings (difficulty, auto-next). The
+           theme button's text is set by Blind.updateTimeControl(). -->
+      <div class="row" id="blind-setup-row">
+        <button id="blind-theme-btn" class="btn ellipsis" data-i18n-aria="select_theme"></button>
+        <button id="blind-options" class="btn ico" data-i18n-aria="puzzle_options">⚙</button>
+      </div>
       <!-- The two ways to play: see the position for a few seconds, or read
            it as a written list. Remembered on this device (blindfoldMode). -->
       <div class="seg blind-mode" id="blind-mode-seg">
