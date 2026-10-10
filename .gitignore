@@ -44,3 +44,8 @@ Notification/
 # like an app regression. Regenerate before running them:
 #   node tools/make-test-pdf.mjs 5 > __test-book.pdf
 __test-book.pdf
+
+# Sound files being auditioned before they go into sounds/, with the
+# downloaded previews they were cut from. What shipped, and from where, is
+# written in docs/sound-sources.md.
+sounds-candidates/

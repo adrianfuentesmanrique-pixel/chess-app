@@ -25,6 +25,11 @@ test('one sound per move: check > promotion > castle > capture > move', () => {
 test('every sound the board may ask for is a real sound file', () => {
   for (const name of BOARD_SOUNDS) assert.ok(SOUND_NAMES.includes(name), name);
   assert.ok(BOARD_SOUNDS.includes('move') && BOARD_SOUNDS.includes('capture'));
+  // a kind with no file falls back to these two, so every kind must resolve to a file
+  for (const flags of [{}, { capture: true }, { castle: true }, { promotion: true }, { check: true }]) {
+    const kind = moveSoundKind(flags);
+    assert.ok(BOARD_SOUNDS.includes(kind) || ['move', 'capture'].includes(moveSoundKind({ capture: !!flags.capture })), kind);
+  }
 });
 
 test('the sound list, the sounds folder and the precache list are the same set', () => {

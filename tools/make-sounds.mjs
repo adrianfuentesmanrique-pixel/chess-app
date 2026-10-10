@@ -4,7 +4,8 @@
 //
 //   node tools/make-sounds.mjs <outDir>   writes <outDir>/<name>.wav
 //
-// WITHDRAWN in v182: Adrian listened on his phone and all five sounded
+// NOT USED BY THE APP: since v183 the board sounds are CC0 recordings
+// (docs/sound-sources.md). WITHDRAWN in v182: Adrian listened on his phone and all five sounded
 // horrible. Kept only as a starting point; it no longer writes into sounds/.
 //
 // The same numbers always give the same files (the noise is seeded), so a

@@ -49,16 +49,16 @@ export function moveSoundKind({ check = false, promotion = false, castle = false
   return 'move';
 }
 
-// The board's own sounds, as files exist for them today. The check, castle and
-// promotion sounds made by code in v181 were withdrawn in v182 (Adrian: they
-// sounded horrible), so those moves sound as a plain move or capture until
-// better ones exist; add a name here and the board uses it.
-export const BOARD_SOUNDS = Object.freeze(['move', 'capture']);
+// The board's own sounds that have a file. A kind that is not listed here
+// sounds as a plain move or capture instead (v182 ran that way, after the
+// code-made sounds of v181 were withdrawn). Since v183 all five are CC0
+// recordings Adrian chose by ear — sources in docs/sound-sources.md.
+export const BOARD_SOUNDS = Object.freeze(['move', 'capture', 'check', 'castle', 'promote']);
 
 // Every file in sounds/, without the .wav. sw.js precaches exactly these and
 // js/sound.js loads them at start, so a sound never waits on the network.
 export const SOUND_NAMES = Object.freeze([
-  'move', 'capture',
+  'move', 'capture', 'check', 'castle', 'promote',
   'puzzle-correct', 'puzzle-wrong', 'game-win', 'game-lose', 'game-draw', 'kael-pop',
 ]);
 

@@ -10,6 +10,22 @@ are in `CLAUDE.md` under "Finish by pushing".
 ## Already done and pushed — do NOT redo these
 
 - **MOVE FEEL: FASTER REPLIES, PIECES THAT SLIDE, NEW BOARD SOUNDS (2026-10-10, v181).**
+  - **v183, SAME DAY: THE BOARD SOUNDS ARE NOW CC0 RECORDINGS ADRIAN CHOSE BY EAR.
+    HE LISTENED TO EVERY FILE BEFORE IT WENT IN ("perfect, put them in") - CLOSED, do not
+    propose another listening run.** Five files: `move` (simone_ds, freesound 366065, the
+    knock at 18.72 s), `capture` (el_boss, 546120), `check` (el_boss, 546119), `castle`
+    (the move knock twice), `promote` (Noted451, 530437, the hit at 4.35 s). Every source
+    page was opened and shows Creative Commons 0. **The full table - file, source link,
+    uploader, licence, what was cut and by how many dB - is `docs/sound-sources.md`; keep
+    it in step with `sounds/`.** All at the same peak except capture, 5 dB lower at his
+    request. Cut from the public preview MP3s, not the original uploads. `sounds/` is 11
+    files, 277 KB. `BOARD_SOUNDS` lists all five again, so check, castle and promotion
+    have their own sound (one per move: check > promotion > castle > capture > move).
+    `sounds-candidates/` (his audition folder, with the previews) is git-ignored.
+    Checked: `cdp-verify-move-feel.mjs` 41/41 (each kind of move asks for its own sound,
+    all 11 decode), `test:tree` 219, `test:precache` OK, `test:rules` 435, 0 failures.
+    NOT tested: the sounds inside the app on his phone (he heard the files, not the app,
+    which plays them at 60%); a capture that gives check plays the quiet check snap.
   - **v182, SAME DAY: THE FIVE NEW BOARD SOUNDS WERE WITHDRAWN. Adrian listened on his
     phone: "everything sounds horrible".** `sounds/move.wav` and `sounds/capture.wav` are
     back to the 3869b65 files; `check.wav`, `castle.wav`, `promote.wav` are deleted and out
@@ -21,7 +37,7 @@ are in `CLAUDE.md` under "Finish by pushing".
     Faster replies, the slide, Web Audio playback and the precaching all STAY.
     Everything below about the five new sounds describes v181 only.
     Checked: `cdp-verify-move-feel.mjs` 41/41, `test:tree` 219, `test:precache` OK,
-    `test:rules` 435, 0 failures. **OPEN, Adrian to answer:** whether the six OLD sounds
+    `test:rules` 435, 0 failures. **ANSWERED ("the sounds are ok now") - see v183 above.** Was open: whether the six OLD sounds
     (puzzle right/wrong, win, lose, draw, Kael) also sounded bad in v181 - if yes, the
     Web Audio playback is the suspect, not the files; and where better board sounds come
     from (his own recording, or CC0 files he approves one by one). Code-made is ruled out.

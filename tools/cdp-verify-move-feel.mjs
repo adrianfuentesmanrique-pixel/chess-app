@@ -132,7 +132,7 @@ await load('en', 'light');
 let o = await evalP(`const { Sound } = await import('${APP_URL}/js/sound.js'); const { SOUND_NAMES } = await import('${APP_URL}/js/move-feel.js');
   for (let i = 0; i < 50 && Object.keys(Sound.buffers).length < SOUND_NAMES.length; i++) await new Promise(r => setTimeout(r, 100));
   return { decoded: Object.keys(Sound.buffers).sort(), want: [...SOUND_NAMES].sort(), secs: Object.fromEntries(Object.entries(Sound.buffers).map(([k, b]) => [k, +b.duration.toFixed(2)])) };`);
-check('all 8 sound files load and decode', JSON.stringify(o.decoded) === JSON.stringify(o.want), o.secs);
+check('all 11 sound files load and decode', JSON.stringify(o.decoded) === JSON.stringify(o.want), o.secs);
 
 await openPlay();
 await evalP(`${A} app.Play.level = 7; app.Play.begin('w', START);`);   // level 7 thinks 1.2 s: time to look
@@ -166,7 +166,7 @@ for (const [name, fen, mv, want, extra] of [
     P.board.onMove(${JSON.stringify(mv)});
     const out = { snd: window.__snd.slice(n), rook: ${extra ? `anims(P.board, '${extra}')` : 'null'} };
     await until(() => !P.thinking, 9000); return out;`);
-  const now = ['move', 'capture'].includes(want) ? want : (name.includes('capture') ? 'capture' : 'move');   // v182: only move and capture have a file
+  const now = want;
   check(`${name}: asks for "${now}", once`, o.snd.length === 1 && o.snd[0] === now, o.snd);
   if (extra) check('castling: the rook slides as well as the king', !!o.rook && o.rook.length === 1, o.rook);
 }
