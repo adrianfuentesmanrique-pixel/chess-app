@@ -17,7 +17,7 @@ are in `CLAUDE.md` under "Finish by pushing".
     (the move knock twice), `promote` (Noted451, 530437, the hit at 4.35 s). Every source
     page was opened and shows Creative Commons 0. **The full table - file, source link,
     uploader, licence, what was cut and by how many dB - is `docs/sound-sources.md`; keep
-    it in step with `sounds/`.** (v184: capture lowered again, now 12 dB under the others' peak - he heard v183 on his phone and chose it from two files.) All at the same peak except capture, lower at his
+    it in step with `sounds/`.** (v184: capture lowered again, now 12 dB under the others' peak - he heard v183 on his phone and chose it from two files. Then `check.wav` lowered to the capture's level, commit after 12b5579, pushed WITHOUT a version bump because another session held an uncommitted v185 in `sw.js`: phones get the new check sound with the next version, whoever ships it.) All at the same peak except capture, lower at his
     request. Cut from the public preview MP3s, not the original uploads. `sounds/` is 11
     files, 277 KB. `BOARD_SOUNDS` lists all five again, so check, castle and promotion
     have their own sound (one per move: check > promotion > castle > capture > move).
