@@ -1,4 +1,4 @@
-# Calculation mode — a fifth puzzle mode with variation trees (design)
+# Jugadas selladas / Sealed Moves — a fifth puzzle mode with variation trees (design)
 
 Date: 2026-10-10. Status: **spec only, nothing built.** Checked against commit
 `770bd44` (cache v183). Internal working name "calc"; the visible name is not
@@ -76,7 +76,7 @@ This section is a practical boundary, not legal advice.
 ## 3. Decisions
 
 Adrian answered on 2026-10-10: **a, c, d and f agreed as recommended; b
-changed by him (below); e still open — he asked for more names; g added by
+changed by him (below); e decided after he saw more names; g added by
 him.**
 
 ### a. What the section is — AGREED
@@ -146,7 +146,7 @@ instantly and offline:**
   clearly winning afterwards (+3 or more), or it mates. Otherwise it is wrong
   and the engine's move is written next to it as the correction.
 - **A wrong side variation is corrected, not punished**: it does not fail the
-  puzzle and does not touch the rating. (My reading of "just in that moment
+  puzzle and does not touch the rating. (Confirmed by Adrian. "just in that moment
   correct it if is wrong".) It does cost the "perfect" mark.
 - Uses the engine already in the app (`Engine` in `js/engine.js`, the vendored
   Stockfish file). Budget: about half a second per judged move, capped at 8
@@ -221,7 +221,7 @@ must be visible). The tree gets its own small renderer.
   leaderboard, the profile cards and the teacher's view at launch. The four
   domain keys (puzzle/opening/endgame/blindfold) are untouched.
 
-### e. Name and where the button goes — NAME STILL OPEN
+### e. Name and where the button goes — DECIDED: Jugadas selladas / Sealed Moves
 
 Checked: the row is `.seg.puzzle-modes`, a two-column grid in `css/style.css`,
 and its four buttons are **repeated in four screens** (`index.html` — the
@@ -231,6 +231,14 @@ does the switching. `tools/cdp-verify-puzzle-modes.mjs` and
 
 **Button — AGREED: five buttons in the same two rows, three on top and two
 below.** The row keeps its height.
+
+**Name — DECIDED by Adrian, 2026-10-10: "Jugadas selladas" / "Sealed Moves", in the
+plural (an answer is several moves). His reason: "is history of chess and is
+unique." Button label: "✉ Jugadas selladas" / "✉ Sealed Moves" if it fits the
+half-width button at 375px without being cut; otherwise "✉ Selladas" / "✉ Sealed".
+The build session measures it. He also confirmed that the engine failing leaves
+side variations "not checked" with the main-line result standing. Stored keys
+and internal ids stay `calc`. The options he chose from, for the record:**
 
 **Name — Adrian asked for options that are ours alone and say what makes this
 format different.** "Cálculo / Calculation" was too generic.
