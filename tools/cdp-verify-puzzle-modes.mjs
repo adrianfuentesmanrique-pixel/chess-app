@@ -104,7 +104,7 @@ try {
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
     await send('Page.navigate', { url: `http://localhost:${WEB}/` });
     await sleep(1200);
-    await ev(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1');`);
+    await ev(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1'); localStorage.setItem('calcIntroDone', '1');`);
     await send('Page.reload', {});
     await sleep(2500);
     await ev(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove()); window.__app = await import('/js/app.js'); __app.showScreen('puzzles');`);

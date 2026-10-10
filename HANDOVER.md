@@ -9,6 +9,68 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SEALED MOVES: ITS OWN PRIVATE RATING, NO REPEATS, THE LOG, "OPEN IN ANALYSIS" AND KAEL'S
+  FIRST-TIME EXPLANATION (2026-10-10, v187). Conversation 3 of 3, the last, of
+  `docs/superpowers/specs/2026-10-10-calculation-mode-design.md`. The mode is complete.**
+  - **The rating arithmetic is now ONE function:** new `js/elo.js` (`eloAfter({elo, rating,
+    win, attemptCount, factor = 1})`, `eloK`, `eloExpected`, `ELO_FLOOR`), imports nothing.
+    `Puzzles.recordResult()` calls it for the rating and for each theme's; its numbers are
+    unchanged (`tests/unit/elo.test.js` holds it to the old inline formula over 672 cases,
+    and the calc tool pays four results live and compares). Blindfold keeps its own
+    `js/blind-elo.js` (K 32, paid by seconds).
+  - **What a result pays, pure, in `js/calc.js` (41 tests now):** `calcStartElo(puzzleElo)`
+    (minus 200, floor 600), `calcPay({elo, rating, attemptCount, verdict, hinted})`: failed
+    loses what Puzzles loses; solved gains what Puzzles gains; perfect 1.25 times that; a
+    solve with a hint HALF and never the bonus. The factor multiplies the whole gain, the
+    fast first ten (K 192) included. `calcFresh(list, solved)` and `calcAnalysisTree()`.
+  - **Keys:** `calcElo`, `calcEloHistory`, `calcAttemptCount`, `calcSolved` ({id: 1} solved,
+    {id: 2} perfect, never lowered), all four in `SYNCED_KEYS`. No rules change. `calcElo` is
+    NOT saved until the first puzzle is paid: until then the rating shown is the puzzle
+    rating minus 200, read again at every Next. `CalcUI.reload()` re-reads them in
+    `Auth.onChange`, beside the Puzzles ones. Still not a domain: off the radar, the
+    leaderboard, the profile cards and the teacher's view.
+  - **When it is paid (decision a):** at the hand-in that ends the puzzle, in full. The one
+    exception: a perfect solve that has variations for the engine is paid as a PLAIN solve
+    at once and gets the bonus when the engine has found nothing wrong (`CalcUI.settle()`,
+    which re-pays from the same starting rating, so the puzzle is counted once). The number
+    can go up a second later, never down. A corrected variation keeps the plain amount. A
+    variation the engine could not check (no engine, the player left or tapped Next first)
+    does NOT cost the bonus, the same benefit of the doubt the verdict already gave.
+  - **Where it is shown (decision b):** `#calc-rating`, at the right end of Kael's line: the
+    Puzzles pills a size smaller, the change over the rating. Measured at 375x667: 48x36px,
+    the line stays 36px, tree 132px, board 259px, so it costs no height. It narrows Kael's
+    text by 56px: the long result sentences are three lines there (51px) and the board is
+    then 244px. A tap opens the rating's sheet (`CalcUI.openProgress()`): rating, solved and
+    perfect counts, this session's dots, "See the chart" (`openEloHistoryModal`, share off).
+  - **The log:** `PuzzleLog` has a `calc` list. There is no row for a strip under this
+    board, so the strip (`#calc-log`) is drawn inside the rating's sheet; a dot reopens its
+    puzzle as in Puzzles. A perfect solve's dot has a star. `PuzzleLog.add()` now returns
+    its entry, so the bonus can bring the dot up to date.
+  - **Open in Analysis (decision c):** `#calc-analyze` (the Puzzles icon), between the gear
+    and Next, only after the hand-in. `Analysis.loadTree()` gets the puzzle's line as the
+    main line with everything the player wrote differently as variations.
+  - **Picking:** around the mode's own rating plus its difficulty; solved puzzles are left
+    out while an unsolved one is in the pool (the same 300-point window as before).
+  - **Also:** a solve counts for the daily streak, as in every other puzzle mode (a failed
+    one does not). Time on the screen is puzzles time (`AREA` in `js/activity.js`). Kael's
+    explanation shows the first time the mode is opened on a device (`localStorage`
+    `calcIntroDone`, like the tour's flag; `icons/kael/kael-bust.png`). The difficulty text
+    in the settings sheet now names this mode's rating.
+  - **Verified:** test:tree 261 of 261, test:precache OK (50 files, `js/elo.js` is the one
+    more, and 142), `tools/cdp-verify-calc.mjs` 280 of 280 (it sets the puzzle rating to
+    1460 and checks every amount against `calcPay`), `tools/cdp-verify-puzzle-modes.mjs`
+    70 of 70, `tools/cdp-verify-swipe-modes.mjs` 193 of 193 (run this time, against a local
+    server with /sw.js refused). The two mode tools and the swipe tool now mark the
+    explanation as seen. Screenshots at 375, light
+    and dark, ES and EN, opened and looked at. `firestore.rules` untouched, test:rules not
+    run.
+  - **NOT verified:** sync. The tools are signed out, so nothing was written to or read from
+    Firestore: that the four keys are in `SYNCED_KEYS` and are re-read in `Auth.onChange`
+    was checked by reading the code only. Nobody has tried the mode on a real phone yet.
+  - **Adrian saw the screenshots and said yes (2026-10-10)** to a, b and c as built, to the
+    log living in the rating's sheet, and to solves counting for the streak. Closed.
+  - **Not built, on purpose:** share (left for later by Adrian), the timer (dropped).
+
 - **SEALED MOVES: THE ENGINE ON SIDE VARIATIONS, ITS OWN THEME / DIFFICULTY / AUTO-NEXT, AND
   THE HINT (2026-10-10, v186). Conversation 2 of 3 of
   `docs/superpowers/specs/2026-10-10-calculation-mode-design.md`.**

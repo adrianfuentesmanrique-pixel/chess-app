@@ -22,7 +22,7 @@ const KEEP_DAYS = 60;
 
 // Screen → area. Anything not listed counts nothing.
 const AREA = {
-  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles',
+  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles', calc: 'puzzles',
   endgame: 'endgames',
   trainer: 'openings',
   masterclass: 'masterclass',

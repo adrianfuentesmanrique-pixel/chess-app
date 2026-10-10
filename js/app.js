@@ -34,6 +34,7 @@ import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
 import { CalcUI } from './calc-ui.js';
+import { eloAfter } from './elo.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { Activity } from './activity.js';
@@ -1265,7 +1266,7 @@ function isYesterday(dateStr, todayStrVal) {
 }
 
 // Appends (or updates today's) point to a dated ELO history array kept in kv.
-async function recordEloHistory(key, value) {
+export async function recordEloHistory(key, value) {
   const hist = await db.kvGet(key, []);
   const today = todayStr();
   const last = hist[hist.length - 1];
@@ -4311,11 +4312,13 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // puzzle currently in play keeps its state untouched.
 
 // "+10" / "-10" — the ELO an attempt moved, for the badge and the strip.
-const eloDeltaText = d => (d > 0 ? '+' : '') + d;
+export const eloDeltaText = d => (d > 0 ? '+' : '') + d;
 
 export const PuzzleLog = {
-  logs: { puzzles: [], blind: [], rush: [] },
-  containers: { puzzles: 'puzzle-log', blind: 'blind-log', rush: 'rush-log' },
+  logs: { puzzles: [], blind: [], rush: [], calc: [] },
+  // Sealed Moves has no row to spare under its board: its strip is drawn in the
+  // sheet its rating opens (js/calc-ui.js openProgress), while that is open.
+  containers: { puzzles: 'puzzle-log', blind: 'blind-log', rush: 'rush-log', calc: 'calc-log' },
 
   // `delta` is the ELO that attempt moved. Null where a puzzle has no rating
   // of its own (a Rush run is scored as one run), and those dots keep showing
@@ -4324,8 +4327,10 @@ export const PuzzleLog = {
   // in list mode — with the icon on the dot and the text in its label.
   add(mode, puzzle, solved, delta = null, note = null) {
     if (!puzzle) return;
-    this.logs[mode].push({ puzzle, solved, delta, note });
+    const entry = { puzzle, solved, delta, note };
+    this.logs[mode].push(entry);
     this.render(mode);
+    return entry;
   },
 
   reset(mode) { this.logs[mode] = []; this.render(mode); },
@@ -4339,7 +4344,7 @@ export const PuzzleLog = {
       b.className = 'plog-dot ' + (entry.solved ? 'ok' : 'miss');
       b.textContent = (entry.note ? entry.note.icon : '') + (entry.delta == null ? String(i + 1) : eloDeltaText(entry.delta));
       const label = `${t('log_review_title').replace('{n}', i + 1)} — ${t(entry.solved ? 'log_solved' : 'log_missed')}` +
-        (entry.delta == null ? '' : ` — ${t('puzzle_elo')} ${eloDeltaText(entry.delta)}`) +
+        (entry.delta == null ? '' : ` — ${t(mode === 'calc' ? 'calc_elo' : 'puzzle_elo')} ${eloDeltaText(entry.delta)}`) +
         (entry.note ? ` — ${entry.note.text}` : '');
       b.title = label;
       b.setAttribute('aria-label', label);
@@ -4777,22 +4782,19 @@ export const Puzzles = {
     // First 10 rated attempts calibrate fast (a strong player starting at
     // 1200 shouldn't have to grind slowly through puzzles far below their
     // level) — up to ~±190 swing, then settle into the normal K.
-    const K = this.attemptCount < 10 ? 192 : 24;
+    // The arithmetic is js/elo.js, shared with Sealed Moves.
+    const attemptCount = this.attemptCount, rating = this.current.rating;
     this.attemptCount++;
     db.kvSet('puzzleAttemptCount', this.attemptCount);
-    const expected = 1 / (1 + Math.pow(10, (this.current.rating - this.elo) / 400));
-    const score = win ? 1 : 0;
     const before = this.elo;
-    this.elo = Math.max(600, this.elo + K * (score - expected));
+    this.elo = eloAfter({ elo: this.elo, rating, win, attemptCount });
     // Whole points, measured off the rounded rating, so the number always
     // matches what the badge reads before and after (the stored rating keeps
     // its fraction).
     this.lastDelta = Math.round(this.elo) - Math.round(before);
     db.kvSet('puzzleElo', this.elo);
     for (const th of this.current.themes) {
-      const cur = this.themeElo[th] ?? 1200;
-      const exp2 = 1 / (1 + Math.pow(10, (this.current.rating - cur) / 400));
-      this.themeElo[th] = Math.max(600, cur + K * (score - exp2));
+      this.themeElo[th] = eloAfter({ elo: this.themeElo[th] ?? 1200, rating, win, attemptCount });
     }
     db.kvSet('puzzleThemeElo', this.themeElo);
     this.updateEloBadge();
@@ -7954,6 +7956,7 @@ async function main() {
       // long outgrown.
       ensureForRating(Puzzles.targetRating()).catch(() => {});
     }
+    await CalcUI.reload();
     Endgame.elo = await db.kvGet('endgameElo', {});
     if (Blind.loaded) {
       Blind.elo = await db.kvGet('blindfoldElo', 1200);

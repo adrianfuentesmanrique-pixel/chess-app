@@ -1,5 +1,5 @@
 // Sealed Moves ("calc"): the rules of the mode, with no screen in them.
-// Imports only js/tree.js, so it runs under plain Node
+// Imports only js/tree.js and js/elo.js, so it runs under plain Node
 // (tests/unit/calc.test.js) as well as in the app. The screen is js/calc-ui.js.
 // Spec: docs/superpowers/specs/2026-10-10-calculation-mode-design.md, 3a to 3d.
 //
@@ -17,7 +17,9 @@
 //    Unfinished: right so far, but the main line stops short.
 //    Solved: the whole main line right. Perfect: solved on the first hand-in
 //    with no help.
+//  - The mode has its own rating (calcPay, at the bottom), private to it.
 import { GameTree } from './tree.js';
+import { eloAfter, ELO_FLOOR } from './elo.js';
 
 const uciMove = u => ({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] || undefined });
 
@@ -184,4 +186,60 @@ export function calcToJudge(tree, marks, cap = CALC_SIDE_CAP) {
   };
   walk(tree.root);
   return { judge: all.slice(0, cap), over: all.slice(cap) };
+}
+
+// ── its own rating (spec 3d) ──
+
+export const CALC_START_BELOW = 200;    // the first rating: the puzzle rating minus this
+export const CALC_PERFECT_FACTOR = 1.25;
+export const CALC_HINT_FACTOR = 0.5;
+
+// The rating a player starts the mode with, from their puzzle rating.
+export function calcStartElo(puzzleElo) {
+  return Math.max(ELO_FLOOR, (+puzzleElo || 1200) - CALC_START_BELOW);
+}
+
+// The rating after one puzzle. `verdict` is calcVerdict's 'failed' | 'solved' |
+// 'perfect'; `attemptCount` is how many puzzles were rated before this one.
+// Failed loses what a failed puzzle loses in Puzzles. Solved gains the same as
+// there; perfect 1.25 times that; a solve with a hint half of it, and no
+// perfect bonus. Side variations are not in here at all: they never move the
+// rating (they can only cost the verdict its "perfect").
+export function calcPay({ elo, rating, attemptCount, verdict, hinted = false }) {
+  const win = verdict !== 'failed';
+  const factor = !win ? 1 : hinted ? CALC_HINT_FACTOR : verdict === 'perfect' ? CALC_PERFECT_FACTOR : 1;
+  return eloAfter({ elo, rating, win, attemptCount, factor });
+}
+
+// Which of `list` the next puzzle is drawn from: the ones not solved yet, and
+// all of them again only when every one is solved. `solved` is {id: 1 | 2}.
+export function calcFresh(list, solved) {
+  const fresh = list.filter(p => !solved[p.id]);
+  return fresh.length ? fresh : list;
+}
+
+// ── to Analysis ──
+
+// The puzzle as a game for the Analysis screen: the puzzle's own line is the
+// main line and everything the player wrote that differs from it hangs off it
+// as variations. Left standing on the position the player answered from.
+export function calcAnalysisTree(puzzle, answer) {
+  const tree = new GameTree(puzzle.fen);
+  const nodes = [];
+  for (const u of puzzle.moves) {
+    const n = tree.play(uciMove(u));
+    if (!n) break;
+    nodes.push(n);
+  }
+  const start = nodes[0] || tree.root;
+  const copy = (from, to) => {
+    for (const c of from.children) {
+      tree.goto(to);
+      const made = tree.play(c.san);
+      if (made) copy(c, made);
+    }
+  };
+  if (answer) copy(answer.root, start);
+  tree.goto(start);
+  return tree;
 }

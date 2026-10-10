@@ -43,6 +43,8 @@ const SYNCED_KEYS = [
   'rushMonth180', 'rushMonth300', 'rushMonthKey', 'puzzleAttemptCount', 'radarThemes',
   'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
   'blindfoldAttemptCount', 'blindfoldSeconds',
+  // Sealed Moves: its own private rating. The keys say calc, like every id of the mode.
+  'calcElo', 'calcEloHistory', 'calcAttemptCount', 'calcSolved',
 ];
 
 // Profile visibility is stored as a WORD, not a yes/no, so further levels

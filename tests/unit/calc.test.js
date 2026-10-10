@@ -1,12 +1,14 @@
 // Sealed Moves ("calc"): the puzzle's main line, the answer tree's grading,
 // what is still owed, and the verdict.
 //
-// js/calc.js imports only js/tree.js, so this runs under plain Node.
+// js/calc.js imports only js/tree.js and js/elo.js, so this runs under plain Node.
 //
 // Run: npm run test:tree
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcMainLine, calcNewTree, calcIsMine, calcEnter, calcGrade, calcVerdict, calcAddReply, calcRows, calcSideOk, calcToJudge } from '../../js/calc.js';
+import { calcMainLine, calcNewTree, calcIsMine, calcEnter, calcGrade, calcVerdict, calcAddReply, calcRows, calcSideOk, calcToJudge,
+  calcStartElo, calcPay, calcFresh, calcAnalysisTree } from '../../js/calc.js';
+import { eloAfter } from '../../js/elo.js';
 
 // Black answers three times: ...e5, ...Nc6, ...a6. White's replies are Nf3, Bb5.
 const THREE = { id: 't3', fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
@@ -285,4 +287,66 @@ test('to judge: at most eight, the rest listed as over the limit', () => {
   assert.equal(j.judge.length, 8);
   assert.equal(j.over.length, 1);
   assert.equal(calcToJudge(tree, calcGrade(tree, main.line).marks, 3).over.length, 6);
+});
+
+// ── its own rating ──
+
+test('the first rating is the puzzle rating minus 200, never under the floor', () => {
+  assert.equal(calcStartElo(1500), 1300);
+  assert.equal(calcStartElo(1487.6), 1287.6);
+  assert.equal(calcStartElo(700), 600);
+  assert.equal(calcStartElo(undefined), 1000);
+});
+
+test('pay: failed loses exactly what a failed puzzle loses in Puzzles', () => {
+  const base = { elo: 1300, rating: 1400, attemptCount: 30 };
+  assert.equal(calcPay({ ...base, verdict: 'failed' }), eloAfter({ ...base, win: false }));
+  assert.ok(calcPay({ ...base, verdict: 'failed' }) < 1300);
+  // a hint does not make a failed puzzle cheaper
+  assert.equal(calcPay({ ...base, verdict: 'failed', hinted: true }), calcPay({ ...base, verdict: 'failed' }));
+});
+
+test('pay: solved gains what Puzzles gains, perfect 1.25 times it, a hint half of it', () => {
+  for (const attemptCount of [0, 30]) {
+    const base = { elo: 1300, rating: 1400, attemptCount };
+    const gain = eloAfter({ ...base, win: true }) - 1300;
+    assert.ok(gain > 0);
+    assert.equal(calcPay({ ...base, verdict: 'solved' }) - 1300, gain);
+    assert.ok(Math.abs(calcPay({ ...base, verdict: 'perfect' }) - 1300 - gain * 1.25) < 1e-9);
+    assert.ok(Math.abs(calcPay({ ...base, verdict: 'solved', hinted: true }) - 1300 - gain * 0.5) < 1e-9);
+    // a hint never earns the perfect bonus, whatever the verdict says
+    assert.equal(calcPay({ ...base, verdict: 'perfect', hinted: true }), calcPay({ ...base, verdict: 'solved', hinted: true }));
+  }
+});
+
+test('pay: the rating never goes under the floor', () => {
+  assert.equal(calcPay({ elo: 610, rating: 600, attemptCount: 0, verdict: 'failed' }), 600);
+});
+
+test('fresh: solved puzzles are left out while an unsolved one remains', () => {
+  const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.deepEqual(calcFresh(list, { a: 1, c: 2 }).map(p => p.id), ['b']);
+  assert.deepEqual(calcFresh(list, {}).map(p => p.id), ['a', 'b', 'c']);
+  assert.deepEqual(calcFresh(list, { a: 1, b: 2, c: 1 }).map(p => p.id), ['a', 'b', 'c']);
+});
+
+// ── to Analysis ──
+
+test('analysis tree: the puzzle line is the main line, what was written differently is a variation', () => {
+  const { main, tree } = answer(THREE, ['e5', 'Nf3', 'Nc6']);
+  calcEnter(tree, calcEnter(tree, tree.root.children[0], 'Nc3').node, 'Nf6');
+  const out = calcAnalysisTree(THREE, tree);
+  assert.equal(out.root.fen, THREE.fen);
+  assert.equal(out.current.san, 'e4');
+  assert.equal(out.current.fen, main.fen);
+  assert.deepEqual(out.mainlinePath().map(n => n.san).filter(Boolean), ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6']);
+  const e5 = out.current.children[0];
+  assert.deepEqual(e5.children.map(n => n.san), ['Nf3', 'Nc3']);
+  assert.equal(e5.children[1].children[0].san, 'Nf6');
+});
+
+test('analysis tree: a wrong first move sits beside the puzzle move', () => {
+  const { tree } = answer(THREE, ['d5']);
+  const out = calcAnalysisTree(THREE, tree);
+  assert.deepEqual(out.current.children.map(n => n.san), ['e5', 'd5']);
 });

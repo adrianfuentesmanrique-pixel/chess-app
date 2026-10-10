@@ -61,7 +61,7 @@ async function load(lang, scheme) {
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
   await send('Page.navigate', { url: APP_URL });
   await sleep(2500);
-  await evalP(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1');`);
+  await evalP(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1'); localStorage.setItem('calcIntroDone', '1');`);
   await send('Page.reload', {});
   await sleep(3500);
   await killModals();

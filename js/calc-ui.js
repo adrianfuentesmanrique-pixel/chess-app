@@ -23,8 +23,15 @@
 // calcDifficulty, calcAutoNext), set through the Puzzles picker and options
 // sheet. Nothing here reads or writes the Puzzles ones.
 //
-// NOT HERE YET (conversation 3 of the spec's build plan): its own rating.
-// Puzzles are picked around the PUZZLE rating, and no result is saved.
+// ITS OWN RATING (kv calcElo, calcEloHistory, calcAttemptCount, calcSolved; all
+// four synced). Private: it is shown here and nowhere else in the app. Until the
+// first puzzle is paid it is the puzzle rating minus 200, read again each time,
+// and it is saved only from that first payment on. The arithmetic is js/calc.js
+// calcPay. WHEN IT IS PAID: at the hand-in that ends the puzzle, in full, except
+// that a perfect solve with variations still to be checked is paid as a plain
+// solve there and gets the perfect bonus once the engine has found nothing wrong
+// (settle()). So the number on screen can go up a second later, never down.
+// A variation the engine could not check does not cost the bonus.
 //
 // Imports from js/app.js (cycle): every app.js binding used here is touched
 // inside a function only, never at module top level.
@@ -38,8 +45,9 @@ import { blindSanLocal } from './blind-list.js';
 import { Sound } from './sound.js';
 import { REPLY_MS } from './move-feel.js';
 import { uciLineToSan } from './engine.js';
-import { calcMainLine, calcNewTree, calcIsMine, calcEnter, calcGrade, calcVerdict, calcAddReply, calcRows, calcSideOk, calcToJudge } from './calc.js';
-import { $, toast, showScreen, activeScreen, Puzzles } from './app.js';
+import { calcMainLine, calcNewTree, calcIsMine, calcEnter, calcGrade, calcVerdict, calcAddReply, calcRows, calcSideOk, calcToJudge,
+  calcStartElo, calcPay, calcFresh, calcAnalysisTree } from './calc.js';
+import { $, toast, modal, esc, showScreen, activeScreen, Puzzles, PuzzleLog, Streak, Analysis, recordEloHistory, eloDeltaText, openEloHistoryModal } from './app.js';
 
 // The engine's time on one search. A judged move takes two at most: the
 // position it was played in, then the position after it.
@@ -67,7 +75,7 @@ export const CalcUI = {
   pick: null,        // the square tapped first
   handIns: 0,
   helped: false,     // Kael has written a reply in
-  hinted: false,     // a hint was shown: no "perfect" (and, once rated, see conversation 3)
+  hinted: false,     // a hint was shown: no "perfect", and a solve pays half
   verdict: null,     // 'failed' | 'solved' | 'perfect' once done
   marks: null,       // node id -> 'right' | 'wrong' | 'unchecked' | 'checking' once done
   fixes: null,       // node id -> the engine's move (SAN) beside a wrong variation move
@@ -82,7 +90,16 @@ export const CalcUI = {
   themeMissSaid: false,
   difficulty: 0,
   autoNext: false,
-  elo: 1200,         // the PUZZLE rating until the mode has its own
+  elo: 1000,         // the mode's own rating
+  rated: false,      // calcElo is saved; until then elo follows the puzzle rating
+  statsRead: false,
+  attemptCount: 0,
+  solved: {},        // id -> 1 solved, 2 perfect
+  paid: null,        // { elo, n }: the rating and the count this puzzle was paid from
+  bonusOwed: false,  // paid as a plain solve; the perfect bonus waits for the engine
+  delta: null,       // what this puzzle moved the rating by, once paid
+  logEntry: null,
+  introOpen: false,
   prefs: null,
   autoTimer: null,
   // Kael's line when it is not the plain instruction: { key, m }. Kept as a
@@ -109,6 +126,8 @@ export const CalcUI = {
     $('calc-hint').onclick = () => this.hint();
     $('calc-solution').onclick = () => this.giveUp();
     $('calc-options').onclick = () => this.openOptions();
+    $('calc-analyze').onclick = () => this.toAnalysis();
+    $('calc-rating').onclick = () => this.openProgress();
     $('calc-submit').onclick = () => this.submit();
     $('calc-next').onclick = () => this.next();
   },
@@ -121,13 +140,135 @@ export const CalcUI = {
     this.stopJudging();
     if (this.current) this.render();
     else this.next();
+    this.intro();
+  },
+
+  // Kael explains the mode the first time it is opened on this device.
+  intro() {
+    let seen = true;
+    try { seen = !!localStorage.getItem('calcIntroDone'); } catch { /* no storage: say nothing */ }
+    if (seen || this.introOpen) return;
+    this.introOpen = true;
+    modal((box, close) => {
+      box.innerHTML = `<div class="kael-modal-head"><img src="icons/kael/kael-bust.png" class="kael-portrait" alt="Kael" style="width:90px;"></div>
+        <h3>${esc(t('calc_title'))}</h3>` + ['calc_intro_1', 'calc_intro_2', 'calc_intro_3'].map(k => `<p>${esc(t(k))}</p>`).join('');
+      const ok = document.createElement('button');
+      ok.className = 'btn primary big'; ok.id = 'calc-intro-ok'; ok.textContent = t('calc_intro_ok');
+      ok.onclick = () => close(true);
+      box.append(ok);
+    }).then(() => {
+      this.introOpen = false;
+      try { localStorage.setItem('calcIntroDone', '1'); } catch { /* it will be said again */ }
+    });
+  },
+
+  // ── its own rating ──
+
+  async readStats() {
+    const own = await db.kvGet('calcElo', null);
+    this.rated = typeof own === 'number';
+    this.elo = this.rated ? own : calcStartElo(await db.kvGet('puzzleElo', 1200));
+    this.attemptCount = +(await db.kvGet('calcAttemptCount', 0)) || 0;
+    this.solved = (await db.kvGet('calcSolved', null)) || {};
+    this.statsRead = true;
+  },
+
+  // After a sign-in the saved values may have been replaced by the account's.
+  async reload() {
+    if (!this.statsRead) return;
+    this.bonusOwed = false;
+    await this.readStats();
+    this.paintElo();
+  },
+
+  // Pays the puzzle on screen. Called a second time (settle) it pays the same
+  // puzzle again FROM THE SAME STARTING RATING, so the bonus is exact and the
+  // attempt is counted once.
+  pay(verdict) {
+    const p = this.current;
+    const first = !this.paid;
+    if (first) {
+      this.paid = { elo: this.elo, n: this.attemptCount };
+      this.attemptCount++;
+      db.kvSet('calcAttemptCount', this.attemptCount);
+    }
+    this.elo = calcPay({ elo: this.paid.elo, rating: p.rating, attemptCount: this.paid.n, verdict, hinted: this.hinted });
+    this.rated = true;
+    // Whole points off the rounded rating, as in Puzzles, so it matches the badge.
+    this.delta = Math.round(this.elo) - Math.round(this.paid.elo);
+    db.kvSet('calcElo', this.elo);
+    recordEloHistory('calcEloHistory', this.elo);
+    const won = verdict !== 'failed', mark = verdict === 'perfect' ? 2 : 1;
+    if (won && (this.solved[p.id] || 0) < mark) {
+      this.solved[p.id] = mark;
+      db.kvSet('calcSolved', this.solved);
+    }
+    const note = verdict === 'perfect' ? { icon: '★', text: t('calc_log_perfect') } : null;
+    if (first) {
+      this.logEntry = PuzzleLog.add('calc', p, won, this.delta, note);
+      if (won) Streak.recordActivity();
+    } else if (this.logEntry) {
+      Object.assign(this.logEntry, { delta: this.delta, note });
+      PuzzleLog.render('calc');
+    }
+    this.paintElo();
+  },
+
+  // The engine is done with the variations, or will not be asked any more.
+  settle() {
+    if (!this.bonusOwed) return;
+    this.bonusOwed = false;
+    if (this.verdict === 'perfect' && this.current && this.paid) this.pay('perfect');
+  },
+
+  paintElo() {
+    const shown = Math.round(this.elo);
+    $('calc-rating').classList.toggle('hidden', !this.statsRead);
+    $('calc-elo').textContent = shown;
+    const d = this.phase === 'done' ? this.delta : null, el = $('calc-elo-delta');
+    el.textContent = d == null ? '' : eloDeltaText(d);
+    el.className = 'elo-delta' + (d == null ? ' hidden' : d > 0 ? ' up' : d < 0 ? ' down' : ' flat');
+    $('calc-rating').setAttribute('aria-label', `${t('calc_elo')}: ${shown}` + (d == null ? '' : `, ${eloDeltaText(d)}`));
+  },
+
+  // The rating's sheet: how many solved, this session's puzzles (each dot
+  // reopens its puzzle), and the way to the rating's chart.
+  async openProgress() {
+    if (!this.statsRead) return;
+    const hist = await db.kvGet('calcEloHistory', []);
+    const marks = Object.values(this.solved);
+    modal((box, close) => {
+      box.innerHTML = `<h3>${esc(t('calc_elo'))}: ${Math.round(this.elo)}</h3>
+        <p class="hint">${esc(t('calc_progress_private'))}</p>
+        <p id="calc-progress-counts">${esc(t('calc_progress_counts').replace('{s}', marks.length).replace('{p}', marks.filter(m => m === 2).length))}</p>
+        <p class="hint">${esc(t(PuzzleLog.logs.calc.length ? 'calc_progress_session' : 'calc_progress_none'))}</p>
+        <div id="calc-log" class="plog"></div>`;
+      const chart = document.createElement('button');
+      chart.className = 'btn big'; chart.id = 'calc-progress-chart'; chart.textContent = t('calc_progress_chart');
+      chart.onclick = () => { close(null); openEloHistoryModal(hist, 'calc_elo', { share: false }); };
+      const done = document.createElement('button');
+      done.className = 'btn big'; done.textContent = t('close');
+      done.onclick = () => close(null);
+      box.append(chart, done);
+      // The box is not in the page until this builder returns.
+      setTimeout(() => PuzzleLog.render('calc'));
+    });
+  },
+
+  // The puzzle's line with everything that was written, on the Analysis screen.
+  toAnalysis() {
+    if (this.phase !== 'done' || !this.current) return;
+    const tree = calcAnalysisTree(this.current, this.tree);
+    tree.setHeader('Event', t('calc_title'));
+    this.engine.stop();
+    Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
   },
 
   async next() {
     const mine = ++this.token;
     clearTimeout(this.autoTimer);
     await this.loadPrefs();
-    this.elo = +(await db.kvGet('puzzleElo', 1200)) || 1200;
+    if (!this.rated) await this.readStats();
     const target = this.targetRating();
     try { await ensureForRating(target); } catch { /* play what is already loaded */ }
     if (mine !== this.token) return;
@@ -140,7 +281,8 @@ export const CalcUI = {
       pick = blindPick(PUZZLES, target, themes);
     }
     if (pick.fallback && !this.themeMissSaid) { this.themeMissSaid = true; toast(t('blind_theme_none')); }
-    const list = pick.list.filter(p => p !== this.current);
+    // Not the one just shown, and not a solved one while an unsolved one is left.
+    const list = calcFresh(pick.list.filter(p => p !== this.current), this.solved);
     for (let i = 0; i < 20 && list.length; i++) {
       if (this.load(list[Math.floor(Math.random() * list.length)])) return;
     }
@@ -194,6 +336,7 @@ export const CalcUI = {
   load(puzzle) {
     const main = calcMainLine(puzzle);
     if (!main) return false;
+    this.settle();   // the puzzle being left is owed its bonus if nothing was found wrong
     this.token++;
     this.judgeRun++;
     clearTimeout(this.leadTimer);
@@ -202,6 +345,7 @@ export const CalcUI = {
       current: puzzle, main, tree: calcNewTree(main), phase: 'write', ready: false,
       handIns: 0, helped: false, hinted: false, verdict: null, marks: null, fixes: null, judging: false,
       sideRight: 0, sideWrong: 0, unchecked: 0, say: null, shown: null,
+      paid: null, bonusOwed: false, delta: null, logEntry: null,
     });
     this.setPick(null);
     this.board.setOrientation(main.turn);
@@ -355,6 +499,10 @@ export const CalcUI = {
     else if (gaveUp || !grade.wrong) this.say = { key: 'calc_gave_up' };
     else this.say = { key: 'calc_failed', m: grade.wrong };
     Sound.play(verdict === 'failed' ? 'puzzle-wrong' : 'puzzle-correct');
+    // A perfect solve with variations to check is paid as a plain solve now;
+    // the bonus follows in settle() when the engine has found nothing wrong.
+    this.bonusOwed = verdict === 'perfect' && calcToJudge(this.tree, grade.marks).judge.length > 0;
+    this.pay(this.bonusOwed ? 'solved' : verdict);
     this.render();
     // The result is read from the top: the puzzle's line, then the first move.
     $('calc-tree').scrollTop = 0;
@@ -422,6 +570,7 @@ export const CalcUI = {
     this.judgeRun++;
     this.judging = false;
     if (this.marks) for (const [id, m] of this.marks) if (m === 'checking') this.marks.set(id, 'unchecked');
+    this.settle();
   },
 
   // ── drawing ──
@@ -446,6 +595,8 @@ export const CalcUI = {
       $('calc-tree').textContent = '';
       for (const id of ['calc-delete', 'calc-hint', 'calc-solution', 'calc-submit']) $(id).classList.add('hidden');
       $('calc-next').classList.toggle('hidden', !this.say);
+      $('calc-analyze').classList.add('hidden');
+      this.paintElo();
       return;
     }
     const done = this.phase === 'done';
@@ -537,6 +688,8 @@ export const CalcUI = {
     $('calc-solution').classList.toggle('hidden', done);
     $('calc-submit').classList.toggle('hidden', done);
     $('calc-next').classList.toggle('hidden', !done);
+    $('calc-analyze').classList.toggle('hidden', !done);
+    this.paintElo();
     $('calc-delete').disabled = this.tree.current === this.tree.root;
     $('calc-submit').disabled = !this.tree.root.children.length;
   },
