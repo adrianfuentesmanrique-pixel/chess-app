@@ -26,6 +26,7 @@ import { t } from './i18n.js';
 import { avatarHtml } from './avatars.js';
 import { Board } from './board.js';
 import { Sound } from './sound.js';
+import { REPLY_MS } from './move-feel.js';
 import { PUZZLES } from './puzzles.js';
 import { PULSO, resolveList, markerPos } from './pulso.js';
 import { pulsoMove, finishPulso, pulsoServerNow } from './firebase.js';
@@ -34,7 +35,7 @@ import { PulsoUI } from './pulso-ui.js';
 
 const QUIET_MS = 20_000;   // the friend's numbers have not moved for this long: "no signal"
 const GO_MS = 450;         // "Go!" stays over the board this long, as in Rush
-const NEXT_MS = 350;       // the pause after a solve, as in Rush
+const NEXT_MS = REPLY_MS.rushNext;   // the pause after a solve, as in Rush
 const MISTAKE_MS = 1200;   // and after a mistake, as in Rush
 
 export const PulsoMatch = {

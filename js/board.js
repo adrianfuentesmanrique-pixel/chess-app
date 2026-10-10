@@ -2,6 +2,7 @@
 // Uses chess.js (passed per-position) for legal move hints; the owner decides
 // what happens with a move via the onMove callback.
 import { Chess } from '../vendor/chess.js';
+import { SLIDE_MS, SLIDE_EASING, moveSoundKind, moveTraits, castleRookMove } from './move-feel.js';
 
 const FILES = 'abcdefgh';
 
@@ -13,13 +14,6 @@ export function setPieceSet(name) {
   for (const b of ALL_BOARDS) b.render();
 }
 export function getPieceSet() { return PIECE_SET; }
-
-function pieceCount(fen) {
-  const placement = fen.split(' ')[0];
-  let n = 0;
-  for (const ch of placement) if (/[a-zA-Z]/.test(ch)) n++;
-  return n;
-}
 
 // Where a piece could go on an empty board. A pre-move is aimed at a position
 // that does not exist yet — the recapture on a square my own piece still stands
@@ -67,8 +61,9 @@ export class Board {
     this.piecesHidden = false; // Blindfold Puzzles: pieces invisible, but moves still work normally
     this.drawColor = null;     // 'green'|'yellow'|'red'|null — when set, taps/drags annotate instead of moving
     this.onShapesChange = opts.onShapesChange || (() => {});
-    this.onSound = opts.onSound || null; // (kind: 'move'|'capture') — Board detects captures by piece count, callers stay ignorant of sound
+    this.onSound = opts.onSound || null; // (kind: see moveSoundKind) — Board works out what the move was, callers stay ignorant of sound
     this._dragStart = null;
+    this._dropped = null;      // {from,to} of a move just made by dragging — it must not slide
     // Pre-move: a move queued for the side that is NOT to move, played the
     // instant the opponent's real move lands. Kept apart from `selected` on
     // purpose — setPosition() clears the selection, and outliving that is the
@@ -206,9 +201,12 @@ export class Board {
   }
 
   setPosition(fen, lastMove = null, lastMoveColor = 'green') {
+    const before = lastMove ? parsePlacement(this.fen.split(' ')[0]) : null;
+    const traits = lastMove ? moveTraits(before, parsePlacement(fen.split(' ')[0]), lastMove.from, lastMove.to) : null;
     if (lastMove && this.onSound) {
-      const wasCapture = pieceCount(fen) < pieceCount(this.fen);
-      this.onSound(wasCapture ? 'capture' : 'move');
+      let check = false;
+      try { check = new Chess(fen).inCheck(); } catch { }
+      this.onSound(moveSoundKind({ ...traits, check }));
     }
     // A piece picked up while waiting on the opponent stays picked up when his
     // move lands, so a tap-tap or a drag that straddles that instant finishes
@@ -223,6 +221,43 @@ export class Board {
     this.lastMoveColor = lastMoveColor;
     this.selected = was && now && now.color === was.color ? held : null;
     this.render();
+    if (lastMove) this._slide(before, lastMove, traits.castle);
+  }
+
+  // The piece that just moved glides from its old square instead of jumping.
+  // Drawn AFTER render(): the piece is already on its new square and is only
+  // shown offset from it, so nothing about the position ever depends on the
+  // animation — cut it short at any moment and the board is still right.
+  _slide(before, lastMove, castle) {
+    // A move that follows another before its slide is over: the earlier piece
+    // goes straight to its square rather than gliding under the new one.
+    for (const a of this._slides || []) a.finish();
+    this._slides = [];
+    // A dragged piece is already where the finger put it.
+    const dropped = this._dropped;
+    this._dropped = null;
+    if (dropped && dropped.from === lastMove.from && dropped.to === lastMove.to) return;
+    if (this.piecesHidden || !lastMove.from || lastMove.from === lastMove.to) return;
+    if (!before[lastMove.from]) return;   // not a move out of the position on the board (a jump through history)
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const moves = [lastMove];
+    const rook = castle && castleRookMove(lastMove.from, lastMove.to);
+    if (rook) moves.push(rook);
+    const flipped = this.orientation === 'b';
+    for (const mv of moves) {
+      const img = this.squares[mv.to] && this.squares[mv.to].querySelector('img');
+      if (!img || typeof img.animate !== 'function') continue;
+      const a = sqCoords(mv.from, flipped), b = sqCoords(mv.to, flipped);
+      // In units of the piece's own size, which is exactly one square.
+      const dx = (a.left - b.left) / 12.5 * 100, dy = (a.top - b.top) / 12.5 * 100;
+      img.style.zIndex = 2;   // over the pieces it passes, under arrows and the promotion sheet
+      const anim = img.animate(
+        [{ transform: `translate(${dx}%, ${dy}%)` }, { transform: 'translate(0, 0)' }],
+        { duration: SLIDE_MS, easing: SLIDE_EASING });
+      const done = () => { img.style.zIndex = ''; };
+      anim.onfinish = done; anim.oncancel = done;
+      this._slides.push(anim);
+    }
   }
 
   setShapes(shapes) {
@@ -370,6 +405,7 @@ export class Board {
       const sqEl = e.target.closest('.sq');
       if (!sqEl) return;
       const name = sqEl.dataset.sq;
+      this._dropped = null;   // a drop that never became a move must not excuse a later tapped one
       if (this.editorMode) { this.onEditorTap(name); return; }
       if (this.drawColor) { this._dragStart = name; return; }
       if (!this.interactive && !this._premoveActive()) return;
@@ -442,6 +478,7 @@ export class Board {
       if (!destSqEl) { this.selected = null; this.render(); return; }
       const dest = destSqEl.dataset.sq;
       if (dest === name) return; // dropped back where it started — stays selected
+      this._dropped = { from: name, to: dest };
       this._tap(dest);
     };
     document.addEventListener('pointermove', onMove);

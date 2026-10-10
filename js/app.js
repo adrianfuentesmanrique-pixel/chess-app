@@ -22,6 +22,7 @@ import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
 import * as Read from './read.js';
 import { Sound } from './sound.js';
+import { REPLY_MS, THINK_MS } from './move-feel.js';
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
 import { fenKey, PositionIndex } from './explore-index.js';
@@ -4206,7 +4207,7 @@ export const Trainer = {
     const bookSan = this.pickBookMove();
     try {
       if (bookSan) {
-        await sleep(450);
+        await sleep(REPLY_MS.trainerBook);
         let m;
         try { m = this.chess.move(bookSan); } catch { m = null; }
         if (m) {
@@ -4926,7 +4927,7 @@ export const Puzzles = {
     // Armed from the instant the puzzle is on screen: the opponent's opening
     // move is a wait like any other, and a tap made during it must not be lost.
     this.board.armPremove();
-    // One opening move per puzzle — a second Next inside the 0.6 s would
+    // One opening move per puzzle — a second Next inside the wait would
     // otherwise leave two of these pending, and the late one rewinds moveIdx.
     clearTimeout(this.openTimer);
     this.openTimer = setTimeout(() => {
@@ -4936,7 +4937,7 @@ export const Puzzles = {
       this.setLiveInteractive(true);
       this.setStatus(`${t(playerColor === 'w' ? 'white' : 'black')} ${t('to_move_find')} (${this.current.rating})`);
       this.board.firePremove();
-    }, 600);
+    }, REPLY_MS.puzzleOpening);
   },
 
   applyUci(u) {
@@ -5002,7 +5003,7 @@ export const Puzzles = {
       this.setLiveInteractive(false);
       this.board.armPremove();
       const token = this.token;
-      await sleep(400);
+      await sleep(REPLY_MS.puzzleReply);
       if (token !== this.token) return;   // Next or Show solution got in first
       const r = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
@@ -5303,7 +5304,7 @@ export const Rush = {
       // back once the clock actually starts.
       this.board.interactive = !this.countingIn;
       if (!this.countingIn) this.board.firePremove();
-    }, 300);
+    }, REPLY_MS.rushOpening);
   },
 
   applyUci(u) { try { return this.chess.move(uciToMove(u)); } catch { return null; } },
@@ -5332,7 +5333,7 @@ export const Rush = {
         this.board.setPosition(this.chess.fen(), r ? { from: r.from, to: r.to } : null);
         this.board.interactive = true;
         this.board.firePremove();
-      }, 300);
+      }, REPLY_MS.rushReply);
     } else {
       this.chess.undo();
       this.board.setPosition(this.chess.fen());
@@ -5349,7 +5350,7 @@ export const Rush = {
     this.score++;
     PuzzleLog.add('rush', this.current, true);
     this.updateHud();
-    setTimeout(() => { if (this.live(run)) this.loadNext(); }, 350);
+    setTimeout(() => { if (this.live(run)) this.loadNext(); }, REPLY_MS.rushNext);
   },
 
   onMistake(run) {
@@ -5736,7 +5737,7 @@ export const Blind = {
       this.board.setPosition(this.chess.fen(), m ? { from: m.from, to: m.to } : null);
       this.updateTurnIndicator();
       this.startCountdown(this.secondsThis, () => this.hidePieces());
-    }, 500);
+    }, REPLY_MS.blindOpening);
   },
 
   startCountdown(seconds, onDone) {
@@ -5900,7 +5901,7 @@ export const Blind = {
       this.board.interactive = false;
       this.board.armPremove();
       const token = this.token;
-      await sleep(400);
+      await sleep(REPLY_MS.blindReply);
       if (token !== this.token) return;   // Next or Show solution got in first
       const r = this.applyUci(this.current.moves[this.moveIdx]);
       this.moveIdx++;
@@ -6418,7 +6419,7 @@ export const Endgame = {
     if (this.chess.turn() !== this.playerColor) {
       this.board.interactive = false;
       this.setStatus(t('practice_opponent_first'));
-      setTimeout(() => this.playOpeningBookMove(), 700);
+      setTimeout(() => this.playOpeningBookMove(), REPLY_MS.endgameOpening);
       return;
     }
     this.board.interactive = true;
@@ -6509,7 +6510,7 @@ export const Endgame = {
     this.board.interactive = false;
     this.board.armPremove();
     this.setStatus(t('correct'));
-    await sleep(400);
+    await sleep(REPLY_MS.endgameBook);
     const bookUci = this.current.moves[this.moveIdx];
     let mv;
     try { mv = this.chess.move(uciToMove(bookUci)); } catch { mv = null; }
@@ -6533,7 +6534,7 @@ export const Endgame = {
     this.board.armPremove();
     this.setStatus(t('thinking'));
     try {
-      const uci = await engine.bestMove(this.chess.fen(), { movetime: 700 });
+      const uci = await engine.bestMove(this.chess.fen(), { movetime: THINK_MS.endgame });
       if (!uci || this.over) return;
       const m = this.chess.move(uciToMove(uci));
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
@@ -6912,7 +6913,7 @@ Endgame.Lessons = {
     const statusEl = $('learn-practice-status');
     statusEl.textContent = t('thinking');
     try {
-      const uci = await engine.bestMove(this.chess.fen(), { movetime: 500 });
+      const uci = await engine.bestMove(this.chess.fen(), { movetime: THINK_MS.lesson });
       if (!this.practicing || !uci) return;
       const m = this.chess.move(uciToMove(uci));
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });

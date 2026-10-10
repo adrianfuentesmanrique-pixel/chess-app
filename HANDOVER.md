@@ -9,6 +9,68 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **MOVE FEEL: FASTER REPLIES, PIECES THAT SLIDE, NEW BOARD SOUNDS (2026-10-10, v181).**
+  Spec, with Adrian's answers (a yes, b yes, c made by code, d yes, e yes):
+  `docs/superpowers/specs/2026-10-10-move-feel-and-sounds-design.md`.
+  - **The rules live in `js/move-feel.js`** (imports nothing; 10 unit tests in
+    `tests/unit/move-feel.test.js`): `REPLY_MS` (one named wait per screen), `THINK_MS`,
+    `SLIDE_MS` 200 + `SLIDE_EASING`, `moveSoundKind()` (one sound per move: check >
+    promotion > castle > capture > move), `moveTraits()`, `castleRookMove()`, `SOUND_NAMES`.
+    No screen carries a bare number any more; engine levels are `LEVELS` in `js/engine.js`.
+  - **Wait from my move to the reply, measured before -> after** (`node
+    tools/cdp-measure-reply.mjs`, headless Chrome, move CALLED through `board.onMove`):
+    Puzzles reply 412-415 -> 270-278 ms (set 250); Puzzles opening move 604-613 -> 400-427
+    (400); Rush reply 308-312 -> 154-170 (150); Rush solved -> next puzzle's opening move
+    655-680 -> 476-487 (250 + 200); Blindfold reply 412-414 -> 415-416 (400, KEPT on
+    purpose: its replies are heard, not seen); Openings book reply 461 -> 264-277 (250,
+    timed with a SEEDED book: a fresh profile has no base); Endgames book reply 414-416 ->
+    263-278 (250); Endgames engine reply 702 -> 402 (400); Play vs engine by level 0/2/4/7:
+    304/504/803/2003 -> 303/304/303/1203. The measured numbers sit 15-28 ms above the set
+    ones (was ~12 ms before); not chased. NOT timed live: Duel (needs two players; it is
+    Rush's code through `Object.create(Rush)`, `NEXT_MS = REPLY_MS.rushNext`), Lessons
+    engine reply (500 -> 300, read), Endgames opponent-first study (700 -> 400, read),
+    Blindfold opening move (500, unchanged).
+  - **Engine thinking time was cut and its effect on strength was NOT measured.** `LEVELS`
+    movetime 300,400,500,600,800,1000,1500,2000 -> 300,300,300,300,300,500,800,1200. The
+    Elo each level is told to play at is unchanged; a level may still play a little weaker.
+  - **The slide** is `Board._slide()` in `js/board.js`, run AFTER `render()`: the piece is
+    already on its new square and is only drawn offset from it (Web Animations), so the
+    position never depends on the animation. Before v181 there was NO piece animation
+    (the `.28s` rule near line 315 of the stylesheet is the side drawer). Skipped for a
+    dragged piece (`_dropped`), with hidden pieces (Blindfold), on "reduce motion", and on
+    a jump that is not a move out of the position on the board. Castling slides the rook
+    too. A new position finishes any slide still running: in Rush/Duel the 150 ms reply
+    arrives 50 ms before a TAPPED piece ends its slide, by design (lichess Storm does the
+    same). No CSS was changed and there is no new Settings switch.
+  - **Sounds: 11 files in `sounds/`, 247 KB (was 8 files, 141 KB), all .wav.**
+    Licence and source of every one: **all made by code inside this project, nothing
+    downloaded, nothing recorded, so no third-party licence applies.**
+    `move`, `capture`, `check`, `castle`, `promote` (mono, 16-bit, 44.1 kHz): made by
+    `tools/make-sounds.mjs` on 2026-10-10 (seeded, so `node tools/make-sounds.mjs` re-makes
+    the same files; retune there). `puzzle-correct`, `puzzle-wrong`, `game-win`,
+    `game-lose`, `game-draw`, `kael-pop`: unchanged from commit 3869b65 (2026-07-07), whose
+    message says "Synthesized"; the script that made those was not kept.
+    Checked and ruled out: lichess's standard move/capture sounds are listed as NON-FREE in
+    its COPYING.md. No pre-move sound (Adrian's answer). Check sounds in Blindfold too.
+  - **`js/sound.js` plays through Web Audio** (all 11 decoded at start, `Sound.preload()`),
+    with the old `<audio>` path as the fallback while the context is not running.
+  - **The sounds are precached now** (`ASSETS` in `sw.js`). Before v181 they were in no
+    list: stored on first play, wiped at every update. A unit test fails if `sounds/`,
+    `SOUND_NAMES` and the precache list ever differ.
+  - **Verified:** `node tools/cdp-verify-move-feel.mjs <outDir>` 41/41 - a TAPPED e2-e4
+    slides (200 ms, pawn drawn one square short at half time), a DRAGGED d2-d4 does not,
+    the engine's reply slides, the rook slides on castling, each kind of move asks for its
+    sound once, all 11 files decode, a pre-move queued during the shorter wait fires
+    (Puzzles and Rush), Next during the wait leaves the new puzzle untouched (Puzzles), a
+    solved Rush puzzle hands over cleanly, reduce-motion = no slide; Play, Puzzles, Rush,
+    Blindfold, Endgames, Openings at 375 px x ES, EN x light, dark, 25 pictures looked at.
+    `test:tree` 209 -> 219 pass, `test:precache` OK (46 -> 47 files, 142 art), `test:rules`
+    435 -> 435 pass, 0 failures throughout.
+  - **NOT tested:** what any sound SOUNDS like (no tool can; Adrian listens on his phone);
+    Web Audio on a real phone, incl. after the app comes back from the background; the
+    slide's smoothness on a real phone; Duel live; the Openings game with a real base;
+    every move in the pictures except e2-e4 and d2-d4 was called, not tapped.
+
 - **BLINDFOLD HAS ITS OWN THEME AND SETTINGS BUTTONS (2026-10-10, v180).**
   Spec, with Adrian's answers: `docs/superpowers/specs/2026-10-10-blindfold-theme-and-settings-design.md`.
   - **What it does.** On the Blindfold start panel, under the rating and above

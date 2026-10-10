@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v180';
+const CACHE = 'chess-training-center-v181';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -100,6 +100,10 @@ const ASSETS = [
   'js/pulso-ui.js',
   'js/pulso-match.js',
   'js/sound.js',
+  'js/move-feel.js',
+  // Every sound: one first heard with no signal, or after an update, used to be silent.
+  'sounds/move.wav', 'sounds/capture.wav', 'sounds/check.wav', 'sounds/castle.wav', 'sounds/promote.wav',
+  'sounds/puzzle-correct.wav', 'sounds/puzzle-wrong.wav', 'sounds/game-win.wav', 'sounds/game-lose.wav', 'sounds/game-draw.wav', 'sounds/kael-pop.wav',
   'js/appearance.js',
   'js/avatars.js',
   'js/badges.js',
