@@ -2,7 +2,10 @@
 // Dev tool, not shipped. Nothing is recorded or downloaded, so the files carry
 // no third-party licence — they are this project's own work.
 //
-//   node tools/make-sounds.mjs            writes sounds/<name>.wav
+//   node tools/make-sounds.mjs <outDir>   writes <outDir>/<name>.wav
+//
+// WITHDRAWN in v182: Adrian listened on his phone and all five sounded
+// horrible. Kept only as a starting point; it no longer writes into sounds/.
 //
 // The same numbers always give the same files (the noise is seeded), so a
 // sound can be retuned here and re-made. Mono, 16-bit, 44.1 kHz.
@@ -16,6 +19,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RATE = 44100;
+const OUT = process.argv[2];
+if (!OUT) { console.error('usage: node tools/make-sounds.mjs <outDir>'); process.exit(1); }
+fs.mkdirSync(OUT, { recursive: true });
 
 function rng(seed) {   // mulberry32
   return () => {
@@ -117,7 +123,7 @@ for (const [name, make] of Object.entries(SOUNDS)) {
     buf[i] *= PEAK[name] / peak;
     if (i >= buf.length - fade) buf[i] *= (buf.length - i) / fade;
   }
-  const file = path.join(ROOT, 'sounds', name + '.wav');
+  const file = path.join(OUT, name + '.wav');
   fs.writeFileSync(file, wav(buf));
   console.log(`${name}.wav  ${fs.statSync(file).size} bytes  ${SECONDS[name]} s`);
 }

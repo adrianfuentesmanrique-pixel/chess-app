@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLIDE_MS, REPLY_MS, THINK_MS, MIN_REPLY_MS, SOUND_NAMES, moveSoundKind, moveTraits, castleRookMove } from '../../js/move-feel.js';
+import { BOARD_SOUNDS, SLIDE_MS, REPLY_MS, THINK_MS, MIN_REPLY_MS, SOUND_NAMES, moveSoundKind, moveTraits, castleRookMove } from '../../js/move-feel.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -22,10 +22,9 @@ test('one sound per move: check > promotion > castle > capture > move', () => {
   assert.equal(moveSoundKind({ check: true }), 'check');
 });
 
-test('every sound a move can make is a real sound file', () => {
-  for (const flags of [{}, { capture: true }, { castle: true }, { promotion: true }, { check: true }]) {
-    assert.ok(SOUND_NAMES.includes(moveSoundKind(flags)), moveSoundKind(flags));
-  }
+test('every sound the board may ask for is a real sound file', () => {
+  for (const name of BOARD_SOUNDS) assert.ok(SOUND_NAMES.includes(name), name);
+  assert.ok(BOARD_SOUNDS.includes('move') && BOARD_SOUNDS.includes('capture'));
 });
 
 test('the sound list, the sounds folder and the precache list are the same set', () => {

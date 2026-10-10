@@ -10,6 +10,21 @@ are in `CLAUDE.md` under "Finish by pushing".
 ## Already done and pushed — do NOT redo these
 
 - **MOVE FEEL: FASTER REPLIES, PIECES THAT SLIDE, NEW BOARD SOUNDS (2026-10-10, v181).**
+  - **v182, SAME DAY: THE FIVE NEW BOARD SOUNDS WERE WITHDRAWN. Adrian listened on his
+    phone: "everything sounds horrible".** `sounds/move.wav` and `sounds/capture.wav` are
+    back to the 3869b65 files; `check.wav`, `castle.wav`, `promote.wav` are deleted and out
+    of the precache list (8 files, 141 KB again). A check, a castle and a promotion sound
+    as a plain move or capture, as before v181: `BOARD_SOUNDS` in `js/move-feel.js` lists
+    the kinds that have a file, and the board falls back for the rest - add a name there
+    (plus the file, `SOUND_NAMES` and `sw.js`) when a good sound exists.
+    `tools/make-sounds.mjs` now writes to a folder you name, never into `sounds/`.
+    Faster replies, the slide, Web Audio playback and the precaching all STAY.
+    Everything below about the five new sounds describes v181 only.
+    Checked: `cdp-verify-move-feel.mjs` 41/41, `test:tree` 219, `test:precache` OK,
+    `test:rules` 435, 0 failures. **OPEN, Adrian to answer:** whether the six OLD sounds
+    (puzzle right/wrong, win, lose, draw, Kael) also sounded bad in v181 - if yes, the
+    Web Audio playback is the suspect, not the files; and where better board sounds come
+    from (his own recording, or CC0 files he approves one by one). Code-made is ruled out.
   Spec, with Adrian's answers (a yes, b yes, c made by code, d yes, e yes):
   `docs/superpowers/specs/2026-10-10-move-feel-and-sounds-design.md`.
   - **The rules live in `js/move-feel.js`** (imports nothing; 10 unit tests in

@@ -2,7 +2,7 @@
 // Uses chess.js (passed per-position) for legal move hints; the owner decides
 // what happens with a move via the onMove callback.
 import { Chess } from '../vendor/chess.js';
-import { SLIDE_MS, SLIDE_EASING, moveSoundKind, moveTraits, castleRookMove } from './move-feel.js';
+import { SLIDE_MS, SLIDE_EASING, BOARD_SOUNDS, moveSoundKind, moveTraits, castleRookMove } from './move-feel.js';
 
 const FILES = 'abcdefgh';
 
@@ -206,7 +206,8 @@ export class Board {
     if (lastMove && this.onSound) {
       let check = false;
       try { check = new Chess(fen).inCheck(); } catch { }
-      this.onSound(moveSoundKind({ ...traits, check }));
+      const kind = moveSoundKind({ ...traits, check });
+      this.onSound(BOARD_SOUNDS.includes(kind) ? kind : moveSoundKind({ capture: traits.capture }));
     }
     // A piece picked up while waiting on the opponent stays picked up when his
     // move lands, so a tap-tap or a drag that straddles that instant finishes

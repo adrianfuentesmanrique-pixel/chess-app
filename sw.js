@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v181';
+const CACHE = 'chess-training-center-v182';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -102,7 +102,7 @@ const ASSETS = [
   'js/sound.js',
   'js/move-feel.js',
   // Every sound: one first heard with no signal, or after an update, used to be silent.
-  'sounds/move.wav', 'sounds/capture.wav', 'sounds/check.wav', 'sounds/castle.wav', 'sounds/promote.wav',
+  'sounds/move.wav', 'sounds/capture.wav',
   'sounds/puzzle-correct.wav', 'sounds/puzzle-wrong.wav', 'sounds/game-win.wav', 'sounds/game-lose.wav', 'sounds/game-draw.wav', 'sounds/kael-pop.wav',
   'js/appearance.js',
   'js/avatars.js',
