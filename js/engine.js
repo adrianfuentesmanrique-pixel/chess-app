@@ -153,6 +153,14 @@ export class Engine {
   // (mate scores are folded into a large finite number, same convention as
   // the live analysis scores). Used to grade played moves after the fact.
   async evaluate(fen, movetime = 250) {
+    return (await this.evaluateBest(fen, movetime)).score;
+  }
+
+  // The same search, with the move the engine would play as well:
+  // { score, best, ok }. `best` is in engine notation, null where there is no
+  // move to play. `ok` is false when the engine died or was stopped before it
+  // had a score, so a caller that judges by the score can tell.
+  async evaluateBest(fen, movetime = 250) {
     // A position with no legal moves has nothing for "go" to search — Stockfish
     // just replies bestmove (none) without ever sending a score line, so the
     // caller would silently get 0 back for what might be a decisive checkmate.
@@ -162,17 +170,18 @@ export class Engine {
       if (c.isCheckmate()) {
         // side to move is the one who got mated, so the mover of the last
         // move (the other color) delivered it — a maximal score in their favor.
-        return c.turn() === 'w' ? -9999 : 9999;
+        return { score: c.turn() === 'w' ? -9999 : 9999, best: null, ok: true };
       }
-      if (c.isDraw() || c.isStalemate()) return 0;
+      if (c.isDraw() || c.isStalemate()) return { score: 0, best: null, ok: true };
     } catch { /* fall through to engine search for anything unparsable */ }
     if (this.multiPV !== null && this.multiPV !== 1) this.terminate();
     await this.init();
     await this._stopSearch();
     this.analysing = false;
     const whiteToMove = fen.split(' ')[1] === 'w';
-    let lastScore = 0;
+    let lastScore = 0, seen = false;
     this._evalCapture = (line) => {
+      seen = true;
       const mMate = line.match(/score mate (-?\d+)/);
       const mCp = line.match(/score cp (-?\d+)/);
       if (mMate) {
@@ -190,7 +199,7 @@ export class Engine {
     this._send('setoption name UCI_LimitStrength value false');
     this._send(`position fen ${fen}`);
     return new Promise(resolve => {
-      this._bestMoveResolve = () => { this._evalCapture = null; resolve(lastScore); };
+      this._bestMoveResolve = mv => { this._evalCapture = null; resolve({ score: lastScore, best: mv, ok: seen && !!mv }); };
       this._send(`go movetime ${movetime}`);
     });
   }

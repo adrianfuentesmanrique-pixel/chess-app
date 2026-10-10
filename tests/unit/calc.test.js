@@ -6,7 +6,7 @@
 // Run: npm run test:tree
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcMainLine, calcNewTree, calcIsMine, calcEnter, calcGrade, calcVerdict, calcAddReply, calcRows } from '../../js/calc.js';
+import { calcMainLine, calcNewTree, calcIsMine, calcEnter, calcGrade, calcVerdict, calcAddReply, calcRows, calcSideOk, calcToJudge } from '../../js/calc.js';
 
 // Black answers three times: ...e5, ...Nc6, ...a6. White's replies are Nf3, Bb5.
 const THREE = { id: 't3', fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
@@ -214,4 +214,75 @@ test('rows: replies to a deeper move sit one step further in, under their own ro
   calcEnter(tree, e5, 'Bc4');
   assert.deepEqual(calcRows(tree).map(r => [r.depth, r.reply ? r.reply.san : null]),
     [[0, null], [1, 'Nf3'], [2, 'Bb5'], [1, 'Bc4']]);
+});
+
+// ── side variations: the engine's rule, and which moves it is asked about ──
+// Scores are the engine's: centipawns from White's side, a mate folded into
+// about 10000.
+
+test('side rule: within one pawn of the engine\'s best is right', () => {
+  assert.equal(calcSideOk(150, 50, 'w'), true);     // exactly one pawn worse
+  assert.equal(calcSideOk(150, 49, 'w'), false);
+  assert.equal(calcSideOk(-150, -50, 'b'), true);   // the same, seen from Black
+  assert.equal(calcSideOk(-150, -49, 'b'), false);
+  assert.equal(calcSideOk(20, 60, 'w'), true);      // better than the engine thought
+});
+
+test('side rule: still clearly winning (+3) is right however much was given up', () => {
+  assert.equal(calcSideOk(900, 300, 'w'), true);
+  assert.equal(calcSideOk(900, 299, 'w'), false);
+  assert.equal(calcSideOk(-900, -300, 'b'), true);
+  assert.equal(calcSideOk(-900, 300, 'b'), false);  // +3 for White is not winning for Black
+});
+
+test('side rule: a mate is right, a missed mate that still wins is right, one that does not is wrong', () => {
+  assert.equal(calcSideOk(9998, 9999, 'w'), true);
+  assert.equal(calcSideOk(9998, 450, 'w'), true);
+  assert.equal(calcSideOk(9998, 120, 'w'), false);
+  assert.equal(calcSideOk(-9998, -9999, 'b'), true);
+});
+
+test('to judge: my own moves off the main line, top to bottom; the opponent\'s never', () => {
+  const { main, tree } = answer(THREE, ['e5', 'Nf3', 'Nc6', 'Bb5', 'a6']);
+  const e5 = tree.root.children[0];
+  const bc4 = calcEnter(tree, e5, 'Bc4').node;
+  const nf6 = calcEnter(tree, bc4, 'Nf6').node;
+  const d3 = calcEnter(tree, nf6, 'd3').node;
+  const d6 = calcEnter(tree, d3, 'd6').node;
+  const nc3 = calcEnter(tree, e5, 'Nc3').node;
+  const bc5 = calcEnter(tree, nc3, 'Bc5').node;
+  const g = calcGrade(tree, main.line);
+  const j = calcToJudge(tree, g.marks);
+  assert.deepEqual(j.judge.map(n => n.san), ['Nf6', 'd6', 'Bc5']);
+  assert.deepEqual(j.over, []);
+  assert.ok(j.judge.every(calcIsMine));
+  assert.deepEqual([nf6, d6, bc5], j.judge);
+});
+
+test('to judge: nothing when there is no variation', () => {
+  const { main, tree } = answer(THREE, ['e5', 'Nf3', 'Nc6', 'Bb5', 'a6']);
+  const j = calcToJudge(tree, calcGrade(tree, main.line).marks);
+  assert.deepEqual(j, { judge: [], over: [] });
+});
+
+test('to judge: what follows a wrong move of mine on the main line is not a variation', () => {
+  const { main, tree } = answer(THREE, ['e5', 'Nf3', 'd6', 'd4', 'Nf6']);
+  const e5 = tree.root.children[0];
+  calcEnter(tree, calcEnter(tree, e5, 'Bc4').node, 'Nf6');
+  const g = calcGrade(tree, main.line);
+  assert.equal(g.state, 'failed');
+  assert.deepEqual(calcToJudge(tree, g.marks).judge.map(n => n.san), ['Nf6']);
+  assert.equal(calcToJudge(tree, g.marks).judge[0].parent.san, 'Bc4');
+});
+
+test('to judge: at most eight, the rest listed as over the limit', () => {
+  const { main, tree } = answer(THREE, ['e5']);
+  const e5 = tree.root.children[0];
+  const replies = ['Nf3', 'Nc3', 'Bc4', 'd4', 'd3', 'f4', 'c3', 'a3', 'h3', 'g3'];
+  for (const r of replies) calcEnter(tree, calcEnter(tree, e5, r).node, 'd6');
+  const j = calcToJudge(tree, calcGrade(tree, main.line).marks);
+  // Nf3 is the puzzle's reply, so the d6 after it is the main line's (and wrong).
+  assert.equal(j.judge.length, 8);
+  assert.equal(j.over.length, 1);
+  assert.equal(calcToJudge(tree, calcGrade(tree, main.line).marks, 3).over.length, 6);
 });

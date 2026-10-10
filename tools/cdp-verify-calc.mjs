@@ -2,7 +2,7 @@
 // tree and the hand-in. Dev tool, not shipped. Headless Chrome over CDP,
 // signed out, no service worker.
 //
-//   node tools/cdp-verify-calc.mjs <outDir>     about two minutes
+//   node tools/cdp-verify-calc.mjs <outDir>     about four minutes
 //
 // At 375 x 667 in ES and EN, light and dark. REALLY TAPPED (CDP touch events):
 // every square, chip, slot and button. CALLED, not tapped: CalcUI.load(), to
@@ -11,7 +11,17 @@
 // tree, no chip label cut short); the board does not move while moves are
 // written; an illegal move is refused; delete; a one-move and a three-move
 // puzzle solved perfectly; one failed on a wrong move; one handed in unfinished
-// and finished through Kael's slot; a side variation drawn "not checked".
+// and finished through Kael's slot.
+// The engine at hand-in (the app's own Stockfish, really run): the result is on
+// the screen before the engine answers; a sound variation move turns green and
+// the solve stays perfect; a move that walks into mate turns red with the
+// engine's move beside it and perfect becomes solved; with the engine file
+// refused by this tool's server the move stays grey and the result stands.
+// The mode's own settings, through the real sheet and picker: a theme, a
+// difficulty and auto-next chosen here are saved under calc* and leave the
+// Puzzles ones alone, and a theme chosen in Puzzles leaves this one alone.
+// The hint: refused off an empty main-line step, flashes the piece that moves,
+// and the solve is then not perfect.
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import os from 'node:os';
@@ -28,7 +38,8 @@ const PORT = 9300 + Math.floor(Math.random() * 600);
 const WEB = 9900 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-modes-'));
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 240000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 540000).unref();
+let blockEngine = false;   // the server refuses the Stockfish file while this is set
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm',
@@ -36,7 +47,7 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
   if (p.endsWith('/')) p += 'index.html';
-  if (p === '/sw.js') { res.writeHead(404).end(); return; }
+  if (p === '/sw.js' || (blockEngine && p.includes('stockfish'))) { res.writeHead(404).end(); return; }
   const file = path.join(ROOT, p);
   if (!file.startsWith(ROOT)) { res.writeHead(403).end(); return; }
   fs.stat(file, (err, st) => {
@@ -91,10 +102,19 @@ const sqTap = async name => {
   await touch('touchStart', pt); await sleep(30); await touch('touchEnd'); await sleep(90);
 };
 const play = async uci => { await sqTap(uci.slice(0, 2)); await sqTap(uci.slice(2, 4)); };
+// A tap on something inside a sheet that may have to be scrolled to.
+const tapIn = async sel => { await ev(`document.querySelector(${JSON.stringify(sel)}).scrollIntoView({ block: 'center' });`); await sleep(120); await tap(sel); };
+const kv = key => ev(`return await (await import('/js/db.js')).kvGet(${JSON.stringify(key)}, null);`);
+const judged = () => until(`__calc.phase === 'done' && !__calc.judging`, 40000);
+// 1.e4 is the opponent's move; Black's line is ...e5, Nf3, ...Nc6. Hand-made so
+// that what the engine must say about a variation is not in doubt.
+const OPEN = { id: 'verify-open', fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', moves: ['e2e4', 'e7e5', 'g1f3', 'b8c6'], rating: 1200, themes: [] };
+const putOpen = async () => { await ev(`__calc.load(${JSON.stringify(OPEN)});`); await until(`__calc.ready`, 4000); await sleep(150); };
 const state = () => ev(`
   const c = __calc, tree = document.getElementById('calc-tree');
   return { phase: c.phase, verdict: c.verdict, handIns: c.handIns, helped: c.helped, boardFen: c.board.fen, startFen: c.main.fen,
     chips: [...tree.querySelectorAll('.calc-chip')].map(b => b.textContent + '|' + b.className.replace('calc-chip', '').trim()),
+    judging: c.judging, hinted: c.hinted, fixes: [...tree.querySelectorAll('.calc-fix')].map(e => e.textContent),
     say: document.getElementById('calc-say-text').textContent, toast: document.getElementById('toast').classList.contains('hidden') ? '' : document.getElementById('toast').textContent,
     next: !document.getElementById('calc-next').classList.contains('hidden'), submit: !document.getElementById('calc-submit').classList.contains('hidden') };`);
 // Puts up a loaded puzzle with `plies` moves (the opponent's first included)
@@ -150,10 +170,15 @@ try {
         tops: [...new Set(box.map(b => Math.round(b.top)))].length, perRow: [box.filter(b => Math.round(b.top) === Math.round(box[0].top)).length, box.filter(b => Math.round(b.top) !== Math.round(box[0].top)).length],
         whole: bs.every(b => b.scrollWidth <= b.clientWidth), labels: bs.map(b => b.textContent + ' ' + b.scrollWidth + '/' + b.clientWidth), lit: bs.filter(b => b.classList.contains('on')).map(b => b.dataset.v).join(),
         segH: Math.round(seg.getBoundingClientRect().height), chipH: Math.round(document.querySelector('.calc-chip').getBoundingClientRect().height),
-        underKael: act.some(a => a.right > kael.left && a.bottom > kael.top) };`);
+        underKael: act.some(a => a.right > kael.left && a.bottom > kael.top),
+        icons: [...document.querySelectorAll('#calc-actions .btn.ico:not(.hidden)')].map(b => b.id + ' ' + Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)),
+        oneRow: new Set(act.map(a => Math.round(a.top))).size === 1, submitWhole: document.getElementById('calc-submit').scrollWidth <= document.getElementById('calc-submit').clientWidth,
+        submitW: Math.round(document.getElementById('calc-submit').getBoundingClientRect().width) };`);
     check(`[${tag}] mode row: five chips, three over two, none cut short, "calc" lit`, lay.tops === 2 && lay.perRow.join() === '3,2' && lay.whole && lay.lit === 'calc', lay.labels);
     check(`[${tag}] 375 x 667: the tree keeps three rows (${lay.tree}px >= 132), the action row is on screen, nothing scrolls, the board is square (${lay.board}px)`,
       lay.tree >= 132 && lay.actionsBottom <= lay.h && lay.pageScroll <= 1 && lay.sideScroll <= 0 && lay.boardSquare && lay.board >= 240 && lay.chipH >= 40 && !lay.underKael, lay);
+    check(`[${tag}] action row: delete, hint, solution and settings as icons at least 42 x 44, Hand in whole (${lay.submitW}px), all on one line`,
+      lay.icons.length === 4 && lay.icons.every(i => { const [w, h] = i.split(' ')[1].split('x').map(Number); return w >= 42 && h >= 44; }) && lay.oneRow && lay.submitWhole && lay.submitW >= 80, lay.icons);
     await shot(`${tag}-1-empty`);
 
     // ── the board never moves; an illegal move is refused; delete ──
@@ -190,8 +215,13 @@ try {
     check(`[${tag}] the variation is its own row (four rows in all)`, rowsSeen.rows === 4, rowsSeen);
     await tap('#calc-submit');
     s = await state();
-    check(`[${tag}] three-move puzzle, whole line right at the first hand-in: perfect, five chips green, the variation's two grey`,
-      s.verdict === 'perfect' && s.chips.filter(c => /\bright\b/.test(c)).length === 5 && s.chips.filter(c => /unchecked/.test(c)).length === 2 && s.next && !s.submit, s);
+    check(`[${tag}] three-move puzzle, whole line right at the first hand-in: perfect and Next at once, before the engine has answered`,
+      s.verdict === 'perfect' && s.next && !s.submit && s.chips.filter(c => /\bright\b/.test(c)).length >= 5, s);
+    check(`[${tag}] the engine finishes with the variation`, await judged());
+    s = await state();
+    const ownSide = s.chips[s.chips.length - 1], replySide = s.chips[s.chips.length - 2];
+    check(`[${tag}] the variation: the opponent's reply plain, my move judged (${ownSide}); perfect only if it was right`,
+      /\|reply/.test(replySide) && ((/\bright\b/.test(ownSide) && s.verdict === 'perfect' && !s.fixes.length) || (/\bwrong\b/.test(ownSide) && s.verdict === 'solved' && s.fixes.length === 1)), s);
     await tap('#calc-tree .calc-chip.right');
     s = await state();
     check(`[${tag}] after the hand-in the board follows the tapped chip`, s.boardFen !== s.startFen && s.boardFen === await fenAfter(three.fen, [three.moves[0], a1]), s.boardFen);
@@ -234,6 +264,113 @@ try {
     check(`[${tag}] the slots filled and handed in again: solved, not perfect (three hand-ins)`, s.verdict === 'solved' && s.handIns === 3 && s.chips.every(c => /\bright\b/.test(c)), s);
     await shot(`${tag}-7-solved`);
 
+    // ── the engine at hand-in ──
+    await putOpen();
+    for (const u of ['e7e5', 'g1f3', 'b8c6']) await play(u);
+    await tap('#calc-tree .calc-chip:not(.calc-slot)');
+    await play('b1c3'); await play('g8f6');               // 2.Nc3 Nf6: sound
+    await tap('#calc-submit');
+    s = await state();
+    check(`[${tag}] sound variation: the main-line result is there at once`, s.verdict === 'perfect' && s.next, s);
+    await judged();
+    s = await state();
+    check(`[${tag}] a variation move the engine accepts turns green and the solve stays perfect`,
+      s.verdict === 'perfect' && /\bright\b/.test(s.chips[4]) && !s.fixes.length && !s.chips.some(c => /unchecked|checking/.test(c)), s);
+
+    await putOpen();
+    for (const u of ['e7e5', 'g1f3', 'b8c6']) await play(u);
+    await tap('#calc-tree .calc-chip:not(.calc-slot)');
+    await play('d1h5'); await play('e8e7');               // 2.Qh5 Ke7: walks into Qxe5 mate
+    await tap('#calc-submit');
+    s = await state();
+    check(`[${tag}] bad variation: still perfect at the moment of the hand-in`, s.verdict === 'perfect' && s.next, s);
+    await judged();
+    s = await state();
+    check(`[${tag}] a variation move the engine rejects turns red with the engine's move beside it (${s.fixes[0]}), and perfect becomes solved`,
+      s.verdict === 'solved' && /\bwrong\b/.test(s.chips[4]) && s.fixes.length === 1 && s.fixes[0].length > 2 && s.chips.slice(0, 3).every(c => /\bright\b/.test(c)), s);
+    await shot(`${tag}-8-variation-corrected`);
+
+    blockEngine = true;
+    await ev(`__calc.engine.terminate();`);
+    await putOpen();
+    for (const u of ['e7e5', 'g1f3', 'b8c6']) await play(u);
+    await tap('#calc-tree .calc-chip:not(.calc-slot)');
+    await play('d1h5'); await play('e8e7');
+    await tap('#calc-submit');
+    await judged();
+    s = await state();
+    check(`[${tag}] the engine unable to start: the variation stays grey, "not checked", and the main-line result stands`,
+      s.verdict === 'perfect' && /unchecked/.test(s.chips[4]) && !/checking/.test(s.chips[4]) && !s.fixes.length && s.next, s);
+    await shot(`${tag}-9-not-checked`);
+    blockEngine = false;
+    await ev(`__calc.engine.terminate();`);
+
+    // ── the hint ──
+    await put(6);
+    await play(a1);                                        // my own move is selected: no empty step
+    await tap('#calc-hint');
+    s = await state();
+    check(`[${tag}] a hint asked with no empty main-line step selected is refused and costs nothing`, !s.hinted && s.toast.length > 10, s.toast);
+    await play(r1);
+    await tap('#calc-hint');
+    const flashed = await ev(`return [...document.querySelectorAll('#calc-board .sq.hintsq')].map(e => e.dataset.sq).join();`);
+    s = await state();
+    check(`[${tag}] the hint flashes the square of the piece that moves (${a2.slice(0, 2)}) and Kael names it`, flashed === a2.slice(0, 2) && s.hinted && s.say.includes(a2.slice(0, 2)), { flashed, say: s.say });
+    await shot(`${tag}-10-hint`);
+    for (const u of [a2, r2, a3]) await play(u);
+    await tap('#calc-submit');
+    s = await state();
+    check(`[${tag}] solved at the first hand-in after a hint: solved, not perfect`, s.verdict === 'solved' && s.handIns === 1, s);
+
+    // ── the mode's own theme, difficulty and auto-next ──
+    const before = { theme: await ev(`return String(__app.Puzzles.themeFilter);`), diff: await kv('puzzleDifficulty'), auto: await kv('puzzleAutoNext') };
+    await tap('#calc-next');
+    await until(`__calc.phase === 'write' && __calc.ready`, 6000);
+    await tap('#calc-options');
+    check(`[${tag}] the gear opens the settings sheet with a theme row on top`, await until(`document.querySelector('.modal-box .options-theme')`, 3000));
+    await shot(`${tag}-11-settings`);
+    await tap('.modal-box .seg button[data-v="250"]');
+    await tapIn('.modal-box .theme-pick-row input');
+    await tapIn('.modal-box .options-theme');
+    check(`[${tag}] the theme row opens the theme picker`, await until(`document.querySelector('.modal-box input[data-th="fork"]')`, 3000));
+    await tapIn('.modal-box input[data-th="fork"]');
+    await tapIn('.modal-box .btn.primary.big');
+    await until(`__calc.phase === 'write' && __calc.ready && __calc.current.themes.includes('fork')`, 8000);
+    const mine = { theme: await kv('calcTheme'), diff: await kv('calcDifficulty'), auto: await kv('calcAutoNext'), cur: await ev(`return __calc.current.themes;`),
+      pz: { theme: await ev(`return String(__app.Puzzles.themeFilter);`), diff: await kv('puzzleDifficulty'), auto: await kv('puzzleAutoNext') } };
+    check(`[${tag}] theme, difficulty and auto-next chosen here are saved as calcTheme, calcDifficulty and calcAutoNext, and a fork puzzle comes up`,
+      JSON.stringify(mine.theme) === '["fork"]' && mine.diff === 250 && mine.auto === true && mine.cur.includes('fork'), mine);
+    check(`[${tag}] ... and the Puzzles theme, difficulty and auto-next are what they were`, JSON.stringify(mine.pz) === JSON.stringify(before), { before, after: mine.pz });
+    // auto-next: a solved puzzle is followed by the next one, nothing tapped
+    const one2 = await put(2, 1);
+    await play(one2.moves[1]);
+    await tap('#calc-submit');
+    check(`[${tag}] auto-next on: after a solve the next puzzle comes by itself`, await until(`__calc.phase === 'write' && __calc.current.id !== ${JSON.stringify(one2.id)}`, 8000));
+    // the other way round: a theme chosen in Puzzles
+    await ev(`__app.showScreen('puzzles');`);
+    await until(`__app.Puzzles.loaded && __app.Puzzles.current`, 10000);
+    await tap('#puzzle-theme-btn');
+    await until(`document.querySelector('.modal-box input[data-th="pin"]')`, 3000);
+    await tapIn('.modal-box input[data-th="pin"]');
+    await tapIn('.modal-box .btn.primary.big');
+    await sleep(400);
+    const cross = { pz: await ev(`return [...__app.Puzzles.themeFilter].join();`), calc: await ev(`return [...__calc.theme].join();`), kv: await kv('calcTheme') };
+    check(`[${tag}] a theme chosen in Puzzles (pin) leaves the Sealed Moves theme (fork) alone`, cross.pz === 'pin' && cross.calc === 'fork' && JSON.stringify(cross.kv) === '["fork"]', cross);
+    await ev(`__app.Puzzles.themeFilter = 'random'; __app.showScreen('calc');`);
+    await sleep(300);
+    // back to the defaults, through the sheet, for the next round
+    await tap('#calc-options');
+    await until(`document.querySelector('.modal-box .options-theme')`, 3000);
+    await tap('.modal-box .seg button[data-v="0"]');
+    await tapIn('.modal-box .theme-pick-row input');
+    await tapIn('.modal-box .options-theme');
+    await until(`document.querySelector('.modal-box #tp-random')`, 3000);
+    await tapIn('.modal-box #tp-random');
+    await tapIn('.modal-box .btn.primary.big');
+    await sleep(300);
+    const reset = { theme: await kv('calcTheme'), diff: await kv('calcDifficulty'), auto: await kv('calcAutoNext') };
+    check(`[${tag}] set back to random, normal and off`, reset.theme === 'random' && reset.diff === 0 && reset.auto === false, reset);
+
     // ── the Solution button, and Next ──
     await put(4, 1);
     await tap('#calc-solution');
@@ -247,7 +384,8 @@ try {
 const bad = checks.filter(c => !c.ok);
 console.log(`\n${checks.length - bad.length} of ${checks.length} checks passed${bad.length ? ' — FAILED: ' + bad.map(c => c.name).join(' | ') : ''}`);
 // App Check cannot answer on localhost (403) and sw.js is refused on purpose (404).
-const other = errors.filter(e => !/firebaseappcheck|AppCheck|app-check|bad HTTP response code \(404\) was received when fetching the script|status of 403/i.test(e));
+// The engine file is refused on purpose for one check in each round (404 too).
+const other = errors.filter(e => !/firebaseappcheck|AppCheck|app-check|bad HTTP response code \(404\) was received when fetching the script|status of 403|stockfish/i.test(e));
 console.log(other.length ? `Console errors (${other.length}):\n  ` + [...new Set(other)].join('\n  ') : 'No console errors (other than App Check and the refused service worker).');
 chrome.kill();
 server.close();

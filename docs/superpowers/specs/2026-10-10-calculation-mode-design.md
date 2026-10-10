@@ -1,8 +1,10 @@
 # Jugadas selladas / Sealed Moves — a fifth puzzle mode with variation trees (design)
 
-Date: 2026-10-10. Status: **spec only, nothing built.** Checked against commit
-`770bd44` (cache v183). Internal working name "calc"; the visible name is not
-chosen yet (decision e). Section 3 was updated the same day with Adrian's
+Date: 2026-10-10. Status: **conversations 1 and 2 of section 4 are built (v185,
+v186); conversation 3 (rating and progress) is not.** What was built, and where
+it differs from the sketch in 3c, is in `HANDOVER.md`. Written against commit
+`770bd44` (cache v183). Internal working name "calc"; the visible name was
+chosen later (decision e). Section 3 was updated the same day with Adrian's
 answers.
 
 Adrian's words: "check the https://chessriddle.com/ ideas. let's adopt it and do

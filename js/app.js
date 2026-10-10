@@ -4564,9 +4564,20 @@ export const Puzzles = {
   // session feels rather than what a single puzzle is.
   // Blindfold opens this same sheet for its own two settings: `owner` holds
   // difficulty, autoNext and targetRating(), `keys` is where they are stored.
-  openOptions({ owner = this, keys = { difficulty: 'puzzleDifficulty', autoNext: 'puzzleAutoNext' } } = {}) {
+  // Sealed Moves has no room for a theme button of its own, so it passes
+  // `theme`: { label, pick }, a first row that shows the theme chosen and
+  // opens the picker in place of this sheet. `hints` are the i18n keys of the
+  // lines under the difficulty and under auto-next.
+  openOptions({ owner = this, keys = { difficulty: 'puzzleDifficulty', autoNext: 'puzzleAutoNext' }, theme = null, hints = { difficulty: 'difficulty_hint', autoNext: 'auto_next_hint' } } = {}) {
     modal((box, close) => {
       box.innerHTML = `<h3>${t('puzzle_options')}</h3>`;
+      if (theme) {
+        const themeBtn = document.createElement('button');
+        themeBtn.className = 'btn ellipsis options-theme';
+        themeBtn.textContent = theme.label;
+        themeBtn.onclick = () => { close(null); theme.pick(); };
+        box.appendChild(themeBtn);
+      }
 
       const diffLabel = document.createElement('label');
       diffLabel.className = 'hint';
@@ -4592,7 +4603,7 @@ export const Puzzles = {
 
       const diffHint = document.createElement('p');
       diffHint.className = 'hint';
-      diffHint.textContent = t('difficulty_hint');
+      diffHint.textContent = t(hints.difficulty);
 
       const autoRow = document.createElement('label');
       autoRow.className = 'theme-pick-row';
@@ -4603,7 +4614,7 @@ export const Puzzles = {
       autoCb.onchange = () => { owner.autoNext = autoCb.checked; db.kvSet(keys.autoNext, owner.autoNext); };
       const autoHint = document.createElement('p');
       autoHint.className = 'hint';
-      autoHint.textContent = t('auto_next_hint');
+      autoHint.textContent = t(hints.autoNext);
 
       const okBtn = document.createElement('button');
       okBtn.className = 'btn primary big';
@@ -7906,7 +7917,7 @@ async function main() {
   PublicProfile.init();
   Friends.init();
   PulsoUI.init();
-  CalcUI.init();
+  CalcUI.init(engine);
   Masterclass.init();
   Students.init();
   Activity.init(() => activeScreen);

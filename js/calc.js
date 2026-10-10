@@ -151,3 +151,37 @@ export function calcRows(tree) {
   under(first, 1);
   return rows;
 }
+
+// ── side variations (spec 3b): checked by the engine, only at hand-in ──
+
+export const CALC_SIDE_SLACK = 100;   // one pawn worse than the engine's best is still right
+export const CALC_SIDE_WON = 300;     // so is anything that leaves the player three pawns up
+export const CALC_SIDE_CAP = 8;       // moves judged in one hand-in
+
+// Is a move of the player's inside a side variation right? `best` is the
+// engine's score for the position the move was played in, `after` its score
+// once the move is on the board; both in centipawns from White's side with a
+// mate folded into about 10000, which is what Engine gives. `turn` is who moved.
+// A mate passes as "clearly winning".
+export function calcSideOk(best, after, turn) {
+  const sign = turn === 'w' ? 1 : -1;
+  const mine = sign * after;
+  return mine >= sign * best - CALC_SIDE_SLACK || mine >= CALC_SIDE_WON;
+}
+
+// Which chips the engine is asked about: the player's own moves off the main
+// line, top to bottom as the screen draws them. `marks` is calcGrade's. What
+// follows a wrong move of the player's on the main line is not a variation and
+// is left out. → { judge: the first `cap`, over: the ones beyond it }
+export function calcToJudge(tree, marks, cap = CALC_SIDE_CAP) {
+  const all = [];
+  const walk = n => {
+    for (const c of n.children) {
+      if (marks.get(c.id) === 'wrong') continue;
+      if (marks.get(c.id) === 'unchecked' && calcIsMine(c)) all.push(c);
+      walk(c);
+    }
+  };
+  walk(tree.root);
+  return { judge: all.slice(0, cap), over: all.slice(cap) };
+}

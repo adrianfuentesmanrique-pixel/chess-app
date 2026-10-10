@@ -589,10 +589,19 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .calc-chip.right { background: var(--success); color: #06281a; }
 .calc-chip.wrong { background: var(--danger); color: #fff; }
 .calc-chip.unchecked { background: none; border-color: var(--input-border); color: var(--muted); }
+/* The engine has not answered for this one yet. */
+.calc-chip.checking { border-style: dashed; animation: calc-checking 1s ease-in-out infinite alternate; }
+@keyframes calc-checking { from { opacity: 1; } to { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .calc-chip.checking { animation: none; } }
+/* The engine's move beside a wrong variation move. */
+.calc-fix { color: var(--success); font-size: 15px; font-weight: 700; white-space: nowrap; }
 .calc-chip.right.sel, .calc-chip.wrong.sel, .calc-chip.unchecked.sel { border-color: var(--gold); }
 /* Kael's corner is 48px wide, 12px in from the right edge. */
 #calc-actions { padding-right: 58px; min-height: 48px; }
 #calc-actions .btn { min-height: 44px; }
+#calc-actions .btn.ico { width: 42px; }
+/* The theme row at the top of the options sheet (Sealed Moves only). */
+.options-theme { display: block; width: 100%; min-height: 44px; margin-bottom: 12px; text-align: left; }
 #calc-actions .btn.primary { flex: 1 1 auto; }
 #calc-actions .btn:disabled { opacity: .45; }
 .elo-badge {

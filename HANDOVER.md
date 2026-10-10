@@ -9,6 +9,56 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SEALED MOVES: THE ENGINE ON SIDE VARIATIONS, ITS OWN THEME / DIFFICULTY / AUTO-NEXT, AND
+  THE HINT (2026-10-10, v186). Conversation 2 of 3 of
+  `docs/superpowers/specs/2026-10-10-calculation-mode-design.md`.**
+  - **The engine, read before the rule was written:** `Engine.evaluate()` gives centipawns
+    from WHITE's side, with a mate folded into about 10000 (9999 for a mate on the board).
+    New `Engine.evaluateBest(fen, movetime)` → `{score, best, ok}` is the same search with
+    the engine's move as well; `evaluate()` now calls it. `ok` is false when the engine
+    died or was stopped before it had a score. The app's ONE engine is handed over by
+    `CalcUI.init(engine)`; it is still not exported.
+  - **Rule and list, pure, in `js/calc.js` (30 tests):** `calcSideOk(best, after, turn)`
+    (within 100 of the engine's best, or +300 or more for the player, a mate passing as
+    winning) and `calcToJudge(tree, marks, cap = 8)` → `{judge, over}`: the player's own
+    moves off the main line, top to bottom. What follows a WRONG own move on the main line
+    is not a variation and is not judged.
+  - **At hand-in (`CalcUI.judge()`):** the result is drawn first, then each listed move:
+    a mate is right with no engine; else one 250 ms search of the position it was played
+    in, right at once if it is the engine's own move, else a second 250 ms search of the
+    position after it and the rule. Wrong = red, the engine's move beside it (`.calc-fix`,
+    "✓ Cc6"), `perfect` becomes `solved`, never failed. Waiting chips are dashed and pulse
+    (`checking`). The engine refused, silent for 20 s on the first search or 4 s on a later
+    one, or any `showScreen()`: the rest stay grey. The opponent's replies in a variation
+    are never judged and are now drawn plain (`reply`), so grey means only "a move of yours
+    that was not checked".
+  - **Its own settings:** kv `calcTheme` ('random' or an array of theme ids),
+    `calcDifficulty`, `calcAutoNext`; not synced (the Blindfold pair is not either).
+    `Puzzles.openOptions()` took two more optional arguments, `theme: {label, pick}` (a
+    first row that opens the picker) and `hints` (the two small texts), so nothing was
+    copied. A new theme brings a puzzle at once, as in Puzzles. Auto-next waits for the
+    engine, and does NOT fire after a failed puzzle, when a variation was corrected, or
+    while a chip is being looked at on the board.
+  - **Layout, measured at 375x667:** no new row. The action row is ⌫ 🔍 💡 ⚙ at 42x44 and
+    "Entregar" at 97px, Kael's 58px still free; after the hand-in it is ⚙ and "Siguiente".
+    The tree is still 132px and the board 259px. The icons are the Puzzles ones (🔍 hint,
+    💡 solution). ADRIAN HAS NOT YET SAID YES TO THIS PLACEMENT - see the session's end.
+  - **Hint (`CalcUI.hint()`):** only for the selected EMPTY step of the main line (the
+    path to it is the puzzle's line): flashes the from-square on the frozen board and Kael
+    says the square, because the piece may not be standing there on the board. Sets
+    `CalcUI.hinted`, which costs "perfect". Anywhere else it is refused with a toast and
+    costs nothing. KNOWN: a refusal tells the player that the line they wrote has left the
+    puzzle's. Whether a hint should also cost rating is decision b, for conversation 3.
+  - **Verified:** test:tree 249 of 249, test:precache OK (49 and 142, no new file),
+    `tools/cdp-verify-calc.mjs` 148 of 148 twice (it now takes about four minutes and
+    really runs Stockfish; for "the engine cannot start" its own server refuses the engine
+    file), `tools/cdp-verify-puzzle-modes.mjs` 70 of 70, no console errors. Screenshots at
+    375, light and dark, ES and EN, opened and looked at. NOT run: cdp-verify-swipe-modes.
+  - **Not built, for conversation 3:** `calcElo` and friends, `SYNCED_KEYS`, picking by its
+    own rating, not repeating solved ones, Kael's first-time explanation. Still picks
+    around `puzzleElo` (`CalcUI.elo`). Analyse, share, timer and log from spec 3g are not
+    built either.
+
 - **SEALED MOVES / JUGADAS SELLADAS, THE FIFTH PUZZLE MODE: THE CORE (2026-10-10, v185).
   Conversation 1 of 3 of `docs/superpowers/specs/2026-10-10-calculation-mode-design.md`.**
   Every id, key and file says `calc`; only the words on screen are the name.
