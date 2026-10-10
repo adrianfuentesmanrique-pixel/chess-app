@@ -692,9 +692,14 @@ exist at that moment. Its shape is guaranteed by the rule that let it in
 deleted afterwards, which is what made a later ➕ press create a fresh
 document instead of overwriting one (see commit 3's note).
 
-**Still not verified here:** `rejectFriendRequest()` and
-`cancelFriendRequest()` have never executed. Both need a second account
-Adrian can sign into, which he does not currently have.
+**ALSO VERIFIED, 2026-08-20.** `rejectFriendRequest()` **and**
+`cancelFriendRequest()` have executed against production on the real site. The
+rejected request was an incoming one sent by a **third account, not
+`miguelafuentesm`**; the cancelled one was Zugzwang's own outgoing request.
+Adrian confirmed both are correct in Firestore.
+
+**Still not verified here:** nothing. Commit 4 is closed — see the CLOSED note
+in commit 7 for what that record rests on.
 
 ---
 
@@ -990,16 +995,29 @@ the leftover request I had sent them **gone** too (step 4 of `blockUser`).
 `#screen-friends-blocked` then listed them with Unblock, and Unblock removed
 the block document and left the empty note.
 
-**Still not verified, and say so:**
-- **`unfriend()` itself has never been called.** Its rule is proved, though —
-  `blockUser()` runs the identical `deleteDoc` on the identical friendship
-  document under the identical `allow delete` clause, and that delete was
-  watched succeeding.
-- **The blocked sender's side.** "Block, then have the blocked account try to
-  send a request and confirm it produces no document" needs the other account
-  signed in. Not done. The rule that enforces it
-  (`!exists(.../blocks/$(after().to)/blocked/$(me()))`) is covered by the
-  rules test suite, but not by a real client.
+**CLOSED 2026-08-20 — the Friends system is done being verified.** Adrian ran
+the remaining checks himself against production and reported that `unfriend()`,
+the blocked sender's side, `rejectFriendRequest()` and `cancelFriendRequest()`
+are all working and all correct in Firestore, and decided to stop testing here.
+
+**What that record rests on:** Adrian's own confirmation. A session did not
+watch these four in the console step by step, so this plan carries no document
+ids for them and no separate 375px / light-and-dark / both-languages pass for
+`unfriend()` or the blocked-sender check. That is a deliberate stopping point,
+not an oversight — do not reopen it, and do not re-run these to "make sure".
+If something surfaces in use, Adrian will say so and it gets debugged then.
+
+Two things about this section that stay true regardless:
+- `unfriend()`'s rule was already proved independently — `blockUser()` runs the
+  identical `deleteDoc` on the identical friendship document under the
+  identical `allow delete` clause, and that delete was watched succeeding.
+- The blocked-sender rule (`!exists(.../blocks/$(after().to)/blocked/$(me()))`)
+  is covered by the rules test suite.
+
+**Still open, and NOT a Friends problem:** Adrian cannot sign into
+`miguelafuentesm`, and the Zugzwang ↔ miguelafuentesm friendship no longer
+exists. That does not affect anything above, but **step 0 of the Masterclass
+live run still needs both** — see `docs/MASTERCLASS-LIVE-CHECKLIST.md`.
 
 ---
 
