@@ -42,7 +42,12 @@ are in `CLAUDE.md` under "Finish by pushing".
   - **Layout, measured at 375x667:** no new row. The action row is ⌫ 🔍 💡 ⚙ at 42x44 and
     "Entregar" at 97px, Kael's 58px still free; after the hand-in it is ⚙ and "Siguiente".
     The tree is still 132px and the board 259px. The icons are the Puzzles ones (🔍 hint,
-    💡 solution). ADRIAN HAS NOT YET SAID YES TO THIS PLACEMENT - see the session's end.
+    💡 solution). Adrian saw the screenshots and said yes to this placement (2026-10-10).
+  - **Decided by Adrian the same day, for conversation 3:** (b) a solve with a hint pays
+    HALF the normal rating gain and no perfect bonus; it is not a failed puzzle. (c) time
+    in this mode IS counted in `js/activity.js`, as puzzles time. From spec 3g: the log
+    and an "open in Analysis" button go into conversation 3; the timer is dropped; share
+    is left for later. He also accepted the auto-next rule below as built.
   - **Hint (`CalcUI.hint()`):** only for the selected EMPTY step of the main line (the
     path to it is the puzzle's line): flashes the from-square on the frozen board and Kael
     says the square, because the piece may not be standing there on the board. Sets
