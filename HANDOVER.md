@@ -69,6 +69,11 @@ are in `CLAUDE.md` under "Finish by pushing".
     was checked by reading the code only. Nobody has tried the mode on a real phone yet.
   - **Adrian saw the screenshots and said yes (2026-10-10)** to a, b and c as built, to the
     log living in the rating's sheet, and to solves counting for the streak. Closed.
+  - **v188, same day:** Adrian found the envelope on the mode chip too small beside the
+    other symbols. It was the plain text glyph; `mode_calc` now has U+FE0F after it, so the
+    emoji is drawn, the size of the others. Label still whole at 375 and 360
+    (puzzle-modes 70 of 70). Seen in headless Chrome on Windows only: a phone draws its
+    own envelope.
   - **Not built, on purpose:** share (left for later by Adrian), the timer (dropped).
 
 - **SEALED MOVES: THE ENGINE ON SIDE VARIATIONS, ITS OWN THEME / DIFFICULTY / AUTO-NEXT, AND

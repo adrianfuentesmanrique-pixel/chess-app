@@ -334,7 +334,9 @@ const DICT = {
   mode_pulso: { es: '⚔ Duelo', en: '⚔ Duel' },
   // Sealed Moves, the fifth mode (js/calc-ui.js). Only the WORDS are "Jugadas
   // selladas" / "Sealed Moves": every key, id and file says calc.
-  mode_calc: { es: '✉ Jugadas selladas', en: '✉ Sealed Moves' },
+  // U+FE0F after the envelope asks for the emoji drawing: the plain glyph is a
+  // thin outline that looked small beside the other chips' symbols.
+  mode_calc: { es: '✉️ Jugadas selladas', en: '✉️ Sealed Moves' },
   calc_title: { es: 'Jugadas selladas', en: 'Sealed Moves' },
   calc_say_first: { es: 'Toca tu jugada: queda escrita abajo y el tablero no se mueve.', en: 'Tap your move: it is written below and the board stays still.' },
   calc_say_mine: { es: 'Escribe tu jugada después de {m}.', en: 'Write your move after {m}.' },
