@@ -11,13 +11,14 @@ commercial use allowed. Credit is given here anyway.
 | File | Cut from | Uploader | Source page | What was done |
 |---|---|---|---|---|
 | `move.wav` | "chess pieces.wav", the knock at 18.72 s | simone_ds | https://freesound.org/s/366065/ | 0.32 s cut, 80 ms fade-out, +5.4 dB |
-| `capture.wav` | "Piece Capture.mp3", whole (0.24 s) | el_boss | https://freesound.org/s/546120/ | -5.6 dB (Adrian asked for it quieter than the rest) |
+| `capture.wav` | "Piece Capture.mp3", whole (0.24 s) | el_boss | https://freesound.org/s/546120/ | -12.6 dB (Adrian asked for it quieter than the rest, three times; the last after hearing it in the app) |
 | `check.wav` | "Piece Placement.mp3", whole (0.11 s) | el_boss | https://freesound.org/s/546119/ | +9.2 dB |
 | `castle.wav` | `move.wav` played twice, the second 0.23 s later at 90% | simone_ds | as `move.wav` | built from the levelled `move.wav` |
 | `promote.wav` | "Small wood Block.wav", the hit at 4.35 s | Noted451 | https://freesound.org/s/530437/ | 0.40 s cut, 100 ms fade-out, -0.6 dB |
 
 - All five are mono, 16-bit, 44.1 kHz. No effects; only the cut, the fade and the level.
-- Level: the loudest point of each is -3 dB, except `capture.wav` at -8 dB.
+- Level: the loudest point of each is -3 dB, except `capture.wav` at -15 dB. It is a denser sound than the knocks, so it
+  sounds louder than its peak suggests; by average energy it sits just under `move.wav`.
 - They were cut from each sound's public PREVIEW (the MP3 the Freesound page plays),
   not from the original upload, which needs a signed-in account. Adrian judged them
   good enough by ear.
