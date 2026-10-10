@@ -1,11 +1,12 @@
-// The four puzzle-mode chips (Puzzles, Blindfold, Puzzle Rush, Pulso) as two
-// rows of two on every one of the four screens that carry them. Dev tool, not
+// The five puzzle-mode chips (Puzzles, Blindfold, Puzzle Rush, Pulso, Sealed
+// Moves) as two rows, three over two, on every one of the five screens that
+// carry them. Dev tool, not
 // shipped. Headless Chrome over CDP, signed out, no service worker.
 //
 //   node tools/cdp-verify-puzzle-modes.mjs <outDir>     about half a minute
 //
-// Checked at 375 x 667 in ES and EN, light and dark, and at 320 wide in ES
-// light: four chips in two rows, the same size, wholly on screen, no label cut
+// Checked at 375 x 667 in ES and EN, light and dark, at 360 wide (the commonest
+// Android width) in both languages, and at 320 wide in ES light: five chips in two rows, three over two, each row its own size, wholly on screen, no label cut
 // short, the page not wider than the phone, the right one lit; and each chip,
 // really tapped, opens its screen.
 import { spawn } from 'node:child_process';
@@ -86,17 +87,17 @@ const strip = screen => ev(`
   const seg = document.querySelector('#screen-${screen} .puzzle-modes'), bs = [...seg.querySelectorAll('button')];
   const box = bs.map(b => b.getBoundingClientRect());
   return { screen: __app.activeScreen, n: bs.length, order: bs.map(b => b.dataset.v).join(' '),
-    rows: [...new Set(box.map(r => Math.round(r.top)))].length, cols: [...new Set(box.map(r => Math.round(r.left)))].length,
-    sameSize: box.every(r => Math.abs(r.width - box[0].width) < 1 && Math.abs(r.height - box[0].height) < 1), w: Math.round(box[0].width), h: Math.round(box[0].height),
+    rows: [...new Set(box.map(r => Math.round(r.top)))].length, perRow: [box.filter(r => Math.round(r.top) === Math.round(box[0].top)).length, box.filter(r => Math.round(r.top) !== Math.round(box[0].top)).length].join(),
+    sameSize: [box.slice(0, 3), box.slice(3)].every(row => row.every(r => Math.abs(r.width - row[0].width) < 1 && Math.abs(r.height - box[0].height) < 1)), w: Math.round(box[0].width), w2: Math.round(box[3].width), h: Math.round(box[0].height),
     inside: box.every(r => r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight),
     whole: bs.every(b => b.scrollWidth <= b.clientWidth), lit: bs.filter(b => b.classList.contains('on')).map(b => b.dataset.v).join(' '),
-    labels: bs.map(b => b.textContent), noSideScroll: document.documentElement.scrollWidth <= innerWidth && seg.scrollWidth <= seg.clientWidth,
+    labels: bs.map(b => b.textContent),
+    room: bs.map(b => { const rg = document.createRange(); rg.selectNodeContents(b); const cs = getComputedStyle(b); return Math.round((b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - rg.getBoundingClientRect().width) * 10) / 10; }), noSideScroll: document.documentElement.scrollWidth <= innerWidth && seg.scrollWidth <= seg.clientWidth,
     height: Math.round(seg.getBoundingClientRect().height) };`);
 
-const SCREENS = ['puzzles', 'blind', 'rush', 'pulso'];
 let failed = false;
 try {
-  for (const [lang, scheme, width] of [['es', 'light', 375], ['es', 'dark', 375], ['en', 'light', 375], ['en', 'dark', 375], ['es', 'light', 320]]) {
+  for (const [lang, scheme, width] of [['es', 'light', 375], ['es', 'dark', 375], ['en', 'light', 375], ['en', 'dark', 375], ['es', 'light', 360], ['en', 'light', 360], ['es', 'light', 320]]) {
     const tag = `${lang}-${scheme}-${width}`;
     console.log(`\n── ${tag} ──`);
     await send('Emulation.setDeviceMetricsOverride', { width, height: 667, deviceScaleFactor: 2, mobile: true });
@@ -109,10 +110,10 @@ try {
     await ev(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove()); window.__app = await import('/js/app.js'); __app.showScreen('puzzles');`);
     await until(`__app.activeScreen === 'puzzles'`);
     let from = 'puzzles';
-    for (const to of ['blind', 'rush', 'pulso', 'puzzles']) {
+    for (const to of ['blind', 'rush', 'pulso', 'calc', 'puzzles']) {
       const s = await strip(from);
-      check(`[${tag}] ${from}: four chips in two rows of two (${s.w} x ${s.h} each), the same size, wholly on screen, no label cut short, nothing scrolls sideways, "${from}" lit`,
-        s.screen === from && s.n === 4 && s.rows === 2 && s.cols === 2 && s.sameSize && s.inside && s.whole && s.noSideScroll && s.lit === from && s.order === 'puzzles blind rush pulso' && s.h >= 40, s);
+      check(`[${tag}] ${from}: five chips, three over two (${s.w} and ${s.w2} wide, ${s.h} tall), each row the same size, wholly on screen, no label cut short, nothing scrolls sideways, "${from}" lit`,
+        s.screen === from && s.n === 5 && s.rows === 2 && s.perRow === '3,2' && s.sameSize && s.inside && s.whole && s.noSideScroll && s.lit === from && s.order === 'puzzles blind rush pulso calc' && s.h >= 40, s);
       await shot(`${tag}-${from}`);
       await tap(`#screen-${from} .puzzle-modes [data-v="${to}"]`);
       check(`[${tag}] the "${to}" chip on the ${from} screen, really tapped, opens ${to}`, await until(`__app.activeScreen === '${to}'`, 6000), await ev(`return __app.activeScreen`));

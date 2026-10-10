@@ -9,6 +9,42 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SEALED MOVES / JUGADAS SELLADAS, THE FIFTH PUZZLE MODE: THE CORE (2026-10-10, v185).
+  Conversation 1 of 3 of `docs/superpowers/specs/2026-10-10-calculation-mode-design.md`.**
+  Every id, key and file says `calc`; only the words on screen are the name.
+  - **Built:** `js/calc.js` (the rules, imports only `js/tree.js`, 23 tests in
+    `tests/unit/calc.test.js`) and `js/calc-ui.js` (`CalcUI`, the screen). `#screen-calc` in
+    `index.html`; the fifth button on all five mode rows, three over two
+    (`.seg.puzzle-modes` is now a six-column grid). The board is a `Board` with
+    `interactive: false`: `CalcUI.tap()` reads the taps itself and checks them against the
+    position the answer tree holds for the selected chip, not the one on the board.
+  - **Rules as built:** the main line is the puzzle's own, graded with no engine; a
+    different move that mates on the spot is right. ONE move of the player's own per
+    position (a second, different one is refused with "delete it to change it"); any
+    number of opponent replies, each its own row. Hand in: a wrong own move = failed (tree
+    coloured, the puzzle's line shown, the board follows the tapped chip); right but short
+    = Kael writes the puzzle's reply in with an empty slot, hand in again; whole line =
+    solved, and perfect only on the first hand-in. Solution = failed. Side variations are
+    drawn grey, "not checked" - the engine is conversation 2.
+  - **Measured, not guessed:** "✉ Jugadas selladas" / "✉ Sealed Moves" fits its button
+    whole (33px to spare at 375, 23px at 320), so the short label was not needed. With
+    three buttons on top "⚡ Puzzle Rush", lit, had 0.4px to spare at 375 and none at 360,
+    so the mode buttons are 13px type under 400 wide and 12px under 350. At 375x667 the
+    tree keeps exactly three rows (132px) and nothing scrolls but the tree; the board
+    gives way to make the room and is 259px there (full width on a taller phone).
+  - **Not built, on purpose:** no rating, nothing saved, nothing synced; puzzles are picked
+    around the PUZZLE rating (`puzzleElo`); no theme/difficulty/auto-next/hint; time in the
+    mode is not counted in `js/activity.js` (Duel's is not either).
+  - **Checked:** `test:tree` 242, 0 failures; `test:precache` OK, 49 imported files (47 +
+    the two new ones), 142 art. New `tools/cdp-verify-calc.mjs` 76 of 76 (ES/EN, light/dark,
+    375x667, every square, chip and button really tapped): one-move and three-move puzzles
+    perfect, one failed, one finished through Kael's slot, a variation grey.
+    `tools/cdp-verify-puzzle-modes.mjs` 70 of 70 (now five screens, and 360 wide added);
+    `tools/cdp-verify-swipe-modes.mjs` 193 of 193 (the mode swipes as Puzzles does; its
+    board keeps every touch). That swipe tool had been failing 4 Blindfold checks a pass
+    since Blindfold got its start panel - it now presses Start, and needs a server:
+    it does not serve the app itself. `test:rules` not run: no rules change.
+
 - **MOVE FEEL: FASTER REPLIES, PIECES THAT SLIDE, NEW BOARD SOUNDS (2026-10-10, v181).**
   - **v183, SAME DAY: THE BOARD SOUNDS ARE NOW CC0 RECORDINGS ADRIAN CHOSE BY EAR.
     HE LISTENED TO EVERY FILE BEFORE IT WENT IN ("perfect, put them in") - CLOSED, do not

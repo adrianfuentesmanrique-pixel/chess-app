@@ -33,6 +33,7 @@ import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
+import { CalcUI } from './calc-ui.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { Activity } from './activity.js';
@@ -1276,7 +1277,7 @@ async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'students'];
+const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students'];
 export let activeScreen = 'analysis';
 
 export function showScreen(name) {
@@ -1315,7 +1316,8 @@ export function showScreen(name) {
   // either it was just forfeited (above), or it was already over.
   if (name !== 'pulso') PulsoMatch.stop();
   if (name === 'pulso') PulsoUI.onEnter();
-  if (name === 'puzzles' || name === 'blind' || name === 'rush' || name === 'pulso') syncPuzzleModeSeg(name);
+  if (name === 'calc') CalcUI.onEnter();
+  if (MENU_AREA[name] === 'puzzles') syncPuzzleModeSeg(name);
   if (name !== prev) pushTabHistory(name);
   updateTabMenu();
   RemindInvite.soon();
@@ -1385,7 +1387,7 @@ const MENU_AREA = {
   endgame: 'endgame',
   base: 'base', masterclass: 'base',
   trainer: 'trainer',
-  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles', pulso: 'puzzles',
+  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles', pulso: 'puzzles', calc: 'puzzles',
   play: 'play',
   read: 'read',
   students: 'students',
@@ -1450,12 +1452,12 @@ function navigateFromMenu(name) {
 
 const TAB_ORDER = [...document.querySelectorAll('#tabbar button')].map(b => b.dataset.screen);
 
-// Rush, Blind and Pulso are modes of the Puzzles tab, reached by its chip strip with
+// Rush, Blind, Pulso and Sealed Moves (calc) are modes of the Puzzles tab, reached by its chip strip with
 // no Back button of their own, so they swipe as their home tab does. The other
 // sub-screens (a leaderboard, Friends, a public profile, Masterclass, Setup)
 // are deliberately left out: each is left by its Back button, and a sideways
 // swipe there would walk away from the screen Back is meant to return to.
-const SWIPE_AS_HOME = new Set(['rush', 'blind', 'pulso']);
+const SWIPE_AS_HOME = new Set(['rush', 'blind', 'pulso', 'calc']);
 
 // The tab beside `screen` in the drawer's order (dir +1 = next, -1 = previous),
 // or null at either end and on a sub-screen that is not in SWIPE_AS_HOME,
@@ -1488,15 +1490,16 @@ const SWIPE_SAFE = '.modal-back, .drag-ghost, input, textarea, select, ' +
 // tap cancels it), arrow drawing, a drag already running, and the Setup
 // editor. Anywhere else — an empty square, a piece that is not yours to move —
 // the touch does nothing on the board, so a sideways drag there swipes tabs.
-// Two boards keep every touch, because a swipe that slipped there would cost
+// Three boards keep every touch, because a swipe that slipped there would cost
 // something: Blindfold's, where the pieces are hidden and nobody can tell an
-// empty square from their own piece, and Rush's, which is only on screen during
-// a run that leaving the screen ends.
+// empty square from their own piece, Rush's, which is only on screen during
+// a run that leaving the screen ends, and Sealed Moves', where the piece to
+// tap is wherever it stands in the player's head, not where the board shows it.
 // Read before the board handles the touch: see the capture flag on pointerdown.
 function boardOwnsTouch(el) {
   const board = el.closest('.board');
   if (!board) return false;
-  return board.id === 'setup-board' || board.id === 'blind-board' || board.id === 'rush-board' ||
+  return board.id === 'setup-board' || board.id === 'blind-board' || board.id === 'rush-board' || board.id === 'calc-board' ||
     board.matches('.drawing, .dragging') ||
     !!el.closest('.sq.grabbable') ||
     !!board.querySelector('.sq.selected, .sq.premove');
@@ -1689,7 +1692,7 @@ function settleDrag(s, commit) {
 }
 
 // ── puzzle mode switcher ──
-// The same segmented control sits on all four puzzle screens, so any mode can
+// The same segmented control sits on all five puzzle screens, so any mode can
 // reach the others without going back out to the tab bar first.
 function syncPuzzleModeSeg(mode) {
   document.querySelectorAll('.puzzle-modes').forEach(seg =>
@@ -1700,6 +1703,7 @@ function openPuzzleMode(mode) {
   if (mode === 'blind') Blind.open();
   else if (mode === 'rush') Rush.openIntro();
   else if (mode === 'pulso') PulsoUI.open();
+  else if (mode === 'calc') CalcUI.open();
   else showScreen('puzzles');
 }
 
@@ -7243,6 +7247,7 @@ function relabel() {
   if (activeScreen === 'endgame') Endgame.refreshLists();
   if (activeScreen === 'read') Read.refresh();
   if (activeScreen === 'students') Students.render();
+  if (activeScreen === 'calc') CalcUI.render();
 }
 
 // `hist` is [{date: 'YYYY-MM-DD', value}] — my own from kv (Profile), or a
@@ -7901,6 +7906,7 @@ async function main() {
   PublicProfile.init();
   Friends.init();
   PulsoUI.init();
+  CalcUI.init();
   Masterclass.init();
   Students.init();
   Activity.init(() => activeScreen);

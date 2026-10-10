@@ -332,6 +332,29 @@ const DICT = {
   mode_blind: { es: '🙈 A ciegas', en: '🙈 Blindfold' },
   mode_rush: { es: '⚡ Puzzle Rush', en: '⚡ Puzzle Rush' },
   mode_pulso: { es: '⚔ Duelo', en: '⚔ Duel' },
+  // Sealed Moves, the fifth mode (js/calc-ui.js). Only the WORDS are "Jugadas
+  // selladas" / "Sealed Moves": every key, id and file says calc.
+  mode_calc: { es: '✉ Jugadas selladas', en: '✉ Sealed Moves' },
+  calc_title: { es: 'Jugadas selladas', en: 'Sealed Moves' },
+  calc_say_first: { es: 'Toca tu jugada: queda escrita abajo y el tablero no se mueve.', en: 'Tap your move: it is written below and the board stays still.' },
+  calc_say_mine: { es: 'Escribe tu jugada después de {m}.', en: 'Write your move after {m}.' },
+  calc_say_reply: { es: 'Ahora la respuesta del rival a {m}, o entrega.', en: "Now the opponent's reply to {m}, or hand in." },
+  calc_say_taken: { es: 'Aquí ya escribiste tu jugada. Bórrala con ⌫ para cambiarla.', en: 'You already wrote your move here. Delete it with ⌫ to change it.' },
+  calc_no_piece: { es: 'En la posición que llevas escrita juegan {c}, y ahí no tienen pieza.', en: 'In the position you have written it is {c} to move, and {c} has no piece there.' },
+  calc_illegal: { es: 'Esa jugada no es legal en la posición que llevas escrita.', en: 'That move is not legal in the position you have written.' },
+  calc_kael_reply: { es: 'Vas bien. La mejor defensa es {m}. ¿Y ahora?', en: 'Right so far. The best defence is {m}. And now?' },
+  calc_kael_owed: { es: 'Vas bien. Falta tu jugada después de {m}.', en: 'Right so far. Your move after {m} is still missing.' },
+  calc_perfect: { es: '¡Perfecto! Toda la línea, a la primera.', en: 'Perfect! The whole line, first time.' },
+  calc_solved: { es: '¡Resuelto! La línea principal es correcta.', en: 'Solved! The main line is right.' },
+  calc_failed: { es: '{m} no era la jugada. Toca las jugadas para verlas en el tablero.', en: '{m} was not the move. Tap the moves to see them on the board.' },
+  calc_gave_up: { es: 'Esta es la línea del puzzle. Toca las jugadas para verlas en el tablero.', en: "This is the puzzle's line. Tap the moves to see them on the board." },
+  calc_unchecked_note: { es: 'En gris: variante sin comprobar.', en: 'In grey: variation not checked.' },
+  calc_line_label: { es: 'Solución', en: 'Solution' },
+  calc_slot: { es: 'Jugada por escribir', en: 'Move still to write' },
+  calc_submit: { es: 'Entregar', en: 'Hand in' },
+  calc_solution: { es: '👁 Solución', en: '👁 Solution' },
+  calc_delete: { es: 'Borrar la jugada marcada y lo que sigue', en: 'Delete the selected move and what follows' },
+  calc_none: { es: 'No se pudieron cargar los puzzles. Revisa la conexión y toca Siguiente.', en: 'The puzzles could not be loaded. Check your connection and tap Next.' },
   // The mode's name on its own: the word over the lobby and on the share card.
   // Only the WORD is Duelo / Duel - every key, id, file and the Firestore
   // collection keep the name the mode was built under, pulso.

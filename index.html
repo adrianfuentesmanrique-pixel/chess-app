@@ -644,6 +644,7 @@
       <button data-v="blind" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
       <button data-v="pulso" data-i18n="mode_pulso"></button>
+      <button data-v="calc" data-i18n="mode_calc"></button>
     </div>
     <!-- Students homework mode (Puzzles.paintHomework): the homework's title,
          n/count and Exit. Only these puzzles count while it shows. -->
@@ -698,6 +699,7 @@
         <button data-v="blind" data-i18n="mode_blind"></button>
         <button data-v="rush" class="on" data-i18n="mode_rush"></button>
         <button data-v="pulso" data-i18n="mode_pulso"></button>
+        <button data-v="calc" data-i18n="mode_calc"></button>
       </div>
       <p class="hint" data-i18n="rush_explain"></p>
       <div class="row wrap profile-elo-row">
@@ -754,6 +756,7 @@
         <button data-v="blind" data-i18n="mode_blind"></button>
         <button data-v="rush" data-i18n="mode_rush"></button>
         <button data-v="pulso" class="on" data-i18n="mode_pulso"></button>
+        <button data-v="calc" data-i18n="mode_calc"></button>
       </div>
       <div class="pulso-hero">
         <!-- The second picture takes the first one's place while the player
@@ -841,6 +844,7 @@
       <button data-v="blind" class="on" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
       <button data-v="pulso" data-i18n="mode_pulso"></button>
+      <button data-v="calc" data-i18n="mode_calc"></button>
     </div>
     <p class="hint" id="blind-explain-look" data-i18n="blind_explain"></p>
     <p class="hint hidden" id="blind-explain-list" data-i18n="blind_list_explain"></p>
@@ -900,6 +904,36 @@
         <button id="blind-next" class="btn primary" data-i18n="next_puzzle"></button>
       </div>
       <div id="blind-log" class="plog"></div>
+    </div>
+  </section>
+
+  <!-- ══════════ SEALED MOVES ══════════ -->
+  <!-- The fifth puzzle mode (js/calc-ui.js, rules in js/calc.js). The visible
+       name is "Jugadas selladas" / "Sealed Moves"; every id and key says calc.
+       The board never moves while the answer is written: each tapped move
+       becomes a chip in #calc-tree, and nothing is checked until Hand in. -->
+  <section id="screen-calc" class="screen hidden">
+    <h2 class="sr-only" data-i18n="calc_title"></h2>
+    <div class="seg puzzle-modes" data-mode="calc">
+      <button data-v="puzzles" data-i18n="mode_puzzles"></button>
+      <button data-v="blind" data-i18n="mode_blind"></button>
+      <button data-v="rush" data-i18n="mode_rush"></button>
+      <button data-v="pulso" data-i18n="mode_pulso"></button>
+      <button data-v="calc" class="on" data-i18n="mode_calc"></button>
+    </div>
+    <div id="calc-board" class="board-wrap"></div>
+    <!-- Kael's line: the instruction, his question after a hand-in that stops
+         short, and the result. -->
+    <div id="calc-say" class="calc-say" role="status">
+      <img src="icons/kael/kael-bust.png" alt="Kael" width="32" height="32">
+      <span id="calc-say-text"></span>
+    </div>
+    <div id="calc-tree" class="calc-tree"></div>
+    <div class="row" id="calc-actions">
+      <button id="calc-delete" class="btn ico" data-i18n-aria="calc_delete">⌫</button>
+      <button id="calc-solution" class="btn" data-i18n="calc_solution"></button>
+      <button id="calc-submit" class="btn primary" data-i18n="calc_submit"></button>
+      <button id="calc-next" class="btn primary hidden" data-i18n="next_puzzle"></button>
     </div>
   </section>
 

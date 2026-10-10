@@ -1,5 +1,5 @@
-// Headless-Chrome verification for the tab swipe on the two puzzle modes: Rush
-// and Blindfold now swipe to the same neighbours as Puzzles (Openings one way,
+// Headless-Chrome verification for the tab swipe on the puzzle modes: Rush,
+// Blindfold and Sealed Moves (calc) swipe to the same neighbours as Puzzles (Openings one way,
 // Play the other). The in-app pane does not composite, so this drives a real
 // headless Chrome over CDP. Dev tool, not shipped.
 //
@@ -27,7 +27,7 @@ const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const PORT = 9300 + Math.floor(Math.random() * 600);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-sw-'));
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 560000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 1200000).unref();
 
 const getJSON = url => new Promise((res, rej) => {
   http.get(url, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => res(JSON.parse(d))); }).on('error', rej);
@@ -181,7 +181,7 @@ async function bothWays(tag, L, screen, reopen) {
     const s = await swipeTab(dir, dir > 0 ? () => evalP(`
       const cur = document.getElementById('screen-${screen}'), nb = document.getElementById('screen-${to}');
       return { curMoved: /translate3d\\(-/.test(cur.style.transform), nbShown: !nb.classList.contains('hidden'), nbFixed: nb.style.position === 'fixed',
-        othersHidden: ['puzzles', 'rush', 'blind'].filter(n => n !== '${screen}').every(n => document.getElementById('screen-' + n).classList.contains('hidden')) };`) : null);
+        othersHidden: ['puzzles', 'rush', 'blind', 'calc'].filter(n => n !== '${screen}').every(n => document.getElementById('screen-' + n).classList.contains('hidden')) };`) : null);
     const w = await where();
     check(`${tag}: ${screen} — swipe ${side} lands on ${to}, top bar says "${L[to]}", only that screen shown`,
       w.screen === to && w.title === L[to] && w.shown.join() === to, { ...w, y: s.y });
@@ -247,7 +247,9 @@ for (const lang of ['en', 'es']) {
     const openBlind = async () => {
       await tab('puzzles');
       await click('#screen-puzzles .puzzle-modes button[data-v="blind"]', 900);
-      await waitFor('#blind-board .sq');
+      // Blindfold opens on its start panel (since v17x); the countdown begins after Start.
+      await click('#blind-go', 300);
+      await waitFor('#blind-countdown');
     };
     await openBlind();
     const counting = !(await hidden('blind-countdown'));
@@ -281,11 +283,23 @@ for (const lang of ['en', 'es']) {
     await noSwitch(tag, 'blind', 'a hidden piece', '#blind-board .sq.grabbable');
     await noSwitch(tag, 'blind', 'an empty Blindfold square', '#blind-board .sq:not(:has(img))');
 
+    // ── Sealed Moves: swipes as Puzzles does; its chips and its frozen board keep the drag ──
+    const openCalc = async () => {
+      await tab('puzzles');
+      await click('#screen-puzzles .puzzle-modes button[data-v="calc"]', 900);
+      await waitFor('#calc-board .sq.lastmove');
+    };
+    await openCalc();
+    await bothWays(tag, L, 'calc', openCalc);
+    await noSwitch(tag, 'calc', 'the mode chips', '#screen-calc .puzzle-modes');
+    await noSwitch(tag, 'calc', 'a piece on the frozen board', '#calc-board .sq:has(img)');
+    await noSwitch(tag, 'calc', 'an empty square of the frozen board', '#calc-board .sq:not(:has(img))');
+    await swipeTab(1); // calc → play, so the next block starts where it did before
+
     // ── Swiping back INTO the Puzzles tab lands on plain Puzzles ──
-    await swipeTab(1); // blind → play
     await swipeTab(-1); // play → ?
     let w = await where();
-    check(`${tag}: swiping back from Play lands on plain Puzzles, not Blindfold`, w.screen === 'puzzles' && w.shown.join() === 'puzzles' && w.title === L.puzzles, w);
+    check(`${tag}: swiping back from Play lands on plain Puzzles, not a mode`, w.screen === 'puzzles' && w.shown.join() === 'puzzles' && w.title === L.puzzles, w);
 
     // ── Sub-screens that keep a Back button: no neighbours, as before ──
     await tab('profile');

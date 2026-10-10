@@ -531,8 +531,70 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .seg.scroll::-webkit-scrollbar { display: none; }
 .seg.scroll button { flex: 0 0 auto; }
 /* The four puzzle modes: two rows of two, every one in sight and the same size. */
-.seg.puzzle-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.seg.puzzle-modes button { min-width: 0; min-height: 40px; padding: 8px 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Five modes in two rows: three on top, two below. Six columns, so a top chip
+   takes two and a bottom chip three. */
+.seg.puzzle-modes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.seg.puzzle-modes button { grid-column: span 2; min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg.puzzle-modes button:nth-child(n+4) { grid-column: span 3; }
+/* "⚡ Puzzle Rush", lit (bold), is the label that runs out of room first: at
+   14px it measured 0.4px to spare at 375 wide and none at 360, and a phone's
+   own font can be wider than the one it was measured in. Under 400 wide the
+   type is a size smaller, which leaves it 12px at 375 and 7px at 360. */
+@media (max-width: 399px) { .seg.puzzle-modes button { font-size: 13px; padding: 8px 2px; } }
+@media (max-width: 349px) { .seg.puzzle-modes button { font-size: 12px; } }
+
+/* ── Sealed Moves (calc) ───────────────── */
+/* The screen is exactly as tall as the room there is, so nothing scrolls but
+   the tree: the board gives way first (it is the only thing that shrinks) and
+   the tree takes whatever is left, never less than three rows. The 60px are
+   the part of main's bottom padding that is kept for Kael's corner on other
+   screens; here the action row sits beside him instead (see #calc-actions). */
+#screen-calc:not(.hidden) {
+  display: flex; flex-direction: column; gap: 8px;
+  height: calc(100% + 60px); margin-bottom: -60px; min-height: 520px;
+}
+#screen-calc > * { margin-top: 0; margin-bottom: 0; flex: 0 0 auto; }
+#calc-board {
+  flex: 0 1 auto; align-self: center;
+  width: auto; height: min(calc(100vw - 20px), 560px); max-width: 100%;
+  min-height: 200px; aspect-ratio: 1 / 1;
+}
+.sq.calc-pick::before { content: ''; position: absolute; inset: 0; background: var(--sq-selected); }
+.calc-say {
+  display: flex; align-items: center; gap: 8px; min-height: 36px;
+  font-size: 13px; line-height: 1.3; color: var(--text);
+}
+.calc-say img { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #f2eee6; }
+.calc-say.good { color: var(--success); font-weight: 600; }
+.calc-say.bad { color: var(--danger); font-weight: 600; }
+#screen-calc > .calc-tree {
+  flex: 1 0 132px; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--panel); border-radius: var(--radius); padding: 0 8px;
+}
+.calc-row { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; min-height: 44px; }
+.calc-row b { font-size: 13px; color: var(--muted); }
+.calc-line { border-bottom: 1px solid var(--input-border); padding: 2px 0; }
+.calc-num { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.calc-arm { color: var(--muted); font-size: 15px; }
+.calc-chip {
+  min-height: 40px; min-width: 48px; padding: 0 10px;
+  background: var(--panel2); color: var(--text);
+  border: 2px solid transparent; border-radius: 10px;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.calc-chip.sel { border-color: var(--gold); background: var(--gold-bg); }
+.calc-chip.kael { box-shadow: inset 0 -3px 0 var(--gold); }
+.calc-slot { background: none; border: 2px dashed var(--muted); color: var(--muted); }
+.calc-slot.kael, .calc-slot.sel { border-style: dashed; border-color: var(--gold); color: var(--gold); }
+.calc-chip.right { background: var(--success); color: #06281a; }
+.calc-chip.wrong { background: var(--danger); color: #fff; }
+.calc-chip.unchecked { background: none; border-color: var(--input-border); color: var(--muted); }
+.calc-chip.right.sel, .calc-chip.wrong.sel, .calc-chip.unchecked.sel { border-color: var(--gold); }
+/* Kael's corner is 48px wide, 12px in from the right edge. */
+#calc-actions { padding-right: 58px; min-height: 48px; }
+#calc-actions .btn { min-height: 44px; }
+#calc-actions .btn.primary { flex: 1 1 auto; }
+#calc-actions .btn:disabled { opacity: .45; }
 .elo-badge {
   background: var(--accent2); color: #fff; font-weight: 700;
   padding: 4px 12px; border-radius: 20px; font-size: 14px;
