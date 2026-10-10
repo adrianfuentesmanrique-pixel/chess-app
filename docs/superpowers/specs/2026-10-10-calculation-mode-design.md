@@ -1,8 +1,9 @@
 # Calculation mode — a fifth puzzle mode with variation trees (design)
 
 Date: 2026-10-10. Status: **spec only, nothing built.** Checked against commit
-`770bd44` (cache v183). Working name "Cálculo / Calculation" — Adrian has not
-approved the name yet (decision e).
+`770bd44` (cache v183). Internal working name "calc"; the visible name is not
+chosen yet (decision e). Section 3 was updated the same day with Adrian's
+answers.
 
 Adrian's words: "check the https://chessriddle.com/ ideas. let's adopt it and do
 one section in our puzzles like that with variation trees."
@@ -54,7 +55,7 @@ We take **ideas**, which nobody owns:
 - the board stays still while you calculate;
 - you write down the whole answer, the opponent's replies included;
 - you hand it in once and it is graded as a whole;
-- the answer is a tree, not a single line.
+- the answer can branch into variations.
 
 We take **none of their expression**:
 - not their name or the word "Riddle" (never used for our section unless Adrian
@@ -62,26 +63,28 @@ We take **none of their expression**:
   Streak", and so on);
 - no sentence of theirs: instructions, feedback messages and guide text are
   written fresh in our voice, Spanish first;
-- none of their positions. Ours are built from our own 30,000;
+- none of their positions. Ours are our own 30,000;
 - not their layout (dark two-column page, tree card on the right), colours,
   icons (their tree emoji, their brain emoji) or artwork;
-- not their tolerance table. We do not grade with a live engine at all.
+- not their tolerance table. Our main line is graded against the puzzle itself;
+  the engine is asked only about side variations, with one rule of our own.
 
-Ours also works differently in two visible ways: Kael asks follow-up questions
-("and if he defends like this?"), and everything is graded offline from trees
-built in advance. This section is a practical boundary, not legal advice.
+This section is a practical boundary, not legal advice.
 
 ---
 
-## 3. Decisions (each with a recommendation)
+## 3. Decisions
 
-### a. What the section is
+Adrian answered on 2026-10-10: **a, c, d and f agreed as recommended; b
+changed by him (below); e still open — he asked for more names; g added by
+him.**
 
-**Recommendation.** *Calculation is a puzzle where the board never moves: you
-write down your whole answer — your moves, the opponent's replies, and what you
-would play against each serious defence — and hand it in once. A normal puzzle
-checks you move by move and plays the replies for you; here nothing is checked
-until you hand in, and one puzzle has two to four branches to answer.*
+### a. What the section is — AGREED
+
+*A puzzle where the board never moves: you write down your whole answer — your
+moves and the opponent's replies — and hand it in once. A normal puzzle checks
+you move by move and plays the replies for you; here nothing is checked until
+you hand in.*
 
 How one puzzle goes:
 
@@ -91,98 +94,87 @@ How one puzzle goes:
    the tree under the board. It is not checked, only refused if illegal in the
    position the player has reached in their head (the tree knows that position).
 3. The player then taps the opponent's reply, then their own next move, and so
-   on. Tapping an earlier chip and entering a different move starts a branch.
-4. **Hand in** (enabled once there is at least one move):
-   - **A wrong move of the player's own, anywhere** → the puzzle is failed. The
-     tree colours red/green, the board comes alive, and tapping any chip shows
-     that position. The stored solution tree is shown underneath.
-   - **All right so far, but not everything answered** → Kael adds what is
-     missing as empty slots: the continuation of the main line if the player
-     stopped early, and each serious defence the player did not consider
-     ("¿Y si …Re8?"). The player fills the slots and hands in again.
-   - **Every required branch answered right** → solved. If that happened on the
-     **first** hand-in, with no help from Kael, it is a **perfect** solve (a
-     gold mark, and a small rating bonus — decision d).
-5. An opponent reply the player invents that is not in the stored tree is shown
-   greyed and labelled "not checked"; it neither helps nor hurts. (We have no
-   engine verdict stored for it, and we do not pretend to.)
-6. "Show solution" before solving counts as a failed puzzle.
+   on. Tapping an earlier chip and entering a different move starts a
+   variation. Variations are optional.
+4. **Hand in** (enabled once there is at least one move). See b for the
+   grading.
+5. "Show solution" before solving counts as a failed puzzle.
 
-Alternative considered: **guided** — the app supplies the opponent's replies
-itself the moment the player enters a move. Simpler to use, but the number of
-replies it shows would give away whether the first move was right, and it stops
-being "prove you saw the defence". Not recommended.
+### b. Where the content comes from — DECIDED BY ADRIAN
 
-### b. Where the content comes from
+His words: "there is not need to get the variations. the only important thing
+is to get the main line. if the user by any chance set a variation, the only
+thing we need to do is to verify with the stockfish in the moment he submit the
+answer, and just in that moment correct it if is wrong. So we can use all the
+30 000 puzzles, without exception, and without the need to build more stuff."
+
+So: **all 30,000 puzzles, as they are. No build tool, no new data files.**
 
 Facts checked: `puzzles/puzzles-0..9.json` hold 30,000 puzzles shaped
 `{id, fen, moves, rating, themes}`. `moves` is in engine notation and its first
-move is the opponent's (the player answers from the second). Counted today:
-25,886 of the 30,000 have two to four player moves, the useful length here.
-The ids and theme names match the Lichess puzzle database, which is released
-CC0 — **but I did not find the source written down anywhere in the repo**; the
-first build session records it or says it could not.
+move is the opponent's (the player answers from the second). Move counts today:
+2,685 puzzles have one player move, 14,035 two, 8,709 three, 3,142 four, 1,429
+five or more. A one-move puzzle here is simply a one-chip answer.
 
-| Option | What it costs | What we get |
-|---|---|---|
-| **1. Built from our 30,000 with Stockfish, in advance (recommended)** | One build conversation for the tool, then one unattended run on Adrian's PC (my unmeasured guess: 4–10 hours for the full set; the pilot measures it). No money, no new download: the app's own engine file has a Node code path. | Hundreds to low thousands of trees, graded offline and identically on every phone. |
-| 2. Written by hand | Each tree must still be engine-checked. Realistically 20–40 per conversation. | A small, lovingly explained set. Fine later as "Kael's picks", hopeless as the launch pool. |
-| 3. A public-domain source | Old study and problem books (pre-1930) are free but exist as scans: positions typed in by hand, solutions known to contain errors, and studies are far too hard for most of our players. I know of no ready CC0 set that already has variation trees. Lichess *studies* are user content, not CC0. | Little, slowly. Not recommended. |
-| 4. No stored content: live Stockfish grades on the phone (their way) | No build run and all 30,000 usable, but every hand-in waits seconds per move on a phone, two phones can disagree, and thresholds invite arguments. | Not recommended for launch. |
+**The main line is the puzzle's own line. It is graded with no engine,
+instantly and offline:**
 
-**How option 1 builds one tree** (tool: `tools/build-calc.mjs`):
+- A move of the player's on the main line is right if it is the puzzle's move.
+  One exception, to be fair: a different move that gives checkmate on the spot
+  is also right.
+- The opponent's reply on the main line is the puzzle's reply. If the player
+  wrote a different reply there, that is not an error — it is a variation (next
+  block) — but the puzzle's reply is still owed.
 
-- Walk the puzzle's own line. That is the main line; Lichess already guarantees
-  the player's move is the only good one at each step.
-- At each point where the opponent replies, ask Stockfish for its top few
-  replies at a fixed depth. A reply other than the puzzle's own counts as a
-  **serious defence** when it is close to the best one (starting threshold: 1.5
-  pawns, or for forced mates no more than two moves longer). Keep at most two
-  per puzzle, the closest first.
-- For each serious defence, ask Stockfish what the player should answer. Every
-  move that keeps the win and is within 1 pawn of the best is stored as
-  accepted. That branch ends there.
-- Keep the puzzle only if it ends up with 2–4 leaves in total, and only if a
-  second, deeper pass agrees with every stored move. Otherwise drop it.
-- The thresholds are starting values. The pilot (300 puzzles) reports the yield
-  and the time, and prints ten trees for Adrian to look at before the full run.
+**Hand-in has three outcomes:**
 
-**Stored shape** (one file per rating band, `puzzles/calc-0..9.json`, loaded on
-demand like the puzzle files):
+- **A wrong move of the player's own on the main line** → failed. The tree
+  colours, the board comes alive, the puzzle's line is shown.
+- **Right so far, but the main line is not finished** → Kael adds what is
+  missing: he writes in the puzzle's reply the player did not consider ("La
+  mejor defensa es …Rg8. ¿Y ahora?") with an empty slot after it. The player
+  fills the slot and hands in again.
+- **The whole main line right** → solved. On the first hand-in, with no help
+  from Kael and no hint, it is a **perfect** solve.
 
-```
-{ "id": "c4pxqH", "src": "4pxqH", "fen": "<position with the PLAYER to move>",
-  "last": "c5c2", "rating": 1430, "themes": ["fork"],
-  "t": [ ["Bxe6+"], [ ["Kf8", [["Bxa2"], []]],
-                      ["Kh8", [["Bxa2","Qf6+"], []]] ] ] }
-```
+**Side variations — checked by Stockfish only at hand-in:**
 
-`t` is a player node: `[accepted, replies]`. `accepted` lists the moves counted
-right, the first being the one shown in the solution; more than one is allowed
-only where the branch ends. `replies` lists `[opponentMove, nextPlayerNode]`,
-main defence first; an empty list means the line is over.
+- A side variation starts where the player wrote an opponent reply that is not
+  the puzzle's. Only the player's own moves inside it are judged.
+- One rule, ours: the player's move is right if the engine finds it no more
+  than 1 pawn worse than its own best move there, or the position is still
+  clearly winning afterwards (+3 or more), or it mates. Otherwise it is wrong
+  and the engine's move is written next to it as the correction.
+- **A wrong side variation is corrected, not punished**: it does not fail the
+  puzzle and does not touch the rating. (My reading of "just in that moment
+  correct it if is wrong".) It does cost the "perfect" mark.
+- Uses the engine already in the app (`Engine` in `js/engine.js`, the vendored
+  Stockfish file). Budget: about half a second per judged move, capped at 8
+  judged moves a hand-in; anything beyond the cap is shown grey, "not checked".
+- If the engine cannot start, side variations are shown grey and the main-line
+  result stands. The mode never waits on the engine to decide solved or failed.
 
-**How many at launch.** Target **1,000 (100 per rating band)**; floor 300. The
-real number comes from the pilot's yield — I will not promise it before
-measuring.
+What this costs, honestly: the engine verdict on a variation can differ a
+little between a fast and a slow phone, because it is given time, not depth.
+Since variations never decide the result, that is harmless.
 
-### c. How the tree looks at 375px
+### c. How the tree looks at 375px — AGREED
 
 Checked: `js/tree.js` (16 KB) is the app's game tree — `GameTree`, with
 variations, `play()`, a FEN on every node, and a PGN reader/writer. It is used
 by Analysis/Play/Opening (through `js/movelist.js`), Masterclass and History;
 the Read tab only takes `START_FEN` from it. **Reuse it** for the player's
-answer and for the stored solution: no second tree. What is *not* reused is the
-drawing in `js/movelist.js`: it prints variations inline in brackets, which is
-right for reading a game and wrong here (chips must be big enough to tap, and
-empty slots must be visible). The tree gets its own small renderer.
+answer: no second tree. What is *not* reused is the drawing in
+`js/movelist.js`: it prints variations inline in brackets, which is right for
+reading a game and wrong here (chips must be big enough to tap, and empty slots
+must be visible). The tree gets its own small renderer.
 
 ```
 ┌───────────────────────────────────────┐ 375px
 │ 🧩 Puzzles │ 🙈 A ciegas │ ⚡ Rush      │  mode row, 3 + 2
-│   ⚔ Duelo        │   🧮 Cálculo        │
+│   ⚔ Duelo        │   <new mode>        │
 ├───────────────────────────────────────┤
-│ Juegan blancas            Cálculo 1430│
+│ Juegan blancas   [Tema] [⚙]      1430 │
 │ ┌───────────────────────────────────┐ │
 │ │                                   │ │
 │ │     board — never moves           │ │
@@ -191,47 +183,45 @@ empty slots must be visible). The tree gets its own small renderer.
 │ └───────────────────────────────────┘ │
 │ Tu análisis                           │
 │  16. [Ce6+]                           │
-│      ├ … [Rg8]   17. [Cxc7]           │
-│      └ … [Re8]   17. [  ?  ] ← Kael   │
+│      ├ … [Rg8]   17. [  ?  ] ← Kael   │
+│      └ … [Re8]   17. [Cxc7+]  variante│
 │                                       │
-│ [⌫ Borrar] [👁 Solución] [ Entregar ] │
+│ [⌫] [💡 Pista] [👁 Solución] [Entregar]│
 └───────────────────────────────────────┘
 ```
 
-- One row per opponent reply, indented under the move it answers. A branch is a
-  new row, never brackets.
+- One row per opponent reply, indented under the move it answers. A variation
+  is a new row, never brackets.
 - Chips are at least 40px tall. The selected chip has the gold border: the next
-  move entered goes after it. "Borrar" deletes the selected chip and everything
-  after it.
+  move entered goes after it. ⌫ deletes the selected chip and everything after.
 - An empty slot `[ ? ]` is a question from Kael. Tapping it selects it.
 - The tree panel scrolls inside itself; at least three rows stay visible at
   375×667. The build session measures this rather than trusting the drawing.
-- After hand-in: right chips green, wrong red, unchecked grey; the board
-  unfreezes and follows the tapped chip.
+- After hand-in: right chips green, wrong red, unchecked grey, an engine
+  correction beside a wrong variation move; the board unfreezes and follows the
+  tapped chip.
 - Navy and gold, the existing chip and card styles, Kael's horse artwork for
   his questions. No owl, no tree emoji.
 
-### d. Rating, and what counts as solved
+### d. Rating, and what counts as solved — AGREED
 
-**Recommendation: its own rating, private, shown only inside the section.**
+**Its own rating, private, shown only inside the section.**
 
-- **Solved** = every required branch answered right with no wrong move, however
-  many hand-ins it took. **Perfect** = solved on the first hand-in. **Failed** =
-  any wrong own move, or the solution opened.
+- **Solved** = the whole main line right, however many hand-ins it took.
+  **Perfect** = solved on the first hand-in, no hint. **Failed** = a wrong own
+  move on the main line, or the solution opened.
 - Rating: the same Elo arithmetic the puzzles use (reuse the existing function,
-  do not write a second one), new key `calcElo`, starting at the player's
-  puzzle rating minus 200. A perfect solve pays 1.25× the normal gain. Stored
-  with `calcEloHistory`, `calcAttemptCount` and `calcSolved` (`{id: 1}` solved,
+  do not write a second one), key `calcElo`, starting at the player's puzzle
+  rating minus 200. A perfect solve pays 1.25× the normal gain. Stored with
+  `calcEloHistory`, `calcAttemptCount` and `calcSolved` (`{id: 1}` solved,
   `{id: 2}` perfect).
+- **The stored keys say `calc` whatever the section ends up being called.**
+  Labels can change freely; keys cannot, exactly like `'endgame'`.
 - It is **not** a fifth "domain": it stays off the radar chart, the
   leaderboard, the profile cards and the teacher's view at launch. The four
   domain keys (puzzle/opening/endgame/blindfold) are untouched.
 
-Alternatives: feeding the normal puzzle rating (rejected — these are harder and
-would distort it); no rating at all, just a solved count (simplest, but then
-the mode cannot pick puzzles of the right difficulty).
-
-### e. Name and where the button goes
+### e. Name and where the button goes — NAME STILL OPEN
 
 Checked: the row is `.seg.puzzle-modes`, a two-column grid in `css/style.css`,
 and its four buttons are **repeated in four screens** (`index.html` — the
@@ -239,46 +229,73 @@ puzzles, rush, pulso and blind sections). `openPuzzleMode()` in `js/app.js`
 does the switching. `tools/cdp-verify-puzzle-modes.mjs` and
 `tools/cdp-verify-swipe-modes.mjs` exist and will need the fifth mode.
 
-**Name — recommendation: "🧮 Cálculo" / "🧮 Calculation".** It is the plain
-chess word for the skill, it fits the button, and it is nobody's brand.
-Alternatives: "Variantes / Lines", "A fondo / In depth". "Riddle" / "Acertijo"
-is not used unless Adrian asks.
+**Button — AGREED: five buttons in the same two rows, three on top and two
+below.** The row keeps its height.
 
-**Button — recommendation: five buttons in the same two rows, three on top and
-two below** (Puzzles · A ciegas · Rush / Duelo · Cálculo). The row keeps its
-height, so no screen loses space. Alternatives: a third row for the new button
-alone (costs about 46px on all five screens); or a switch inside the Puzzles
-screen instead of a mode (hides it).
+**Name — Adrian asked for options that are ours alone and say what makes this
+format different.** "Cálculo / Calculation" was too generic.
 
-### f. firestore.rules and sync
+| Spanish / English | On the button | Why |
+|---|---|---|
+| **Jugada sellada / Sealed Move (recommended)** | ✉ Sellada / ✉ Sealed | In an adjourned game the player wrote the move on paper and sealed it in an envelope without playing it on the board. That is this mode exactly: written, not played, handed in. A real chess tradition; I have not checked whether another app uses it as a mode name. |
+| La planilla / Scoresheet | 📝 Planilla / 📝 Scoresheet | You fill in the scoresheet instead of moving the pieces. Homely and clear. |
+| Sin tocar / Hands Off | ✋ Sin tocar / ✋ Hands Off | Plays on "pieza tocada, pieza jugada": here no piece is touched at all. |
+| Tablero quieto / Still Board | Tablero quieto / Still Board | Says the rule literally. Plain, less character. |
+| De cabeza / In Your Head | De cabeza / In Your Head | Says where the work happens. Could be confused with Blindfold. |
+
+"Riddle" / "Acertijo" is not used unless Adrian asks.
+
+### f. firestore.rules and sync — AGREED
 
 Checked in `firestore.rules`: the private document `users/{userId}` has
 **deliberately no field allowlist** (the comment there says so), and
 `js/firebase.js` syncs any key listed in `SYNCED_KEYS` to it.
 
-**Recommendation: sync the four new keys by adding them to `SYNCED_KEYS`. No
-rules change, no deploy, nothing for Adrian to run.** The rating follows the
-player to another phone like the blindfold one does.
+**The new keys are added to `SYNCED_KEYS`. No rules change, no deploy, nothing
+for Adrian to run.** A rules change is needed only if the rating later goes on
+the leaderboard or the teacher's view. Left out of launch.
 
-A rules change (and Adrian's `rules:deploy`) is needed only if the rating later
-goes on the **leaderboard** or the **teacher's view** — both of those documents
-do have allowlists. That is deliberately left out of launch.
+### g. The same options as Puzzles, kept separate — ADDED BY ADRIAN
+
+His words: "let give also the same possibilities isolated from the puzzles, in
+accordance with the theme selection, difficulty, hint, etc."
+
+Checked: the Puzzles screen has a theme button (`puzzle-theme-btn`), an options
+button (`puzzle-options`), hint, solution, share, analyse and next buttons, a
+timer, the rating with its last change, and a log; it stores `puzzleDifficulty`
+and `puzzleAutoNext`.
+
+The new mode gets its own of each, **with its own saved choices, so changing
+the theme or difficulty here never changes Puzzles, and the other way round**:
+
+- **Theme**: the same theme list and the same picker, saved as `calcTheme`.
+- **Difficulty**: the same choices, saved as `calcDifficulty`, applied around
+  the mode's own rating.
+- **Auto-next**: saved as `calcAutoNext`.
+- **Hint**: shows which piece moves for the selected empty step of the main
+  line. A hint costs the "perfect" mark; its effect on the rating is whatever a
+  hint costs in Puzzles (the build session reads that rule and mirrors it).
+- **Solution, Analyse, Next, Share, timer, log**: as in Puzzles.
+- Reuse the existing picker and option sheet with a different storage key. Do
+  not copy their code into a second version.
 
 ---
 
 ## 4. Build plan — three conversations
 
-1. **Content.** `js/calc.js` (pure: read the stored shape into a `GameTree`,
-   grade an answer, list what is missing) with unit tests under `tests/unit/`;
-   `tools/build-calc.mjs`; the 300-puzzle pilot with measured yield and time;
-   ten printed trees for Adrian; then the command for the full run. No screen
-   changes. Ends when `puzzles/calc-*.json` exist and are committed.
-2. **The screen.** The fifth mode: section, button row on all five screens,
-   frozen-board entry, the tree renderer, hand-in, Kael's questions, the result
-   view, both languages, precache and version bump. No rating yet: puzzles are
-   served by the player's puzzle rating.
+1. **The core.** `js/calc.js` (pure: turn a puzzle into its main line, grade an
+   answer tree, list what is missing, the side-variation rule as a function of
+   two engine scores) with unit tests; the fifth mode's screen and button row
+   on all five screens; frozen-board entry; the tree renderer; hand-in graded
+   on the main line; Kael's missing-reply slot; the result view; both
+   languages; precache and version bump. Puzzles are served by the player's
+   puzzle rating. No engine, no options yet.
+2. **Variations and options.** Stockfish at hand-in for side variations, with
+   the correction shown; then decision g: theme, difficulty, auto-next, hint,
+   analyse, share, timer, each with its own saved choice.
 3. **Rating and progress.** `calcElo` and friends, `SYNCED_KEYS`, picking by
-   rating, not repeating solved ones, the first-time explanation from Kael.
+   the mode's own rating, not repeating solved ones, the first-time explanation
+   from Kael.
 
 Every session that changes a screen checks it at 375px, light AND dark, Spanish
 AND English, with screenshots actually opened and looked at.
@@ -286,19 +303,20 @@ AND English, with screenshots actually opened and looked at.
 ## 5. Not in scope
 
 Streaks, duels or timed runs in this mode; the leaderboard; teacher homework
-made of Calculation puzzles; live engine grading; hand-written puzzles; any
+made of these puzzles; pre-built variation trees; hand-written puzzles; any
 other chessriddle.com mode.
 
 ## 6. Open risks, said plainly
 
-- **Yield is unknown.** If few puzzles have a second serious defence, the pool
-  is small or the thresholds must loosen. The pilot answers this before any
-  screen is built.
-- **Engine-chosen defences can be dull** (a reply that loses the same way).
-  The filters and Adrian's look at ten trees are the guard.
-- **The app's engine file running under Node is unproven.** It has a Node code
-  path; the first build step tries it. If it fails, a native Stockfish download
-  is the fallback and needs Adrian's yes first.
 - **Entering the opponent's moves on a frozen board is the hard part of the
   idea**, and also its whole value. If it feels bad on a phone, the fallback is
-  the guided variant in decision a.
+  to have the app write the puzzle's reply in by itself after each move.
+- **Most answers will be a single line.** With variations optional, the "tree"
+  is only as branched as the player makes it. That is the decision taken; it
+  is also what chessriddle.com's own demos looked like.
+- **The puzzle's reply is the engine's best defence, not the only one.** A
+  player who analysed a different defence correctly is told the main one is
+  still owed. Kael's wording must make that feel like a follow-up question,
+  not a mistake.
+- **Where the 30,000 puzzles came from is not written in the repo.** The ids
+  and themes match the Lichess puzzle database (CC0). Worth recording.
