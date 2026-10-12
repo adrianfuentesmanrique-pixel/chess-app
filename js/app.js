@@ -24,6 +24,8 @@ import * as Read from './read.js';
 import { Sound } from './sound.js';
 import { REPLY_MS, THINK_MS } from './move-feel.js';
 import { openingMove, playMove, usesGuardAllGame, GUARD_LINES } from './play-book.js';
+import { TIME_CONTROLS, controlById, controlLabel, createClock, startClock, stopClock, pressClock,
+         timeLeft, flagged, formatClock, thinkTime, flagOutcome, LOW_MS } from './play-clock.js';
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
 import { fenKey, PositionIndex } from './explore-index.js';
@@ -3390,17 +3392,34 @@ export const Play = {
   thinking: false,
   playedAt: 0,
   saved: false,
+  // A game with a clock (js/play-clock.js). All three stay null in a game
+  // without one, which is the default and plays exactly as it did before.
+  timeControl: null, // { id, base, inc } as chosen on the setup screen
+  clock: null,       // the running clock; dropped when the game is left
+  flag: null,        // 'w' or 'b' once that side has run out of time
+  clockTimer: null,
 
   init() {
     buildLevelSeg($('play-level'), 2, true);
     segInit($('play-color'));
     segInit($('play-level'));
+    for (const c of TIME_CONTROLS) {
+      const b = document.createElement('button');
+      b.dataset.v = c.id;
+      b.textContent = controlLabel(c);
+      $('play-tc').appendChild(b);
+    }
+    segInit($('play-tc'));
+    // A browser in the background ticks slowly or not at all. The clock is
+    // read off real time, so coming back shows the true reading at once, and
+    // a flag that fell meanwhile ends the game there and then.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.tickClock(); });
     this.board = new Board($('play-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('play-start').onclick = () => {
       this.level = +segValue($('play-level'));
       let c = segValue($('play-color'));
       if (c === 'r') c = Math.random() < 0.5 ? 'w' : 'b';
-      this.begin(c, START_FEN);
+      this.begin(c, START_FEN, controlById(segValue($('play-tc'))));
     };
     $('play-history-btn').onclick = () => History.open();
     $('play-resign').onclick = async () => {
@@ -3411,6 +3430,9 @@ export const Play = {
       engine.stop();
       this.closeOpening();
       if (!this.over) this.saveToHistory({ abandoned: true });
+      // A game that was left has no clock any more: nothing may flag it later.
+      clearInterval(this.clockTimer);
+      this.clock = null;
       this.board.clearPremove();
       $('play-game').classList.add('hidden');
       $('play-setup').classList.remove('hidden');
@@ -3420,6 +3442,8 @@ export const Play = {
   },
 
   undo() {
+    // No taking back on the clock; the button is hidden too (showClocks).
+    if (this.clock) return;
     if (this.thinking) return;
     if (this.chess.turn() !== this.playerColor) return;
     if (this.chess.history().length < 2) return;
@@ -3437,10 +3461,10 @@ export const Play = {
     showScreen('play');
     const turn = fen.split(' ')[1];
     this.level = +(segValue($('play-level')) ?? 2);
-    this.begin(turn, fen); // you play the side to move
+    this.begin(turn, fen, controlById(segValue($('play-tc')))); // you play the side to move
   },
 
-  begin(color, fen) {
+  begin(color, fen, timeControl = null) {
     this.playerColor = color;
     this.startFen = fen;
     this.chess = new Chess(fen);
@@ -3449,6 +3473,13 @@ export const Play = {
     this.playedAt = Date.now();
     this.saved = false;
     this.streakMoves = 0;
+    this.flag = null;
+    this.timeControl = timeControl;
+    // The side to move is on the clock from the first moment, as over the board.
+    this.clock = timeControl
+      ? startClock(createClock({ base: timeControl.base, inc: timeControl.inc, turn: this.chess.turn() }), Date.now())
+      : null;
+    this.showClocks();
     $('play-setup').classList.add('hidden');
     $('play-game').classList.remove('hidden');
     this.board.setOrientation(color);
@@ -3465,14 +3496,86 @@ export const Play = {
 
   setStatus(msg) { $('play-status').textContent = msg; },
 
+  // ── the clock ──
+  // Shows or hides the clock row for this game and starts its ticker. Undo
+  // goes with it: there is no taking back in a timed game.
+  showClocks() {
+    clearInterval(this.clockTimer);
+    this.clockTimer = null;
+    $('play-clocks').classList.toggle('hidden', !this.clock);
+    $('play-undo').classList.toggle('hidden', !!this.clock);
+    if (!this.clock) return;
+    this.renderClocks();
+    this.clockTimer = setInterval(() => this.tickClock(), 200);
+  },
+
+  renderClocks(now = Date.now()) {
+    const c = this.clock;
+    if (!c) return;
+    const bot = this.playerColor === 'w' ? 'b' : 'w';
+    const names = {
+      'play-clock-me': t('play_clock_me'),
+      'play-clock-bot': t('history_bot_name').replace('{lvl}', t('level_names')[this.level]),
+    };
+    for (const [id, side] of [['play-clock-me', this.playerColor], ['play-clock-bot', bot]]) {
+      const el = $(id), left = timeLeft(c, side, now);
+      el.querySelector('.pc-name').textContent = names[id];
+      el.querySelector('.pc-time').textContent = formatClock(left);
+      el.classList.toggle('run', c.since !== null && c.turn === side);
+      el.classList.toggle('low', left < LOW_MS);
+    }
+  },
+
+  // Five times a second, and once more whenever the app comes back to the
+  // front. It only draws while the player is elsewhere: the game is ended on
+  // their return, in front of them, not behind another screen.
+  tickClock() {
+    if (!this.clock || this.over) return;
+    this.renderClocks();
+    if (document.hidden || activeScreen !== 'play') return;
+    this.checkFlag();
+  },
+
+  // Ends the game if a flag is down. True when it did.
+  checkFlag() {
+    if (!this.clock || this.over) return false;
+    const side = flagged(this.clock, Date.now());
+    if (!side) return false;
+    this.flag = side;
+    engine.stop();
+    const { outcome } = flagOutcome({ flag: side, playerColor: this.playerColor, fen: this.chess.fen() });
+    Sound.play(outcome === 'win' ? 'game-win' : outcome === 'loss' ? 'game-lose' : 'game-draw');
+    this.finish(t('play_flag_' + outcome));
+    // A win is a win: beating a level on time counts for its badge.
+    if (outcome === 'win') this.recordLevelBeaten();
+    return true;
+  },
+
+  // The side to move has moved: its clock stops, the other one starts.
+  pressClock() {
+    if (!this.clock) return;
+    pressClock(this.clock, Date.now());
+    this.renderClocks();
+  },
+
+  // The engine's search time for this move: its level's own, cut down only
+  // when its clock is nearly gone (thinkTime in js/play-clock.js).
+  thinkMs(lv) {
+    if (!this.clock) return lv.movetime;
+    return thinkTime(lv.movetime, timeLeft(this.clock, this.clock.turn, Date.now()));
+  },
+
   async userMove(mv) {
     // No game started yet means no position to move in. The board is hidden
     // behind the setup panel so this is hard to reach by hand, but reaching it
     // threw a null dereference straight into the global crash overlay.
     if (!this.chess || this.over || this.thinking) return;
     if (this.chess.turn() !== this.playerColor) return;
+    // A move made after the time has gone is not a move.
+    if (this.checkFlag()) return;
     let m;
     try { m = this.chess.move(mv); } catch { return; }
+    this.pressClock();
     this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
     this.renderMoves();
     // Banked on the tenth move, not at the end of the game: a 40-move game you
@@ -3489,6 +3592,7 @@ export const Play = {
     this.setStatus(t('thinking'));
     const lv = LEVELS[this.level];
     const chess = this.chess;
+    const movetime = this.thinkMs(lv);
     try {
       // The opening is not left to the limited engine: it gave pieces away at
       // every level (js/play-book.js has the measurement and the rules).
@@ -3496,10 +3600,10 @@ export const Play = {
       if (this.startFen === START_FEN) {
         const pick = await openingMove({
           sans: chess.history(), level: this.level,
-          topMoves: count => this.openingSearch(chess.fen(), lv.movetime, count),
+          topMoves: count => this.openingSearch(chess.fen(), movetime, count),
         }).catch(() => null);
         if (pick && pick.book) await sleep(REPLY_MS.playBook);
-        if (this.over || this.chess !== chess) return;
+        if (this.over || this.chess !== chess || this.checkFlag()) return;
         if (pick) { try { m = chess.move(pick.book ? pick.san : uciToMove(pick.uci)); } catch { m = null; } }
       }
       if (!m) {
@@ -3507,20 +3611,21 @@ export const Play = {
         // full-strength search on the second engine checks its move, or picks
         // the move at the two levels below the top (js/play-book.js).
         const fen = chess.fen();
-        const limited = () => engine.bestMove(fen, { movetime: lv.movetime, elo: lv.elo });
+        const limited = () => engine.bestMove(fen, { movetime, elo: lv.elo });
         let uci = null;
         if (usesGuardAllGame(this.level)) {
           uci = await playMove({
             level: this.level, limited,
-            topMoves: count => this.openingSearch(fen, lv.movetime, count),
-            scoreAfter: move => this.scoreAfter(fen, move, lv.movetime),
+            topMoves: count => this.openingSearch(fen, movetime, count),
+            scoreAfter: move => this.scoreAfter(fen, move, movetime),
           }).catch(() => null);
         } else this.closeOpening();
         if (this.over || this.chess !== chess) return;
         if (!uci) uci = await limited();
-        if (!uci || this.over || this.chess !== chess) return;
+        if (!uci || this.over || this.chess !== chess || this.checkFlag()) return;
         m = chess.move(uciToMove(uci));
       }
+      this.pressClock();
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
       this.renderMoves();
       if (this.checkEnd()) return;
@@ -3588,6 +3693,9 @@ export const Play = {
     this.closeOpening();
     this.board.clearPremove();
     this.setStatus(msg);
+    // Both clocks stop where they are and stay on show.
+    clearInterval(this.clockTimer);
+    if (this.clock) { stopClock(this.clock, Date.now()); this.renderClocks(); }
     const hist = this.chess.history();
     if (hist.length >= 2) DailyMissions.complete('play');
     if (hist.length >= 4) {
@@ -3596,6 +3704,7 @@ export const Play = {
       const sf = `Stockfish (${names[this.level]})`;
       const outcome = this.chess.isCheckmate()
         ? ((this.chess.turn() === 'w' ? 'b' : 'w') === this.playerColor ? 'win' : 'loss')
+        : this.flag ? flagOutcome({ flag: this.flag, playerColor: this.playerColor, fen: this.chess.fen() }).outcome
         : (this.chess.isDraw() || this.chess.isStalemate()) ? 'draw'
         : (msg === t('you_resigned') ? 'loss' : 'draw');
       GameReview.open({
@@ -3618,6 +3727,8 @@ export const Play = {
     const hist = this.chess.history();
     if (hist.length < History.HISTORY_MIN_PLIES) return;
     this.saved = true;
+    // Read now: the awaits below give the player time to start another game.
+    const flag = this.flag, timeControl = this.timeControl;
     try {
       const profileName = await db.kvGet('profileName', '');
       const me = profileName || t('history_you');
@@ -3627,6 +3738,8 @@ export const Play = {
       tree.setHeader('Black', this.playerColor === 'b' ? me : bot);
       tree.setHeader('Date', todayStr().replace(/-/g, '.'));
       tree.setHeader('Event', t('history_event'));
+      // The PGN standard's own form: seconds, then the seconds added per move.
+      if (timeControl) tree.setHeader('TimeControl', `${timeControl.base}+${timeControl.inc}`);
       const rec = History.buildRecord({
         chess: this.chess,
         startFen: this.startFen,
@@ -3635,7 +3748,7 @@ export const Play = {
         levelElo: LEVELS[this.level].elo,
         playedAt: this.playedAt,
         pgn: '',
-        resigned, abandoned,
+        resigned, abandoned, flag, timeControl,
       });
       tree.setHeader('Result', rec.result);
       rec.pgn = tree.toPgn();
@@ -3660,6 +3773,7 @@ export const Play = {
     tree.setHeader('Black', this.playerColor === 'b' ? me : sf);
     tree.setHeader('Date', todayStr().replace(/-/g, '.'));
     if (this.over && this.chess.isCheckmate()) tree.setHeader('Result', this.chess.turn() === 'w' ? '0-1' : '1-0');
+    else if (this.over && this.flag) tree.setHeader('Result', flagOutcome({ flag: this.flag, playerColor: this.playerColor, fen: this.chess.fen() }).result);
     else if (this.over && this.chess.isDraw()) tree.setHeader('Result', '1/2-1/2');
     engine.stop();
     Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });

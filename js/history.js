@@ -11,6 +11,7 @@ import { t, tn } from './i18n.js';
 // parsePgn lives in tree.js, not app.js — taken straight from the source so it
 // does not have to travel through the cycle below.
 import { parsePgn } from './tree.js';
+import { flagOutcome, controlLabel } from './play-clock.js';
 // Circular by design — js/app.js imports this module too. Safe because every
 // one of these is either a hoisted function declaration or only touched inside
 // an event handler. Never call them at module top level. See "The module
@@ -33,9 +34,12 @@ function newUid() {
 
 // Why the game stopped. Order matters: checkmate outranks everything, and a
 // resignation is a player decision that no position check can detect.
-export function endReasonOf(chess, { resigned = false, abandoned = false } = {}) {
+export function endReasonOf(chess, { resigned = false, abandoned = false, flag = null } = {}) {
   if (chess.isCheckmate()) return 'checkmate';
   if (resigned) return 'resign';
+  // `flag` is the side whose clock ran out ('w' or 'b'). Like a resignation,
+  // nothing in the position says so.
+  if (flag) return 'timeout';
   if (chess.isStalemate()) return 'stalemate';
   if (chess.isThreefoldRepetition()) return 'repetition';
   if (chess.isInsufficientMaterial()) return 'insufficient';
@@ -47,7 +51,7 @@ export function endReasonOf(chess, { resigned = false, abandoned = false } = {})
 
 // `result` is the PGN-standard string; `outcome` is the same fact from the
 // player's point of view, which is what the filters use.
-export function resultOf(chess, playerColor, { resigned = false } = {}) {
+export function resultOf(chess, playerColor, { resigned = false, flag = null } = {}) {
   if (chess.isCheckmate()) {
     const winner = chess.turn() === 'w' ? 'b' : 'w';
     return { result: winner === 'w' ? '1-0' : '0-1',
@@ -56,6 +60,7 @@ export function resultOf(chess, playerColor, { resigned = false } = {}) {
   if (resigned) {
     return { result: playerColor === 'w' ? '0-1' : '1-0', outcome: 'loss' };
   }
+  if (flag) return flagOutcome({ flag, playerColor, fen: chess.fen() });
   if (chess.isDraw() || chess.isStalemate()) {
     return { result: '1/2-1/2', outcome: 'draw' };
   }
@@ -63,10 +68,16 @@ export function resultOf(chess, playerColor, { resigned = false } = {}) {
 }
 
 export function buildRecord({ chess, startFen, playerColor, level, levelElo,
-                              playedAt, pgn, resigned = false, abandoned = false }) {
+                              playedAt, pgn, resigned = false, abandoned = false,
+                              flag = null, timeControl = null }) {
   const history = chess.history();
-  const { result, outcome } = resultOf(chess, playerColor, { resigned });
+  const { result, outcome } = resultOf(chess, playerColor, { resigned, flag });
+  // Only a game played with a clock carries `timeControl` ({ base, inc }, in
+  // seconds); a record without the field was played with none. An optional
+  // field, so HISTORY_VERSION stays where it is.
+  const timed = timeControl ? { timeControl: { base: timeControl.base, inc: timeControl.inc } } : {};
   return {
+    ...timed,
     uid: newUid(),
     version: HISTORY_VERSION,
     source: 'stockfish',
@@ -77,7 +88,7 @@ export function buildRecord({ chess, startFen, playerColor, level, levelElo,
     levelElo,
     result,
     outcome,
-    endReason: endReasonOf(chess, { resigned, abandoned }),
+    endReason: endReasonOf(chess, { resigned, abandoned, flag }),
     moveCount: Math.ceil(history.length / 2),
     opening: classifyOpening(history) || '',
     startFen,
@@ -244,6 +255,7 @@ function card(rec) {
   const { white, black } = namesFor(rec);
   const line2 = rec.opening || t(`history_end_${rec.endReason}`);
   const meta = [
+    rec.timeControl ? controlLabel(rec.timeControl) : '',
     `${rec.moveCount} ${tn('history_moves', rec.moveCount)}`,
     formatDuration(rec.endedAt - rec.playedAt),
     formatWhen(rec.playedAt),

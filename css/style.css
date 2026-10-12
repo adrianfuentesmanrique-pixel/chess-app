@@ -924,6 +924,24 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .lvgrid .lv-elo { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lvgrid button.on { border-color: var(--gold); background: var(--gold-bg); }
 .lvgrid button.on .lv-elo { color: var(--text); }
+/* Play: the time control. "No clock" has a row to itself, the six controls
+   make two rows of three under it. */
+.seg.play-tc { display: grid; grid-template-columns: repeat(3, 1fr); }
+.seg.play-tc button { min-width: 0; min-height: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+.seg.play-tc button:first-child { grid-column: 1 / -1; }
+/* Play: the two clocks, one row above the board. */
+.play-clocks { display: flex; gap: 8px; margin: 6px 0; }
+.play-clock {
+  flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--panel); border: 2px solid transparent; border-radius: var(--radius);
+  padding: 6px 12px; min-height: 44px; color: var(--muted);
+}
+.play-clock .pc-name { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-clock .pc-time { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.play-clock.run { border-color: var(--gold); background: var(--gold-bg); color: var(--text); }
+.play-clock.run .pc-time { color: var(--gold); }
+.play-clock.low .pc-time, .play-clock.run.low .pc-time { color: var(--danger); }
+.play-clock.run.low { border-color: var(--danger); }
 .option-group { margin: 14px 0; }
 .option-group > label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 14px; }
 /* Openings: the "practice one game only" toggle, the chosen-game row under it,

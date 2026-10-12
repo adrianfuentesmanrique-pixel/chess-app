@@ -9,6 +9,46 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **PLAY: A CLOCK, OR NONE (2026-10-12, v195).** A game against the engine can be played
+  with a time control. No clock stays the default and plays exactly as before.
+  - **The clock** is `js/play-clock.js`: PURE, imports nothing, starts no timer, is handed the
+    time as an argument. `createClock / startClock / pressClock / stopClock / timeLeft / flagged`,
+    plus `formatClock` (rounds UP, so 0:00 is only ever a fallen flag), `thinkTime`, `bareKing`,
+    `flagOutcome`, `TIME_CONTROLS`, `controlById`, `controlLabel`, `LOW_MS`. 19 tests in
+    `tests/unit/play-clock.test.js` (test:tree 308 -> 327). The time left is worked out from WHEN
+    the running clock started (`Date.now()`), never counted down tick by tick: that is what makes
+    a locked phone honest. Do not turn it into a `timeLeft--` counter like Rush's.
+  - **Adrian's decisions (2026-10-12), all built:** (a) a fixed list only, 3+2, 5+0, 5+3, 10+0,
+    10+5, 15+10, no free choice; (b) the engine has a real clock on the same control and can lose
+    on time; it keeps its level's `movetime` and thinks for less only when a twentieth of its
+    clock is smaller than that (about 20 s left); (c) NO Undo in a timed game (button hidden,
+    `Play.undo` refuses); (d) the clock keeps running in the background or with the phone
+    locked, measured from real time; (e) a win on time COUNTS for the "beat the engine" badge
+    ("win is win"); (f) both clocks in one row above the board, the engine's left, the player's
+    right, the running one framed in gold; under 20 s red; no new sound. A flag with the other
+    side on a bare king is a draw.
+  - **In `Play` (js/app.js):** `timeControl`, `clock`, `flag`, `clockTimer`; `begin(color, fen,
+    timeControl)`; `showClocks`, `renderClocks`, `tickClock` (200 ms, and once on
+    `visibilitychange`), `checkFlag`, `pressClock`, `thinkMs`. `tickClock` only DRAWS while the
+    page is hidden or another tab of the app is open: the game is ended when the player is back
+    in front of it, not behind another screen. "Play from here" (Analysis) uses the time control
+    picked on the setup screen, as it already used the level.
+  - **The saved game:** `timeControl: { base, inc }` (seconds) only on a timed game, an OPTIONAL
+    field, `HISTORY_VERSION` unchanged; `endReason: 'timeout'` (its text was already in i18n);
+    the PGN gets `[TimeControl "300+3"]`. `resultOf` / `endReasonOf` / `buildRecord` in
+    `js/history.js` take `flag`. The history card's last line starts with "5+3".
+  - **Checked:** `node tools/cdp-verify-play-clock.mjs <outDir>` (new; real Stockfish; 34 checks):
+    no clock as before, only the side to move counts down, the increment, a pre-move fires and
+    costs nothing, 4 s with the page FROZEN are taken off the clock, the flag ends the game and
+    the record and PGN say so, Analyse opens it, the engine's flag is a win and sets
+    `engineLevelsBeaten`. 375px, light and dark, Spanish and English: pictures opened and looked
+    at. test:precache OK (54 files, +1). firestore.rules untouched.
+  - **NOT tested on a real phone:** locking the screen and switching apps. The headless tool
+    freezes the page instead. Known and NOT new: a game in progress lives only in memory, so if
+    Android closes the app in the background the game (timed or not) is gone and is not saved.
+  - **Left as it was:** the history card still shows the opening name on its second line and
+    the end reason ("Tiempo agotado") only when the game has no named opening.
+
 - **OPENING LIBRARY, CONVERSATION 2: STUDY AND THE REST OF THE PREVIEW (2026-10-12, v194).**
   The preview now has **Study**, **Open in Analysis** and **Continues with**, and a study game
   left half-way comes back. With this the spec's build plan (section 5) is finished.

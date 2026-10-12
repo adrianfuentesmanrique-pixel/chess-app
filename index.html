@@ -466,6 +466,14 @@
           <button data-v="r" data-i18n="random"></button>
         </div>
       </div>
+      <!-- No clock is the default; the time controls are added from
+           TIME_CONTROLS (js/play-clock.js) by Play.init(). -->
+      <div class="option-group">
+        <label data-i18n="play_clock"></label>
+        <div class="seg play-tc" id="play-tc">
+          <button data-v="" class="on" data-i18n="play_no_clock"></button>
+        </div>
+      </div>
       <div class="option-group">
         <label data-i18n="level"></label>
         <div class="lvgrid" id="play-level"></div>
@@ -483,6 +491,12 @@
         </button>
       </div>
       <div id="play-status" class="status-bar"></div>
+      <!-- Shown only in a game with a clock: the engine's on the left, the
+           player's on the right, the running one framed in gold. -->
+      <div id="play-clocks" class="play-clocks hidden">
+        <div id="play-clock-bot" class="play-clock"><span class="pc-name"></span><span class="pc-time"></span></div>
+        <div id="play-clock-me" class="play-clock"><span class="pc-name"></span><span class="pc-time"></span></div>
+      </div>
       <div id="play-board" class="board-wrap"></div>
       <!-- Icon-only actions: the accessible name lives on title/aria-label via
            data-i18n-aria, matching the Openings toolbar. -->
