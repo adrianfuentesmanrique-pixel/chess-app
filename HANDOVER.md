@@ -9,6 +9,71 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **PLAY: EVEN STEPS BETWEEN THE LEVELS, AND THE OPENINGS TRAINER GETS THE SECOND LOOK (2026-10-12, v192).**
+  v191 (next entry) left the steps uneven: level 4 hardly above level 3, level 5 far above
+  level 4. Measured first (960 trial games in three runs), Adrian approved "all as
+  recommended", built, measured again. No screen changed.
+  - **"Two games in three" at every step does NOT fit.** From level 1 to level 8 is about
+    seven steps of four games in five. Two-in-three steps would need level 1 about as
+    strong as the old level 5. The aim became: level 1 and level 8 stay, the six between
+    are spaced evenly. Told to Adrian before he approved.
+  - **The new settings, `js/play-book.js`** (one new test pins them; 25 in the file):
+    `VETO` refuse 280, 215, 170, 125, 90 cp (was 280, 240, 190, 160, 120); `through` 0.5,
+    0.45, 0.2, 0, 0 (was 0.5, 0.45, 0.25, 0.15, 0: level 4 is no longer let off with a
+    dropped piece); `margin` 90, 80, 65, 45, 35; `PLAY_MARGIN` { 5: 45, 6: 20 } (was 90
+    and 35). `LEVELS` in js/engine.js did not change: no level thinks longer.
+
+    AFTER (v192), `node tools/measure-game.mjs <dir>`, the default 312 games, 24 a pairing.
+    Compare with the v191 table in the next entry (its steps: 65, 85, 58, 92, 83, 92, 94%):
+
+    | level | cp/move | moves losing 100+ | games with a 300+ drop | vs level below | vs level 8 | ms/move |
+    |---|---|---|---|---|---|---|
+    | 1 | 61.3 | 22.6% | 33% | - | 0-0-24 | 350 |
+    | 2 | 50.0 | 16.3% | 24% | 75% | 0-0-24 | 349 |
+    | 3 | 36.3 | 10.5% | 15% | 92% | 0-0-24 | 348 |
+    | 4 | 26.5 | 4.9% | 0% | 77% | 0-0-24 | 340 |
+    | 5 | 20.8 | 2.1% | 0% | 75% | 0-1-23 | 347 |
+    | 6 | 13.1 | 1.0% | 3% | 90% | 0-3-21 | 473 |
+    | 7 | 7.7 | 0.3% | 2% | 83% | 0-11-13 | 758 |
+    | 8 | 3.8 | 0.1% | 0% | 77% | - | 1092 |
+
+    Steps now 75 to 92% (were 58 to 94%). Level 7 drew 11 of 24 against level 8 (was 3).
+    No level allowed a mate in one. Every level from 2 to 7 is HARDER than in v191, levels
+    4 and 6 the most (cp/move 37 to 27 and 19 to 13).
+  - **READ THE NOISE BEFORE TUNING AGAIN.** 24 games give a step to about +-10 points. Level
+    1 never changed and read 65, 65, 75 and 61 cp/move in four runs; level 2 with the SAME
+    settings scored 79%, 88% and 75% against level 1; the step 2 to 3 read 94%, 75% and
+    92% at the same cp/move. So the 92% and 90% above are not proof those steps are too
+    big. cp/move (thousands of moves) is the steadier guide: aim at 61, 50, 36, 26, 18, 12,
+    7.5, 4 and judge a step only from several runs together. A 12-games-a-pairing run
+    misled this session about the middle levels: do not use fewer than 24.
+  - **Level 7 and thinking time (decision b):** level 7 with level 8's 1200 ms scored the
+    same against level 8 as with 800 ms (3 draws in 12 both). Time buys nothing there; the
+    margin does (35 to 20 cp: 3 draws in 24, then 11 in 24). "rel. Elo" is still an order
+    and a distance, NOT a rating; a desktop PC, an upper bound for a phone.
+  - **The Openings trainer (decision c): out of its book it now calls `playMove` too**
+    (`Trainer.computerMove` in js/app.js, grep "out of book → engine"), where it played
+    the limiter alone. It was not measured in the trainer itself: the same call was
+    measured in v189/v190 (270 to 430 cp gone in 12 moves, a queen or a mate in 10 to 20%
+    of games). `Trainer.guardSearch`, `Trainer.scoreAfter`, `Trainer.closeGuard`; the
+    second engine `Trainer.guardEngine` exists only once a game has left its book, never
+    at the top level, and is let go on game over, the back button, "to Analysis" and a
+    new game. `closeGuard` STOPS the engine before terminating it: `Engine.terminate()`
+    drops a search without answering, which would leave `computerMove` waiting for ever.
+    (`Play.closeOpening` terminates outright; `Play.begin` resets `thinking`, so Play
+    does not freeze, but its abandoned `engineMove` never finishes.)
+  - **tools/measure-game.mjs:** a trial side (`VARIANTS`) now runs its two searches at the
+    same time, as the app does. **New: `node tools/cdp-verify-trainer-guard.mjs`**: a
+    trainer game past a four-ply book at levels 1, 4, 6 and 8, replies in their time, the
+    second engine held and let go, and leaving mid-thought then starting again.
+  - **Verified:** test:tree 286 (was 285), test:precache OK 51; `measure-opening.mjs` with
+    `APP_BOOK=1`: behind@12 114, 100, 92, 70, 40, 39, 11, -36 cp (v191: 103, 97, 78, 70,
+    45, 37, 23, -32; that code did not change, 24 games' noise); `cdp-verify-play-opening.mjs`,
+    `ONE=1 cdp-verify-offline-engine.mjs` and `cdp-verify-trainer-guard.mjs` ALL PASSED.
+    Replies on this PC: 310 to 320 ms at levels 1 to 5, now and then 615; 510, 760, 1210.
+  - **Still open:** strength, reply time and the memory of the second engine on a REAL
+    PHONE, now in the trainer as well as in Play: never measured.
+
 - **PLAY: THE WHOLE GAME - MEASURED, THEN A SECOND LOOK AT EVERY MOVE (2026-10-12, v191).**
   The opening was fixed in v190 (next entry); from its 13th move the engine still played
   the raw strength limiter. Measured first, Adrian approved "all as recommended", built.

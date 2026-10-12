@@ -3869,7 +3869,7 @@ export const Trainer = {
     // the abandoned computerMove() still runs its finally, and a guess that
     // happens to be legal in the NEXT game plays itself as its first move.
     // Play.back does the same.
-    $('trainer-back').onclick = () => { engine.stop(); this.board.clearPremove(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
+    $('trainer-back').onclick = () => { engine.stop(); this.closeGuard(); this.board.clearPremove(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
     $('trainer-analyze').onclick = () => this.toAnalysis();
     $('trainer-first').onclick = () => this.gotoHistory(0);
     $('trainer-prev').onclick = () => this.gotoHistory(this.viewIdx - 1);
@@ -4192,6 +4192,8 @@ export const Trainer = {
     this.level = +segValue($('trainer-level'));
     this.chess = new Chess();
     this.over = false;
+    this.thinking = false;
+    this.closeGuard();
     this.inBook = true;
     this.announcedOpening = null;
     this.streakMoves = 0;
@@ -4290,8 +4292,22 @@ export const Trainer = {
       this.inBook = false;
       this.setStatus(t('thinking'));
       const lv = LEVELS[this.level];
-      const uci = await engine.bestMove(this.chess.fen(), { movetime: lv.movetime, elo: lv.elo });
-      if (!uci || this.over) return;
+      const chess = this.chess;
+      const fen = chess.fen();
+      const limited = () => engine.bestMove(fen, { movetime: lv.movetime, elo: lv.elo });
+      // Not the limiter alone: it gave pieces away at every level but the top
+      // one. The same second look as in Play (js/play-book.js, `playMove`).
+      let uci = null;
+      if (usesGuardAllGame(this.level)) {
+        uci = await playMove({
+          level: this.level, limited,
+          topMoves: count => this.guardSearch(fen, lv.movetime, count),
+          scoreAfter: move => this.scoreAfter(fen, move, lv.movetime),
+        }).catch(() => null);
+      } else this.closeGuard();
+      if (this.over || this.chess !== chess) return;
+      if (!uci) uci = await limited();
+      if (!uci || this.over || this.chess !== chess) return;
       const m = this.chess.move(uciToMove(uci));
       this.place(this.chess.fen(), { from: m.from, to: m.to }, false, justLeftBook ? 'yellow' : 'green');
       this.renderMoves();
@@ -4318,8 +4334,34 @@ export const Trainer = {
     return false;
   },
 
+  // The full-strength search behind `playMove`, on an engine of its own (as
+  // Play.openingSearch). It exists only once a game has left its book.
+  async guardSearch(fen, movetime, count) {
+    this.guardEngine ||= new Engine();
+    return (await this.guardEngine.topMoves(fen, { movetime, count })).lines;
+  },
+
+  async scoreAfter(fen, uci, movetime) {
+    const c = new Chess(fen);
+    c.move(uciToMove(uci));
+    if (c.isCheckmate()) return 10000;
+    if (c.isGameOver()) return 0;
+    const lines = await this.guardSearch(c.fen(), movetime, GUARD_LINES);
+    return lines.length ? -Math.max(...lines.map(l => l.score)) : null;
+  },
+
+  // Stopped first, so a search still running hands its answer back instead of
+  // leaving computerMove() waiting for ever; then let go.
+  closeGuard() {
+    const e = this.guardEngine;
+    if (!e) return;
+    this.guardEngine = null;
+    e.stop().catch(() => {}).then(() => e.terminate());
+  },
+
   finishMsg(msg, result) {
     this.over = true;
+    this.closeGuard();
     this.board.clearPremove();
     this.setStatus(msg);
     if (result) this.recordOpeningResult(result);
@@ -4358,6 +4400,7 @@ export const Trainer = {
     const tree = treeFromHistory(START_FEN, this.chess.history());
     tree.setHeader('Event', getLang() === 'es' ? 'Entrenamiento de apertura' : 'Opening training');
     engine.stop();
+    this.closeGuard();
     Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
   },
 };

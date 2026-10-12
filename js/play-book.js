@@ -41,16 +41,22 @@ const GUARD_FLOOR = [-150, -130, -110, -90, -70, -60, -50, 0];
 // cost, in centipawns. `through`: how often a move that costs more is played
 // anyway, while it costs less than THROUGH_MAX (a piece goes, a queen does
 // not). `margin`: the guard's margin for the move played instead.
+//
+// Set on 2026-10-12 from 960 more games, to even out the steps: the first
+// setting had level 4 hardly above level 3 (58%) and level 5 far above level 4
+// (92%). The aim is each level scoring about four games in five against the
+// one below. Two in three does not fit eight levels between a beginner and the
+// full engine. More thinking time for level 7 bought nothing against level 8.
 const VETO = [
   { refuse: 280, through: 0.5, margin: 90 },
-  { refuse: 240, through: 0.45, margin: 80 },
-  { refuse: 190, through: 0.25, margin: 65 },
-  { refuse: 160, through: 0.15, margin: 50 },
-  { refuse: 120, through: 0, margin: 40 },
+  { refuse: 215, through: 0.45, margin: 80 },
+  { refuse: 170, through: 0.2, margin: 65 },
+  { refuse: 125, through: 0, margin: 45 },
+  { refuse: 90, through: 0, margin: 35 },
 ];
 export const THROUGH_MAX = 600;
 // Levels that play the guard for the whole game, and their margin.
-const PLAY_MARGIN = { 5: 90, 6: 35 };
+const PLAY_MARGIN = { 5: 45, 6: 20 };
 
 export function vetoRule(level) { return VETO[level] || null; }
 export function playMargin(level) { return PLAY_MARGIN[level] || 0; }

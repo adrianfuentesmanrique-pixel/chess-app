@@ -220,11 +220,13 @@ const PAGE = `
   //          from a wider band (slipMin..slipMax cp worse than the best).
   window.__trial = async (side, { fen, rnd, topMoves, limited }) => {
     const t = side.trial;
-    const lines = await topMoves(t.lines || book.GUARD_LINES);
-    if (!lines || !lines.length) return await limited();
+    // Both searches at once on their two engines, as playMove does it.
+    const own = t.refuse != null ? limited() : null;
+    const lines = await topMoves(t.lines || book.GUARD_LINES).catch(() => null);
+    if (!lines || !lines.length) return await (own || limited());
     const best = lines.reduce((a, b) => (b.score > a.score ? b : a));
     if (t.refuse != null) {
-      const uci = await limited();
+      const uci = await own;
       if (!uci) return best.uci;
       const hit = lines.find(l => l.uci === uci);
       let cost;

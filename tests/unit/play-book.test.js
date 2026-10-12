@@ -161,10 +161,20 @@ test('a refused move is replaced by one within the margin of the best', async ()
   assert.equal(await play(4, 'piece', { rnd: () => 0 }), 'best');
 });
 
-test('a weak level is sometimes let off with a dropped piece, level 5 never', async () => {
+test('the steps between the levels: the settings of 2026-10-12', () => {
+  // Measured, not guessed (HANDOVER, "PLAY: EVEN STEPS"). Change them only with
+  // tools/measure-game.mjs run before and after.
+  assert.deepEqual([0, 1, 2, 3, 4].map(i => vetoRule(i).refuse), [280, 215, 170, 125, 90]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(i => vetoRule(i).through), [0.5, 0.45, 0.2, 0, 0]);
+  assert.deepEqual([0, 1, 2, 3, 4].map(i => vetoRule(i).margin), [90, 80, 65, 45, 35]);
+  assert.deepEqual([5, 6].map(playMargin), [45, 20]);
+});
+
+test('a weak level is sometimes let off with a dropped piece, levels 4 and 5 never', async () => {
   // the dice is read once for "let off?"; 0 always says yes
   assert.equal(await play(0, 'piece', { rnd: () => 0 }), 'piece');
-  assert.equal(await play(3, 'piece', { rnd: () => 0 }), 'piece');
+  assert.equal(await play(2, 'piece', { rnd: () => 0 }), 'piece');
+  assert.notEqual(await play(3, 'piece', { rnd: () => 0 }), 'piece');
   assert.notEqual(await play(4, 'piece', { rnd: () => 0 }), 'piece');
   let dropped = 0;
   let s = 7;
