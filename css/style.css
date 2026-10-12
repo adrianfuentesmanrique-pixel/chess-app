@@ -948,6 +948,49 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .trainer-pick-list .list-item { background: var(--panel2); }
 .trainer-pick-list .list-item.on { outline: 2px solid var(--accent); }
 
+/* ── Openings: the library (js/opening-lib-ui.js) ── */
+/* Library | My databases: the section's data-view picks the side. The setup
+   form and the game keep their own .hidden, which Trainer still owns. */
+#screen-trainer[data-view="library"] #trainer-setup,
+#screen-trainer[data-view="library"] #trainer-game,
+#screen-trainer[data-view="mine"] #trainer-library { display: none; }
+.seg.trainer-views { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 8px; }
+.seg.trainer-views button { min-width: 0; min-height: 40px; text-align: center; }
+/* The switch is paid for out of the setup form's height, so Start stays on screen. */
+#screen-trainer #trainer-setup { min-height: calc(100dvh - 190px - 48px); }
+#lib-search { margin-top: 0; }
+.seg.lib-side { margin: 2px 0 8px; }
+/* The first-move chips: optional, so they light in gold, not as a choice made. */
+.seg.lib-first button { padding: 6px 14px; font-size: 13px; border: 1px solid transparent; }
+.seg.lib-first button.on { background: var(--gold-bg); color: var(--text); border-color: var(--gold); font-weight: 600; }
+#lib-count { margin: 8px 2px 0; }
+.list-item.lib-card { flex-direction: row; align-items: center; gap: 12px; padding: 10px; }
+/* A card's board: the 64 squares are one background, only the pieces are elements. */
+.lib-mini {
+  flex: 0 0 88px; width: 88px; height: 88px; position: relative; border-radius: 4px; overflow: hidden;
+  background: conic-gradient(var(--sq-dark) 25%, var(--sq-light) 0 50%, var(--sq-dark) 0 75%, var(--sq-light) 0) 0 0 / 25% 25%;
+}
+.lib-mini img { position: absolute; width: 12.5%; height: 12.5%; display: block; }
+.lib-card-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lib-card-name { font-weight: 600; }
+/* White or Black, said with a king of the current piece set: a filled and an
+   empty square swap their meaning between the light and the dark theme. */
+.lib-side-ico { width: 16px; height: 16px; margin-right: 5px; vertical-align: -3px; background: var(--sq-light); border-radius: 3px; }
+.lib-more { height: 1px; }
+/* The head of an opening's page and of the preview: back, then the name. The
+   name changes as the moves are played, so its height is fixed (one line for
+   the opening, two for the variation) and the board under it never moves. */
+.lib-head { display: flex; align-items: flex-start; gap: 2px; margin: 0 0 6px; }
+.lib-head .nav-back { flex: 0 0 auto; padding: 8px 8px 8px 2px; min-width: 40px; }
+.lib-name { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; height: 60px; overflow: hidden; line-height: 1.3; padding-top: 2px; }
+.lib-name b { font-size: 17px; flex: 0 0 auto; }
+.lib-name b, .lib-name span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.lib-name span { color: var(--muted); font-size: 13px; }
+#lib-opening .lib-name { height: auto; }
+/* The preview's moves run on as one text, a line of theory being 18 moves at most. */
+#lib-moves { line-height: 1.75; min-height: 0; }
+#lib-preview .tool-btn:disabled { opacity: .4; cursor: default; }
+
 /* ── move list ─────────────────────────── */
 .movelist {
   background: var(--panel); border-radius: var(--radius);

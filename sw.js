@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v192';
+const CACHE = 'chess-training-center-v193';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -132,6 +132,14 @@ const ASSETS = [
   'js/legal-data.js',
   'js/openings-eco.js',
   'js/play-book.js',
+  // The opening library. js/opening-library.js (323 KB, generated) is imported
+  // only when the Library is first shown, with a dynamic import() that
+  // tools/check-precache.mjs does not follow, so it is listed here BY HAND:
+  // without it the Library would not open offline. tests/unit/precache.test.js
+  // fails if it or its two readers go missing from this list.
+  'js/opening-lib.js',
+  'js/opening-lib-ui.js',
+  'js/opening-library.js',
   // Only the band a new account starts in (ELO 1200). The other nine are
   // fetched on demand and cached by the network-first handler below — bundling
   // all 5 MB into install would be slow and mostly unused.

@@ -35,6 +35,7 @@ import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
 import { CalcUI } from './calc-ui.js';
+import { OpeningLib } from './opening-lib-ui.js';
 import { eloAfter } from './elo.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
@@ -1304,7 +1305,7 @@ export function showScreen(name) {
   // REMEMBERS it (closeBook(true)) so re-entering reopens it at its page instead
   // of dumping the user on the shelf (e.g. after long-press → Setup → back).
   if (name === 'read') Read.onEnter(); else Read.closeBook(true);
-  if (name === 'trainer') Trainer.refreshBases();
+  if (name === 'trainer') { Trainer.refreshBases(); OpeningLib.onEnter(); }
   if (name === 'puzzles') Puzzles.ensureLoaded();
   if (name === 'endgame') Endgame.ensureLoaded();
   if (name === 'profile') Profile.refresh();
@@ -3869,7 +3870,7 @@ export const Trainer = {
     // the abandoned computerMove() still runs its finally, and a guess that
     // happens to be legal in the NEXT game plays itself as its first move.
     // Play.back does the same.
-    $('trainer-back').onclick = () => { engine.stop(); this.closeGuard(); this.board.clearPremove(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); };
+    $('trainer-back').onclick = () => { engine.stop(); this.closeGuard(); this.board.clearPremove(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); $('trainer-views').classList.remove('hidden'); };
     $('trainer-analyze').onclick = () => this.toAnalysis();
     $('trainer-first').onclick = () => this.gotoHistory(0);
     $('trainer-prev').onclick = () => this.gotoHistory(this.viewIdx - 1);
@@ -4200,6 +4201,7 @@ export const Trainer = {
     this.posHistory = [];
     this.viewIdx = -1;
     $('trainer-setup').classList.add('hidden');
+    $('trainer-views').classList.add('hidden');   // the Library | My databases switch: not during a game
     $('trainer-game').classList.remove('hidden');
     this.board.setOrientation(this.playerColor);
     this.place(this.chess.fen(), null, true);
@@ -7285,7 +7287,7 @@ function openSettings() {
       if (curPieceSet === v) b.classList.add('on');
       seg4.appendChild(b);
     }
-    segInit(seg4, v => Themes.setPieceSetChoice(v));
+    segInit(seg4, v => { Themes.setPieceSetChoice(v); OpeningLib.refresh(); });
     // guided tour — the only way back into it once the first launch is over
     const lTour = document.createElement('label'); lTour.className = 'fld-label'; lTour.textContent = t('tour_prompt_title');
     const tourBtn = document.createElement('button'); tourBtn.className = 'btn'; tourBtn.style.width = '100%';
@@ -7364,6 +7366,7 @@ function relabel() {
   if (activeScreen === 'read') Read.refresh();
   if (activeScreen === 'students') Students.render();
   if (activeScreen === 'calc') CalcUI.render();
+  OpeningLib.refresh();
 }
 
 // `hist` is [{date: 'YYYY-MM-DD', value}] — my own from kv (Profile), or a
@@ -8002,6 +8005,7 @@ async function main() {
   History.init();
   Read.init();
   Trainer.init();
+  OpeningLib.init();
   Puzzles.init();
   Rush.init();
   Blind.init();

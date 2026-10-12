@@ -9,6 +9,65 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **OPENING LIBRARY, CONVERSATION 1: BROWSE AND PREVIEW (2026-10-12, v193).**
+  The Openings tab now opens on a **Library | My databases** switch. Study is NOT built:
+  conversation 2 of the spec (`docs/superpowers/specs/2026-10-12-opening-library-design.md`).
+  - **Files.** `js/opening-lib.js` (PURE, imports nothing, runs under Node: `buildCards`,
+    `filterCards`, `buildSearchIndex`, `searchLines`, `openingRows`, `buildNameIndex`, `nameAt`,
+    `fold`, `numbered`, `fullName`, `firstMoveGroup`). `js/opening-lib-ui.js` (the screen:
+    `OpeningLib`, statically imported by `js/app.js`; it imports `js/opening-library.js` with a
+    dynamic `import()` the first time the Library shows). Markup in `#screen-trainer`:
+    `#trainer-views` (the switch), `#trainer-library` with `#lib-list`, `#lib-opening`,
+    `#lib-preview`. Styles under "Openings: the library" in `css/style.css`. Words: `lib_*` in
+    `js/i18n.js`. Dev tool: `tools/cdp-verify-opening-lib.mjs`.
+  - **How the two sides share the tab.** `#screen-trainer[data-view]` is `library` or `mine`
+    and CSS hides the other side; `#trainer-setup` and `#trainer-game` keep their own
+    `.hidden`, which `Trainer` still owns. The only edits inside `Trainer`: `start()` hides
+    `#trainer-views` and `#trainer-back` shows it again. `showScreen('trainer')` calls
+    `OpeningLib.onEnter()` after `Trainer.refreshBases()`.
+  - **The remembered view** is kv `trainerView` (`'library'` or `'mine'`), device only: a test
+    reads `SYNCED_KEYS` and fails if it is ever added there.
+  - **A card's first moves** (`openingMoves` in `js/opening-lib.js`): the opening's own line,
+    the SHORTEST when several move orders carry the bare name (Queen's Gambit Declined:
+    1.d4 d5 2.c4 e6); 13 openings have no line of their own (King's Gambit Declined is only
+    ever a named variation) and show what more than half of their lines begin with
+    (1.e4 e5 2.f4). The first-move chips go by those moves: 53 / 65 / 32, not the spec's
+    50 / 67 / 33, which counted each opening's first line in the data.
+  - **The small board** is one CSS background for the 64 squares plus one `<img>` a piece
+    (`miniBoardHtml`). Lists are drawn a page at a time (`paged`: 16 cards, 60 rows) as their
+    end nears the screen, so the Sicilian's 400 rows and the 150 boards are never built up
+    front. Measured in headless Chrome ON A DESKTOP: all 150 cards scrolled in about 0.5 s
+    (4,932 piece images), slowest scroll frame 26 ms; the Sicilian's page opens in 5 to 15 ms,
+    all 400 rows in about 0.4 s. **A real phone was not measured.**
+  - **The preview's name** is `nameAt`: the longest named line the moves so far begin with,
+    across the WHOLE library, so the Najdorf reads King's Pawn Game after 1.e4, Sicilian
+    Defense after 1...c5, and so on. By moves, not by position: a transposition is not
+    followed. The name block has a fixed height, so the board never moves (checked at every
+    move). The move list is one running text, not `renderMoveList`'s rows: with rows the list
+    fell off a 375 x 667 screen; now board, buttons and list fit with nothing scrolled.
+  - **Decided here, Adrian to confirm or change:**
+    1. **The guided tour.** Its Openings steps ring `#trainer-base`, `#trainer-color`,
+       `#trainer-level`, `#trainer-start`. While `Tour.running` the tab shows My databases
+       (not remembered); after the tour it is the Library again. The tour does not mention the
+       Library yet.
+    2. **The first-move chips are a second `.seg`, lit in gold, tap again to let go.** The
+       app's `.filter-chip` is a banner with a button, not a chip.
+    3. **White or Black on a card is a small king** of the current piece set on a board-coloured
+       square: a filled and an empty square swap meaning between light and dark.
+    4. **The 308 names with more than one move order are separate rows, not merged.** In the
+       screenshots they read as the same name twice with different moves under it; merging
+       would hide real lines. Left as the spec had it.
+    5. **My databases with a database chosen now scrolls 15px at 375 x 667** (the switch is
+       48px; Start is fully on screen without scrolling).
+  - Checks: `test:tree` 292 to 302 (9 in `tests/unit/opening-lib.test.js`, 1 in
+    `precache.test.js`), `test:precache` 51 to 53 (the two new static files);
+    `tools/cdp-verify-opening-lib.mjs` 165 of 165 at 375 x 667, ES and EN, light and dark,
+    screenshots looked at: start-up does not ask for `js/opening-library.js`, nor does a
+    launch that opens on My databases; a game from an own database still starts; and
+    OFFLINE through the real service worker (server taken away after one visit) the Library
+    opens and a Ruy Lopez line plays through. `js/openings-eco.js`, `js/play-book.js`,
+    `js/opening-library.js` and `firestore.rules` unchanged.
+
 - **OPENING LIBRARY: DESIGN AND DATA, NO SCREEN YET (2026-10-12, still v192, nothing the app loads changed).**
   Spec: `docs/superpowers/specs/2026-10-12-opening-library-design.md`, decisions a to g all
   made by Adrian. The screen is NOT built: section 5 of the spec is the plan (two conversations).

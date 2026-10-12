@@ -296,6 +296,18 @@ const DICT = {
   // Trainer
   trainer_explain: { es: 'Elige una base con tus estudios de apertura. El motor jugará las jugadas de esa base mientras pueda; cuando se salga de la teoría, seguirá jugando sola.', en: 'Choose a database with your opening studies. The engine plays the moves it finds there while it can; once out of theory it plays on its own.' },
   book_base: { es: 'Base de aperturas', en: 'Opening database' },
+  // The opening library (js/opening-lib-ui.js). Opening and variation names are
+  // shown in English in both languages; only the screen's own words are here.
+  lib_library: { es: 'Biblioteca', en: 'Library' },
+  lib_mine: { es: 'Mis bases', en: 'My databases' },
+  lib_search: { es: 'Buscar aperturas', en: 'Search openings' },
+  lib_filter: { es: 'Filtrar variantes', en: 'Filter variations' },
+  lib_both: { es: 'Ambos', en: 'Both' },
+  lib_other: { es: 'Otras', en: 'Other' },
+  lib_variations: { es: '{n} variantes', en: '{n} variations' },
+  lib_variations_one: { es: '{n} variante', en: '{n} variation' },
+  lib_none: { es: 'Nada coincide con esa búsqueda.', en: 'Nothing matches that search.' },
+  lib_load_failed: { es: 'La biblioteca no se pudo cargar. Conéctate a internet una vez y vuelve a abrir esta pestaña.', en: 'The library could not be loaded. Go online once and open this tab again.' },
   in_book: { es: '📖 En la base', en: '📖 In book' },
   out_of_book: { es: '🧠 Fuera de la base (motor)', en: '🧠 Out of book (engine)' },
   no_book_bases: { es: 'Primero crea una base con partidas en la pestaña Bases.', en: 'First create a database with games in the Databases tab.' },

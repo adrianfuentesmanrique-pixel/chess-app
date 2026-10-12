@@ -581,7 +581,61 @@
   </section>
 
   <!-- ══════════ OPENING TRAINER ══════════ -->
-  <section id="screen-trainer" class="screen hidden">
+  <section id="screen-trainer" class="screen hidden" data-view="library">
+    <!-- Library | My databases. The section's data-view decides which of the two
+         is drawn (css); the last one used is remembered on the device
+         (js/opening-lib-ui.js). Hidden inside an opening, a preview and a game. -->
+    <div class="seg trainer-views tab-lead" id="trainer-views">
+      <button data-v="library" class="on" data-i18n="lib_library"></button>
+      <button data-v="mine" data-i18n="lib_mine"></button>
+    </div>
+    <div id="trainer-library">
+      <div id="lib-list">
+        <input id="lib-search" class="input" type="search" autocomplete="off" data-i18n-ph="lib_search" data-i18n-aria="lib_search">
+        <div class="seg lib-side" id="lib-side">
+          <button data-v="both" class="on" data-i18n="lib_both"></button>
+          <button data-v="w" data-i18n="white"></button>
+          <button data-v="b" data-i18n="black"></button>
+        </div>
+        <div class="seg lib-first" id="lib-first">
+          <button data-v="e4">1.e4</button>
+          <button data-v="d4">1.d4</button>
+          <button data-v="other" data-i18n="lib_other"></button>
+        </div>
+        <div id="lib-count" class="hint hidden"></div>
+        <div id="lib-cards" class="list"></div>
+      </div>
+      <div id="lib-opening" class="hidden">
+        <div class="lib-head">
+          <button id="lib-opening-back" class="nav-back" data-i18n-aria="back">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="lib-name"><b id="lib-opening-name"></b><span id="lib-opening-sub"></span></div>
+        </div>
+        <input id="lib-filter" class="input" type="search" autocomplete="off" data-i18n-ph="lib_filter" data-i18n-aria="lib_filter">
+        <div id="lib-rows" class="list"></div>
+      </div>
+      <div id="lib-preview" class="hidden">
+        <div class="lib-head">
+          <button id="lib-preview-back" class="nav-back" data-i18n-aria="back">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M14.5 5.5 8 12l6.5 6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div id="lib-name" class="lib-name"><b id="lib-name-opening"></b><span id="lib-name-variation"></span></div>
+        </div>
+        <div id="lib-board" class="board-wrap"></div>
+        <div class="toolbar">
+          <button id="lib-nav-first" class="tool-btn">⏮</button>
+          <button id="lib-nav-prev" class="tool-btn">◀</button>
+          <button id="lib-nav-next" class="tool-btn">▶</button>
+          <button id="lib-nav-last" class="tool-btn">⏭</button>
+        </div>
+        <div id="lib-moves" class="movelist small"></div>
+      </div>
+    </div>
     <div id="trainer-setup">
       <img src="icons/logo-mark.png" class="watermark" alt="">
       <p class="hint tab-lead" data-i18n="trainer_explain"></p>

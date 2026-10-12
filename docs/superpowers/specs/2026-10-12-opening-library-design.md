@@ -1,8 +1,14 @@
 # Opening library — a built-in tree of named openings in the Openings tab (design)
 
-Date: 2026-10-12. Status: **decisions a to g are made, the data file and its
-tool are built and tested; no screen is built yet.** Written against commit
-`323af4b` (cache v192). The build plan is section 5.
+Date: 2026-10-12. Status: **conversation 1 of section 5, "Browse and preview",
+is built and live (cache v193): the Library | My databases switch, the cards,
+the search, an opening's variations, the preview board. Conversation 2 (Study,
+"Continues with", "Open in Analysis") is NOT built.** What conversation 1
+settled that this text did not foresee is in HANDOVER.md, first entry: the
+card's first moves for openings with several or no lines of their own (so the
+first-move chips count 53 / 65 / 32, not the 50 / 67 / 33 of section 2), the
+guided tour showing My databases, the move list as running text. Written
+against commit `323af4b` (cache v192).
 
 Adrian's words: "give the app its own opening tree and show it in the Openings
 tab ... nothing big, just the main moves of each line ... 10 to 20 moves maximum

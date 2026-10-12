@@ -29,6 +29,20 @@ test('every precached file exists', () => {
   assert.deepEqual(checkPrecache().notOnDisk, []);
 });
 
+// js/opening-library.js is reached only through a dynamic import() in
+// js/opening-lib-ui.js, which the import walk above does not follow: nothing
+// else would notice it missing from the precache, and the Library would then
+// open online only.
+test('the opening library is precached, though it is loaded late', () => {
+  const assets = precachedAssets();
+  for (const f of ['js/opening-library.js', 'js/opening-lib.js', 'js/opening-lib-ui.js']) {
+    assert.ok(assets.has(f), `${f} must be in ASSETS in sw.js`);
+  }
+  assert.ok(!staticImports().includes('js/opening-library.js'), 'js/opening-library.js must not be loaded at start-up');
+  const ui = fs.readFileSync(path.join(ROOT, 'js/opening-lib-ui.js'), 'utf8');
+  assert.match(ui, /import\('\.\/opening-library\.js'\)/);
+});
+
 test('every file kept across updates exists, carries its version in its path, and is not precached', () => {
   const kept = keptFiles();
   assert.ok(kept.length >= 4, 'the Stockfish wasm and the three pdf.js files');
