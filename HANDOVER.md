@@ -9,6 +9,25 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS IN STUDENTS: THE SPEC IS WRITTEN, NOTHING IS BUILT (2026-10-11, documents only,
+  no version bump).** `docs/superpowers/specs/2026-10-11-students-simul-design.md`: a teacher
+  plays up to 10 of their own active students at once. All twelve decisions carry Adrian's
+  answers; the ones he changed from the recommendation: the handicap is ANY pieces, any
+  number, set per student (not only a rook); an opening and a handicap may be combined when
+  the line is still legal; students can watch the other boards at any time.
+  - **Facts found, different from what the prompt assumed:** `Play` has NO clock (the only
+    shared clock is Duel's `clockOffset` / `syncPulsoClock`); there is no human-against-human
+    game anywhere (15 `match` blocks in `firestore.rules`, none a game), so this is the
+    app's first; `vendor/chess.js` accepts a start position with pieces missing but does
+    NOT object to a castling right whose rook is gone, so the app must remove it.
+  - **Design in one line:** one document per pair, `simulGames/{teacherUid}_{studentUid}`,
+    reused; one write a move; each move settles the previous move's clock from two server
+    stamps; each phone checks the other's move and a bad one voids the board.
+  - **Cost, counted not measured:** about 840 writes and 1,700 reads for a 10-board simul of
+    40-move games, so roughly 20 a day for the whole app on the free plan. Conversation 2
+    of the plan measures it.
+  - **Next:** conversation 1 of the spec's section 4 (`js/simul.js`, pure, with unit tests).
+
 - **LEADERBOARDS: FIVE BOARDS IN TWO ROWS, SEALED MOVES ELO NOW PUBLIC (2026-10-11, v189).
   COMMITTED; the push waits for Adrian's `npm.cmd run rules:deploy` (the rules changed).**
   - **Adrian's decision, which overrides the v187 entry below and spec 3d:** the boards are
