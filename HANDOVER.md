@@ -9,6 +9,33 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **OPENING LIBRARY: DESIGN AND DATA, NO SCREEN YET (2026-10-12, still v192, nothing the app loads changed).**
+  Spec: `docs/superpowers/specs/2026-10-12-opening-library-design.md`, decisions a to g all
+  made by Adrian. The screen is NOT built: section 5 of the spec is the plan (two conversations).
+  - **Source: github.com/lichess-org/chess-openings only (CC0), commit `a6189a3`.** Adrian:
+    "my main goal is to have all the opening and defense names, even with few moves is ok.
+    Afterwards we can extend some openings accordingly." Rated games (29.2 GB a month), the
+    evaluated positions (22.4 GB) and the broadcast games (CC BY-SA, not CC0) were measured
+    and not downloaded; the table is in the spec, section 1.
+  - **Built:** `tools/opening-library-src/` (the five source files, 395 KB, plus SOURCE.md),
+    `tools/build-opening-library.mjs` (no network, no engine; run twice, same file),
+    `js/opening-library.js` (GENERATED, 323 KB, about 53 KB gzipped; grep it, never read it
+    whole), `tests/unit/opening-library.test.js` and `tests/unit/opening-names-v192.json`.
+  - **The numbers:** 150 openings (70 White, 80 Black), 3,865 lines, 3,177 names, average
+    4.9 moves, longest 18. 110 of the 115 existing names are used as keys; 49 lines (1.a3,
+    1.h3, 1.h4 and the like) have no key because `classifyOpening` does not name them.
+  - **`js/openings-eco.js` is untouched**: the Play book, saved-game names and ratings did not
+    move, so no engine measurement was owed or run. A test now pins the 115 names of v192.
+  - **Decided:** all 150 as cards (small board, name, colour, first moves, number of
+    variations; NO difficulty, description or download count), search over every name,
+    Both/White/Black, first-move chips, biggest first; preview is a board with back/next and
+    the name updating; study is the existing trainer with the line and everything under it as
+    its book; opening names in English in both languages; a Library | My databases switch,
+    Library first, last view remembered.
+  - **Not in the app yet:** `js/opening-library.js` is imported by nothing and is not in
+    `ASSETS`. The session that builds the screen adds it (and bumps the cache).
+  - Checks: `test:tree` 286 to 292, `test:precache` still 51, `firestore.rules` unchanged.
+
 - **PLAY: EVEN STEPS BETWEEN THE LEVELS, AND THE OPENINGS TRAINER GETS THE SECOND LOOK (2026-10-12, v192).**
   v191 (next entry) left the steps uneven: level 4 hardly above level 3, level 5 far above
   level 4. Measured first (960 trial games in three runs), Adrian approved "all as
