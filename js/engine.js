@@ -204,6 +204,38 @@ export class Engine {
     });
   }
 
+  // One-shot: the `count` best moves at FULL strength, each with its score for
+  // the side to move (mate folded into a large number, as elsewhere):
+  // { best, lines: [{ uci, score }] }, best line first. Play's opening guard
+  // picks among them (js/play-book.js). An engine used for this should be used
+  // for nothing else: changing MultiPV costs this build a fresh worker.
+  async topMoves(fen, { movetime = 300, count = 4 } = {}) {
+    if (this.multiPV !== null && this.multiPV !== count) this.terminate();
+    await this.init();
+    await this._stopSearch();
+    this.analysing = false;
+    this.multiPV = count;
+    const found = [];
+    this._evalCapture = (line) => {
+      const idx = (intAfter(line, 'multipv') || 1) - 1;
+      const uci = line.split(' pv ')[1].trim().split(/\s+/)[0];
+      const mMate = line.match(/score mate (-?\d+)/);
+      const mCp = line.match(/score cp (-?\d+)/);
+      let score;
+      if (mMate) score = +mMate[1] > 0 ? 10000 - Math.abs(+mMate[1]) : -10000 + Math.abs(+mMate[1]);
+      else if (mCp) score = +mCp[1];
+      else return;
+      found[idx] = { uci, score };
+    };
+    this._send(`setoption name MultiPV value ${count}`);
+    this._send('setoption name UCI_LimitStrength value false');
+    this._send(`position fen ${fen}`);
+    return new Promise(resolve => {
+      this._bestMoveResolve = mv => { this._evalCapture = null; resolve({ best: mv, lines: found.filter(Boolean) }); };
+      this._send(`go movetime ${movetime}`);
+    });
+  }
+
   // One-shot: best move at a given strength. elo null = full strength.
   async bestMove(fen, { movetime = 1000, elo = null } = {}) {
     if (this.multiPV !== null && this.multiPV !== 1) this.terminate();

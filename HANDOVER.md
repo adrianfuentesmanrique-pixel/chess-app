@@ -9,6 +9,96 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **PLAY: THE ENGINE'S OPENING - MEASURED, THEN A BOOK AND A GUARD (2026-10-11, v190).**
+  Adrian: "Many users have report that the engine is playing worst than the ELO stablished."
+  Measured first, he approved "all as recommended", then built. No screen changed.
+  - **The cause, measured: the strength limiter (`UCI_LimitStrength` / `UCI_Elo`), NOT the
+    thinking time and NOT the lite build.** Full strength at 60 ms plays a clean opening;
+    Elo 1320 with 1500 ms is as bad as with 300.
+  - **The tool: `node tools/measure-opening.mjs <outDir>`** (headless Chrome, the app's own
+    `js/engine.js`). 24 games per row, 12 as each colour, the level's first 12 moves; the
+    opponent plays `js/openings-eco.js` lines (seeded dice) and then full-strength moves; a
+    SEPARATE full-strength engine scores before and after every move (400 ms). `APP_BOOK=1`
+    takes the move from `js/play-book.js` as `Play.engineMove()` does; `TAG`, `ONLY`,
+    `GAMES`, `SLOTS`. About 18 minutes for all 16 rows. cp = centipawns, 100 = a pawn.
+    "behind" = median score against the level after its 12th move; "lost/game" = the sum
+    of what its moves cost; "lost by 12" = games 200+ cp down; "slip<=5" = a 50+ cp move
+    in its first five.
+
+    BEFORE (commit c5ba6f3, v189):
+
+    | row | behind@12 | lost/game | 100+cp moves/game | lost by 12 | slip<=5 | 1st move ms |
+    |---|---|---|---|---|---|---|
+    | Level 1 (1300-1450) | 376 | 427 | 1.2 | 88% | 33% | 523 |
+    | Level 2 (1450-1600) | 373 | 403 | 0.8 | 71% | 29% | 501 |
+    | Level 3 (1600-1800) | 255 | 283 | 0.5 | 54% | 25% | 478 |
+    | Level 4 (1800-2000) | 279 | 320 | 0.6 | 67% | 58% | 477 |
+    | Level 5 (2000-2200) | 262 | 316 | 0.8 | 71% | 42% | 480 |
+    | Level 6 (2200-2500) | 197 | 274 | 0.5 | 46% | 54% | 692 |
+    | Level 7 (2500-2800) | 250 | 300 | 0.7 | 67% | 46% | 981 |
+    | Level 8 (2800+) | -33 | 35 | 0 | 0% | 0% | 1377 |
+    | Full strength, 300 ms | -4 | 45 | 0 | 0% | 0% | 485 |
+    | Full strength, 500 ms | -25 | 39 | 0 | 0% | 0% | 662 |
+    | Full strength, 800 ms | -24 | 33 | 0 | 0% | 0% | 971 |
+    | Elo 1320 with 1500 ms | 318 | 367 | 0.9 | 75% | 46% | 1659 |
+    | Elo 2000 with 1500 ms | 203 | 269 | 0.5 | 50% | 25% | 1672 |
+    | Elo 1320 with 60 ms | 313 | 362 | 0.8 | 71% | 25% | 235 |
+    | Elo 2000 with 60 ms | 286 | 322 | 0.7 | 67% | 33% | 213 |
+    | Full strength, 60 ms | 7 | 57 | 0 | 0% | 0% | 241 |
+
+    AFTER (v190, `APP_BOOK=1`, the eight levels):
+
+    | row | behind@12 | lost/game | 100+cp moves/game | lost by 12 | slip<=5 | 1st move ms |
+    |---|---|---|---|---|---|---|
+    | Level 1 | 116 | 166 | 0 | 4% | 13% | 302 |
+    | Level 2 | 94 | 132 | 0.1 | 0% | 8% | 301 |
+    | Level 3 | 90 | 130 | 0 | 0% | 13% | 301 |
+    | Level 4 | 50 | 100 | 0 | 0% | 4% | 302 |
+    | Level 5 | 63 | 104 | 0 | 0% | 4% | 302 |
+    | Level 6 | 31 | 82 | 0 | 0% | 4% | 301 |
+    | Level 7 | 27 | 67 | 0 | 0% | 0% | 302 |
+    | Level 8 | -40 | 32 | 0 | 0% | 0% | 302 |
+
+    Worst before: level 4 hung a knight on move 2 (1.e4 Nf6 2.e5 a5); level 2 got its queen
+    trapped by move 9 (1.Nf3 Nf6 2.c4 c5 3.e3 e6 4.d4 d5 5.Bd3 dxc4 6.Qa4+ Bd7 7.Bc2 b5);
+    level 5 answered 1.Nf3 with 1...a5 and lost its queen on move 9. Worst after: one 179 cp
+    move at level 1 (the guard's 300 ms score and the judge's disagreed), nothing else over
+    134.
+  - **What was built. `js/play-book.js`** (new, imports only `openings-eco.js`, 14 unit
+    tests in `tests/unit/play-book.test.js`): `openingMove({ sans, level, topMoves })` for
+    the engine's first `OPENING_MOVES` (12) moves of a game from `START_FEN`. (1) BOOK:
+    `pickBookMove` plays a move of `openings-eco.js`, weighted by how many lines play it;
+    a move only one line plays is skipped while a better-trodden one exists (no 1.g4).
+    (2) GUARD, out of book: a FULL-strength search for the 4 best moves (`GUARD_LINES`)
+    and `pickGuarded` plays one within the level's margin (`GUARD_MARGIN` 90, 80, 65, 50,
+    40, 30, 20 cp; the top level has none), the better ones more often, and only the best
+    once the engine stands below `GUARD_FLOOR`. (3) After move 12, or from a set-up
+    position (`startFromFen`), the limited engine exactly as before.
+  - **`Engine.topMoves(fen, { movetime, count })`** in `js/engine.js` (new, additive;
+    `bestMove` and `evaluateBest` are untouched, so Endings, the lessons and the Openings
+    trainer get what they got). **Play keeps a SECOND engine for it, `Play.openEngine`**
+    (`openingSearch` / `closeOpening`), because this build needs a fresh worker whenever
+    MultiPV changes; it is let go after the opening, on finish, on back and on a new game.
+    `Play.begin` starts the main engine in the background so move 13 does not wait for it.
+    `REPLY_MS.playBook` = 300 is the wait before a book move. `engineMove` now also drops a
+    reply that arrives after a new game has begun (`this.chess !== chess`).
+  - **Verified:** test:tree 275 (was 261); test:precache 51 files (was 50, `play-book.js`);
+    `node tools/cdp-verify-play-opening.mjs` (new): 15 replies in a row at levels 1, 1, 5
+    and 8, every wait within the level's time (313-330 ms at 300; one ~440-460 ms move when
+    the guard's worker starts), the engine's first move after 313-315 ms (was 477-523), the
+    opening engine gone after move 12, a set-up position left to the limited engine;
+    `ONE=1 tools/cdp-verify-offline-engine.mjs` all passed (Play answers offline after an
+    update).
+  - **NOT done, NOT measured:** (a) **everything from move 13 on is the old limiter**, which
+    is what gave pieces away; whether a level is worth its `range` text over a WHOLE game is
+    unknown, and the `range` texts were left alone on purpose (Adrian's decision d) until
+    that is measured. (b) A real phone: every number above is a desktop upper bound; the
+    "60 ms" rows only imitate one. (c) The guard margins are a first setting, not tuned
+    beyond this one run. (d) Starting a new game through `Play.begin()` while the game
+    review of the last one is still grading collides on the shared engine (seen only in the
+    harness, by calling `begin` under the open review; not reachable by hand as far as
+    checked, not fixed).
+
 - **SIMULS IN STUDENTS: THE SPEC IS WRITTEN, NOTHING IS BUILT (2026-10-11, documents only,
   no version bump).** `docs/superpowers/specs/2026-10-11-students-simul-design.md`: a teacher
   plays up to 10 of their own active students at once. All twelve decisions carry Adrian's

@@ -25,6 +25,7 @@ export const REPLY_MS = Object.freeze({
   blindReply: 400,
   blindOpening: 500,
   trainerBook: 250,       // Openings, while still in the book
+  playBook: 300,          // Play, a move out of the engine's opening book
   endgameBook: 250,
   endgameOpening: 400,    // a study where the opponent moves first
 });

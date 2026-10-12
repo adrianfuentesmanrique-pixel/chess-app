@@ -23,6 +23,7 @@ import * as History from './history.js';
 import * as Read from './read.js';
 import { Sound } from './sound.js';
 import { REPLY_MS, THINK_MS } from './move-feel.js';
+import { openingMove } from './play-book.js';
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
 import { fenKey, PositionIndex } from './explore-index.js';
@@ -3407,6 +3408,7 @@ export const Play = {
     };
     $('play-back').onclick = () => {
       engine.stop();
+      this.closeOpening();
       if (!this.over) this.saveToHistory({ abandoned: true });
       this.board.clearPremove();
       $('play-game').classList.add('hidden');
@@ -3453,6 +3455,10 @@ export const Play = {
     this.board.setPosition(fen);
     this.renderMoves();
     this.setStatus(t('your_turn'));
+    this.closeOpening();
+    // The opening is played without the main engine; started now, it is
+    // ready by the time the opening ends instead of loading on that move.
+    if (fen === START_FEN) engine.init().catch(() => {});
     if (this.chess.turn() !== color) this.engineMove();
   },
 
@@ -3481,10 +3487,26 @@ export const Play = {
     this.board.armPremove();
     this.setStatus(t('thinking'));
     const lv = LEVELS[this.level];
+    const chess = this.chess;
     try {
-      const uci = await engine.bestMove(this.chess.fen(), { movetime: lv.movetime, elo: lv.elo });
-      if (!uci || this.over) return;
-      const m = this.chess.move(uciToMove(uci));
+      // The opening is not left to the limited engine: it gave pieces away at
+      // every level (js/play-book.js has the measurement and the rules).
+      let m = null;
+      if (this.startFen === START_FEN) {
+        const pick = await openingMove({
+          sans: chess.history(), level: this.level,
+          topMoves: count => this.openingSearch(chess.fen(), lv.movetime, count),
+        }).catch(() => null);
+        if (pick && pick.book) await sleep(REPLY_MS.playBook);
+        if (this.over || this.chess !== chess) return;
+        if (pick) { try { m = chess.move(pick.book ? pick.san : uciToMove(pick.uci)); } catch { m = null; } }
+        else this.closeOpening();
+      }
+      if (!m) {
+        const uci = await engine.bestMove(chess.fen(), { movetime: lv.movetime, elo: lv.elo });
+        if (!uci || this.over || this.chess !== chess) return;
+        m = chess.move(uciToMove(uci));
+      }
       this.board.setPosition(this.chess.fen(), { from: m.from, to: m.to });
       this.renderMoves();
       if (this.checkEnd()) return;
@@ -3499,6 +3521,18 @@ export const Play = {
       // by firePremove() itself, so the error path needs no guard of its own.
       if (!this.over) this.board.firePremove();
     }
+  },
+
+  // The opening guard's full-strength search. It has an engine of its own, so
+  // the main one is never switched between one line and several mid-game; it
+  // is let go as soon as the opening is over.
+  async openingSearch(fen, movetime, count) {
+    this.openEngine ||= new Engine();
+    return (await this.openEngine.topMoves(fen, { movetime, count })).lines;
+  },
+
+  closeOpening() {
+    if (this.openEngine) { this.openEngine.terminate(); this.openEngine = null; }
   },
 
   checkEnd() {
@@ -3525,6 +3559,7 @@ export const Play = {
 
   finish(msg) {
     this.over = true;
+    this.closeOpening();
     this.board.clearPremove();
     this.setStatus(msg);
     const hist = this.chess.history();
