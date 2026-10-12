@@ -1,7 +1,9 @@
 // The opening library, as the Openings tab reads it: the cards, the search, an
-// opening's rows and the name a line has earned at a given move.
+// opening's rows, the name a line has earned at a given move, the lines that
+// continue a line and the book of a study game.
 //
-// Pure: no DOM, no imports, no chess. The data (js/opening-library.js, 323 KB,
+// Pure: no DOM, no imports, no chess of its own (buildBook is handed the Chess
+// class). The data (js/opening-library.js, 323 KB,
 // generated) is handed in by the caller, which loads it only when the Library is
 // first shown. Runs under plain Node (tests/unit/opening-lib.test.js).
 //
@@ -95,6 +97,102 @@ export function openingRows(opening, filter = '') {
   const rows = opening.lines.map((line, l) => ({ l, name: line[1] || opening.name, moves: line[2] }));
   if (!w.length) return rows;
   return rows.filter(r => { const text = fold(r.name); return w.every(x => text.includes(x)); });
+}
+
+// "a6 Be3" after 10 half-moves -> "6.Be3"-style numbering that carries on from
+// there: numberedFrom('a6 Be3', 9) is "5...a6 6.Be3".
+export function numberedFrom(moves, ply) {
+  const list = Array.isArray(moves) ? moves : String(moves).split(' ').filter(Boolean);
+  return list.map((san, i) => {
+    const at = ply + i;
+    return at % 2 === 0 ? `${at / 2 + 1}.${san}` : i === 0 ? `${(at + 1) / 2}...${san}` : san;
+  }).join(' ');
+}
+
+// The lines that begin with these moves and go on: every one of them, in
+// library order. The moves themselves are not among them.
+function linesBeyond(library, moves) {
+  const head = moves ? moves + ' ' : '';
+  const found = [];
+  library.forEach((opening, o) => {
+    opening.lines.forEach((line, l) => { if (line[2].length > head.length && line[2].startsWith(head)) found.push({ o, l, moves: line[2] }); });
+  });
+  return found;
+}
+
+// "Continues with": the NEXT named lines after these moves, in library order.
+// A line is next when no other named line lies between it and these moves, so
+// a tap walks one name further and the list stays short (the Sicilian after
+// 1.e4 c5 is a few dozen rows, not 399).
+//   { o, l, more }   more: how many named lines go on beyond that one
+// By moves, not by position: a transposition is not followed.
+export function continuations(library, moves) {
+  const base = Array.isArray(moves) ? moves.join(' ') : String(moves).trim();
+  const from = base ? base.split(' ').length : 0;
+  const beyond = linesBeyond(library, base);
+  const named = new Set(beyond.map(e => e.moves));
+  const next = [], seen = new Set();
+  for (const e of beyond) {
+    if (seen.has(e.moves)) continue;   // the same moves under a second name
+    const list = e.moves.split(' ');
+    let between = false;
+    for (let n = from + 1; n < list.length && !between; n++) between = named.has(list.slice(0, n).join(' '));
+    if (between) continue;
+    seen.add(e.moves);
+    next.push({ o: e.o, l: e.l, more: 0, moves: e.moves });
+  }
+  for (const c of next) {
+    const head = c.moves + ' ';
+    for (const e of beyond) if (e.moves.startsWith(head)) c.more++;
+  }
+  return next.map(({ o, l, more }) => ({ o, l, more }));
+}
+
+// The book of a study game: these moves and every library line that continues
+// them, as a Map from fenKey(fen) to { san: count }, the exact shape
+// Trainer.buildBook makes from a database. By POSITION, so a game that reaches
+// a book position by another move order is still in its book.
+//
+// A count is the number of named lines that pass through that move. It is not
+// how often the move is played by anyone: the library does not know that.
+//
+// The Chess class and fenKey are handed in (vendor/chess.js and
+// js/explore-index.js), because this file imports nothing. The lines are
+// merged into a tree first, so a move shared by 400 lines is played once.
+//   { book, lines }   lines: how many named lines the book was made from
+export function buildBook(library, moves, { Chess, fenKey }) {
+  const base = Array.isArray(moves) ? moves.join(' ') : String(moves).trim();
+  const all = linesBeyond(library, base).map(e => e.moves);
+  // The line on screen itself, once for each name it carries (at least once).
+  let own = 0;
+  for (const opening of library) for (const line of opening.lines) if (line[2] === base) own++;
+  if (base) for (let i = Math.max(own, 1); i > 0; i--) all.push(base);
+  const root = { n: 0, next: new Map() };
+  for (const text of all) {
+    let node = root;
+    for (const san of text.split(' ')) {
+      let child = node.next.get(san);
+      if (!child) { child = { n: 0, next: new Map() }; node.next.set(san, child); }
+      child.n++;
+      node = child;
+    }
+  }
+  const book = new Map();
+  const chess = new Chess();
+  const walk = node => {
+    if (!node.next.size) return;
+    const key = fenKey(chess.fen());
+    let entry = book.get(key);
+    if (!entry) { entry = {}; book.set(key, entry); }
+    for (const [san, child] of node.next) {
+      entry[san] = (entry[san] ?? 0) + child.n;
+      chess.move(san);
+      walk(child);
+      chess.undo();
+    }
+  };
+  walk(root);
+  return { book, lines: all.length };
 }
 
 // Every line of the library by its moves, for nameAt().

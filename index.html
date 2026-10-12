@@ -591,6 +591,11 @@
     </div>
     <div id="trainer-library">
       <div id="lib-list">
+        <!-- A study game left half-way, saved on this device (kv libStudy). -->
+        <div id="lib-resume" class="filter-chip lib-resume hidden">
+          <button id="lib-resume-go" type="button"></button>
+          <button id="lib-resume-drop" type="button" data-i18n-aria="lib_resume_drop">✕</button>
+        </div>
         <input id="lib-search" class="input" type="search" autocomplete="off" data-i18n-ph="lib_search" data-i18n-aria="lib_search">
         <div class="seg lib-side" id="lib-side">
           <button data-v="both" class="on" data-i18n="lib_both"></button>
@@ -633,7 +638,16 @@
           <button id="lib-nav-next" class="tool-btn">▶</button>
           <button id="lib-nav-last" class="tool-btn">⏭</button>
         </div>
+        <!-- Above the move list, so the two buttons never move with its height. -->
+        <div class="btn-duo lib-actions">
+          <button id="lib-study" class="btn primary" data-i18n="lib_study"></button>
+          <button id="lib-analyze" class="btn" data-i18n="lib_to_analysis"></button>
+        </div>
         <div id="lib-moves" class="movelist small"></div>
+        <div id="lib-next" class="hidden">
+          <div class="group-head" data-i18n="lib_continues"></div>
+          <div id="lib-next-rows" class="list"></div>
+        </div>
       </div>
     </div>
     <div id="trainer-setup">

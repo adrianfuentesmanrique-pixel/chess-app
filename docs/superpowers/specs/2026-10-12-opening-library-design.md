@@ -1,9 +1,15 @@
 # Opening library — a built-in tree of named openings in the Openings tab (design)
 
-Date: 2026-10-12. Status: **conversation 1 of section 5, "Browse and preview",
-is built and live (cache v193): the Library | My databases switch, the cards,
-the search, an opening's variations, the preview board. Conversation 2 (Study,
-"Continues with", "Open in Analysis") is NOT built.** What conversation 1
+Date: 2026-10-12. Status: **BUILT, both conversations of section 5.
+Conversation 1, "Browse and preview" (cache v193): the Library | My databases
+switch, the cards, the search, an opening's variations, the preview board.
+Conversation 2 (cache v194): Study (colour and level on a sheet, then the
+existing trainer with the library's book), "Continues with", "Open in
+Analysis", and a study game left half-way brought back by a "Continue" bar.**
+What conversation 2 settled is in HANDOVER.md, first entry: "Continues with"
+lists the NEXT named lines only, the book lives in `js/opening-lib.js` with the
+Chess class handed in, the saved game is the device-only kv `libStudy`. What
+conversation 1
 settled that this text did not foresee is in HANDOVER.md, first entry: the
 card's first moves for openings with several or no lines of their own (so the
 first-move chips count 53 / 65 / 32, not the 50 / 67 / 33 of section 2), the

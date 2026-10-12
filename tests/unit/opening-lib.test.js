@@ -7,7 +7,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { OPENING_LIBRARY } from '../../js/opening-library.js';
 import { fold, numbered, firstMoveGroup, fullName, buildCards, filterCards, buildSearchIndex, searchLines,
-  openingRows, buildNameIndex, nameAt } from '../../js/opening-lib.js';
+  openingRows, buildNameIndex, nameAt, numberedFrom, continuations, buildBook } from '../../js/opening-lib.js';
+import { Chess } from '../../vendor/chess.js';
+import { fenKey } from '../../js/explore-index.js';
+import { classifyOpening } from '../../js/openings-eco.js';
 
 const cards = buildCards(OPENING_LIBRARY);
 const index = buildSearchIndex(OPENING_LIBRARY);
@@ -142,16 +145,131 @@ test('opening-lib: the name at a move is the deepest one the moves have earned',
   assert.deepEqual(nameAt(byMoves, 'e4 c5', 2), { ...byMoves.get('e4 c5'), ply: 2 });
 });
 
+// ── the book of a study game and "Continues with" ──
+
+const chessDeps = { Chess, fenKey };
+const keyAfter = moves => {
+  const c = new Chess();
+  for (const san of moves.split(' ').filter(Boolean)) c.move(san);
+  return fenKey(c.fen());
+};
+const linesThrough = moves => OPENING_LIBRARY.flatMap(o => o.lines).filter(l => l[2] === moves || l[2].startsWith(moves + ' '));
+
+test('opening-lib: numbering that carries on from a move', () => {
+  assert.equal(numberedFrom('a6 Be3', 9), '5...a6 6.Be3');
+  assert.equal(numberedFrom('Be3 e5', 10), '6.Be3 e5');
+  assert.equal(numberedFrom('e4', 0), '1.e4');
+  assert.equal(numberedFrom(['c5'], 1), '1...c5');
+});
+
+test('opening-lib: the book has the shape Trainer.buildBook makes, and counts named lines', () => {
+  const { book, lines } = buildBook(OPENING_LIBRARY, 'e4 c5', chessDeps);
+  assert.ok(book instanceof Map);
+  const through = linesThrough('e4 c5');
+  assert.equal(lines, through.length);
+  for (const [key, entry] of book) {
+    assert.equal(key.split(' ').length, 4, 'a fenKey: placement, turn, castling, en passant');
+    assert.ok(Object.keys(entry).length > 0);
+    for (const n of Object.values(entry)) assert.ok(Number.isInteger(n) && n > 0);
+  }
+  // The line on screen: one move at each of its positions, counted once for every line.
+  assert.deepEqual(book.get(keyAfter('')), { e4: through.length });
+  assert.deepEqual(book.get(keyAfter('e4')), { c5: through.length });
+  // After it, the count of a move is the number of named lines through it.
+  const after = book.get(keyAfter('e4 c5'));
+  const firsts = {};
+  for (const l of through) { const san = l[2].split(' ')[2]; if (san) firsts[san] = (firsts[san] ?? 0) + 1; }
+  assert.deepEqual(after, firsts);
+  assert.ok(after.Nf3 > after.c3 && after.c3 > 1);
+  // Every move of every line is in the book, once: the counts add up to the moves.
+  let total = 0;
+  for (const entry of book.values()) for (const n of Object.values(entry)) total += n;
+  assert.equal(total, through.reduce((s, l) => s + l[2].split(' ').length, 0));
+  // Nothing from another opening.
+  assert.equal(book.get(keyAfter('e4'))?.e5, undefined);
+  assert.equal(book.get(keyAfter('d4')), undefined);
+});
+
+test('opening-lib: the book goes by position, so another move order is still in it', () => {
+  const lib = [{ name: 'Test Gambit', side: 'w', lines: [
+    ['D00', '', 'd4 d5 c4 e6', null],
+    ['D00', 'First Order', 'd4 d5 c4 e6 Nc3 Nf6 Nf3 Be7', null],
+    ['D00', 'Second Order', 'd4 d5 c4 e6 Nf3 Nf6 Nc3 c6', null],
+    ['D00', 'Elsewhere', 'd4 Nf6 c4', null],
+  ] }];
+  const { book, lines } = buildBook(lib, 'd4 d5 c4 e6', chessDeps);
+  assert.equal(lines, 3);
+  assert.equal(keyAfter('d4 d5 c4 e6 Nc3 Nf6 Nf3'), keyAfter('d4 d5 c4 e6 Nf3 Nf6 Nc3'));
+  assert.deepEqual(book.get(keyAfter('d4 d5 c4 e6 Nc3 Nf6 Nf3')), { Be7: 1, c6: 1 });
+  assert.deepEqual(book.get(keyAfter('d4 d5 c4 e6')), { Nc3: 1, Nf3: 1 });
+  assert.deepEqual(book.get(keyAfter('d4')), { d5: 3 });
+  // The same in the real library: the Queen's Gambit Declined meets itself.
+  const qgd = buildBook(OPENING_LIBRARY, 'd4 d5 c4 e6', chessDeps).book;
+  const met = qgd.get(keyAfter('d4 d5 c4 e6 Nc3 Nf6 Nf3'));
+  assert.ok(met && qgd.get(keyAfter('d4 d5 c4 e6 Nf3 Nf6 Nc3')) === met);
+});
+
+test('opening-lib: the book of a one-line opening and of a line nothing continues', () => {
+  const one = OPENING_LIBRARY.find(o => o.lines.length === 1 && linesThrough(o.lines[0][2]).length === 1);
+  const moves = one.lines[0][2].split(' ');
+  const { book, lines } = buildBook(OPENING_LIBRARY, one.lines[0][2], chessDeps);
+  assert.equal(lines, 1);
+  assert.equal(book.size, moves.length);
+  moves.forEach((san, i) => assert.deepEqual(book.get(keyAfter(moves.slice(0, i).join(' '))), { [san]: 1 }));
+  assert.equal(book.get(keyAfter(one.lines[0][2])), undefined, 'after its last move the game is out of book');
+  assert.deepEqual(continuations(OPENING_LIBRARY, one.lines[0][2]), []);
+});
+
+test('opening-lib: a keyless line (1.a3 ...) has a book like any other and no rating name', () => {
+  const keyless = OPENING_LIBRARY.flatMap(o => o.lines).filter(l => l[3] === -1);
+  assert.equal(keyless.length, 49);
+  const line = keyless.find(l => l[2].startsWith('a3 '));
+  assert.ok(line, 'a line that begins 1.a3 and goes on');
+  assert.equal(classifyOpening(line[2].split(' ')), null);
+  const { book, lines } = buildBook(OPENING_LIBRARY, line[2], chessDeps);
+  assert.ok(lines >= 1);
+  assert.equal(Object.keys(book.get(keyAfter(''))).join(), 'a3');
+  assert.ok(book.size >= line[2].split(' ').length);
+});
+
+test('opening-lib: "Continues with" is the next named lines, by moves', () => {
+  const at = moves => continuations(OPENING_LIBRARY, moves).map(c => ({ ...c, line: OPENING_LIBRARY[c.o].lines[c.l] }));
+  const sicilian = at('e4 c5');
+  const through = linesThrough('e4 c5');
+  assert.ok(sicilian.length > 5 && sicilian.length < 80, `${sicilian.length} rows after 1.e4 c5`);
+  const named = new Set(through.map(l => l[2]));
+  for (const c of sicilian) {
+    const list = c.line[2].split(' ');
+    assert.ok(c.line[2].startsWith('e4 c5 '));
+    // No other named line between: a tap walks ONE name further.
+    for (let n = 3; n < list.length; n++) assert.ok(!named.has(list.slice(0, n).join(' ')), c.line[2]);
+    assert.equal(c.more, through.filter(l => l[2].startsWith(c.line[2] + ' ')).length);
+  }
+  // Walking the rows reaches every line under these moves, and no row twice.
+  assert.equal(new Set(sicilian.map(c => c.line[2])).size, sicilian.length);
+  const reach = new Set();
+  const walk = moves => { for (const c of at(moves)) { reach.add(c.line[2]); walk(c.line[2]); } };
+  walk('e4 c5 Nf3 d6');
+  assert.deepEqual([...reach].sort(), [...new Set(linesThrough('e4 c5 Nf3 d6').map(l => l[2]))].filter(m => m !== 'e4 c5 Nf3 d6').sort());
+  // From the start: the openings of a single move.
+  const first = at('');
+  assert.ok(first.some(c => c.line[2] === 'e4') && first.some(c => c.line[2] === 'd4'));
+  assert.ok(first.every(c => c.more >= 0));
+  // An array of moves is read like the text.
+  assert.deepEqual(continuations(OPENING_LIBRARY, ['e4', 'c5']), continuations(OPENING_LIBRARY, 'e4 c5'));
+});
+
 // The Library | My databases view is remembered on the device only. A synced
 // key would carry one phone's last view to every other device of the account.
 test('opening-lib: the remembered view is saved under a key that is not synced', () => {
   const ui = fs.readFileSync(new URL('../../js/opening-lib-ui.js', import.meta.url), 'utf8');
   const keys = [...ui.matchAll(/kv(?:Get|Set)\('([^']+)'/g)].map(m => m[1]);
-  assert.deepEqual([...new Set(keys)], ['trainerView']);
+  // ... and so is a study game left half-way ('libStudy'): nothing new is synced.
+  assert.deepEqual([...new Set(keys)].sort(), ['libStudy', 'trainerView']);
   const fb = fs.readFileSync(new URL('../../js/firebase.js', import.meta.url), 'utf8');
   const synced = fb.slice(fb.indexOf('const SYNCED_KEYS = ['), fb.indexOf('];', fb.indexOf('const SYNCED_KEYS = [')));
   assert.ok(synced.includes("'openingElo'"), 'the SYNCED_KEYS list was found');
-  assert.ok(!synced.includes('trainerView'));
+  assert.ok(!synced.includes('trainerView') && !synced.includes('libStudy'));
 });
 
 test('opening-lib: the module is pure - it imports nothing', () => {

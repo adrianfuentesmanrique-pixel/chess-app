@@ -2,19 +2,27 @@
 // the search, an opening's variations, the preview. Dev tool, not shipped.
 // Headless Chrome over CDP, signed out.
 //
-//   node tools/cdp-verify-opening-lib.mjs <outDir>     about two minutes
+//   node tools/cdp-verify-opening-lib.mjs <outDir>     about five minutes
 //
 // At 375 x 667 in ES and EN, light and dark. REALLY TAPPED (CDP touch events):
 // the switch, the colour buttons, the first-move chips, cards, rows, the four
 // preview buttons, a move in the list, both back buttons, Start and the game's
-// back. TYPED (CDP insertText): the search and the filter. CALLED, not tapped:
-// showScreen(), the seeding of one database, Tour.running.
+// back; the rows of "Continues with", Open in Analysis, Study, the sheet's
+// colour, level, Cancel and Start, the first move of a study game, the Continue
+// bar and its X. TYPED (CDP insertText): the search and the filter. CALLED, not
+// tapped: showScreen(), the seeding of one database, Tour.running, openPreview()
+// for a line by its moves, the later moves of a game (Trainer.userMove),
+// startStudy() and finishMsg() for the rating, setView() under a study game.
 // Checked: js/opening-library.js is not asked for until the Library shows, and
 // not at all when My databases is the remembered view; the cards and their
 // boards; the order; the filters; the accent-blind search; the Sicilian's 400
 // rows and how long they take; a one-line opening; the preview's name at every
 // move and that the board never moves; My databases and a game from a database;
-// the remembered view; the guided tour's view.
+// the remembered view; the guided tour's view. Conversation 2: "Continues
+// with" and the walk through it, Open in Analysis, the Study sheet, a study game
+// in its book and out of it (the engine answers, the existing badge), the game
+// saved on the device and put back after a reload, its Back to the preview, the
+// Opening ELO credited by the moves played and not at all for a keyless line.
 // Then OFFLINE: the app is loaded once through its real service worker, the
 // server is taken away, and the Library must open and a preview play through.
 // NOT checked here: a real phone. The timings are a desktop's.
@@ -34,7 +42,7 @@ const PORT = 9300 + Math.floor(Math.random() * 600);
 const WEB = 9900 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-lib-'));
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 420000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 900000).unref();
 const net = { sw: false, down: false, hits: [] };   // the server: serve sw.js? answer at all? what was asked for
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
@@ -246,12 +254,12 @@ try {
         off: [d('lib-nav-first'), d('lib-nav-prev'), d('lib-nav-next'), d('lib-nav-last')].map(x => x ? 1 : 0).join(''), last: document.querySelectorAll('#lib-board .sq.lastmove').length,
         live: document.getElementById('lib-board').classList.contains('live'), page: document.querySelector('main').scrollHeight - document.querySelector('main').clientHeight,
         h: innerHeight, sideScroll: document.documentElement.scrollWidth - innerWidth,
-        dead: [...document.querySelectorAll('#lib-preview button')].map(b => b.id).join() };`);
+        dead: [...document.querySelectorAll('#lib-preview button')].map(b => b.id).filter(Boolean).join() };`);
     let p = await pv();
     check(`[${tag}] a tap on a variation opens the preview at its last move (${p.n} moves): ${p.name} / ${p.variation}`,
       p.ply === p.n && p.n === 11 && p.fenOk && p.name === 'Sicilian Defense' && p.variation === 'Najdorf Variation, English Attack' && p.mvs === 11 && p.cur === 'Be3' && p.off === '0011' && p.last === 2, p);
-    check(`[${tag}] the board is ${p.w}px and cannot be moved on; board, buttons and the whole move list fit the screen with nothing scrolled (list ends at ${p.listBottom} of ${p.h}); nothing sideways; no buttons but back and the four`,
-      p.w >= 340 && !p.live && p.listBottom <= p.h && p.sideScroll <= 0 && p.dead === 'lib-preview-back,lib-nav-first,lib-nav-prev,lib-nav-next,lib-nav-last', p);
+    check(`[${tag}] the board is ${p.w}px and cannot be moved on; board, buttons and the whole move list fit the screen with nothing scrolled (list ends at ${p.listBottom} of ${p.h}); nothing sideways; no buttons but back, the four, Study and Open in Analysis (and the rows of "Continues with")`,
+      p.w >= 340 && !p.live && p.listBottom <= p.h && p.sideScroll <= 0 && p.dead === 'lib-preview-back,lib-nav-first,lib-nav-prev,lib-nav-next,lib-nav-last,lib-study,lib-analyze', p);
     await shot(`${tag}-4-preview`);
     const top0 = p.top, seen = [];
     for (let i = p.n; i > 0; i--) { await tap('#lib-nav-prev'); p = await pv(); seen.push({ ply: p.ply, name: p.name, variation: p.variation, top: p.top, ok: p.fenOk }); }
@@ -290,6 +298,192 @@ try {
     check(`[${tag}] ... and its one line previews (${p.name} / ${p.variation}, ${p.n} moves)`, p.ply === p.n && p.fenOk && p.name === lastName, p);
     await shot(`${tag}-6b-one-line-preview`);
     await tap('#lib-preview-back'); await tap('#lib-opening-back');
+
+    // ── "Continues with" ──
+    await ev(`document.querySelector('main').scrollTop = 0; const h = __lib.byMoves.get('e4 c5'); __lib.openPreview(h.o, h.l, 'list');`);
+    const nx = () => ev(`const L = __lib.line, main = document.querySelector('main'), rows = [...document.querySelectorAll('#lib-next-rows .list-item')];
+      const want = (await import('/js/opening-lib.js')).continuations(__lib.lib, L.moves.slice(0, L.ply));
+      const r = id => document.getElementById(id).getBoundingClientRect();
+      return { ply: L.ply, n: L.moves.length, moves: L.moves.join(' '), head: document.querySelector('#lib-next .group-head').textContent, shown: document.getElementById('lib-next').getClientRects().length > 0,
+        rows: rows.length, want: want.length, first: rows[0] ? [...rows[0].children].map(c => c.textContent) : [], firstLine: want[0] ? __lib.lib[want[0].o].lines[want[0].l][2] : null,
+        deep: (() => { let i = want.findIndex(c => c.more > 0); if (i < 0) i = 0; return want[i] && rows[i] ? { i: i + 1, line: __lib.lib[want[i].o].lines[want[i].l][2], row: rows[i].children[0].textContent } : null; })(),
+        name: document.getElementById('lib-name-opening').textContent, variation: document.getElementById('lib-name-variation').textContent,
+        top: Math.round((r('lib-board').top + main.scrollTop) * 10) / 10, scroll: main.scrollTop,
+        study: document.getElementById('lib-study').textContent, ana: document.getElementById('lib-analyze').textContent,
+        btnBottom: Math.round(r('lib-study').bottom + main.scrollTop), btnWhole: ['lib-study', 'lib-analyze'].every(id => { const b = document.getElementById(id); return b.scrollWidth <= b.clientWidth; }),
+        h: innerHeight, sideScroll: document.documentElement.scrollWidth - innerWidth };`);
+    let n = await nx();
+    const topC = n.top;
+    check(`[${tag}] the preview of 1.e4 c5 has two buttons, "${n.study}" and "${n.ana}", whole and on screen with nothing scrolled (they end at ${n.btnBottom} of ${n.h})`,
+      n.study === (es ? 'Estudiar' : 'Study') && n.ana === (es ? 'Abrir en Análisis' : 'Open in Analysis') && n.btnWhole && n.btnBottom <= n.h && n.sideScroll <= 0, n);
+    check(`[${tag}] "${n.head}": ${n.want} named lines come next after 1.e4 c5 (not 399), the first "${n.first.join(' · ')}"`,
+      n.shown && n.head === (es ? 'Continúa con' : 'Continues with') && n.want > 5 && n.want < 80 && n.rows === Math.min(n.want, 60) && /^2\.\S/.test(n.first[1] || ''), n);
+    await shot(`${tag}-9-continues`);
+    await ev(`document.querySelector('main').scrollTop = 420; await new Promise(r => requestAnimationFrame(r));`);
+    await shot(`${tag}-9b-continues-rows`);
+    await ev(`document.querySelector('main').scrollTop = 0;`);
+    const walk = [];
+    // The first row that has named lines under it, so the walk can go on.
+    for (let i = 0; i < 3 && n.deep; i++) {
+      const { row, line } = n.deep;
+      await tap(`#lib-next-rows .list-item:nth-child(${n.deep.i})`);
+      n = await nx();
+      walk.push({ line, got: n.moves, atEnd: n.ply === n.n, name: n.name + (n.variation ? ': ' + n.variation : ''), row, top: n.top, scroll: n.scroll,
+        ok: n.moves === line && n.ply === n.n && n.scroll === 0 && n.top === topC && (row === n.variation || row === n.name || row === n.name + ': ' + n.variation) });
+    }
+    check(`[${tag}] a tap on a row walks one name further, ${walk.length} times: ${walk.map(w => w.name).join(' → ')}; the name follows, the page is back at its top and the board has not moved`,
+      walk.length >= 2 && walk.every(w => w.ok), walk);
+    await shot(`${tag}-10-walked`);
+    await tap('#lib-nav-prev'); n = await nx();
+    const stepBack = n.rows === Math.min(n.want, 60) && n.want >= 1 && n.top === topC;
+    await tap('#lib-nav-first'); n = await nx();
+    check(`[${tag}] one move back the list is that position's (the line just left among them); at the start it is the ${n.want} openings of one move (${n.first.join(' · ')})`,
+      stepBack && n.ply === 0 && n.rows === n.want && n.want >= 10 && /^1\.\S/.test(n.first[1] || '') && n.top === topC, n);
+
+    // ── Open in Analysis ──
+    const NAJ = 'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Be3';
+    await ev(`const h = __lib.byMoves.get('${NAJ}'); __lib.openPreview(h.o, h.l, 'list');`);
+    await tap('#lib-analyze');
+    const an = await ev(`const tr = __app.Analysis.tree, sans = []; for (let x = tr.root; x.children[0]; x = x.children[0]) sans.push(x.children[0].san);
+      return { screen: document.getElementById('screen-analysis').getClientRects().length > 0, sans: sans.join(' '), event: tr.headers.Event, atEnd: tr.atEnd() };`);
+    await ev(`__app.showScreen('trainer');`); await sleep(300);
+    const anBack = await ev(`return document.getElementById('lib-preview').getClientRects().length > 0 && __lib.line.moves.length === 11;`);
+    check(`[${tag}] Open in Analysis: the Analysis tab opens with the ${an.sans.split(' ').length} moves of "${an.event}"; back in Openings the preview is still there`,
+      an.screen && an.sans === NAJ && an.event === 'Sicilian Defense: Najdorf Variation, English Attack' && an.atEnd && anBack, an);
+
+    // ── Study: the sheet, then the existing trainer with the library's book ──
+    await tap('#lib-study');
+    const sh = await ev(`const box = document.querySelector('.modal-box.lib-study-sheet'); if (!box) return null;
+      const r = box.getBoundingClientRect(), hints = box.querySelectorAll('p.hint');
+      return { title: box.querySelector('h3').textContent, name: hints[0].textContent, note: hints[1].textContent, lines: __lib.made.lines,
+        color: [...box.querySelectorAll('#lib-study-color button')].map(b => b.textContent + (b.classList.contains('on') ? '*' : '')).join(),
+        levels: box.querySelectorAll('#lib-study-level button').length, formLevels: document.querySelectorAll('#trainer-level button').length, level: box.querySelector('#lib-study-level button.on')?.dataset.v,
+        start: box.querySelector('#lib-study-start').textContent, cancel: box.querySelector('#lib-study-cancel').textContent,
+        fits: r.top >= 0 && r.bottom <= innerHeight + 1 && box.scrollHeight <= box.clientHeight + 1, sideScroll: document.documentElement.scrollWidth - innerWidth };`);
+    check(`[${tag}] Study opens a sheet: "${sh?.title}", ${sh?.name}; colour ${sh?.color} (the Sicilian is Black's, so Black is lit); ${sh?.levels} levels as on the form; it fits the screen`,
+      sh && sh.title === (es ? 'Estudiar' : 'Study') && sh.name === 'Sicilian Defense: Najdorf Variation, English Attack' && sh.color === (es ? 'Blancas,Negras*' : 'White,Black*')
+      && sh.levels === sh.formLevels && sh.levels >= 5 && sh.level === '2' && sh.start === (es ? '¡A jugar!' : 'Start game') && sh.cancel === (es ? 'Cancelar' : 'Cancel') && sh.fits && sh.sideScroll <= 0, sh);
+    check(`[${tag}] ... and says what the book is, with no claim about popularity: "${sh?.note}"`,
+      sh && sh.lines >= 2 && sh.note.includes(`(${sh.lines} ${es ? 'variantes' : 'variations'})`) && !/popular|frecuen|often|most played/i.test(sh.note), sh);
+    await shot(`${tag}-11-study-sheet`);
+    await tap('#lib-study-cancel');
+    const cancelled = await ev(`return document.querySelectorAll('.modal-back').length === 0 && document.getElementById('lib-preview').getClientRects().length > 0 && document.getElementById('screen-trainer').dataset.view === 'library';`);
+    await tap('#lib-study');
+    await tap('#lib-study-color [data-v="w"]');
+    await tap('#lib-study-level [data-v="0"]');
+    await tap('#lib-study-start');
+    const started = await until(`document.getElementById('trainer-game').getClientRects().length > 0 && __app.Trainer.posHistory.length === 1`, 4000);
+    const sg = await ev(`const T = __app.Trainer, lib = await import('/js/opening-lib.js'), { Chess } = await import('/vendor/chess.js'), { fenKey } = await import('/js/explore-index.js');
+      const want = lib.buildBook(__lib.lib, '${NAJ}', { Chess, fenKey }).book, rects = id => document.getElementById(id).getClientRects().length;
+      return { view: document.getElementById('screen-trainer').dataset.view, color: T.playerColor, level: T.level, book: T.book.size, want: want.size, key: T.bookKey, comments: T.bookComments.size,
+        badge: document.getElementById('trainer-book-status').textContent, lib: rects('trainer-library'), setup: rects('trainer-setup'), sw: rects('trainer-views'),
+        board: Math.round(document.getElementById('trainer-board').getBoundingClientRect().width), modals: document.querySelectorAll('.modal-back').length, host: !!T.host,
+        saved: await (await import('/js/db.js')).kvGet('libStudy', null), top: document.querySelector('main').scrollTop };`);
+    check(`[${tag}] Cancel closes the sheet and nothing starts; then White, level 1 and Start: the existing trainer, as White, with the library's book (${sg.book} positions), "${sg.badge}", nothing else on the tab`,
+      cancelled && started && sg.view === 'study' && sg.color === 'w' && sg.level === 0 && sg.book === sg.want && sg.book > 11 && sg.key === `lib|${NAJ}` && sg.comments === 0
+      && sg.badge === (es ? '📖 En la base' : '📖 In book') && sg.lib === 0 && sg.setup === 0 && sg.sw === 0 && sg.board >= 340 && sg.modals === 0 && sg.host && sg.saved === null && sg.top === 0, sg);
+    await tap('#trainer-board .sq[data-sq="e2"]'); await tap('#trainer-board .sq[data-sq="e4"]');
+    const firstReply = await until(`__app.Trainer.chess.history().length >= 2 && !__app.Trainer.thinking`, 6000);
+    await shot(`${tag}-12-study-in-book`);
+    const PLAY = max => `const T = __app.Trainer, { fenKey } = await import('/js/explore-index.js');
+      const wait = async (ok, ms = 40000) => { const t0 = performance.now(); while (!ok()) { if (performance.now() - t0 > ms) return false; await new Promise(r => setTimeout(r, 20)); } return true; };
+      const out = { replies: [], bookOk: true, error: null, outAt: null };
+      for (let i = 0; i < ${max} && !T.over; i++) {
+        const entry = T.book.get(fenKey(T.chess.fen()));
+        const mv = T.chess.moves({ verbose: true }).find(m => !entry || m.san === Object.keys(entry)[0]);
+        const n = T.chess.history().length;
+        T.userMove({ from: mv.from, to: mv.to, promotion: mv.promotion });
+        if (!await wait(() => T.over || (!T.thinking && T.chess.history().length >= n + 2))) { out.error = 'no reply to move ' + (n + 1); break; }
+        const reply = T.book.get(fenKey(T.posHistory[n + 1].fen)), san = T.chess.history()[n + 1], flag = T.posHistory[n + 2].inBook;
+        out.replies.push(san + (flag ? '' : '!'));
+        if (!!reply !== flag || (reply && !(san in reply))) out.bookOk = false;
+        if (!flag) { out.outAt = n + 2; break; }
+      }
+      out.badge = document.getElementById('trainer-book-status').textContent; out.sans = T.chess.history().join(' '); out.flags = T.posHistory.slice(1).map(p => p.inBook ? 1 : 0).join('');
+      out.status = document.getElementById('trainer-status').textContent; out.view = document.getElementById('screen-trainer').dataset.view;
+      out.saved = await (await import('/js/db.js')).kvGet('libStudy', null);
+      return out;`;
+    const pl = await ev(PLAY(40));
+    check(`[${tag}] a tapped 1.e4 is answered 1...c5 from the book; then every reply is a library move while the position is in the book (${pl.replies.filter(r => !r.endsWith('!')).join(' ')})`,
+      firstReply && pl.sans.startsWith('e4 c5 ') && pl.bookOk && !pl.error && pl.replies.filter(r => !r.endsWith('!')).length >= 4 && pl.sans.startsWith(NAJ), pl);
+    check(`[${tag}] out of the book at move ${Math.ceil((pl.outAt ?? 0) / 2)}: the engine answers (${pl.replies[pl.replies.length - 1]}) under the existing badge "${pl.badge}"`,
+      pl.outAt > 11 && pl.badge === (es ? '🧠 Fuera de la base (motor)' : '🧠 Out of book (engine)'), pl);
+    await shot(`${tag}-13-study-out-of-book`);
+    check(`[${tag}] the game is saved on this device after every move: the line, White, level 1, ${pl.saved?.sans?.length} moves`,
+      pl.saved && pl.saved.line === NAJ && pl.saved.color === 'w' && pl.saved.level === 0 && pl.saved.sans.join(' ') === pl.sans && pl.saved.inBook.map(b => b ? 1 : 0).join('') === pl.flags, pl.saved);
+
+    // ── the app closed mid-game: the Continue bar ──
+    await send('Page.reload', {});
+    await boot();
+    await ev(`__app.showScreen('trainer');`);
+    const bar = await until(`document.getElementById('lib-resume').getClientRects().length > 0`, 8000);
+    const rb = await ev(`const go = document.getElementById('lib-resume-go'), r = document.getElementById('lib-resume').getBoundingClientRect();
+      return { text: go.textContent, whole: go.scrollWidth <= go.clientWidth && go.scrollHeight <= go.clientHeight, drop: document.getElementById('lib-resume-drop').getAttribute('aria-label'), top: Math.round(r.top), right: Math.round(r.right), w: innerWidth,
+        cards: document.querySelectorAll('#lib-cards .lib-card').length, game: document.getElementById('trainer-game').getClientRects().length, sideScroll: document.documentElement.scrollWidth - innerWidth };`);
+    const barText = `${es ? 'Continuar' : 'Continue'}: Sicilian Defense: Najdorf Variation, English Attack · ${es ? 'jugada' : 'move'} ${Math.floor(pl.sans.split(' ').length / 2) + 1}`;
+    check(`[${tag}] after a reload the Library shows a bar over the search, "${rb.text}", nothing cut, with its ✕ ("${rb.drop}"); the game itself is not on screen`,
+      bar && rb.text === barText && rb.whole && rb.drop === (es ? 'Descartar la partida guardada' : 'Discard the saved game') && rb.cards > 0 && rb.game === 0 && rb.right <= rb.w && rb.sideScroll <= 0, rb);
+    await shot(`${tag}-14-continue-bar`);
+    await tap('#lib-resume-go');
+    const resumed = await until(`document.getElementById('trainer-game').getClientRects().length > 0 && __app.Trainer.posHistory.length > 1`, 4000);
+    const rs = await ev(`const T = __app.Trainer; return { view: document.getElementById('screen-trainer').dataset.view, sans: T.chess.history().join(' '), flags: T.posHistory.slice(1).map(p => p.inBook ? 1 : 0).join(''),
+      color: T.playerColor, level: T.level, badge: document.getElementById('trainer-book-status').textContent, book: T.book.size, mine: T.chess.turn() === T.playerColor, live: T.atLive(), fenOk: T.board.fen === T.chess.fen() };`);
+    check(`[${tag}] a tap on the bar puts the game back: the same ${rs.sans.split(' ').length} moves, the same in-book marks, White, level 1, the book, "${rs.badge}", my move`,
+      resumed && rs.view === 'study' && rs.sans === pl.sans && rs.flags === pl.flags && rs.color === 'w' && rs.level === 0 && rs.book === sg.book && rs.mine && rs.live && rs.fenOk
+      && rs.badge === (es ? '🧠 Fuera de la base (motor)' : '🧠 Out of book (engine)'), rs);
+    const more = await ev(PLAY(1));
+    check(`[${tag}] ... and it plays on: my next move is answered (${more.replies.join()})`, !more.error && more.replies.length === 1 && more.sans.split(' ').length === pl.sans.split(' ').length + 2, more);
+    await shot(`${tag}-15-restored`);
+    await tap('#trainer-back');
+    await sleep(300);
+    const sb = await ev(`const rects = id => document.getElementById(id).getClientRects().length; return { view: document.getElementById('screen-trainer').dataset.view, preview: rects('lib-preview'), game: rects('trainer-game'), setup: rects('trainer-setup'),
+      name: document.getElementById('lib-name').textContent, host: !!__app.Trainer.host, ply: __lib.line.ply, sw: rects('trainer-views') };`);
+    check(`[${tag}] the game's Back returns to the PREVIEW of its line (${sb.name}), not to the setup form`,
+      sb.view === 'library' && sb.preview > 0 && sb.game === 0 && sb.setup === 0 && sb.sw === 0 && /Sicilian Defense.*Najdorf Variation, English Attack/.test(sb.name) && !sb.host && sb.ply === 11, sb);
+    await tap('#lib-preview-back');
+    const kept = await ev(`return { bar: document.getElementById('lib-resume').getClientRects().length, text: document.getElementById('lib-resume-go').textContent, sw: document.getElementById('trainer-views').getClientRects().length };`);
+    await tap('#lib-resume-drop');
+    const dropped = await ev(`return { bar: document.getElementById('lib-resume').getClientRects().length, kv: await (await import('/js/db.js')).kvGet('libStudy', null) };`);
+    check(`[${tag}] Back mid-game keeps it ("${kept.text}"); the ✕ drops it for good`, kept.bar > 0 && kept.sw > 0 && /· (jugada|move) \d+$/.test(kept.text) && dropped.bar === 0 && dropped.kv === null, { kept, dropped });
+
+    // ── the rating: credited as today, by the moves played; a keyless line credits nothing ──
+    // CALLED, not tapped: startStudy (the sheet was tapped above) and finishMsg (a lost game).
+    const credit = await ev(`const T = __app.Trainer, db = await import('/js/db.js'), { classifyOpening } = await import('/js/openings-eco.js');
+      const wait = async (ok, ms = 8000) => { const t0 = performance.now(); while (!ok()) { if (performance.now() - t0 > ms) return false; await new Promise(r => setTimeout(r, 20)); } return true; };
+      const run = async (line, mine) => {
+        const h = __lib.byMoves.get(line); __lib.openPreview(h.o, h.l, 'list');
+        __lib.startStudy({ line, color: 'w', level: 0 });
+        for (const san of mine) { const n = T.chess.history().length, mv = T.chess.moves({ verbose: true }).find(m => m.san === san); T.userMove({ from: mv.from, to: mv.to }); await wait(() => !T.thinking && T.chess.history().length >= n + 2); }
+        const before = JSON.stringify(await db.kvGet('openingElo', {})), savedMid = !!(await db.kvGet('libStudy', null));
+        T.finishMsg('verify', 'loss'); await new Promise(r => setTimeout(r, 800));
+        const res = { sans: T.chess.history().join(' '), name: classifyOpening(T.chess.history()), before, after: await db.kvGet('openingElo', {}), savedMid, savedEnd: await db.kvGet('libStudy', null) };
+        document.getElementById('trainer-back').click(); return res;
+      };
+      await db.kvSet('openingElo', {});
+      const ruy = await run('e4 e5 Nf3 Nc6 Bb5', ['e4', 'Nf3', 'Bb5']);
+      const a3line = __lib.lib.flatMap(o => o.lines).find(l => l[3] === -1 && l[2].startsWith('a3 '))[2];
+      const a3 = await run(a3line, ['a3']);
+      __lib.showPage('list');
+      return { ruy, a3, a3line };`);
+    check(`[${tag}] a lost study game (${credit.ruy.sans}) moves the Opening ELO of "${credit.ruy.name}", the name classifyOpening gives those moves, and of nothing else (${JSON.stringify(credit.ruy.after)}); the finished game is no longer saved`,
+      credit.ruy.name && Object.keys(credit.ruy.after).join() === credit.ruy.name && credit.ruy.after[credit.ruy.name] < 1200 && credit.ruy.savedMid && credit.ruy.savedEnd === null, credit.ruy);
+    check(`[${tag}] a keyless line (${credit.a3line}) can be studied (${credit.a3.sans}) and credits nothing`,
+      credit.a3.name === null && credit.a3.sans.split(' ').length >= 2 && credit.a3line.startsWith(credit.a3.sans.split(' ').slice(0, 2).join(' ')) && JSON.stringify(credit.a3.after) === credit.a3.before && credit.a3.savedEnd === null, credit.a3);
+    await sleep(5800);   // Kael's "not an opening" line leaves the screen
+
+    // ── a study game on the board when the view is changed under it (the guided tour does that) ──
+    const sv = await ev(`const T = __app.Trainer, rects = id => document.getElementById(id).getClientRects().length;
+      const h = __lib.byMoves.get('e4 c5'); __lib.openPreview(h.o, h.l, 'list'); __lib.startStudy({ line: 'e4 c5', color: 'b', level: 0 });
+      for (let i = 0; i < 300 && (T.thinking || !T.chess.history().length); i++) await new Promise(r => setTimeout(r, 20));
+      const out = { first: T.chess.history().join(' '), orient: T.board.orientation ?? T.board.flipped ?? null };
+      __lib.setView('mine', { save: false });
+      out.mine = { view: document.getElementById('screen-trainer').dataset.view, setup: rects('trainer-setup'), game: rects('trainer-game'), host: !!T.host, sw: rects('trainer-views') };
+      __lib.setView('library', { save: false }); __lib.showPage('list');
+      out.lib = { view: document.getElementById('screen-trainer').dataset.view, list: rects('lib-list'), sw: rects('trainer-views') };
+      document.getElementById('lib-resume-drop').click();
+      return out;`);
+    check(`[${tag}] as Black the engine opens with the line's own move (${sv.first}); the view changed under a study game leaves the game, and My databases shows its form`,
+      sv.first === 'e4' && sv.mine.view === 'mine' && sv.mine.setup > 0 && sv.mine.game === 0 && !sv.mine.host && sv.lib.view === 'library' && sv.lib.list > 0 && sv.lib.sw > 0, sv);
 
     // ── My databases: today's form, unchanged ──
     await ev(`document.querySelector('main').scrollTop = 0;`);
@@ -388,6 +582,24 @@ try {
   const end = off[off.length - 1];
   check(`[offline] a Ruy Lopez line plays through from the first move to the last (${end.n} moves, ending on "${end.name}")`, off.length === end.n + 1 && off.every((o, i) => o.ok && o.ply === i) && /^Ruy Lopez/.test(end.name), off.map(o => o.name));
   await shot('offline-2-preview');
+  await tap('#lib-study');
+  const offSheet = await ev(`return document.querySelectorAll('.modal-box.lib-study-sheet').length;`);
+  await tap('#lib-study-start');
+  const offGame = await until(`document.getElementById('trainer-game').getClientRects().length > 0 && __app.Trainer.posHistory.length >= 1`, 4000);
+  const offPlay = await ev(`const T = __app.Trainer, { fenKey } = await import('/js/explore-index.js');
+    for (let i = 0; i < 300 && T.thinking; i++) await new Promise(r => setTimeout(r, 20));
+    const moves = [];
+    for (let k = 0; k < 2; k++) {
+      const entry = T.book.get(fenKey(T.chess.fen())), n = T.chess.history().length;
+      const mv = T.chess.moves({ verbose: true }).find(m => m.san === Object.keys(entry)[0]);
+      T.userMove({ from: mv.from, to: mv.to });
+      for (let i = 0; i < 300 && (T.thinking || T.chess.history().length < n + 2); i++) await new Promise(r => setTimeout(r, 20));
+    }
+    return { sans: T.chess.history().join(' '), inBook: T.inBook, color: T.playerColor, book: T.book.size, view: document.getElementById('screen-trainer').dataset.view,
+      badge: document.getElementById('trainer-book-status').textContent, line: __lib.line.moves.join(' ') };`);
+  check(`[offline] Study starts a game with no connection and the book answers (${offPlay.sans}; ${net.hits.length} requests answered by the server)`,
+    offSheet === 1 && offGame && offPlay.view === 'study' && offPlay.sans.split(' ').length === 4 && offPlay.line.startsWith(offPlay.sans) && offPlay.inBook && offPlay.book > 4 && net.hits.length === 0, offPlay);
+  await shot('offline-3-study');
 } catch (e) { failed = true; console.error('\nSTOPPED: ' + e.message); }
 
 const bad = checks.filter(c => !c.ok);

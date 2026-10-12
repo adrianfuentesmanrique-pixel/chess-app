@@ -1749,7 +1749,7 @@ export function segValue(el) { return el.querySelector('button.on')?.dataset.v; 
 
 // `rich` renders the Play tab's card grid — robot badge, name and strength
 // range. Without it you get the compact button strip the Trainer tab uses.
-function buildLevelSeg(el, def = 2, rich = false) {
+export function buildLevelSeg(el, def = 2, rich = false) {
   el.innerHTML = '';
   el.classList.toggle('lvgrid', rich);
   el.classList.toggle('seg', !rich);
@@ -3848,6 +3848,7 @@ export const Trainer = {
   oneGame: false,    // "practice one game only" toggle
   game: null,        // summary of the chosen game while oneGame is on
   restored: false,   // the remembered base/toggle/game is read back once per launch
+  host: null,        // a study game from the Library: { back(), changed() }; null for My databases
   previewSeq: 0,
   inBook: true,
   over: false,
@@ -3870,7 +3871,7 @@ export const Trainer = {
     // the abandoned computerMove() still runs its finally, and a guess that
     // happens to be legal in the NEXT game plays itself as its first move.
     // Play.back does the same.
-    $('trainer-back').onclick = () => { engine.stop(); this.closeGuard(); this.board.clearPremove(); $('trainer-game').classList.add('hidden'); $('trainer-setup').classList.remove('hidden'); $('trainer-views').classList.remove('hidden'); };
+    $('trainer-back').onclick = () => this.leave();
     $('trainer-analyze').onclick = () => this.toAnalysis();
     $('trainer-first').onclick = () => this.gotoHistory(0);
     $('trainer-prev').onclick = () => this.gotoHistory(this.viewIdx - 1);
@@ -3895,6 +3896,21 @@ export const Trainer = {
     this.updateBadgeForView();
     this.updateNavButtons();
     this.applyInteractive();
+    this.host?.changed();
+  },
+
+  // The game's back button. A game from My databases returns to the setup form;
+  // a study game from the Library returns to wherever its host says.
+  leave() {
+    engine.stop();
+    this.closeGuard();
+    this.board.clearPremove();
+    $('trainer-game').classList.add('hidden');
+    $('trainer-setup').classList.remove('hidden');
+    const host = this.host;
+    this.host = null;
+    if (host) host.back();
+    else $('trainer-views').classList.remove('hidden');
   },
 
   updateNavButtons() {
@@ -4189,8 +4205,18 @@ export const Trainer = {
     if (!id) { toast(t('no_book_bases')); return; }
     if (this.oneGame && !this.game) { toast(t('trainer_pick_first')); this.pickGame(); return; }
     await this.buildBook(id, this.oneGame ? this.game.id : null);
-    this.playerColor = segValue($('trainer-color'));
-    this.level = +segValue($('trainer-level'));
+    this.begin({ color: segValue($('trainer-color')), level: +segValue($('trainer-level')) });
+  },
+
+  // A game, once its book is in place. My databases comes here from start().
+  // The Library (js/opening-lib-ui.js) sets `book`, `bookComments` and `bookKey`
+  // itself and enters here as `host`: { back(), changed() }, told when the
+  // game's back button is pressed and after every move and at the game's end.
+  // `played` ({ sans, inBook }) puts a game left half-way back on the board.
+  begin({ color, level, host = null, played = null }) {
+    this.host = null;   // told nothing while the board is being set up
+    this.playerColor = color;
+    this.level = level;
     this.chess = new Chess();
     this.over = false;
     this.thinking = false;
@@ -4205,9 +4231,17 @@ export const Trainer = {
     $('trainer-game').classList.remove('hidden');
     this.board.setOrientation(this.playerColor);
     this.place(this.chess.fen(), null, true);
+    for (let i = 0; played && i < played.sans.length; i++) {
+      let m;
+      try { m = this.chess.move(played.sans[i]); } catch { break; }
+      this.inBook = played.inBook?.[i] !== false;
+      this.place(this.chess.fen(), { from: m.from, to: m.to }, this.inBook);
+    }
+    this.host = host;
     this.renderMoves();
     this.setLiveInteractive(true);
     this.setStatus(t('your_turn'));
+    if (this.chess.isGameOver()) { this.over = true; this.applyInteractive(); return; }
     if (this.chess.turn() !== this.playerColor) this.computerMove();
   },
 
@@ -4366,6 +4400,7 @@ export const Trainer = {
     this.closeGuard();
     this.board.clearPremove();
     this.setStatus(msg);
+    this.host?.changed();
     if (result) this.recordOpeningResult(result);
   },
 

@@ -9,8 +9,14 @@
 // in ASSETS in sw.js because tools/check-precache.mjs does not follow a dynamic
 // import (tests/unit/precache.test.js checks the listing).
 //
-// Nothing here is stored but the last view, under 'trainerView': a device-only
-// value, NOT in SYNCED_KEYS. Library names are labels, never storage keys.
+// Two things are stored, both device-only and NOT in SYNCED_KEYS: the last view
+// ('trainerView') and a study game left half-way ('libStudy': the line, the
+// colour, the level and the moves played). Library names are labels, never
+// storage keys.
+//
+// A study game is the existing trainer (Trainer in js/app.js) entered with a
+// book made here: the line on screen and every library line that continues it.
+// While it runs the section's data-view is 'study'.
 //
 // This module imports from js/app.js, which imports it back. The cycle is safe
 // because every app.js binding used here is only read inside a method.
@@ -19,9 +25,11 @@ import { t, tn, getLang } from './i18n.js';
 import { Board, getPieceSet } from './board.js';
 import * as db from './db.js';
 import { fold, numbered, fullName, buildCards, filterCards, buildSearchIndex, searchLines, openingRows,
-  buildNameIndex, nameAt } from './opening-lib.js';
+  buildNameIndex, nameAt, numberedFrom, continuations, buildBook } from './opening-lib.js';
+import { GameTree } from './tree.js';
+import { fenKey } from './explore-index.js';
 import Tour from './tour.js';
-import { $, esc, segInit } from './app.js';
+import { $, esc, segInit, segValue, buildLevelSeg, modal, Trainer, Analysis } from './app.js';
 
 const FILES = 'abcdefgh';
 const CARD_PAGE = 16;   // cards drawn at a time: each carries a board
@@ -107,9 +115,21 @@ export const OpeningLib = {
   scroll: { list: 0, opening: 0 },
   drawn: '',          // language + piece set the lists were drawn in
   board: null,
-  line: null,         // the preview: { moves, fens, lasts, ply }
+  line: null,         // the preview: { o, l, moves, fens, lasts, ply }
+  game: null,         // the study game on the trainer's board: { line } (its moves as text)
+  saved: null,        // the study game left half-way: { line, color, level, sans, inBook }
+  host: null,         // what Trainer is told of a study game, made in init()
 
   init() {
+    this.host = { back: () => this.studyBack(), changed: () => this.saveStudy() };
+    $('lib-study').onclick = () => this.study();
+    $('lib-analyze').onclick = () => this.toAnalysis();
+    $('lib-next-rows').addEventListener('click', e => {
+      const b = e.target.closest('button[data-l]');
+      if (b) this.openPreview(+b.dataset.o, +b.dataset.l, this.from);
+    });
+    $('lib-resume-go').onclick = () => this.resume();
+    $('lib-resume-drop').onclick = () => { this.saved = null; db.kvSet('libStudy', null); this.renderResume(); };
     segInit($('trainer-views'), v => this.setView(v));
     segInit($('lib-side'), v => { this.side = v; this.renderList(); });
     // The first-move chips narrow the list and can be let go again.
@@ -165,6 +185,8 @@ export const OpeningLib = {
   },
 
   setView(v, { save = true } = {}) {
+    // A study game on the board is left first, as its own back button leaves it.
+    if ($('screen-trainer').dataset.view === 'study') Trainer.leave();
     this.view = v;
     $('screen-trainer').dataset.view = v;
     for (const b of $('trainer-views').querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === v);
@@ -182,6 +204,10 @@ export const OpeningLib = {
           this.cards = buildCards(this.lib);
           this.index = buildSearchIndex(this.lib);
           this.byMoves = buildNameIndex(this.lib);
+        }).then(async () => {
+          // A study game left half-way, if its line is still in the library.
+          const s = await db.kvGet('libStudy', null).catch(() => null);
+          if (s && this.byMoves.has(s.line) && Array.isArray(s.sans) && s.sans.length) this.saved = s;
         });
       }
       try { await this.loading; } catch {
@@ -216,6 +242,7 @@ export const OpeningLib = {
   renderList() {
     if (!this.lib) return;
     this.drawn = getLang() + getPieceSet();
+    this.renderResume();
     const el = $('lib-cards'), count = $('lib-count');
     const filters = { side: this.side, group: this.group };
     const searching = !!fold(this.query).trim();
@@ -288,7 +315,7 @@ export const OpeningLib = {
       fens.push(chess.fen());
       lasts.push({ from: m.from, to: m.to });
     }
-    this.line = { moves, fens, lasts, ply: moves.length };
+    this.line = { o, l, moves, fens, lasts, ply: moves.length };
     this.from = from;
     this.showPage('preview');
     this.goto(moves.length);
@@ -331,5 +358,114 @@ export const OpeningLib = {
     else list.scrollTop = 0;
     $('lib-nav-first').disabled = $('lib-nav-prev').disabled = L.ply === 0;
     $('lib-nav-next').disabled = $('lib-nav-last').disabled = L.ply === L.moves.length;
+    this.renderNext(hit);
+  },
+
+  // "Continues with": the next named lines after the moves on the board. A tap
+  // opens that line, so the walk goes one name further each time.
+  renderNext(hit) {
+    const L = this.line, el = $('lib-next-rows');
+    const next = continuations(this.lib, L.moves.slice(0, L.ply));
+    $('lib-next').classList.toggle('hidden', !next.length);
+    if (!next.length) { el._io?.disconnect(); el.innerHTML = ''; return; }
+    paged(el, next, c => {
+      const opening = this.lib[c.o], line = opening.lines[c.l];
+      // Inside the opening on screen the variation says it all.
+      const name = hit && hit.o === c.o && line[1] ? line[1] : fullName(opening, line);
+      const b = this.rowEl(c.o, c.l, name, '');
+      b.querySelector('.sub.moves').textContent = numberedFrom(line[2].split(' ').slice(L.ply), L.ply);
+      if (c.more) b.insertAdjacentHTML('beforeend', `<span class="sub">${esc(tn('lib_variations', c.more))}</span>`);
+      return b;
+    }, ROW_PAGE);
+  },
+
+  toAnalysis() {
+    const L = this.line;
+    if (!L) return;
+    const tree = new GameTree();
+    for (const san of L.moves) tree.play(san);
+    tree.setHeader('Event', fullName(this.lib[L.o], this.lib[L.o].lines[L.l]));
+    Analysis.loadTree(tree, { baseId: null, gameId: null, fromGameReview: true });
+  },
+
+  // Study: colour (pre-set to the opening's side) and level on a sheet, then
+  // the trainer.
+  async study() {
+    const L = this.line;
+    if (!L) return;
+    const opening = this.lib[L.o], line = L.moves.join(' ');
+    const made = this.bookFor(line);
+    const choice = await modal((box, close) => {
+      box.classList.add('lib-study-sheet');
+      box.innerHTML = `<h3>${esc(t('lib_study'))}</h3><p class="hint">${esc(fullName(opening, opening.lines[L.l]))}</p>`
+        + `<div class="option-group"><label>${esc(t('color'))}</label><div class="seg" id="lib-study-color">`
+        + ['w', 'b'].map(c => `<button data-v="${c}"${c === opening.side ? ' class="on"' : ''}>${esc(t(c === 'w' ? 'white' : 'black'))}</button>`).join('')
+        + `</div></div><div class="option-group"><label>${esc(t('level'))}</label><div class="seg wrap" id="lib-study-level"></div></div>`
+        + `<p class="hint">${esc(t('lib_study_book').replace('{n}', tn('lib_variations', made.lines)))}</p>`
+        + `<div class="btn-duo"><button class="btn primary" id="lib-study-start">${esc(t('start_game'))}</button>`
+        + `<button class="btn" id="lib-study-cancel">${esc(t('cancel'))}</button></div>`;
+      const color = box.querySelector('#lib-study-color'), level = box.querySelector('#lib-study-level');
+      // The level last chosen on the My databases form is where this one starts.
+      buildLevelSeg(level, +(segValue($('trainer-level')) ?? 2));
+      segInit(color);
+      segInit(level);
+      box.querySelector('#lib-study-start').onclick = () => close({ color: segValue(color), level: +segValue(level) });
+      box.querySelector('#lib-study-cancel').onclick = () => close(null);
+    });
+    if (choice) this.startStudy({ line, ...choice });
+  },
+
+  // The book of a line: made once, kept while that line is the one studied.
+  bookFor(line) {
+    if (this.made?.line !== line) this.made = { line, ...buildBook(this.lib, line, { Chess, fenKey }) };
+    return this.made;
+  },
+
+  // Enters the trainer with the library's book. `played` is a game being put back.
+  startStudy({ line, color, level, played = null }) {
+    Trainer.book = this.bookFor(line).book;
+    Trainer.bookComments = new Map();
+    Trainer.bookKey = 'lib|' + line;
+    this.game = { line };
+    $('screen-trainer').dataset.view = 'study';
+    document.querySelector('main').scrollTop = 0;
+    Trainer.begin({ color, level, host: this.host, played });
+    this.saveStudy();
+  },
+
+  // The study game's back button: the preview it was started from.
+  studyBack() {
+    this.game = null;
+    $('screen-trainer').dataset.view = this.view;
+    document.querySelector('main').scrollTop = 0;
+    this.renderResume();
+  },
+
+  // After every move of a study game and at its end. A game with no move yet
+  // and a finished game leave nothing to come back to.
+  saveStudy() {
+    if (!this.game) return;
+    const sans = Trainer.chess.history();
+    this.saved = Trainer.over || !sans.length ? null
+      : { line: this.game.line, color: Trainer.playerColor, level: Trainer.level, sans, inBook: Trainer.posHistory.slice(1).map(p => p.inBook) };
+    db.kvSet('libStudy', this.saved);
+  },
+
+  renderResume() {
+    const s = this.saved, hit = s && this.byMoves?.get(s.line);
+    $('lib-resume').classList.toggle('hidden', !hit);
+    if (!hit) return;
+    $('lib-resume-go').textContent = t('lib_resume')
+      .replace('{name}', fullName(this.lib[hit.o], this.lib[hit.o].lines[hit.l]))
+      .replace('{n}', Math.floor(s.sans.length / 2) + 1);
+  },
+
+  // The saved game back on the board, over the preview of its line, so that
+  // its back button has a preview to return to.
+  resume() {
+    const s = this.saved, hit = s && this.byMoves.get(s.line);
+    if (!hit) return;
+    this.openPreview(hit.o, hit.l, 'list');
+    this.startStudy({ line: s.line, color: s.color, level: s.level, played: { sans: s.sans, inBook: s.inBook } });
   },
 };

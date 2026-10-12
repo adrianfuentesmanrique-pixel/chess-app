@@ -953,7 +953,10 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
    form and the game keep their own .hidden, which Trainer still owns. */
 #screen-trainer[data-view="library"] #trainer-setup,
 #screen-trainer[data-view="library"] #trainer-game,
-#screen-trainer[data-view="mine"] #trainer-library { display: none; }
+#screen-trainer[data-view="mine"] #trainer-library,
+/* A study game started from a preview: the trainer's own game, nothing else. */
+#screen-trainer[data-view="study"] #trainer-library,
+#screen-trainer[data-view="study"] #trainer-setup { display: none; }
 .seg.trainer-views { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 8px; }
 .seg.trainer-views button { min-width: 0; min-height: 40px; text-align: center; }
 /* The switch is paid for out of the setup form's height, so Start stays on screen. */
@@ -990,6 +993,19 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 /* The preview's moves run on as one text, a line of theory being 18 moves at most. */
 #lib-moves { line-height: 1.75; min-height: 0; }
 #lib-preview .tool-btn:disabled { opacity: .4; cursor: default; }
+.btn-duo.lib-actions { margin: 0; }
+#lib-next .group-head { margin: 12px 2px 0; }
+#lib-next-rows { margin-top: 6px; }
+/* A study game left half-way: the gold bar over the search box. */
+.filter-chip.lib-resume { margin: 0 0 8px; padding: 4px 4px 4px 10px; }
+.filter-chip.lib-resume button { min-height: 36px; }
+/* A long name takes a second line, so the move number at its end is never cut. */
+#lib-resume-go { flex: 1 1 auto; min-width: 0; text-align: left; color: var(--text); line-height: 1.35; overflow-wrap: anywhere; }
+#lib-resume-drop { min-width: 36px; font-size: 15px; color: var(--muted); }
+/* The colour and level sheet that Study opens. */
+.lib-study-sheet h3 { margin-bottom: 2px; }
+.lib-study-sheet .option-group { margin: 12px 0; }
+.lib-study-sheet .btn-duo { margin: 14px 0 0; }
 
 /* ── move list ─────────────────────────── */
 .movelist {

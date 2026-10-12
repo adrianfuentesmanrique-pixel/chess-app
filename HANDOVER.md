@@ -9,6 +9,54 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **OPENING LIBRARY, CONVERSATION 2: STUDY AND THE REST OF THE PREVIEW (2026-10-12, v194).**
+  The preview now has **Study**, **Open in Analysis** and **Continues with**, and a study game
+  left half-way comes back. With this the spec's build plan (section 5) is finished.
+  - **The book** (`buildBook` in `js/opening-lib.js`, still PURE: the Chess class and `fenKey`
+    are handed in as arguments): the line on screen plus every library line that begins with its
+    moves, as a Map `fenKey -> { san: count }`, the shape `Trainer.buildBook` makes. By POSITION,
+    so a transposition stays in the book. A count is the number of named lines through a move,
+    not popularity, and the sheet says exactly that ("the library's named lines that pass
+    through here (10 variations)"). The lines are merged into a tree first, so the Sicilian's
+    400 lines play each shared move once.
+  - **"Continues with"** (`continuations`): the NEXT named lines after the moves on the board,
+    by moves. "Next" means no other named line lies between, so 1.e4 c5 shows a few dozen rows
+    and not 399; a tap opens that line (the name follows, the page returns to its top, the
+    preview's Back still goes to where the preview was first opened from). A row shows the
+    moves it adds (`numberedFrom`: "2.Na3", "5...a6 6.Be3") and how many named lines lie under it.
+  - **The trainer seam.** `Trainer.start()` builds the database book and calls the new
+    `Trainer.begin({ color, level, host, played })`; the Back button is `Trainer.leave()`.
+    `host` is null for My databases (same form, same game, same back as before). The Library
+    passes `{ back(), changed() }`: `changed` runs after every move and at the game's end.
+    While a study game runs `#screen-trainer[data-view]` is `study` (CSS hides the Library and
+    the form); `OpeningLib.view` and kv `trainerView` do not change. `setView()` leaves a study
+    game first, so the guided tour still finds the setup form.
+  - **Decided by Adrian here:** colour and level are chosen on a **sheet** over the preview
+    (colour pre-set to the opening's `side`, level starting from the form's), not on a row; the
+    restore is a **gold "Continue" bar** at the top of the Library ("Continue: name · move N",
+    with an X), for study games only. Games from My databases are still not saved.
+  - **The saved game** is kv `libStudy` (`{ line, color, level, sans, inBook }`), device only,
+    NOT in `SYNCED_KEYS` (a test fails if it is ever added). Written after every move, removed
+    when the game ends or is resigned; Back mid-game keeps it; a new study replaces it; a game
+    with no move yet saves nothing. The line is stored by its MOVES, so a rebuilt library that
+    no longer has it simply shows no bar.
+  - **The rating** is untouched: `recordOpeningResult` classifies the moves played. Checked: a
+    lost Ruy Lopez study game moved "Ruy Lopez, Morphy Defense" and nothing else; a keyless
+    line (1.a3 a5) was studied and credited nothing.
+  - **Carried, still Adrian's to confirm or change:** the guided tour does not mention the
+    Library; the 308 repeated names are separate rows; the preview shows White at the bottom for
+    every opening (a study game turns the board to the colour played).
+  - Checks: `test:tree` 302 to 308 (6 new in `tests/unit/opening-lib.test.js`: the shape, the
+    counts, a transposition, a one-line opening, a keyless line, "Continues with");
+    `test:precache` 53, unchanged (no new file); `tools/cdp-verify-opening-lib.mjs` 165 to 242
+    of 242 at 375 x 667, ES and EN, light and dark, screenshots looked at, including a study
+    game started with the network off; `tools/cdp-verify-trainer-guard.mjs` still passes.
+    `js/openings-eco.js`, `js/play-book.js`, `js/opening-library.js` and `firestore.rules`
+    unchanged. **Not measured: a real phone.** On a desktop under Node, building the book when
+    Study is tapped took 117 ms for 1.e4 c5 (410 lines) and 448 ms for the bare 1.e4 (2,032
+    lines, the largest there is); "Continues with" took 3 ms at most. If the Study sheet opens
+    slowly on a phone for 1.e4 or 1.d4, that is where to look.
+
 - **OPENING LIBRARY, CONVERSATION 1: BROWSE AND PREVIEW (2026-10-12, v193).**
   The Openings tab now opens on a **Library | My databases** switch. Study is NOT built:
   conversation 2 of the spec (`docs/superpowers/specs/2026-10-12-opening-library-design.md`).
