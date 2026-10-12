@@ -9,6 +9,92 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **PLAY: THE WHOLE GAME - MEASURED, THEN A SECOND LOOK AT EVERY MOVE (2026-10-12, v191).**
+  The opening was fixed in v190 (next entry); from its 13th move the engine still played
+  the raw strength limiter. Measured first, Adrian approved "all as recommended", built.
+  - **The tool: `node tools/measure-game.mjs <outDir>`** (headless Chrome, the app's own
+    `js/engine.js` and `js/play-book.js`). WHOLE games, both sides taking their moves as
+    `Play.engineMove()` does. Default: every level against the next one up and against
+    level 8 (which IS full strength), 24 games a pairing, 312 games, 50 to 80 minutes.
+    A separate full-strength judge (300 ms) scores every non-book move. A game stops once
+    decided (8 plies at 900+ cp). `GAMES`, `SLOTS`, `PAIRS=lv1-lv2,...`, `TAG`; `OLD=1`
+    plays the rest of the game as before this entry (the limiter alone); `VARIANTS=<json>`
+    adds trial sides (see `__trial` in the tool). Mistakes are counted after a side's 12th
+    move and only while the game was open (mover between -600 and +600 before the move).
+    **"rel. Elo" is fitted from these games only: an ORDER and a distance, NOT a rating.
+    A desktop PC: an upper bound for a phone. No phone was measured.**
+
+    BEFORE (v190, the limiter alone after move 12):
+
+    | level | cp/move | moves losing 100+ | games with a 300+ drop | games with a 600+ throw | vs level below | vs level 8 |
+    |---|---|---|---|---|---|---|
+    | 1 | 83.5 | 21.5% | 50% | 21% | - | 0-0-24 |
+    | 2 | 72.2 | 20.4% | 43% | 11% | 58% | 0-0-24 |
+    | 3 | 57.8 | 17.4% | 50% | 10% | 65% | 0-1-23 |
+    | 4 | 55.8 | 17.4% | 31% | 10% | 67% | 0-0-24 |
+    | 5 | 51.2 | 15.2% | 35% | 14% | 67% | 0-0-24 |
+    | 6 | 46.6 | 12.4% | 39% | 14% | 71% | 0-0-24 |
+    | 7 | 35.6 | 9.1% | 21% | 2% | 79% | 0-0-24 |
+    | 8 | 3.5 | 0% | 0% | 0% | 100% | - |
+
+    AFTER (v191):
+
+    | level | cp/move | moves losing 100+ | games with a 300+ drop | games with a 600+ throw | vs level below | vs level 8 | ms/move |
+    |---|---|---|---|---|---|---|---|
+    | 1 | 64.9 | 23.2% | 33% | 0% | - | 0-0-24 | 346 |
+    | 2 | 60.3 | 21.3% | 29% | 1% | 65% | 0-0-24 | 348 |
+    | 3 | 41.1 | 13.5% | 13% | 1% | 85% | 0-0-24 | 351 |
+    | 4 | 36.8 | 9.6% | 14% | 0% | 58% | 0-1-23 | 350 |
+    | 5 | 24.2 | 4.6% | 1% | 0% | 92% | 0-1-23 | 344 |
+    | 6 | 19.1 | 1.8% | 1% | 0% | 83% | 0-1-23 | 473 |
+    | 7 | 10.9 | 0.4% | 0% | 0% | 92% | 0-3-21 | 755 |
+    | 8 | 3.7 | 0% | 0% | 0% | 94% | - | 1088 |
+
+    Worst before: level 1, a rook up, promoted to a KNIGHT on move 29 and was mated in two;
+    level 6 ("Expert 2200-2500"), level game, took a rook with its queen on move 44 and
+    was lost at once; level 4, level game, walked its king into a mate in three on move 37.
+    Levels 3 to 6 were nearly one player. After: no mate in one allowed by any level in
+    312 games; the two 600+ moves left are the guard's 300 ms search and the judge
+    disagreeing.
+  - **A trial run (192 games) chose the design.** The guard alone for the whole game is
+    far too strong at the bottom (its "level 1" gave away 24 cp a move and outplayed the
+    old level 7) but is the only thing that closes the gap to level 8. Refusing the
+    limiter's bad moves keeps the varied play. EVERY fix makes every level stronger: the
+    old levels lose to the new ones about 11 games in 12.
+  - **What was built, `playMove` in `js/play-book.js`** (10 new tests, 24 in the file):
+    - Levels 1 to 5 (`VETO`): the limiter chooses AND, at the same time on the second
+      engine, a full-strength search lists the 4 best moves. The limiter's move stands
+      unless it costs more than `refuse` (280, 240, 190, 160, 120 cp). A costlier move is
+      still played `through` of the time (0.5, 0.45, 0.25, 0.15, 0) while it costs under
+      `THROUGH_MAX` (600): a piece goes, a queen or a mate does not. Otherwise
+      `pickGuarded` replaces it. A move the search did not list is scored by one more
+      search (`Play.scoreAfter`), so that reply can take twice the level's time.
+    - Levels 6 and 7 (`PLAY_MARGIN` 90 and 35 cp): the guard for the whole game; the
+      limiter is not asked.
+    - Level 8: unchanged, and it alone lets the second engine go after move 12.
+    - `Play.engineMove()` calls it after `openingMove`, also from a set-up position
+      (`startFromFen`), and falls back to the limiter if the second engine fails.
+      **`Play.openEngine` now lives to the end of the game** (was: 12 moves). Its memory
+      was NOT measured.
+  - **The level buttons no longer show a rating.** `range` is gone from `LEVELS`; the
+    buttons read the name and "Nivel N" / "Level N" (`level_n` in i18n). No honest Elo can
+    be measured offline and the old numbers were wrong from level 4 up.
+    `node tools/cdp-verify-play-levels.mjs <outDir>` checks it at 375px, light and dark,
+    Spanish and English (all four pictures opened and looked at).
+  - **Not changed:** Endings and the lessons (they never used the limiter: full strength,
+    `THINK_MS`), and the Openings trainer out of its book, which still calls
+    `engine.bestMove(fen, {movetime, elo})`, the limiter alone, by Adrian's decision.
+  - **Verified:** test:tree 285 (was 275), test:precache OK 51; `measure-opening.mjs` with
+    `APP_BOOK=1`: behind@12 103, 97, 78, 70, 45, 37, 23, -32 cp, the same as v190 within
+    the noise of 24 games (level 4 read 50 then, 70 now; that code did not change);
+    `cdp-verify-play-opening.mjs` (updated: second engine kept after move 12, top level
+    lets it go, set-up position checked by it) and `ONE=1 cdp-verify-offline-engine.mjs`
+    ALL PASSED. Replies on this PC: 310 to 315 ms at levels 1 to 5, now and then 615.
+  - **Still open:** (1) the steps are uneven: 2 to 3 and 4 to 5 are big (85%, 92%), 3 to 4
+    is small (58%), and 7 to 8 is still 3 draws in 24; the settings are from ONE run.
+    (2) Strength, reply time and memory on a real phone: not measured. (3) The Openings
+    trainer still has the old behaviour.
+
 - **PLAY: THE ENGINE'S OPENING - MEASURED, THEN A BOOK AND A GUARD (2026-10-11, v190).**
   Adrian: "Many users have report that the engine is playing worst than the ELO stablished."
   Measured first, he approved "all as recommended", then built. No screen changed.

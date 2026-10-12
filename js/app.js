@@ -23,7 +23,7 @@ import * as History from './history.js';
 import * as Read from './read.js';
 import { Sound } from './sound.js';
 import { REPLY_MS, THINK_MS } from './move-feel.js';
-import { openingMove } from './play-book.js';
+import { openingMove, playMove, usesGuardAllGame, GUARD_LINES } from './play-book.js';
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
 import { fenKey, PositionIndex } from './explore-index.js';
@@ -1759,7 +1759,7 @@ function buildLevelSeg(el, def = 2, rich = false) {
     if (rich) {
       b.innerHTML = `<img src="icons/badges/beat_engine_${i}.png" alt="" width="64" height="64">`
         + `<span class="lv-name">${esc(names[i])}</span>`
-        + `<span class="lv-elo">${lv.range}</span>`;
+        + `<span class="lv-elo">${esc(t('level_n').replace('{n}', i + 1))}</span>`;
     } else {
       b.textContent = (i + 1) + '·' + names[i];
     }
@@ -3500,10 +3500,23 @@ export const Play = {
         if (pick && pick.book) await sleep(REPLY_MS.playBook);
         if (this.over || this.chess !== chess) return;
         if (pick) { try { m = chess.move(pick.book ? pick.san : uciToMove(pick.uci)); } catch { m = null; } }
-        else this.closeOpening();
       }
       if (!m) {
-        const uci = await engine.bestMove(chess.fen(), { movetime: lv.movetime, elo: lv.elo });
+        // The rest of the game is not left to the limiter alone either: a
+        // full-strength search on the second engine checks its move, or picks
+        // the move at the two levels below the top (js/play-book.js).
+        const fen = chess.fen();
+        const limited = () => engine.bestMove(fen, { movetime: lv.movetime, elo: lv.elo });
+        let uci = null;
+        if (usesGuardAllGame(this.level)) {
+          uci = await playMove({
+            level: this.level, limited,
+            topMoves: count => this.openingSearch(fen, lv.movetime, count),
+            scoreAfter: move => this.scoreAfter(fen, move, lv.movetime),
+          }).catch(() => null);
+        } else this.closeOpening();
+        if (this.over || this.chess !== chess) return;
+        if (!uci) uci = await limited();
         if (!uci || this.over || this.chess !== chess) return;
         m = chess.move(uciToMove(uci));
       }
@@ -3523,12 +3536,24 @@ export const Play = {
     }
   },
 
-  // The opening guard's full-strength search. It has an engine of its own, so
-  // the main one is never switched between one line and several mid-game; it
-  // is let go as soon as the opening is over.
+  // The guard's full-strength search. It has an engine of its own, so the main
+  // one is never switched between one line and several mid-game, and so both
+  // can search the same position at once. Only the top level lets it go after
+  // the opening; the others keep it to the end of the game.
   async openingSearch(fen, movetime, count) {
     this.openEngine ||= new Engine();
     return (await this.openEngine.topMoves(fen, { movetime, count })).lines;
+  },
+
+  // What a move leaves the mover with, by the same full-strength engine: the
+  // other side's best answer, turned round. For a move the search did not list.
+  async scoreAfter(fen, uci, movetime) {
+    const c = new Chess(fen);
+    c.move(uciToMove(uci));
+    if (c.isCheckmate()) return 10000;
+    if (c.isGameOver()) return 0;
+    const lines = await this.openingSearch(c.fen(), movetime, GUARD_LINES);
+    return lines.length ? -Math.max(...lines.map(l => l.score)) : null;
   },
 
   closeOpening() {

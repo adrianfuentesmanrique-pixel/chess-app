@@ -295,15 +295,17 @@ export function pvWithNumbers(fen, sanMoves) {
 
 // Engine difficulty levels. Index is the level id and is persisted in
 // `engineLevelsBeaten`, so entries must never be reordered.
-// `range` is display only — the strength band each level covers, shown in the
-// Play level picker. `elo` is what the engine is actually told to play at.
+// `elo` is what the strength limiter is told, NOT a rating the level has: no
+// level carries a number on screen, because none could be measured offline
+// (2026-10-12, tools/measure-game.mjs). In Play the limiter's move is also
+// checked or replaced by js/play-book.js.
 export const LEVELS = [
-  { elo: 1320, movetime: 300, range: '1300-1450' },
-  { elo: 1450, movetime: 300, range: '1450-1600' },
-  { elo: 1600, movetime: 300, range: '1600-1800' },
-  { elo: 1800, movetime: 300, range: '1800-2000' },
-  { elo: 2000, movetime: 300, range: '2000-2200' },
-  { elo: 2200, movetime: 500, range: '2200-2500' },
-  { elo: 2500, movetime: 800, range: '2500-2800' },
-  { elo: null, movetime: 1200, range: '2800+' },
+  { elo: 1320, movetime: 300 },
+  { elo: 1450, movetime: 300 },
+  { elo: 1600, movetime: 300 },
+  { elo: 1800, movetime: 300 },
+  { elo: 2000, movetime: 300 },
+  { elo: 2200, movetime: 500 },
+  { elo: 2500, movetime: 800 },
+  { elo: null, movetime: 1200 },
 ];

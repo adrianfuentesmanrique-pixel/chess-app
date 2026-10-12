@@ -1,7 +1,9 @@
 // Headless-Chrome check that a game in Play still runs with the opening book
 // and guard (js/play-book.js): the engine answers every move through the
-// opening and past it, in its time, and a game from a set-up position is left
-// to the limited engine as before. Dev tool, not shipped.
+// opening and past it, in its time; the second (full-strength) engine is kept
+// for the whole game at every level but the top one, which lets it go after
+// move 12; and a game from a set-up position gets the same second look
+// (`playMove` in js/play-book.js, 2026-10-12). Dev tool, not shipped.
 //
 //   node tools/cdp-verify-play-opening.mjs
 //
@@ -109,24 +111,28 @@ try {
   await evalP(`document.querySelector('#tabbar button[data-screen="play"]').click();`);
   await sleep(500);
 
-  for (const [level, color] of [[0, 'w'], [0, 'b'], [4, 'b'], [7, 'w']]) {
+  for (const [level, color] of [[0, 'w'], [0, 'b'], [4, 'b'], [5, 'w'], [7, 'w']]) {
     await send('Page.reload', {});
     await sleep(3500);
     await evalP(`document.querySelector('#tabbar button[data-screen="play"]').click();`);
     await sleep(400);
     const r = await evalP(GAME(level, color, 15));
     const slack = 250;   // one worker start may fall on a move
-    const late = r.waits.filter(w => w > Math.max(r.movetime, 300) + slack);
+    // Levels 1 to 5: a move the full-strength search did not list is scored
+    // with one more search, so a reply may take twice the level's time.
+    const most = (level < 5 ? 2 : 1) * Math.max(r.movetime, 300) + slack;
+    const late = r.waits.filter(w => w > most);
     const ok = !r.error && r.waits.length === 15 && !late.length && !r.status.includes('⚠');
     say(ok, `level ${level + 1}, engine plays ${color === 'w' ? 'Black' : 'White'}: 15 replies${r.firstMs !== null ? `, engine's first move after ${r.firstMs} ms` : ''}; waits ${r.waits.join(' ')} ms (level time ${r.movetime})${r.error ? '; ' + r.error : ''}`);
-    say(r.held[14] === false && r.held[12] === false, `     opening engine let go after move 12 (held per move: ${r.held.map(h => h ? 'y' : '-').join('')})`);
+    if (level === 7) say(r.held[14] === false && r.held[12] === false, `     top level: second engine let go after move 12 (held per move: ${r.held.map(h => h ? 'y' : '-').join('')})`);
+    else say(r.held.slice(12).every(h => h), `     second engine kept after move 12 (it starts on the first move out of the book; held per move: ${r.held.map(h => h ? 'y' : '-').join('')})`);
     console.log(`     ${r.pgn}`);
   }
   const KQK = '8/8/8/4k3/8/8/3Q4/4K3 b - - 0 1';
   await send('Page.reload', {});
   await sleep(3500);
   const r = await evalP(GAME(2, 'b', 3, KQK));
-  say(!r.error && r.waits.length === 3 && r.held.every(h => !h), `set-up position: 3 replies, no opening engine (waits ${r.waits.join(' ')} ms) ${r.pgn}`);
+  say(!r.error && r.waits.length === 3 && r.held.every(h => h), `set-up position: 3 replies, checked by the second engine (waits ${r.waits.join(' ')} ms) ${r.pgn}`);
 } catch (e) { say(false, e.message); }
 finally {
   try { ws.close(); } catch {}

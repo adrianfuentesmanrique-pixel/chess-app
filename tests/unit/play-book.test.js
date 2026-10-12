@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import { Chess } from '../../vendor/chess.js';
 import { OPENINGS_ECO } from '../../js/openings-eco.js';
 import { LEVELS } from '../../js/engine.js';
-import { OPENING_MOVES, GUARD_LINES, guardMargin, guardFloor, pickBookMove, pickGuarded, openingMove } from '../../js/play-book.js';
+import { OPENING_MOVES, GUARD_LINES, guardMargin, guardFloor, pickBookMove, pickGuarded, openingMove,
+  playMove, vetoRule, playMargin, usesGuardAllGame, THROUGH_MAX } from '../../js/play-book.js';
 
 // A dice that walks evenly through 0..1, so every choice gets its turn.
 const sweep = (n = 200) => { let i = 0; return () => ((i++ % n) + 0.5) / n; };
@@ -121,4 +122,104 @@ test('the top level out of the book, a failed search, and the opening being over
   assert.equal(await openingMove({ sans: [...long, 'x'], level: 0, topMoves: top }), null);
   // the engine's 12th move as Black (23 plies played) is still the opening
   assert.notEqual(await openingMove({ sans: Array(OPENING_MOVES * 2 - 1).fill('x'), level: 0, topMoves: top }), null);
+});
+
+// ---- the rest of the game: playMove ----
+const LINES = [{ uci: 'best', score: 50 }, { uci: 'good', score: 20 }, { uci: 'pawn', score: -80 }, { uci: 'piece', score: -300 }];
+const play = (level, mine, extra = {}) => playMove({ level, limited: async () => mine, topMoves: async () => LINES, rnd: () => 0.99, ...extra });
+
+test('levels 1 to 5 keep the limiter and a second look, 6 and 7 the guard, the top level neither', () => {
+  for (let i = 0; i < 5; i++) { assert.ok(vetoRule(i)); assert.equal(playMargin(i), 0); assert.ok(usesGuardAllGame(i)); }
+  for (const i of [5, 6]) { assert.equal(vetoRule(i), null); assert.ok(playMargin(i) > 0); assert.ok(usesGuardAllGame(i)); }
+  assert.ok(playMargin(6) < playMargin(5));
+  assert.equal(usesGuardAllGame(7), false);
+  assert.equal(LEVELS.length, 8);
+});
+
+test('a weaker level may give away more, and is let off more often', () => {
+  for (let i = 1; i < 5; i++) {
+    assert.ok(vetoRule(i).refuse < vetoRule(i - 1).refuse);
+    assert.ok(vetoRule(i).through <= vetoRule(i - 1).through);
+  }
+  assert.equal(vetoRule(4).through, 0, 'from level 5 up a piece is never let go on purpose');
+  assert.ok(vetoRule(0).refuse < 300, 'a whole piece is always a refusal, never a free pass');
+});
+
+test('the limiter\'s move stands while it costs no more than the level allows', async () => {
+  assert.equal(await play(0, 'good'), 'good');
+  assert.equal(await play(0, 'pawn'), 'pawn');    // 130 cp: fine for a beginner
+  assert.notEqual(await play(4, 'pawn'), 'pawn'); // and refused at level 5
+});
+
+test('a refused move is replaced by one within the margin of the best', async () => {
+  for (let i = 0; i < 5; i++) {
+    const seen = new Set();
+    const rnd = sweep();
+    for (let k = 0; k < 200; k++) seen.add(await play(i, 'piece', { rnd }));
+    assert.ok(!seen.has('pawn'), `level ${i + 1} plays within its margin`);
+  }
+  assert.equal(await play(4, 'piece', { rnd: () => 0 }), 'best');
+});
+
+test('a weak level is sometimes let off with a dropped piece, level 5 never', async () => {
+  // the dice is read once for "let off?"; 0 always says yes
+  assert.equal(await play(0, 'piece', { rnd: () => 0 }), 'piece');
+  assert.equal(await play(3, 'piece', { rnd: () => 0 }), 'piece');
+  assert.notEqual(await play(4, 'piece', { rnd: () => 0 }), 'piece');
+  let dropped = 0;
+  let s = 7;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 400; k++) if (await play(0, 'piece', { rnd }) === 'piece') dropped++;
+  assert.ok(dropped > 150 && dropped < 250, `about half the time at level 1, got ${dropped}`);
+});
+
+test('no level is let off with a queen or a mate', async () => {
+  const lines = [{ uci: 'best', score: 50 }, { uci: 'queen', score: -700 }];
+  for (let i = 0; i < 5; i++) {
+    assert.equal(await playMove({ level: i, limited: async () => 'queen', topMoves: async () => lines, rnd: () => 0 }), 'best');
+    assert.equal(await playMove({ level: i, limited: async () => 'other', topMoves: async () => lines, scoreAfter: async () => -9990, rnd: () => 0 }), 'best');
+  }
+  assert.ok(THROUGH_MAX <= 600);
+});
+
+test('a move the search did not list is scored on its own before it is judged', async () => {
+  let asked = null;
+  const ok = await play(2, 'quiet', { scoreAfter: async u => { asked = u; return 10; } });
+  assert.equal(asked, 'quiet');
+  assert.equal(ok, 'quiet');
+  assert.notEqual(await play(2, 'blunder', { scoreAfter: async () => -400 }), 'blunder');
+  // nothing can say what it costs: the limiter's move stands
+  assert.equal(await play(2, 'unknown', { scoreAfter: async () => null }), 'unknown');
+  assert.equal(await play(2, 'unknown'), 'unknown');
+});
+
+test('a mate the limiter missed is played, and its own mate is never refused', async () => {
+  const lines = [{ uci: 'mate', score: 9999 }, { uci: 'slow', score: 600 }];
+  for (let i = 0; i < 5; i++) assert.equal(await playMove({ level: i, limited: async () => 'slow', topMoves: async () => lines, rnd: () => 0.99 }), 'mate');
+  assert.equal(await playMove({ level: 0, limited: async () => 'mate', topMoves: async () => lines }), 'mate');
+});
+
+test('levels 6 and 7 play a guarded move and never ask the limiter', async () => {
+  for (const level of [5, 6]) {
+    let asked = 0;
+    const seen = new Set();
+    const rnd = sweep();
+    for (let k = 0; k < 200; k++) seen.add(await playMove({ level, limited: async () => { asked++; return 'piece'; }, topMoves: async () => LINES, rnd }));
+    assert.equal(asked, 0);
+    assert.ok(seen.has('best') && !seen.has('pawn') && !seen.has('piece'));
+  }
+});
+
+test('the searches run at the same time, and a failed one falls back safely', async () => {
+  const order = [];
+  await playMove({ level: 0, limited: async () => { order.push('l'); await null; return 'good'; }, topMoves: async () => { order.push('t'); return LINES; } });
+  assert.deepEqual(order, ['l', 't']);
+  // no full-strength search: the limiter's move; no limiter move: a guarded one
+  assert.equal(await playMove({ level: 0, limited: async () => 'x', topMoves: async () => { throw new Error('dead'); } }), 'x');
+  assert.equal(await playMove({ level: 0, limited: async () => 'x', topMoves: async () => [] }), 'x');
+  assert.equal(await playMove({ level: 4, limited: async () => null, topMoves: async () => LINES, rnd: () => 0 }), 'best');
+  assert.equal(await playMove({ level: 0, limited: async () => null, topMoves: async () => [] }), null);
+  // the top level is not ours, and a dead search at level 6 hands back
+  assert.equal(await playMove({ level: 7, limited: async () => 'x', topMoves: async () => LINES }), null);
+  assert.equal(await playMove({ level: 5, limited: async () => 'x', topMoves: async () => { throw new Error('dead'); } }), null);
 });

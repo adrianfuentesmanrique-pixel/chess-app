@@ -56,7 +56,7 @@ for (const e of OPENINGS_ECO) {
 }
 
 const CONFIGS = [
-  ...LEVELS.map((lv, i) => ({ id: `lv${i + 1}`, label: `Level ${i + 1} (${lv.range})`, elo: lv.elo, movetime: lv.movetime, level: i })),
+  ...LEVELS.map((lv, i) => ({ id: `lv${i + 1}`, label: `Level ${i + 1}`, elo: lv.elo, movetime: lv.movetime, level: i })),
   { id: 'full@300', label: 'Full strength, 300 ms', elo: null, movetime: 300 },
   { id: 'full@500', label: 'Full strength, 500 ms', elo: null, movetime: 500 },
   { id: 'full@800', label: 'Full strength, 800 ms', elo: null, movetime: 800 },
