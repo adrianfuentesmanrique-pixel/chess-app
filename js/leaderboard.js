@@ -15,17 +15,32 @@ import { $, esc, segInit, showScreen, monthStr, radarThemes, openRadarPicker, RA
 // ═════════════════════ LEADERBOARD ═════════════════════
 
 // Each board is one sortable field on the public /leaderboard doc. Keys must
-// match the data-v values on #leaderboard-mode and the PUBLIC_KEYS list in
-// firebase.js. `fallback` is what to show when a player has no score yet.
+// match the data-v values on #leaderboard-mode and #flb-mode, and be in
+// PUBLIC_ALWAYS_KEYS in firebase.js. The buttons sit in two rows: the ELO
+// boards on top, the points (Rush) boards under them.
+// `fallback` is what to show when a player has no score yet; null means there
+// is no honest number to show (a Sealed Moves rating does not exist before the
+// first rated puzzle), so the row shows a dash and sorts last.
 // `season` names the equivalent this-month field, where one exists. Only the
 // Rush boards have seasons: ELO is a rating that already moves both ways, so
 // a "this month" ELO board would just be the all-time board again.
 export const LEADERBOARD_FIELDS = {
   puzzleElo:    { label: 'puzzle_elo',    fallback: 1200 },
+  blindfoldElo: { label: 'blindfold_elo', fallback: 1200 },
+  calcElo:      { label: 'calc_elo',      fallback: null },
   rushBest180:  { label: 'rush_3min',     fallback: 0, season: 'rushMonth180' },
   rushBest300:  { label: 'rush_5min',     fallback: 0, season: 'rushMonth300' },
-  blindfoldElo: { label: 'blindfold_elo', fallback: 1200 },
 };
+
+// What a row prints for a score: the rounded number, or a dash for "none".
+export const lbValue = v => (v == null ? '—' : Math.round(v));
+
+// Leaving a seasonal board drops back to all-time, so the switch is moved with
+// it: otherwise it stays lit on "This month" over an all-time board.
+export function lbPeriodSync(periodEl, hasSeason) {
+  periodEl.classList.toggle('hidden', !hasSeason);
+  if (!hasSeason) periodEl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === 'all'));
+}
 
 // Rank bands worth showing off. Beyond the top 100 a row is just a row —
 // giving every position its own colour would flatten the distinction.
@@ -58,7 +73,7 @@ export const Leaderboard = {
     showScreen('leaderboard');
     const board = LEADERBOARD_FIELDS[this.field];
     // The period switch only appears on boards that actually have seasons.
-    $('leaderboard-period').classList.toggle('hidden', !board.season);
+    lbPeriodSync($('leaderboard-period'), !!board.season);
     if (!board.season) this.season = false;
 
     $('leaderboard-search').value = '';
@@ -97,7 +112,7 @@ export const Leaderboard = {
     const field = this.sortField();
     list.forEach((e, i) => {
       const rank = i + 1;
-      const value = Math.round(e[field] ?? board.fallback);
+      const value = lbValue(e[field] ?? board.fallback);
       const item = document.createElement('button');
       // The metric is already named by the selected tab above the list, so the
       // row shows only what differs between players: who, and how much.

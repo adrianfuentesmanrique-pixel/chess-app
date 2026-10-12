@@ -215,6 +215,44 @@ describe('/leaderboard/{uid} — forged scores', () => {
       { ...validPublic, puzzleElo: '9999' }));
   });
 
+  // Sealed Moves ELO, published from v189 for its own board.
+  it('CAN publish a Sealed Moves ELO', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, calcElo: 1310.4 }));
+  });
+
+  it('a PRIVATE profile CAN publish its Sealed Moves ELO (a ranked score, not a detail field)', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, profileVisibility: 'private', calcElo: 1310 }));
+  });
+
+  it('a PRIVATE profile publishing calcElo still CANNOT carry a detail field', async () => {
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, profileVisibility: 'private', calcElo: 1310, puzzleThemeElo: { fork: 1500 } }));
+  });
+
+  it('CANNOT write an impossible Sealed Moves ELO', async () => {
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, calcElo: 999999 }));
+  });
+
+  it('CANNOT write a negative Sealed Moves ELO', async () => {
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, calcElo: -1 }));
+  });
+
+  it('CANNOT write a Sealed Moves ELO as a string', async () => {
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, calcElo: '2000' }));
+  });
+
+  it('CANNOT publish the Sealed Moves history or counts beside it', async () => {
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, calcElo: 1310, calcEloHistory: [] }));
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, calcElo: 1310, calcAttemptCount: 12 }));
+  });
+
   it('CAN write a believable top score', async () => {
     await assertSucceeds(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
       { ...validPublic, puzzleElo: 3200, rushBest180: 75 }));

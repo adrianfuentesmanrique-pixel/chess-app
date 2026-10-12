@@ -43,7 +43,8 @@ const SYNCED_KEYS = [
   'rushMonth180', 'rushMonth300', 'rushMonthKey', 'puzzleAttemptCount', 'radarThemes',
   'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
   'blindfoldAttemptCount', 'blindfoldSeconds',
-  // Sealed Moves: its own private rating. The keys say calc, like every id of the mode.
+  // Sealed Moves: its own rating. The keys say calc, like every id of the mode.
+  // calcElo is also published (PUBLIC_ALWAYS_KEYS); the other three are not.
   'calcElo', 'calcEloHistory', 'calcAttemptCount', 'calcSolved',
 ];
 
@@ -62,7 +63,11 @@ const VISIBILITY_LEVELS = Object.values(VISIBILITY);
 // are identical for every player whatever their privacy setting.
 const PUBLIC_ALWAYS_KEYS = ['profileName', 'username', 'avatarId', 'puzzleElo',
   'rushBestScore', 'rushBest180', 'rushBest300',
-  'rushMonth180', 'rushMonth300', 'rushMonthKey', 'blindfoldElo'];
+  'rushMonth180', 'rushMonth300', 'rushMonthKey', 'blindfoldElo',
+  // Sealed Moves. Private until v189, then given its own board. It is saved
+  // only from the first rated puzzle on, so until then there is nothing to
+  // publish and the player is simply not on that board.
+  'calcElo'];
 
 // These only go out while the profile is public. On a private profile they are
 // actively DELETED from the public doc — merge writes never remove a field, so

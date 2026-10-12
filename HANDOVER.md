@@ -9,6 +9,39 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **LEADERBOARDS: FIVE BOARDS IN TWO ROWS, SEALED MOVES ELO NOW PUBLIC (2026-10-11, v189).
+  COMMITTED; the push waits for Adrian's `npm.cmd run rules:deploy` (the rules changed).**
+  - **Adrian's decision, which overrides the v187 entry below and spec 3d:** the boards are
+    Puzzle ELO, Blindfold ELO, Sealed Moves ELO, Puzzle Rush 3 min and 5 min. Nothing else.
+    He turned down boards for Opening/Endgame ELO, streak, best streak and Duel; the
+    coordinate trainer gets none either. Do not propose them again unasked.
+  - **Layout he approved from screenshots:** no ELO/Points switch. `.seg.lb-modes`
+    (`css/style.css`, the same six-column grid as `.seg.puzzle-modes`): the three ELO boards
+    on the top row, the two Rush boards under them, `.seg.lb-period` (All time / This month)
+    under those on Rush boards only. Same markup in `#leaderboard-mode` and `#flb-mode`.
+    Short button texts `lb_puzzle_elo`, `lb_blindfold_elo`, `lb_calc_elo`, `lb_rush_3min`,
+    `lb_rush_5min` (`js/i18n.js`); tightest label has 23px to spare when bold at 375px.
+  - **Publishing:** `calcElo` is in `PUBLIC_ALWAYS_KEYS` (`js/firebase.js`), so it goes out
+    for private profiles too, like `puzzleElo` and `blindfoldElo`. It is saved only from the
+    first rated puzzle, so until then a player is not on that board. The history, attempt
+    count and solved map stay unpublished. `firestore.rules` `/leaderboard/{uid}`: `calcElo`
+    in `hasOnly`, `num(0, 4000)`. Seven new tests in `tests/rules/existing.test.js`
+    (test:rules 442 pass). No index needed: one-field sorts use the automatic index.
+  - **`js/leaderboard.js`:** `LEADERBOARD_FIELDS.calcElo` has `fallback: null`; `lbValue()`
+    prints a dash for it and the friends board sorts those rows last. `lbPeriodSync()` is
+    shared by both screens and fixes the old global-board bug where the switch stayed lit on
+    "This month" after leaving a Rush board. Firestore leaves a document with no value for
+    the sort field out of an `orderBy` query, so the global board lists only rated players.
+  - **Verified:** `node tools/cdp-verify-leaderboards.mjs <outDir>`, 141 of 141, at 375px,
+    ES and EN, light and dark, every button really tapped on both screens, screenshots
+    opened. test:tree 261 pass, test:precache OK (50 and 142).
+  - **NOT verified (the tools are signed out and App Check refuses them):** that `calcElo`
+    really lands on the public document, and real rows coming back for any board. First
+    signed-in look at the Sealed board on a phone settles both.
+  - **Not done, not asked:** the public profile still shows four ELO cards, no Sealed Moves
+    one. Seen in the screenshots and not checked against the old version: on the friends
+    leaderboard the watermark logo is drawn over the rows.
+
 - **SEALED MOVES: ITS OWN PRIVATE RATING, NO REPEATS, THE LOG, "OPEN IN ANALYSIS" AND KAEL'S
   FIRST-TIME EXPLANATION (2026-10-10, v187). Conversation 3 of 3, the last, of
   `docs/superpowers/specs/2026-10-10-calculation-mode-design.md`. The mode is complete.**

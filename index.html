@@ -1135,13 +1135,15 @@
       <button id="leaderboard-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="leaderboard_title"></h2>
     </div>
-    <div class="seg" id="leaderboard-mode">
-      <button data-v="puzzleElo" class="on" data-i18n="puzzle_elo"></button>
-      <button data-v="rushBest180" data-i18n="rush_3min"></button>
-      <button data-v="rushBest300" data-i18n="rush_5min"></button>
-      <button data-v="blindfoldElo" data-i18n="blindfold_elo"></button>
+    <!-- Two rows: the three ELO boards, then the two points (Rush) boards. -->
+    <div class="seg lb-modes" id="leaderboard-mode">
+      <button data-v="puzzleElo" class="on" data-i18n="lb_puzzle_elo"></button>
+      <button data-v="blindfoldElo" data-i18n="lb_blindfold_elo"></button>
+      <button data-v="calcElo" data-i18n="lb_calc_elo"></button>
+      <button data-v="rushBest180" data-i18n="lb_rush_3min"></button>
+      <button data-v="rushBest300" data-i18n="lb_rush_5min"></button>
     </div>
-    <div class="seg hidden" id="leaderboard-period">
+    <div class="seg lb-period hidden" id="leaderboard-period">
       <button data-v="all" class="on" data-i18n="lb_all_time"></button>
       <button data-v="month" data-i18n="lb_this_month"></button>
     </div>
@@ -1278,13 +1280,14 @@
       <button id="flb-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="friends_lb_title"></h2>
     </div>
-    <div class="seg" id="flb-mode">
-      <button data-v="puzzleElo" class="on" data-i18n="puzzle_elo"></button>
-      <button data-v="rushBest180" data-i18n="rush_3min"></button>
-      <button data-v="rushBest300" data-i18n="rush_5min"></button>
-      <button data-v="blindfoldElo" data-i18n="blindfold_elo"></button>
+    <div class="seg lb-modes" id="flb-mode">
+      <button data-v="puzzleElo" class="on" data-i18n="lb_puzzle_elo"></button>
+      <button data-v="blindfoldElo" data-i18n="lb_blindfold_elo"></button>
+      <button data-v="calcElo" data-i18n="lb_calc_elo"></button>
+      <button data-v="rushBest180" data-i18n="lb_rush_3min"></button>
+      <button data-v="rushBest300" data-i18n="lb_rush_5min"></button>
     </div>
-    <div class="seg hidden" id="flb-period">
+    <div class="seg lb-period hidden" id="flb-period">
       <button data-v="all" class="on" data-i18n="lb_all_time"></button>
       <button data-v="month" data-i18n="lb_this_month"></button>
     </div>

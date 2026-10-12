@@ -24,7 +24,8 @@
 // sheet. Nothing here reads or writes the Puzzles ones.
 //
 // ITS OWN RATING (kv calcElo, calcEloHistory, calcAttemptCount, calcSolved; all
-// four synced). Private: it is shown here and nowhere else in the app. Until the
+// four synced). calcElo alone is public: it has its own leaderboard (v189), the
+// history and the counts stay with the player. Until the
 // first puzzle is paid it is the puzzle rating minus 200, read again each time,
 // and it is saved only from that first payment on. The arithmetic is js/calc.js
 // calcPay. WHEN IT IS PAID: at the hand-in that ends the puzzle, in full, except

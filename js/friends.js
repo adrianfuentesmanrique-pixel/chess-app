@@ -10,7 +10,7 @@
 // inside a function only, never at module top level.
 import { t } from './i18n.js';
 import { avatarHtml } from './avatars.js';
-import { LEADERBOARD_FIELDS, rankTier, PublicProfile } from './leaderboard.js';
+import { LEADERBOARD_FIELDS, rankTier, lbValue, lbPeriodSync, PublicProfile } from './leaderboard.js';
 import {
   Auth, searchByUsername, SEARCH_MIN_CHARS, sendFriendRequest,
   fetchIncomingRequests, fetchOutgoingRequests, fetchLeaderboardByUids,
@@ -536,16 +536,8 @@ export const Friends = {
     const board = LEADERBOARD_FIELDS[this.field];
     // The period switch only appears on boards that actually have seasons —
     // same rule as the global leaderboard.
-    $('flb-period').classList.toggle('hidden', !board.season);
-    // Leaving a seasonal board drops back to all-time, so the switch has to be
-    // moved with it. Without this it stays lit on "This month" while the board
-    // underneath is the all-time one. (#leaderboard-period has the same bug —
-    // it is left alone here because that screen is not this commit.)
-    if (!board.season) {
-      this.season = false;
-      const per = $('flb-period');
-      per.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === 'all'));
-    }
+    lbPeriodSync($('flb-period'), !!board.season);
+    if (!board.season) this.season = false;
     const field = this.season && board.season ? board.season : this.field;
 
     // What this row scores on the board being shown. A player who set a Rush
@@ -564,8 +556,11 @@ export const Friends = {
     // fetched. Signed out — or before my public document exists — I have no
     // row and the board is just my friends.
     const myUid = Auth.user && Auth.user.uid;
+    // A friend with no score on this board (fallback null: no Sealed Moves
+    // rating yet) stays on the roster, at the bottom, with a dash.
+    const rankOf = e => score(e) ?? -Infinity;
     const list = (this.me ? this.friends.concat(this.me) : this.friends.slice())
-      .sort((a, b) => score(b) - score(a));
+      .sort((a, b) => rankOf(b) - rankOf(a));
 
     $('flb-status').textContent = list.length ? ''
       : (Auth.user && !this.friendsLoaded ? t('loading') : t('friends_lb_empty'));
@@ -581,7 +576,7 @@ export const Friends = {
         `<span class="lb-rank">${rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : rank}</span>` +
         avatarHtml(e.avatarId, 36) +
         `<span class="lb-name">${esc(e.profileName || '?')}</span>` +
-        `<span class="lb-value">${Math.round(score(e))}</span>`;
+        `<span class="lb-value">${lbValue(score(e))}</span>`;
       // Tapping through works exactly as it does on the global leaderboard,
       // except ◀ comes back to this board instead of to that one.
       item.onclick = () => PublicProfile.open(e, 'friends-leaderboard');

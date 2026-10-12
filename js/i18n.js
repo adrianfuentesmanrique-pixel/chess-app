@@ -976,6 +976,12 @@ const DICT = {
   rush_strike_last: { es: '¡Error! Último intento', en: "That wasn't it — last chance" },
   lb_all_time: { es: 'Histórico', en: 'All time' },
   lb_this_month: { es: 'Este mes', en: 'This month' },
+  // The leaderboards' five board buttons: short, three share one row at 375px.
+  lb_puzzle_elo: { es: 'ELO puzzles', en: 'Puzzle ELO' },
+  lb_blindfold_elo: { es: 'ELO a ciegas', en: 'Blindfold ELO' },
+  lb_calc_elo: { es: 'ELO selladas', en: 'Sealed ELO' },
+  lb_rush_3min: { es: '⚡ Rush 3 min', en: '⚡ Rush 3 min' },
+  lb_rush_5min: { es: '⚡ Rush 5 min', en: '⚡ Rush 5 min' },
   rush_3min: { es: 'Puzzle Rush 3 min', en: 'Puzzle Rush 3 min' },
   rush_5min: { es: 'Puzzle Rush 5 min', en: 'Puzzle Rush 5 min' },
   rush_explain: { es: 'Resuelve tantos puzzles como puedas antes de que se acabe el tiempo. ¡Un solo error termina la partida!', en: 'Solve as many puzzles as you can before time runs out. A single mistake ends the run!' },

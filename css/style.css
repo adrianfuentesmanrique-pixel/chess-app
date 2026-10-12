@@ -533,15 +533,20 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 /* The four puzzle modes: two rows of two, every one in sight and the same size. */
 /* Five modes in two rows: three on top, two below. Six columns, so a top chip
    takes two and a bottom chip three. */
-.seg.puzzle-modes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
-.seg.puzzle-modes button { grid-column: span 2; min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.seg.puzzle-modes button:nth-child(n+4) { grid-column: span 3; }
+/* The leaderboards' five boards use the same grid: the three ELO boards on
+   top, the two points (Rush) boards below. */
+.seg.puzzle-modes, .seg.lb-modes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.seg.puzzle-modes button, .seg.lb-modes button { grid-column: span 2; min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg.puzzle-modes button:nth-child(n+4), .seg.lb-modes button:nth-child(n+4) { grid-column: span 3; }
+/* All time / This month, under the Rush row and the same two halves as it. */
+.seg.lb-period { display: grid; grid-template-columns: 1fr 1fr; margin-top: 6px; }
+.seg.lb-period button { min-width: 0; padding: 7px 4px; font-size: 13px; text-align: center; }
 /* "⚡ Puzzle Rush", lit (bold), is the label that runs out of room first: at
    14px it measured 0.4px to spare at 375 wide and none at 360, and a phone's
    own font can be wider than the one it was measured in. Under 400 wide the
    type is a size smaller, which leaves it 12px at 375 and 7px at 360. */
-@media (max-width: 399px) { .seg.puzzle-modes button { font-size: 13px; padding: 8px 2px; } }
-@media (max-width: 349px) { .seg.puzzle-modes button { font-size: 12px; } }
+@media (max-width: 399px) { .seg.puzzle-modes button, .seg.lb-modes button { font-size: 13px; padding: 8px 2px; } }
+@media (max-width: 349px) { .seg.puzzle-modes button, .seg.lb-modes button { font-size: 12px; } }
 
 /* ── Sealed Moves (calc) ───────────────── */
 /* The screen is exactly as tall as the room there is, so nothing scrolls but

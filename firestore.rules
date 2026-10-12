@@ -129,7 +129,7 @@ service cloud.firestore {
           'openingElo', 'endgameElo', 'streakCount', 'rushBestScore',
           'rushBest180', 'rushBest300',
           'rushMonth180', 'rushMonth300', 'rushMonthKey',
-          'blindfoldElo', 'openingEloAvg', 'endgameEloAvg',
+          'blindfoldElo', 'calcElo', 'openingEloAvg', 'endgameEloAvg',
           'profileVisibility', 'updatedAt'
         ])
 
@@ -165,6 +165,7 @@ service cloud.firestore {
         // only fields worth forging. Everything here is range-checked.
         && (!('puzzleElo' in after())    || num(after().puzzleElo, 0, 4000))
         && (!('blindfoldElo' in after()) || num(after().blindfoldElo, 0, 4000))
+        && (!('calcElo' in after())      || num(after().calcElo, 0, 4000))
         && (!('openingEloAvg' in after())|| num(after().openingEloAvg, 0, 4000))
         && (!('endgameEloAvg' in after())|| num(after().endgameEloAvg, 0, 4000))
         && (!('rushBestScore' in after())|| num(after().rushBestScore, 0, 1000))
