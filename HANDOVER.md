@@ -9,6 +9,33 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **ANALYSIS: A GAME TAPPED IN THE SEARCH RESULTS OPENS ON THE SEARCHED POSITION (2026-10-13, v213).**
+  Before, it opened on its last move like every other game. Now the board shows the same
+  position before and after the tap, inside that game. Both lists: my own base and the Internet.
+  HOW: `Analysis.loadTree(tree, ctx, at)` has a third, optional argument, the FEN that was on
+  the board at the tap (read BEFORE the game is fetched). Only the two result taps pass it
+  (`renderGameResults` for a base, `openMasterGame` for the Internet). `nodeAt(tree, fen)` in
+  js/explore-index.js finds the node by POSITION (`fenKey`), never by move number: first on the
+  main line (root included), else the first in a side variation, else null and the game opens
+  on its last move with nothing said. Checked before choosing this: the index DOES match
+  positions inside side variations, and a position can come back in one game.
+  UNCHANGED, ADRIAN'S DECISION: the previous / next game arrows (`gotoAdjacentGame`) and the
+  Bases tab's own list (`Base.openGame`) still open on the last move; so does everything else.
+  No words, no style, no i18n.
+  VERIFIED: test:tree 462 (5 new, nodeAt), test:precache 59. tools/cdp-verify-livesearch.mjs
+  276 of 276 = 69 checks x en/es x light/dark at 375 px, real taps: from the start position,
+  six moves in (engine on: it restarts on that position), by another move order, one Internet
+  result, then ▶ plays the GAME's next move; Bases tab and its next-game arrow still on the
+  last move. Screenshots opened: en-light and es-dark.
+  FOUND: that tool was BROKEN on main (2 checks, then a crash, in each of its 4 runs) since
+  the app starts on Home: it never went to the Analysis tab. Fixed in the tool (`CLEAN`); with
+  only that fix main passed 204 of 204. One old check changed its expectation on purpose
+  ("🔎 from the moves" now finds 2 games at 2...d6, not 1 at the mate).
+  NOT VERIFIED: the Internet tap against the real Lichess (no account in the test browser;
+  the tool answers Lichess itself with one made-up game, as cdp-verify-lichess.mjs does).
+  NOT BUILT: keyboard arrow keys. The app has no arrow-key handling anywhere (grep `Arrow`
+  in js/ finds only the board's drawn arrows), so there was nothing to keep working.
+
 - **KAEL'S BUBBLE STAYS WHERE IT IS (2026-10-13, decision only, docs only, no version bump).**
   Adrian looked at pictures of three options and chose to LEAVE IT. Do not re-open this
   unless he asks. Nothing in the app changed; the `hush()` / "hide the bubble first" lines in
