@@ -9,7 +9,7 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
-- **HOME TAB, CONVERSATION 1 OF 3: THE SCREEN, AND THE APP OPENS ON IT (2026-10-12, v197).**
+- **HOME TAB, CONVERSATION 1 OF 3: THE SCREEN, AND THE APP OPENS ON IT (2026-10-12, v197, v198).**
   Spec `docs/superpowers/specs/2026-10-12-home-tab-design.md`, build plan item 1.
   - **Screen:** `#screen-home` in `index.html` (first `<section>` in `<main>`): Kael's line
     (`.home-kael`, `#home-kael-line`) and the "Hoy" card (`#home-today`: `#home-today-chip`,
@@ -31,19 +31,22 @@ are in `CLAUDE.md` under "Finish by pushing".
     `HOME_SCREEN`; no other navigation code changed.
   - **Profile:** the missions card is one row, `#profile-missions-row` ("Misiones de hoy: n / 3",
     `#daily-missions-streak` still on it), which opens Home.
-  - **Kael's corner:** `body.on-home #kael-corner:not(.speaking)` is slid off the edge, opacity 0,
-    not tappable. `.speaking` still brings him in on Home. **Adrian still to confirm that second
-    half** (screenshot shown to him at the end of the session).
-  - **Open, asked of Adrian, NOT changed:** Kael's random quote 0.9 s after opening
-    (`KaelQuotes.showRandom()` at the end of `main()`) still runs, and the app now opens on Home,
-    so he slides into the corner of Home for about six seconds at every launch. If Adrian wants
-    that gone, it is one line there: skip it while `activeScreen === 'home'`.
+  - **Kael on Home, DECIDED BY ADRIAN the same day (v198): "just in the home, all the Kael
+    interactions will be in the home itself."** `body.on-home #kael-corner` is slid off the edge,
+    opacity 0, not tappable, speaking or not. `KaelQuotes.show()` on Home hands the message to
+    `Home.say(item, duration)`, which puts it in `#home-kael-line` (class `.saying`; `.actionable`
+    and tappable when it has an `onTap`) in place of his usual line; `Home.endSay()` puts the line
+    back. `KaelQuotes.html(item)` is the one builder for both bubbles. `Home.render()` never
+    writes over a message. Entering Home closes a corner bubble still open; leaving Home ends a
+    message there. This replaces the spec's a2 recommendation (slide in when he speaks).
+  - **His random quote on opening** (`KaelQuotes.showRandom()` at the end of `main()`) is skipped
+    while Home is in view: Adrian's answer, "turning it off on home only".
   - **Tour (`js/tour.js`):** `STEPS` is exported; `welcome` is on Home, new step `homeToday`
     rings `#home-today`, `profMiss` is gone (33 steps), `finish()` ends on Home. Not changed:
     the last step still says Kael is "always down in the corner", which is not true on Home.
   - **`js/pulso-ui.js` `follow()`:** "still on the opening screen" is now `'home'`, was `'analysis'`.
   - **A Lichess return** only shows a toast, so it now lands on Home (was Analysis, the default).
-  - **Checked** with `node tools/cdp-verify-home.mjs <outDir>` (new; 125 checks, about three
+  - **Checked** with `node tools/cdp-verify-home.mjs <outDir>` (new; 141 checks, about four
     minutes): 375px, ES and EN, light and dark, pictures opened. Fresh profile opens on Home;
     the tour really tapped through all 33 steps; menu, swipe both ways, Back three tabs deep;
     a shared PGN lands on Databases, a `?duel=` link on Duel. `test:tree` 338 pass, `test:precache` OK.

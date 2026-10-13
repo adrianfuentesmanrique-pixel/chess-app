@@ -641,18 +641,32 @@ export const KaelQuotes = {
   // Kael says nothing over a timed Rush run or a Pulso match: a bubble there
   // covers the corner of a board the player is racing on. What he would have
   // said is dropped, not saved up. `asked` is the player tapping Kael himself.
-  show(item, duration = 6000, asked = false) {
-    if (!asked && (Rush.running || PulsoMatch.id)) return;
-    const bubble = $('kael-bubble');
+  // What a bubble holds. Shared by the corner bubble and by Kael's own bubble
+  // at the top of Home (Home.say).
+  html(item) {
     const title = item.title ? `<b class="kael-quote-title">${esc(item.title)}</b>` : '';
     const cta = item.cta ? `<span class="kael-quote-cta">${esc(item.cta)}</span>` : '';
     const text = `${title}<p>${esc(item.text)}</p>${item.author ? `<span class="kael-quote-author">— ${esc(item.author)}</span>` : ''}${cta}`;
     // imageClass lets callers opt out of the square badge treatment — streak
     // art has variable widths and must be sized by height only.
     const imgClass = item.imageClass || 'kael-quote-badge';
-    bubble.innerHTML = item.image
+    return item.image
       ? `<div class="kael-quote-row"><img src="${item.image}" class="${imgClass}" alt=""><div>${text}</div></div>`
       : text;
+  },
+
+  show(item, duration = 6000, asked = false) {
+    if (!asked && (Rush.running || PulsoMatch.id)) return;
+    // On Home Kael is at the top of the page, and that is where he speaks:
+    // the corner never appears there (Adrian, 2026-10-12).
+    if (activeScreen === 'home') {
+      Home.say(item, duration);
+      Sound.play('kael-pop');
+      this.lastShownAt = Date.now();
+      return;
+    }
+    const bubble = $('kael-bubble');
+    bubble.innerHTML = this.html(item);
     this.onTap = item.onTap || null;
     // A gold edge marks the rare bubble that goes somewhere, so it reads
     // differently from the ordinary ones that only dismiss.
@@ -1271,6 +1285,39 @@ export const Home = {
   init() {
     $('home-puzzle-btn').onclick = () => DailyMissions.goPuzzle();
     $('profile-missions-row').onclick = () => showScreen('home');
+    // His bubble takes a tap only while it holds a message that goes somewhere.
+    $('home-kael-line').onclick = () => {
+      const act = this.onTap;
+      if (!this.saying || !act) return;
+      this.endSay();
+      act();
+    };
+  },
+
+  // Whatever Kael has to say while Home is in view (a mission done, a streak
+  // step, a badge) is said here, in his bubble at the top, in place of his
+  // usual line, which comes back when he has finished. KaelQuotes.show() sends
+  // it here; his corner is never shown on Home.
+  saying: false,
+  sayTimer: null,
+  onTap: null,
+  say(item, duration = 6000) {
+    const el = $('home-kael-line');
+    clearTimeout(this.sayTimer);
+    this.saying = true;
+    this.onTap = item.onTap || null;
+    el.innerHTML = KaelQuotes.html(item);
+    el.classList.add('saying');
+    el.classList.toggle('actionable', !!this.onTap);
+    this.sayTimer = setTimeout(() => this.endSay(), duration);
+  },
+  endSay() {
+    if (!this.saying) return;
+    clearTimeout(this.sayTimer);
+    this.saying = false;
+    this.onTap = null;
+    $('home-kael-line').classList.remove('saying', 'actionable');
+    this.render();
   },
 
   async render() {
@@ -1294,7 +1341,8 @@ export const Home = {
       : line.rule === 'welcome' ? `<b>${esc(t('home_welcome'))}</b> ` : '';
     const text = line.rule === 'pending' || line.rule === 'counted'
       ? tn('home_line_' + line.rule, line.n) : t('home_line_' + line.rule);
-    $('home-kael-line').innerHTML = greet + esc(text);
+    // Not over something he is saying (say() above); endSay() redraws.
+    if (!this.saying) $('home-kael-line').innerHTML = greet + esc(text);
   },
 };
 
@@ -1353,11 +1401,13 @@ export function showScreen(name) {
   // Profile is not in the drawer: its light is the ring on the top bar's
   // avatar, on for Profile and every screen reached from it.
   $('btn-profile')?.classList.toggle('on', MENU_AREA[name] === 'profile');
-  // Kael is already at the top of Home, so his idle sliver in the corner is
-  // hidden there (css: body.on-home #kael-corner). When he speaks he still
-  // slides in.
+  // Kael is already at the top of Home, so his corner is hidden there (css:
+  // body.on-home #kael-corner) and what he says goes into his bubble on the
+  // page (Home.say). A corner bubble still open is closed on the way in; a
+  // message on Home ends on the way out.
   document.body.classList.toggle('on-home', name === 'home');
-  if (name === 'home') Home.render();
+  if (name === 'home') { if ($('kael-bubble').classList.contains('show')) KaelQuotes.hide(); Home.render(); }
+  else Home.endSay();
   if (name !== 'analysis') Analysis.pauseEngine();
   if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
   if (name === 'base') Base.refresh();
@@ -8323,7 +8373,9 @@ async function main() {
     $('splash').classList.add('hide');
     window.__bootDone?.();   // the boot guard in index.html stands down
     const onboarded = await Onboarding.maybeShow();
-    if (!onboarded) setTimeout(() => KaelQuotes.showRandom(), 900);
+    // Kael's quote on opening is not said on Home (Adrian, 2026-10-12): his
+    // line at the top of that screen is the greeting.
+    if (!onboarded) setTimeout(() => { if (activeScreen !== 'home') KaelQuotes.showRandom(); }, 900);
   }, Math.max(0, 1500 - elapsed));
 }
 

@@ -115,7 +115,7 @@ const home = () => ev(`
     order: [...document.querySelectorAll('#tabbar button')].map(b => b.dataset.screen),
     cornerOpacity: +corner.opacity, fabLeft: Math.round(fab.left), w: innerWidth, sideScroll: document.documentElement.scrollWidth - innerWidth,
     cardBorder: getComputedStyle(q('#home-today')).borderTopColor, cardIn: card.left >= 0 && card.right <= innerWidth,
-    pageScroll: main.scrollHeight - main.clientHeight, bubble: q('#kael-bubble').classList.contains('show'), hidden: q('#screen-home').classList.contains('hidden') };`);
+    pageScroll: main.scrollHeight - main.clientHeight, bubble: q('#kael-bubble').classList.contains('show'), saying: q('#home-kael-line').classList.contains('saying'), hidden: q('#screen-home').classList.contains('hidden') };`);
 const corner = () => ev(`const c = getComputedStyle(document.getElementById('kael-corner')), f = document.getElementById('kael-fab').getBoundingClientRect();
   return { opacity: +(+c.opacity).toFixed(2), left: Math.round(f.left), right: Math.round(f.right), w: innerWidth, tappable: getComputedStyle(document.getElementById('kael-fab')).pointerEvents };`);
 const TEXT = {
@@ -188,14 +188,9 @@ try {
     check(`[${tag}] after a reload the app is on Home, no history entry of its own`, await screen() === 'home' && !h.hidden && await navIndex() === before, { index: await navIndex() - before });
     check(`[${tag}] top bar: "${T.title}" with the house icon; the menu lights Home, first of nine`, h.title === T.title && h.titleIco && h.lit.join() === 'home' && h.order[0] === 'home' && h.order[1] === 'analysis' && h.order.length === 9, { title: h.title, lit: h.lit, order: h.order });
     check(`[${tag}] new player: Kael welcomes, 0 / 3, a gold "${T.solve}", two mission rows, nothing sideways`, h.line.startsWith(T.welcome) && h.chip === '0 / 3' && h.btn === T.solve && !h.btnDone && h.rows.join() === 'false,false' && h.sideScroll === 0 && h.cardIn, h);
-    // Kael's quote on opening (0.9 s after the splash) still comes, on Home too.
-    const quote = await until(`document.getElementById('kael-bubble').classList.contains('show')`, 4000);
-    await sleep(500);
-    check(`[${tag}] Kael's quote on opening still appears, now over Home`, quote && (await corner()).opacity === 1);
-    await shot(`home-${tag}-opening-quote`);
-    await ev(`(await import('/js/app.js')).KaelQuotes.hide();`); await sleep(700);
+    await sleep(1800);   // past the moment Kael's quote on opening used to appear
     h = await home();
-    check(`[${tag}] Home, idle: Kael's corner is not visible and cannot be tapped`, h.cornerOpacity === 0 && h.fabLeft >= h.w && !h.bubble && (await corner()).tappable === 'none', { opacity: h.cornerOpacity, fabLeft: h.fabLeft, bubble: h.bubble });
+    check(`[${tag}] Home: Kael's corner is not visible, cannot be tapped, and no quote is said on opening`, h.cornerOpacity === 0 && h.fabLeft >= h.w && !h.bubble && !h.saying && h.line.startsWith(T.welcome) && (await corner()).tappable === 'none', { opacity: h.cornerOpacity, fabLeft: h.fabLeft, bubble: h.bubble, line: h.line });
     check(`[${tag}] opening Home asked for no puzzle file and no opening library`, !requested.some(p => /puzzles\/|opening-library/.test(p)), requested.filter(p => /puzzles\/|opening-library/.test(p)));
     await shot(`home-${tag}-new`);
 
@@ -251,18 +246,38 @@ try {
     await shot(`puzzles-${tag}-kael-idle`);
     await ev(`__app.showScreen('home');`); await sleep(600);
     check(`[${tag}] back on Home the sliver is gone again`, (await corner()).opacity === 0);
-    await ev(`__app.KaelQuotes.show({ text: ${JSON.stringify(lang === 'es' ? '¡Partida jugada! Ya tienes esa misión lista.' : 'Game played! That mission is done.')} }, 2600);`);
+    // A bubble still open in the corner is closed on the way into Home.
+    await ev(`__app.showScreen('analysis'); __app.KaelQuotes.show({ text: 'x' }, 8000); __app.showScreen('home');`); await sleep(600);
+    check(`[${tag}] a corner bubble open on Analysis is closed on entering Home`, !(await home()).bubble && (await corner()).opacity === 0);
+    const said = lang === 'es' ? '¡Partida jugada! Ya tienes esa misión lista.' : 'Game played! That mission is done.';
+    const usual = (await home()).line;
+    await ev(`__app.KaelQuotes.show({ title: '🎯', text: ${JSON.stringify(said)} }, 2600);`);
     await sleep(700);
+    h = await home();
     const spoke = await corner();
-    check(`[${tag}] on Home, when Kael really speaks he slides fully in`, spoke.opacity === 1 && spoke.right <= spoke.w && (await home()).bubble, spoke);
+    check(`[${tag}] on Home, what Kael says is said in his bubble at the top; the corner stays away`, h.saying && h.line.includes(said) && !h.bubble && spoke.opacity === 0 && spoke.left >= spoke.w && h.sideScroll === 0, { line: h.line, corner: spoke });
     await shot(`home-${tag}-kael-speaking`);
-    await sleep(2900);
-    check(`[${tag}] ...and leaves again when he has finished`, (await corner()).opacity === 0 && !(await home()).bubble);
+    await sleep(2600);
+    h = await home();
+    check(`[${tag}] ...and his usual line comes back when he has finished`, !h.saying && h.line === usual, h.line);
+    // The rare message that goes somewhere: a gold edge, and a tap runs it.
+    await ev(`window.__went = 0; __app.KaelQuotes.show({ text: ${JSON.stringify(said)}, cta: '›', onTap: () => { window.__went++; } }, 8000);`);
+    await sleep(300);
+    const gold = await ev(`return document.getElementById('home-kael-line').classList.contains('actionable');`);
+    await tap('#home-kael-line');
+    h = await home();
+    check(`[${tag}] a message that goes somewhere: gold edge, a tap runs it once and the usual line returns`, gold && await ev(`return window.__went;`) === 1 && !h.saying && h.line === usual, { gold, line: h.line });
+    await tap('#home-kael-line');
+    check(`[${tag}] his usual line is not tappable`, await ev(`return window.__went;`) === 1);
+    await ev(`__app.KaelQuotes.show({ text: ${JSON.stringify(said)} }, 8000); __app.showScreen('analysis');`); await sleep(500);
+    check(`[${tag}] leaving Home ends what he was saying there, and nothing follows him to the corner`, await ev(`return !__app.Home.saying && !document.getElementById('kael-bubble').classList.contains('show');`));
+    await ev(`__app.showScreen('home');`); await sleep(400);
+    check(`[${tag}] ...and back on Home his usual line is there`, (await home()).line === usual);
 
     // ── the reminder the 45-second timer calls ──
     await ev(`__app.DailyMissions.done = { puzzle: false, play: false, opening: false }; __app.DailyMissions.reminded = false; __app.DailyMissions.render();`);
     await ev(`__app.DailyMissions.remindIfIncomplete();`); await sleep(400);
-    check(`[${tag}] the missions reminder does not appear on Home`, !(await home()).bubble && await ev(`return __app.DailyMissions.reminded === false;`));
+    check(`[${tag}] the missions reminder does not appear on Home`, !(await home()).bubble && !(await home()).saying &&await ev(`return __app.DailyMissions.reminded === false;`));
     await ev(`__app.showScreen('analysis'); __app.DailyMissions.remindIfIncomplete();`); await sleep(500);
     check(`[${tag}] ...and still appears on Analysis`, await ev(`const b = document.getElementById('kael-bubble'); return b.classList.contains('show') && b.classList.contains('actionable');`));
     await ev(`__app.KaelQuotes.hide();`);
@@ -278,6 +293,9 @@ try {
     await swipe(90, 330, 300);
     check(`[${tag}] nothing before Home: a swipe the other way stays on Home`, await screen() === 'home' && !(await home()).hidden);
     await ev(`history.back(); await new Promise(r => setTimeout(r, 300)); history.back();`); await sleep(500);
+    // Chrome keeps 50 history entries and this tool has pushed many by now: at
+    // the limit the index stops growing, so the list is emptied before counting.
+    await send('Page.resetNavigationHistory');
     await send('Page.reload', {}); await sleep(300); await booted(); await sleep(700); await hook();
     const i1 = await navIndex();
     await tap('#tabmenu-btn'); await sleep(450);
@@ -285,7 +303,7 @@ try {
     await shot(`menu-${tag}`);
     await ev(`history.back();`); await sleep(500);
     check(`[${tag}] Back with the menu open closes only the menu`, await ev(`return !document.body.classList.contains('menu-open');`) && await screen() === 'home' && await navIndex() === i1);
-    for (const dest of ['analysis', 'puzzles', 'play']) { await tap('#tabmenu-btn'); await sleep(400); await tap(`#tabbar button[data-screen="${dest}"]`); await sleep(500); }
+    for (const dest of ['analysis', 'puzzles', 'play']) { await tap('#tabmenu-btn'); await sleep(400); await tap(`#tabbar button[data-screen="${dest}"]`); await until(`__app.activeScreen === '${dest}'`, 5000); await sleep(400); }
     check(`[${tag}] three tabs deep through the menu: on Play, three entries of ours`, await screen() === 'play' && await navIndex() === i1 + 3, { screen: await screen(), index: await navIndex() - i1 });
     const walk = [];
     for (let i = 0; i < 3; i++) { await ev(`history.back();`); await sleep(500); walk.push(await screen()); }

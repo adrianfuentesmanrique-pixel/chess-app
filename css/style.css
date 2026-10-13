@@ -881,6 +881,13 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
   flex: 1; min-width: 0; margin: 0; background: var(--panel); color: var(--text);
   border-radius: 14px 14px 14px 4px; padding: 10px 12px; font-size: 14px; line-height: 1.4;
 }
+/* While he is saying something (a mission done, a streak step, a badge) the
+   same bubble holds it; a gold edge marks the rare one that goes somewhere. */
+.home-kael-bubble p { margin: 0; }
+.home-kael-bubble .kael-quote-title { font-size: 14px; }
+.home-kael-bubble .kael-quote-cta { display: block; margin-top: 6px; text-align: right; color: var(--gold); font-size: 12px; font-weight: 700; }
+.home-kael-bubble .kael-quote-author { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; text-align: right; }
+.home-kael-bubble.actionable { box-shadow: inset 0 0 0 1px var(--gold); cursor: pointer; }
 /* The "Hoy" card: a .profile-card with a gold border. */
 .home-today { border: 1px solid var(--gold); margin-top: 0; }
 .home-today-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
@@ -1575,11 +1582,11 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   opacity: .55;
 }
 #kael-corner.speaking { transform: translateX(0); opacity: 1; }
-/* On Home he is already at the top of the page, so the idle sliver goes fully
-   off the edge and cannot be tapped. When he speaks, the rule above still
-   slides him in, and he leaves again afterwards. */
-body.on-home #kael-corner:not(.speaking) { transform: translateX(72px); opacity: 0; }
-body.on-home #kael-corner:not(.speaking) #kael-fab { pointer-events: none; }
+/* On Home he is already at the top of the page, so the corner goes fully off
+   the edge and cannot be tapped, speaking or not: what he says there is said
+   in his bubble on the page (.home-kael-bubble.saying, Home.say in js/app.js). */
+body.on-home #kael-corner { transform: translateX(72px); opacity: 0; }
+body.on-home #kael-corner #kael-fab, body.on-home #kael-corner .kael-quote-bubble { pointer-events: none; }
 #kael-fab {
   width: 48px; height: 48px; border-radius: 50%; padding: 0; border: none;
   background: #f2eee6; box-shadow: 0 3px 10px var(--shadow); cursor: pointer;

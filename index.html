@@ -291,7 +291,9 @@
   <section id="screen-home" class="screen hidden">
     <div class="home-kael">
       <img class="home-kael-pic" src="icons/kael/kael-bust.png" alt="Kael">
-      <p id="home-kael-line" class="home-kael-bubble"></p>
+      <!-- His usual line, or whatever he has to say while Home is open
+           (Home.say in js/app.js): he never speaks from the corner here. -->
+      <div id="home-kael-line" class="home-kael-bubble" aria-live="polite"></div>
     </div>
     <div id="home-today" class="profile-card home-today">
       <div class="home-today-head">
