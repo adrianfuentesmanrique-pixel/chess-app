@@ -9,6 +9,45 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 1 OF 8: THE RULES OF A BOARD, NO SCREEN (2026-10-12, no version
+  bump).** Spec `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan
+  item 1. `js/simul.js` (pure: imports `vendor/chess.js`, `js/tree.js`, `js/pulso.js`) and
+  `tests/unit/simul.test.js` (77 tests). No screen imports it yet, so it is NOT in `sw.js`
+  (`test:precache` only walks from `js/app.js`); the conversation that first imports it
+  from a screen lists it and bumps the cache.
+  - **The document's field names are fixed here** (the comment block at the top of
+    `js/simul.js` is the contract for the rules): `t`, `s`, `cls`, `status`, `invitedAt`,
+    `startAt`, `at`, `prevAt`, `fen` (start position with the handicap, BEFORE the opening,
+    White always to move), `op` (the opening, packed), `tc` (teacher's colour), `base`,
+    `inc` (seconds; `base` 0 = no clock), `tMs`, `sMs`, `mv`, `n`, `draw`, `tDr`, `sDr`,
+    `winner` (`'t'`, `'s'`, `'draw'`, null), `reason`, `by`.
+  - **A move is five characters**, `[a-h][1-8][a-h][1-8][qrbn-]` (`SIMUL.MOVE_PATTERN`): a
+    dash when it is not a promotion, no separators. `tryMove()` refuses a promotion letter
+    on a move that is not one (the library would let it ride).
+  - **The clock is exact** (spec 3d, proven here in arithmetic, not yet in rules): `tMs` /
+    `sMs` are always ONE MOVE BEHIND. A move writes `prevAt = old at`, `at = server stamp`,
+    and settles the move before it: `left - (at - prevAt) + inc` for the one who moved
+    last; the first move settles nothing. In time means `server time - at < mover's stored
+    time`; at equal the flag is down. `refereeMove()` in the test file is the move rule to
+    copy into `firestore.rules`. 300 random games agree to the millisecond with a plain
+    clock that charges each move as it is made.
+  - **Found, and the spec's section 2 corrected:** `vendor/chess.js` does not merely keep a
+    castling right whose rook is missing; once the squares between are empty it CASTLES
+    (king two squares, no rook). `buildStart()` removes the right and `checkStart()`
+    refuses a position that carries one (`reason: 'castling'`).
+  - **My reading, for Adrian to overrule:** "one draw offer per player per 10 moves" is
+    counted as 10 moves by each side (20 single moves, `n - tDr >= 20`). A move made at
+    the exact instant the time runs out is too late. A flag is a loss even when the other
+    side has only a king (the database cannot count pieces).
+  - **Verified:** `test:tree` 449 pass (372 + 77); `test:precache` 57 files, 142 art;
+    `test:rules` 442 pass, untouched. All 150-odd `OPENINGS_ECO` lines replay through
+    `replayOpening()` on the ordinary start position.
+  - **NOT verified:** that `firestore.rules` can express the move check (`toMillis()`
+    arithmetic on stored stamps); that is conversation 2, against the emulator.
+  - **Next:** conversation 2 (the `simulGames` rules block, `tests/rules/simul.test.js`,
+    the `js/firebase.js` functions, `tools/emu-verify-simul.mjs`). Adrian deploys the
+    rules before that push.
+
 - **COORDINATES: A TRAINER IN THE LEARN TAB (2026-10-12, v201).** No spec file: the idea is
   Lichess's coordinate trainer (name a square, find a square, against the clock), looked at
   in headless Chrome before building. None of its code, text, sounds, layout or artwork is
@@ -679,7 +718,7 @@ are in `CLAUDE.md` under "Finish by pushing".
   - **Cost, counted not measured:** about 840 writes and 1,700 reads for a 10-board simul of
     40-move games, so roughly 20 a day for the whole app on the free plan. Conversation 2
     of the plan measures it.
-  - **Next:** conversation 1 of the spec's section 4 (`js/simul.js`, pure, with unit tests).
+  - **Next:** conversation 1 was built on 2026-10-12 (entry near the top of this list).
 
 - **LEADERBOARDS: FIVE BOARDS IN TWO ROWS, SEALED MOVES ELO NOW PUBLIC (2026-10-11, v189).
   COMMITTED; the push waits for Adrian's `npm.cmd run rules:deploy` (the rules changed).**

@@ -1,6 +1,19 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **design only, nothing built.** The code was read at
+Date: 2026-10-11. Status: **conversation 1 of 8 is built (2026-10-12):
+`js/simul.js`, the pure rules, with `tests/unit/simul.test.js`. No screen, no
+database yet.** The stored field names are now fixed, in the comment block at
+the top of `js/simul.js`: `t`, `s`, `cls`, `status`, `invitedAt`, `startAt`,
+`at`, `prevAt`, `fen`, `op`, `tc`, `base`, `inc`, `tMs`, `sMs`, `mv`, `n`,
+`draw`, `tDr`, `sDr`, `winner`, `reason`, `by`. A move is five characters,
+`[a-h][1-8][a-h][1-8][qrbn-]`. The clock of 3d is exact in arithmetic
+(`settle()`, and `refereeMove()` in the test file is the rule to write);
+whether `firestore.rules` can express it is conversation 2's to prove. Three
+readings of mine that Adrian has not been asked about: the draw-offer limit
+counts 10 moves by each side (20 single moves); a move at the exact instant the
+time runs out is too late; a flag is a loss whatever the other side has left.
+
+What follows is the design as written on 2026-10-11. The code was read at
 commit `568857c` (cache v188); while this was being written another session
 committed `c5ba6f3` (Leaderboards, v189), which touches nothing described
 here. Internal working name and stored names:
@@ -71,6 +84,11 @@ the other boards.
   whose rook is missing (`…/1NBQKBNR w KQkq` is accepted as written). It never
   offers the impossible castling move, but the wrong right would travel into
   the saved game. The app must remove it itself.
+  **Corrected 2026-10-12:** "never offers" was only true because the b1 knight
+  was in the way. With the squares between empty the library castles towards
+  the empty corner (the king jumps, no rook moves). `buildStart()` removes the
+  right and `checkStart()` refuses a position that still has it; both are
+  tests in `tests/unit/simul.test.js`.
 - **An opening replayed on a handicap position**: the Italian (`e4 e5 Nf3 Nc6
   Bc4`) without the b1 knight plays through; the Ruy Lopez to `O-O` without the
   h1 rook stops as illegal at `O-O`; any line with `Nf3` without the g1 knight
