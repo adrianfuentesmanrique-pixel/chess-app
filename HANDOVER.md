@@ -9,6 +9,37 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **COORDINATES: WITH A RESULT UP, ITS LINE SAYS THE BEST OF WHAT IS NOW CHOSEN (2026-10-13, v216).**
+  THE FAULT: after a run the best card (`#coord-best-row`) is hidden, because card and result
+  together do not fit above "Otra vez" at 375x667; so moving the slider or changing the
+  exercise said nothing about that length's best until the section was left and reopened.
+  ADRIAN'S DECISION, from pictures of three options: (a) the result's line follows the choices
+  - CHOSEN; (b) the card back as one row - measured: "Otra vez" ended at 694 of 667, and fitted
+  only with the big score cut from 44 to 30 px, then exactly at 667 and 2 px under on a new
+  best; (c) the result goes away at the first touch - the slider jumps 83 px up from under the
+  finger and the score is lost. Do not re-open.
+  WHAT CHANGED: js/coord-ui.js only. `finish()` keeps the run's `key` (`coordBestKey(mode,
+  seconds)`) in `this.last`. `paintSetup()`: while the exercise and length chosen are the
+  run's own (`chosen === last.key`) the line is exactly as at v214 (`coord_result_best` /
+  `coord_result_best_n`); on any other it ends with the new `coord_result_best_at`
+  ("Tu mejor marca en {t}: {n}" / "Your best in {t}: {n}"), `—` where there is no best. It
+  repaints while the slider moves (`oninput`), as the rest of the set-up does. The clock /
+  no-clock choice does not change the line: the best is by exercise and length, as the card.
+  The gold card of a new best stays gold while the line follows: it is about the run.
+  Nothing moves: "Otra vez" ends at 647 (649 on a new best) of 667, as before. No css, no html.
+  VERIFIED: test:tree 469, test:precache 59 files, tools/cdp-verify-coord.mjs 287 of 287 (239
+  + 48 new: slider really dragged with a result up, both exercises really tapped, a dash where
+  there is no best, back on the run's choices the run's line, the longest line with three
+  figures everywhere, "Otra vez" on screen each time), 375x667, ES/EN, light/dark, pictures
+  looked at.
+  THE TOOL, TWO THINGS TO KNOW: its `slide()` and `tap()` bring what they touch to the middle
+  of the screen (main can scroll about 52 px there), so the new `line()` puts the page back
+  at the top before it measures. And A FULL-TRACK DRAG AT THE USUAL PACE IS A FLICK: headless
+  Chrome then gives no `click` to the next tap (pointerup arrives, click does not; same on the
+  plain set-up at v214, so not from this change). `slide(frac, pace)` takes a slower pace for
+  the long drags that are followed by a tap. NOT CHECKED ON A REAL PHONE: whether a very fast
+  flick of the slider followed at once by a tap loses that tap there too.
+
 - **STUDENTS: THE ASSIGN SHEET OFFERS PUZZLES AND CHAPTER; LIST IS INSIDE PUZZLES; TASK IS GONE (2026-10-13, v215).**
   Session 1 of 3 of Adrian's plan (decided 2026-10-13): everything he can assign is something
   in the app that the app itself checks. The sheet will end with four buttons: 🧩 Puzzles,
