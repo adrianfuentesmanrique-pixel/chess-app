@@ -37,6 +37,7 @@ import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
 import { CalcUI } from './calc-ui.js';
+import { CoordUI } from './coord-ui.js';
 import { OpeningLib } from './opening-lib-ui.js';
 import { eloAfter } from './elo.js';
 import { Masterclass } from './masterclass.js';
@@ -1105,7 +1106,7 @@ export const RemindInvite = {
 
   async maybe() {
     if (!this.owed || this.showing) return;
-    const busy = Rush.running || PulsoMatch.holds() || Date.now() < Streak.celebratingUntil
+    const busy = Rush.running || CoordUI.running || PulsoMatch.holds() || Date.now() < Streak.celebratingUntil
       || !!BadgeCard.current || BadgeCard.queue.length > 0 || $('modal-root').childElementCount > 0;
     const asks = +(await db.kvGet('remindAskCount', 0));
     const lastAsk = +(await db.kvGet('remindAskLast', 0));
@@ -1621,6 +1622,8 @@ export function showScreen(name) {
   // Leaving the Rush screen ends the run. Without this the clock kept ticking
   // on a hidden board and the run "finished" while the player was elsewhere.
   if (name !== 'rush') Rush.stop();
+  // The same for a Coordinates run in Learn: its clock does not outlive the screen.
+  if (name !== 'endgame') CoordUI.stop();
   // The same for a Pulso board. The match itself goes on without this phone:
   // either it was just forfeited (above), or it was already over.
   if (name !== 'pulso') PulsoMatch.stop();
@@ -6580,9 +6583,10 @@ function practiceColor(pos) {
   return pos.result === 'loss' ? (toMove === 'w' ? 'b' : 'w') : toMove;
 }
 
-// The six sibling views inside #screen-endgame (the "Learn" tab).
+// The seven sibling views inside #screen-endgame (the "Learn" tab).
 const VIEWS = [
   'endgame-sections-view',
+  'coord-view',
   'learn-lesson-list-view', 'learn-lesson-view',
   'endgame-list-view', 'endgame-positions-view', 'endgame-viewer-view',
 ];
@@ -6847,8 +6851,9 @@ export const Endgame = {
     this.elo = await db.kvGet('endgameElo', {});
   },
 
-  // The Learn screen holds six sibling views; exactly one is ever visible.
+  // The Learn screen holds seven sibling views; exactly one is ever visible.
   showView(id) {
+    if (id !== 'coord-view') CoordUI.stop();   // a Coordinates run ends with its view
     for (const v of VIEWS) $(v).classList.toggle('hidden', v !== id);
   },
 
@@ -6876,6 +6881,13 @@ export const Endgame = {
     endings.innerHTML = `<b>${t('sec_endings')}</b><span class="sub">${ENDGAMES.length} ${tn('games', ENDGAMES.length)}</span>`;
     endings.onclick = () => this.showCategories();
     el.appendChild(endings);
+    // Coordinates (js/coord-ui.js): a trainer, not lessons. No rating behind it.
+    const coord = document.createElement('button');
+    coord.className = 'list-item';
+    coord.id = 'learn-coord-item';
+    coord.innerHTML = `<b>${esc(t('coord_title'))}</b><span class="sub">${esc(t('coord_sub'))}</span>`;
+    coord.onclick = () => CoordUI.open();
+    el.appendChild(coord);
   },
 
   // Re-render whichever list is on screen after a language change or a sign-in
@@ -7833,6 +7845,7 @@ function relabel() {
   Home.drawBoards();
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.refreshLists();
+  CoordUI.render();
   if (activeScreen === 'read') Read.refresh();
   if (activeScreen === 'students') Students.render();
   if (activeScreen === 'calc') CalcUI.render();
@@ -8484,7 +8497,7 @@ async function main() {
   // The badge card waits out a timed Rush run (it must never cover that board)
   // and the streak celebration (one celebration at a time).
   BadgeCard.init({
-    isBusy: () => Rush.running || PulsoMatch.holds() || Date.now() < Streak.celebratingUntil,
+    isBusy: () => Rush.running || CoordUI.running || PulsoMatch.holds() || Date.now() < Streak.celebratingUntil,
     open: () => {
       showScreen('profile');
       // Profile.refresh() redraws the page first; scroll once it has.
@@ -8497,6 +8510,7 @@ async function main() {
   Friends.init();
   PulsoUI.init();
   CalcUI.init(engine);
+  CoordUI.init();
   Masterclass.init();
   Students.init();
   Activity.init(() => activeScreen);
@@ -8544,6 +8558,7 @@ async function main() {
       ensureForRating(Puzzles.targetRating()).catch(() => {});
     }
     await CalcUI.reload();
+    await CoordUI.reload();
     Endgame.elo = await db.kvGet('endgameElo', {});
     if (Blind.loaded) {
       Blind.elo = await db.kvGet('blindfoldElo', 1200);

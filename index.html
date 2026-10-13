@@ -1101,6 +1101,66 @@
       <div id="endgame-section-list" class="list tab-lead"></div>
     </div>
 
+    <!-- ── Coordinates (js/coord-ui.js, rules in js/coord.js): a trainer, not a
+         rating. Two faces: the setup, and the run. ── -->
+    <div id="coord-view" class="hidden">
+      <div id="coord-setup">
+        <div class="row screen-head">
+          <button id="coord-back" class="btn" data-i18n="back"></button>
+          <h2 data-i18n="coord_title"></h2>
+        </div>
+        <p id="coord-explain" class="hint" data-i18n="coord_explain"></p>
+        <div id="coord-result" class="profile-card coord-result hidden" aria-live="polite">
+          <h3 id="coord-result-title"></h3>
+          <div id="coord-result-score" class="coord-result-score"></div>
+          <p id="coord-result-line" class="hint"></p>
+        </div>
+        <div class="option-group">
+          <label data-i18n="coord_mode"></label>
+          <div class="seg coord-seg" id="coord-mode">
+            <button data-v="find" class="on" data-i18n="coord_mode_find"></button>
+            <button data-v="name" data-i18n="coord_mode_name"></button>
+          </div>
+        </div>
+        <div class="option-group">
+          <label data-i18n="coord_time"></label>
+          <div class="seg coord-seg" id="coord-time">
+            <button data-v="timed" class="on" data-i18n="coord_time_timed"></button>
+            <button data-v="free" data-i18n="coord_time_free"></button>
+          </div>
+        </div>
+        <div class="option-group">
+          <label data-i18n="coord_side"></label>
+          <div class="seg coord-seg three" id="coord-side-seg">
+            <button data-v="w" data-i18n="white"></button>
+            <button data-v="random" class="on" data-i18n="coord_side_random"></button>
+            <button data-v="b" data-i18n="black"></button>
+          </div>
+        </div>
+        <div class="row wrap profile-elo-row">
+          <div class="elo-card"><span data-i18n="coord_best"></span><b id="coord-best"></b></div>
+        </div>
+        <button id="coord-start" class="btn primary big" data-i18n="coord_start"></button>
+      </div>
+      <div id="coord-run" class="hidden">
+        <div class="coord-hud">
+          <span id="coord-clock" class="elo-badge"></span>
+          <span class="coord-counts"><span id="coord-score" class="elo-badge"></span><span id="coord-wrong" class="elo-badge coord-wrong-n"></span></span>
+          <button id="coord-end" class="btn" data-i18n="coord_end"></button>
+        </div>
+        <div id="coord-ask" class="coord-ask" aria-live="polite">
+          <span id="coord-ask-label" class="lbl"></span><b id="coord-ask-sq"></b><span id="coord-ask-next" class="next"></span>
+        </div>
+        <div id="coord-board" class="board-wrap"></div>
+        <div id="coord-bar" class="coord-bar"><i id="coord-bar-fill"></i></div>
+        <p id="coord-side" class="hint coord-side-note"></p>
+        <div id="coord-keys" class="hidden">
+          <div class="seg coord-keys"><button data-k="a">a</button><button data-k="b">b</button><button data-k="c">c</button><button data-k="d">d</button><button data-k="e">e</button><button data-k="f">f</button><button data-k="g">g</button><button data-k="h">h</button></div>
+          <div class="seg coord-keys"><button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button><button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button><button data-k="7">7</button><button data-k="8">8</button></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Sections 1 & 2: lessons (no progress is persisted, by design) ── -->
     <div id="learn-lesson-list-view" class="hidden">
       <div class="row screen-head">

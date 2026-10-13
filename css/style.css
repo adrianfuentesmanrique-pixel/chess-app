@@ -627,6 +627,56 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .options-theme { display: block; width: 100%; min-height: 44px; margin-bottom: 12px; text-align: left; }
 #calc-actions .btn.primary { flex: 1 1 auto; }
 #calc-actions .btn:disabled { opacity: .45; }
+/* ── Coordinates (Learn) ───────────────── */
+/* A run takes exactly the room there is, as Sealed Moves does: the board is
+   the only thing that gives way, so the two rows of keys never scroll out. The
+   60px are main's bottom padding kept for Kael's corner, which is put away for
+   the length of a run (body.coord-running). */
+.coord-seg { display: grid; grid-template-columns: 1fr 1fr; }
+.coord-seg.three { grid-template-columns: 1fr 1fr 1fr; }
+.coord-seg button { min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; }
+#coord-setup .elo-card { flex: 1 1 auto; }
+.coord-result { text-align: center; margin: 10px 0 0; }
+.coord-result.best { border: 1px solid var(--gold); background: var(--gold-bg); }
+.coord-result-score { font-size: 44px; line-height: 1.1; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.coord-result .hint { margin: 4px 0 0; }
+#screen-endgame.coord-on:not(.hidden) { height: calc(100% + 60px); margin-bottom: -60px; min-height: 480px; }
+#screen-endgame.coord-on #coord-view { height: 100%; }
+#coord-run:not(.hidden) { display: flex; flex-direction: column; gap: 6px; height: 100%; }
+#coord-run > * { margin-top: 0; margin-bottom: 0; flex: 0 0 auto; }
+#coord-board {
+  flex: 0 1 auto; align-self: center;
+  width: auto; height: min(calc(100vw - 20px), 560px); max-width: 100%;
+  min-height: 200px; aspect-ratio: 1 / 1;
+}
+#coord-board .coords { display: none; }
+.coord-hud { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
+.coord-hud .elo-badge { font-variant-numeric: tabular-nums; }
+.coord-counts { display: flex; gap: 6px; margin-right: auto; }
+.elo-badge.coord-wrong-n { background: var(--panel2); color: var(--muted); }
+.coord-ask {
+  display: flex; align-items: baseline; justify-content: center; gap: 12px; padding: 2px 12px;
+  background: var(--gold-bg); border: 1px solid var(--gold); border-radius: var(--radius);
+}
+.coord-ask b { font-size: 36px; line-height: 1.2; color: var(--text); font-variant-numeric: tabular-nums; }
+.coord-ask .lbl { color: var(--muted); font-size: 13px; }
+.coord-ask .next { color: var(--muted); font-size: 17px; font-weight: 700; }
+.coord-ask .next:empty { display: none; }
+.coord-bar { height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; }
+.coord-bar i { display: block; height: 100%; width: 100%; background: var(--gold); transition: width .1s linear; }
+.coord-side-note { text-align: center; }
+#coord-keys:not(.hidden) { display: flex; flex-direction: column; gap: 4px; }
+.seg.coord-keys { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.seg.coord-keys button { min-width: 0; min-height: 42px; padding: 0; font-size: 18px; font-weight: 700; text-align: center; touch-action: manipulation; }
+.sq.coord-lit::before { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 4px var(--gold); background: rgba(245, 185, 66, .45); }
+.sq.coord-right::after, .sq.coord-wrong::after { content: ''; position: absolute; inset: 0; animation: coord-flash .32s ease-out 1 both; }
+.sq.coord-right::after { background: var(--success); }
+.sq.coord-wrong::after { background: var(--danger); }
+@keyframes coord-flash { from { opacity: .85; } to { opacity: 0; } }
+body.coord-running #kael-corner { opacity: 0; pointer-events: none; }
+body.coord-running #kael-corner #kael-fab { pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .coord-bar i { transition: none; } }
+
 .elo-badge {
   background: var(--accent2); color: #fff; font-weight: 700;
   padding: 4px 12px; border-radius: 20px; font-size: 14px;

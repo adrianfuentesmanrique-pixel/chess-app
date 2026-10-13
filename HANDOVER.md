@@ -9,6 +9,48 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **COORDINATES: A TRAINER IN THE LEARN TAB (2026-10-12, v201).** No spec file: the idea is
+  Lichess's coordinate trainer (name a square, find a square, against the clock), looked at
+  in headless Chrome before building. None of its code, text, sounds, layout or artwork is
+  used. Adrian's decisions: a training tool, NO leaderboard now or later, nothing published,
+  not a rating, `firestore.rules` untouched.
+  - **Files:** rules in `js/coord.js` (imports nothing; `tests/unit/coord.test.js`, 16
+    tests), screen in `js/coord-ui.js` (`CoordUI`), both precached. The view is `#coord-view`
+    inside `#screen-endgame`, with two faces: `#coord-setup` and `#coord-run`. It is the
+    seventh entry of `VIEWS`; the Learn list's row is `#learn-coord-item`, added last in
+    `Endgame.renderSections()`.
+  - **Two exercises:** `find` (a name in the gold card `#coord-ask`, tap the square; the
+    next name is shown beside it) and `name` (a square lit `.sq.coord-lit`, answered on two
+    rows of keys `#coord-keys`, a letter then a number; no phone keyboard).
+  - **Clock:** 30 seconds (`COORD_SECONDS`) or none. A deadline (`CoordUI.deadline`), not a
+    count of ticks. It starts on Start, with no count-in. "Terminar" ends a run early and
+    its points still count.
+  - **Side:** White, Black or random (the default). The line under the board says which.
+  - **Score:** one point per right answer. A wrong answer loses nothing, the same square
+    stays asked, the square flashes red with `puzzle-wrong`; the lost time is the penalty.
+  - **The board's own a-h / 1-8 labels** are one layer (`.coords`, `js/board.js`), hidden
+    with `#coord-board .coords { display: none }`.
+  - **Kept:** the best timed score of each exercise, kv `coordBestFind` / `coordBestName`,
+    in `SYNCED_KEYS` and in nothing published. On sign-in the account's value replaces the
+    device's, as for every synced key (no "keep the higher" rule). Device only: kv
+    `coordPrefs` (the three choices) and localStorage `coordIntroDone` (Kael's one-time
+    explanation).
+  - **Streak:** a TIMED run with `COORD_STREAK_MIN` (10) right answers calls
+    `Streak.recordActivity()`. An untimed run never does.
+  - **During a run:** the screen takes exactly the height there is
+    (`#screen-endgame.coord-on`, the Sealed Moves method), Kael's corner is put away
+    (`body.coord-running`), and `CoordUI.running` holds back the badge card and the
+    reminder invitation, as `Rush.running` does.
+  - **Leaving:** `showScreen()` to any other screen and `Endgame.showView()` to any other
+    view call `CoordUI.stop()`: the run is dropped, nothing recorded. Android Back leaves
+    the Learn tab, as from every Learn view (only whole screens are in the Back history).
+  - **Verified:** `test:tree` 372 pass; `test:precache` 57 files, 142 art;
+    `node tools/cdp-verify-coord.mjs <outDir>` 143 of 143 at 375px, ES and EN, light and
+    dark, squares tapped at the place their name says for the side below, the real 30
+    seconds waited once (30.2 s), the best kept after a reload; screenshots opened.
+  - **NOT verified:** the best reaching a second device (the tool is signed out), and the
+    feel on a real phone (the sound on every answer, tapping speed).
+
 - **HOME TAB, CONVERSATION 3 OF 3: "CONTINUAR", "EMPIEZA POR AQUÍ", AND HOME DRAWN AGAIN
   (2026-10-12, v200).** Spec `docs/superpowers/specs/2026-10-12-home-tab-design.md`, build
   plan item 3. The spec's plan is finished with this.
