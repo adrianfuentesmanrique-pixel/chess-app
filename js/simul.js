@@ -180,6 +180,63 @@ export function replayOpening(startFen, sans = []) {
   return { ok: true, fen: chess.fen(), op, sans: played };
 }
 
+// The same opening on a board with pieces missing. By squares (`op`, as the
+// full board packed it), not by SAN: 'Nbd2' is the full board's spelling, and
+// on a board without the g1 knight the library reads it as no move at all.
+// `sans` are only there to name the move that fails. Same answers as
+// replayOpening.
+export function replayOpeningOn(startFen, op = '', sans = []) {
+  let chess;
+  try { chess = new Chess(startFen); } catch { return { ok: false, reason: 'fen', index: -1, san: null }; }
+  const max = SIMUL.OPENING_MAX_MOVES * 2, n = Math.ceil(op.length / SIMUL.MOVE_LEN);
+  if (n > max) return { ok: false, reason: 'long', index: max, san: sans[max] ?? null };
+  const r = replayPacked(chess, op);
+  if (!r.ok) return { ok: false, reason: 'illegal', index: r.index, san: sans[r.index] ?? null };
+  if (n && boardResult(chess)) return { ok: false, reason: 'over', index: n - 1, san: sans[n - 1] ?? null };
+  return { ok: true, fen: chess.fen(), op, sans: r.sans };
+}
+
+// A stored opening in SAN as the FULL board spells it, which is how the list
+// of named openings spells it; as the board itself does if it cannot be played
+// there. [] for none.
+export function openingSans(fen, op = '') {
+  if (typeof op !== 'string' || !op || !MOVES_RE.test(op)) return [];
+  for (const start of [START_FEN, fen]) {
+    try {
+      const r = replayPacked(new Chess(start), op);
+      if (r.ok) return r.sans;
+    } catch {}
+  }
+  return [];
+}
+
+// ── The handicap ──────────────────────────────────────────────────────────
+// A handicap is kept as WHITE's squares (a1, d1, e2), whatever colour the
+// teacher has on that board, so it follows them when the colour changes: the
+// queen stays the queen, the a-rook the a-rook.
+export function mirrorSquare(sq) {
+  return sq[0] + (9 - +sq[1]);
+}
+export function handicapSquares(tc, squares = []) {
+  return tc === 'b' ? squares.map(mirrorSquare) : [...squares];
+}
+
+// What the teacher plays without on a stored board: [{ square, type }], the
+// queen first, then rooks, bishops, knights and pawns, each from the a-file.
+export function missingPieces(fen, tc) {
+  const open = p => p.split('/').map(r => r.replace(/\d/g, d => '.'.repeat(+d)));
+  const full = open(START_FEN.split(' ')[0]);
+  const now = open(String(fen).split(' ')[0]);
+  const out = [];
+  for (const r of tc === 'b' ? [0, 1] : [6, 7]) {
+    for (let f = 0; f < 8; f++) {
+      if (now[r]?.[f] !== full[r][f]) out.push({ square: FILES[f] + (8 - r), type: full[r][f].toLowerCase() });
+    }
+  }
+  const rank = x => 'qrbnp'.indexOf(x.type);
+  return out.sort((a, b) => rank(a) - rank(b) || (a.square < b.square ? -1 : 1));
+}
+
 // ── The check a phone makes on a start position it is sent ────────────────
 // The database cannot judge `fen` and `op`, so the student's phone does before
 // it offers Join.

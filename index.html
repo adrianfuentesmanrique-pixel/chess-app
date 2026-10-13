@@ -1498,6 +1498,8 @@
       <div class="head-with-count">
         <h2 data-i18n="simul_title"></h2>
         <span id="simul-count" class="cap-counter" aria-live="polite"></span>
+        <!-- The thematic opening of the game on screen; a tap says its moves. -->
+        <button id="simul-theme" class="cap-counter simul-theme hidden" type="button"></button>
       </div>
     </div>
     <p id="simul-note" class="stu-note hidden" aria-live="polite"></p>
@@ -1510,6 +1512,8 @@
         <span id="simul-clock-them" class="simul-clock hidden"></span>
       </div>
       <div id="simul-board" class="board-wrap"></div>
+      <!-- The student's board only: what their teacher plays without. -->
+      <p id="simul-less" class="hint simul-less hidden"></p>
       <div id="simul-ctl" class="simul-ctl">
         <span id="simul-clock-me" class="simul-clock hidden"></span>
         <label class="simul-auto"><input type="checkbox" id="simul-auto"><span class="simul-auto-long" data-i18n="simul_auto"></span><span class="simul-auto-short" data-i18n="simul_auto_short"></span></label>

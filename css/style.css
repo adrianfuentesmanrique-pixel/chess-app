@@ -2435,7 +2435,38 @@ body.read-spread #read-reader {
 /* Simul (js/simul-ui.js): the Students tokens again. The picker is the
    Masterclass one in the page instead of a modal, so three columns; a chip is
    .mc-role, greyed when nothing is happening on that board. */
-.simul-pick { grid-template-columns: auto auto 1fr; }
+.simul-pick { grid-template-columns: auto auto 1fr auto; }
+/* Opening and handicap (conversation 7). A ticked student's second line says
+   what they get; the board and the list of openings open in a sheet. */
+.simul-pick .fr-name { white-space: normal; }
+.simul-pick .fr-sub.simul-less-on { color: var(--gold); }
+.simul-pick .simul-handi { margin: 0; min-height: 36px; }
+.simul-op-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 0; }
+.simul-op-row > span:first-child { min-width: 0; }
+.simul-op-bad { margin: 12px 0 0; white-space: pre-line; box-shadow: inset 0 0 0 1px var(--danger); }
+.simul-sheet h3 { margin-bottom: 6px; }
+.simul-sheet .hint { margin: 0 0 8px; }
+.simul-sheet-board { max-width: 272px; margin: 0 auto; }
+.simul-handi-list, .simul-op-now { margin: 8px 0 0; font-size: 14px; }
+.simul-sheet-row { display: flex; gap: 8px; margin: 8px 0 0; }
+.simul-sheet-row .btn { flex: 1 1 0; margin-top: 0; min-height: 36px; }
+.simul-sheet .btn-wide { margin: 8px 0 0; }
+.simul-sheet button:disabled { opacity: .45; cursor: default; }
+#simul-op-search { margin: 0 0 8px; }
+.simul-op-list .sheet-btn { font-size: 15px; padding: 10px 12px; }
+.simul-sheet .simul-op-list + *, .simul-sheet #simul-op-done + .hint { margin-top: 14px; }
+/* The opening beside the title: it gives way, the title does not. */
+#screen-simul .head-with-count { flex: 0 1 auto; }
+#screen-simul .head-with-count h2 { flex: 0 0 auto; }
+.simul-theme { flex: 0 1 auto; min-width: 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: none; font-family: inherit; cursor: pointer; }
+.simul-less { margin: 6px 0 0; text-align: center; }
+.simul-less-ico {
+  display: inline-flex; align-items: center; height: 17px; margin-left: 6px; padding: 0 4px; vertical-align: top;
+  border: none; border-radius: 6px; background: none; box-shadow: inset 0 0 0 1px var(--gold);
+  color: var(--gold); font: inherit; font-weight: 700; line-height: 1; cursor: pointer;
+}
+.simul-less-ico::before { content: attr(data-n); }
+.simul-less-ico img { width: 14px; height: 14px; display: block; }
 .seg.simul-colour { display: grid; grid-template-columns: repeat(3, 1fr); }
 .seg.simul-colour button { min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; }
 /* The clock: "no clock" has a row to itself, as in Play, the four controls

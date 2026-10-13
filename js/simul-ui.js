@@ -34,21 +34,23 @@
 // them is touched inside a function only.
 import { t, getLang } from './i18n.js';
 import { avatarHtml } from './avatars.js';
-import { Board } from './board.js';
+import { Board, getPieceSet } from './board.js';
 import { Sound } from './sound.js';
 import * as db from './db.js';
 import { GameTree, START_FEN } from './tree.js';
 import { buildRecord, saveGame } from './history.js';
 import { formatClock, controlLabel, LOW_MS } from './play-clock.js';
+import { OPENINGS_ECO, classifyOpening } from './openings-eco.js';
 import {
   SIMUL, coloursFor, buildStart, inviteOpen, sideToMove, packMove, tryMove, shownPosition, voidable,
   nextBoard, mayOfferDraw, positionOf, timeLeft, flagged,
+  replayOpening, replayOpeningOn, openingSans, mirrorSquare, handicapSquares, missingPieces,
 } from './simul.js';
 import {
   watchSimulTeacher, watchSimulStudent, sendSimulInvite, joinSimul, declineSimul,
   startSimul, endSimul, simulMove, voidSimul, resignSimul, offerSimulDraw, answerSimulDraw, syncSimulClock, simulServerNow, pulsoClockOffset, claimSimulFlag,
 } from './firebase.js';
-import { $, esc, toast, askConfirm, showScreen, activeScreen, paintCapCounter } from './app.js';
+import { $, esc, toast, askConfirm, modal, showScreen, activeScreen, paintCapCounter } from './app.js';
 import { Students } from './students.js';
 import { PulsoUI } from './pulso-ui.js';
 
@@ -93,6 +95,30 @@ const otherSide = who => (who === 't' ? 's' : 't');
 // board, to the nearest step.
 const suggestExtra = n => Math.min(SIMUL.EXTRA_MAX_S,
   Math.round(n * SIMUL.EXTRA_PER_BOARD_S / SIMUL.EXTRA_STEP_S) * SIMUL.EXTRA_STEP_S);
+// A missing piece in words: "dama", "torre de a1"; with its article where a
+// sentence needs one ("sin la torre de h1").
+const pieceWord = (x, article) => t(`simul_pc_${x.type}${article ? '_the' : ''}`).replace('{sq}', x.square);
+const pieceList = list => list.map(x => pieceWord(x)).join(', ');
+// "1. e4 e5 2. Nf3"
+const movesText = sans => sans.map((s, i) => (i % 2 ? '' : `${i / 2 + 1}. `) + s).join(' ');
+// An opening by its name (English, as everywhere in the app), or by its moves
+// when the list has no name for it.
+const openingLabel = sans => classifyOpening(sans) || movesText(sans);
+// The named openings, each once, by the fewest moves that earn the name: the
+// teacher plays on from there on the sheet's board.
+let ecoList = null;
+const ecoNames = () => {
+  if (ecoList) return ecoList;
+  const by = new Map();
+  for (const e of OPENINGS_ECO) {
+    const had = by.get(e.name);
+    if (!had || e.moves.length < had.moves.length) by.set(e.name, e);
+  }
+  ecoList = [...by.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return ecoList;
+};
+// The teacher's status line has room for this many pictures of missing pieces.
+const LESS_ICONS = 4;
 const fmtLeft = ms => {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -110,6 +136,12 @@ export const SimulUI = {
   mode: 'white',      // 'white' | 'black' | 'alt': the teacher's colour
   clock: -1,          // the control in the setup: an index into SIMUL.CLOCKS, -1 for no clock
   extra: null,        // the teacher's extra seconds; null: whatever the app suggests
+  // Opening and handicap (conversation 7; sections 3f and 3g). Like the colour
+  // and the clock they are kept while the app stays open, and no longer.
+  opening: [],        // the thematic opening in SAN from the normal start position; [] for none
+  handi: new Map(),   // student uid -> the squares the teacher plays without there, as WHITE's (simul.js, "The handicap")
+  hBoard: null,       // the handicap sheet's board, and the opening sheet's: made once
+  oBoard: null,
   again: 0,           // invitedAt of the expired invitation "Invite again" left behind
   busy: false,        // a write of mine is on its way
   timer: null,
@@ -159,6 +191,19 @@ export const SimulUI = {
     $('simul-decline').onclick = () => this.answerDraw(false);
     $('simul-end').onclick = () => this.end();
     $('simul-new').onclick = () => this.close();
+    // The opening's name beside the title, and the teacher's missing pieces in
+    // the line above the board: a tap says them in full.
+    $('simul-theme').onclick = () => {
+      const g = this.onBoard();
+      if (!g || !g.op) return;
+      const sans = openingSans(g.fen, g.op);
+      // A line with no name is already said by its moves.
+      toast(classifyOpening(sans) ? `${this.openingLine(g)} · ${movesText(sans)}` : this.openingLine(g), 5000);
+    };
+    $('simul-status').onclick = e => {
+      const g = e.target.closest('.simul-less-ico') && this.onBoard();
+      if (g) toast(this.handicapLine(g), 4000);
+    };
     for (const ev of ['online', 'offline']) addEventListener(ev, () => this.sync());
   },
 
@@ -312,6 +357,19 @@ export const SimulUI = {
     const extra = Math.round((g.tMs - g.sMs) / 60000);
     return t(extra > 0 ? 'simul_clock_extra' : 'simul_clock_is').replace('{n}', controlLabel(g)).replace('{m}', extra);
   },
+  // The thematic opening of a board, and what the teacher plays without on it;
+  // '' for none. Both are read back from what is stored (fen, op, tc).
+  openingLine(g) {
+    return g.op ? `${t('simul_op_label')}: ${openingLabel(openingSans(g.fen, g.op))}` : '';
+  },
+  handicapLine(g) {
+    const less = missingPieces(g.fen, g.tc);
+    return less.length ? `${t(g.me === 't' ? 'simul_less_me' : 'simul_less_teacher')} ${pieceList(less)}` : '';
+  },
+  // Everything an invitation says about the game, on one line.
+  terms(g) {
+    return [this.colourLine(g), this.clockLine(g), this.openingLine(g), this.handicapLine(g)].filter(Boolean).join(' · ');
+  },
 
   // [{ key, cls, on }] for a state.
   actions(x) {
@@ -348,7 +406,7 @@ export const SimulUI = {
     this.bannerKey = key;
     $('simul-banner').classList.toggle('hidden', !x);
     if (!x) return;
-    const sub = x.state === 'invited' ? `<small>${esc(this.colourLine(x.g))} · ${esc(this.clockLine(x.g))}</small>` : '';
+    const sub = x.state === 'invited' ? `<small>${esc(this.terms(x.g))}</small>` : '';
     $('simul-banner-who').innerHTML = avatarHtml(p.avatarId, 32) + `<span>${esc(this.line(x))}${sub}</span>`;
     this.buttons($('simul-banner-acts'), this.actions(x));
   },
@@ -367,7 +425,7 @@ export const SimulUI = {
       const card = document.createElement('div');
       card.className = 'stu-invite';
       const more = x.state === 'invited'
-        ? `<p class="stu-invite-end">${esc(this.colourLine(x.g))} · ${esc(this.clockLine(x.g))} · ${esc(t('simul_left'))} <span data-simul-left="${x.g.invitedAt}"></span></p>`
+        ? `<p class="stu-invite-end">${esc(this.terms(x.g))} · ${esc(t('simul_left'))} <span data-simul-left="${x.g.invitedAt}"></span></p>`
         : '';
       card.innerHTML = `<div class="stu-invite-head">${Students.nameHtml(Students.who(x.g.t))}</div>` +
         `<p class="stu-invite-lead">${esc(this.line(x))}</p>${more}<div class="fr-actions"></div>`;
@@ -415,6 +473,7 @@ export const SimulUI = {
     $('simul-note').classList.toggle('hidden', !note);
     $('simul-game').classList.toggle('hidden', !game);
     $('simul-body').classList.toggle('hidden', game);
+    if (!game) $('simul-theme').classList.add('hidden');
     if (game) {
       if (this.bodyKey !== 'game') {
         this.bodyKey = 'game'; this.stripKey = this.gameKey = ''; this.drawn = null;
@@ -646,15 +705,29 @@ export const SimulUI = {
     $('simul-top').classList.toggle('timed', timed);
 
     const key = JSON.stringify([getLang(), teacher, this.busy, g.id, g.status, g.reason, g.winner, myMove, isVoid, slow,
-      them.profileName, anyLive, !!next, g.draw, mayOffer, timed]);
+      them.profileName, anyLive, !!next, g.draw, mayOffer, timed, g.fen, g.op, g.tc]);
     if (key !== this.gameKey) {
       this.gameKey = key;
+      // The opening beside the title, on both phones. What the teacher plays
+      // without: in words under the student's board, where there is room; as
+      // pictures in the teacher's line above the board, which has none to spare.
+      const theme = g.op ? openingLabel(openingSans(g.fen, g.op)) : '';
+      $('simul-theme').textContent = theme;
+      $('simul-theme').classList.toggle('hidden', !theme);
+      const less = missingPieces(g.fen, g.tc);
+      $('simul-less').textContent = teacher ? '' : this.handicapLine(g);
+      $('simul-less').classList.toggle('hidden', teacher || !less.length);
+      // The minus (and the count, past four pieces) is drawn by the stylesheet
+      // from data-n: the line's text stays what it says.
+      const pics = !teacher || !less.length ? ''
+        : `<button class="simul-less-ico" aria-label="${esc(this.handicapLine(g))}" data-n="−${less.length > LESS_ICONS ? less.length : ''}">` + (less.length > LESS_ICONS ? ''
+          : less.map(x => `<img src="${getPieceSet()}/${g.tc}${x.type.toUpperCase()}.svg" alt="">`).join('')) + `</button>`;
       const turn = t(myMove ? 'simul_your_move' : 'simul_their_move');
       const text = isVoid ? t('simul_res_void') : !live ? this.resultLine(g, them.profileName)
         : slow ? t('simul_sending') : offer ? t('simul_draw_theirs')
         : g.draw === g.me ? `${t('simul_draw_mine')} · ${turn}` : turn;
       const st = $('simul-status');
-      st.innerHTML = `<span><b>${esc(them.profileName)}</b> · ${esc(text)}</span>`;
+      st.innerHTML = `<span><b>${esc(them.profileName)}</b> · ${esc(text)}${pics}</span>`;
       st.classList.toggle('mine', myMove);
       const ctl = $('simul-ctl');
       // A game with a clock keeps the row for as long as it is on screen: my
@@ -758,7 +831,9 @@ export const SimulUI = {
       `<p class="hint">${esc(t('simul_setup_hint').replace('{n}', SIMUL.MAX_BOARDS))}</p>` +
       `<div id="simul-pick">` + roster.map(p =>
         `<label class="mc-pick simul-pick"><input type="checkbox" data-uid="${esc(p.uid)}"${this.pick.has(p.uid) ? ' checked' : ''}>` +
-        `${Students.nameHtml(p)}</label>`).join('') + `</div>` +
+        `${Students.nameHtml(p)}<button type="button" class="btn small simul-handi hidden" data-uid="${esc(p.uid)}">${esc(t('simul_handi_btn'))}</button></label>`).join('') + `</div>` +
+      `<h3 class="group-head">${esc(t('simul_op_head'))}</h3>` +
+      `<button id="simul-op" class="sheet-btn simul-op-row"><span><b id="simul-op-name"></b><span id="simul-op-moves" class="fr-sub"></span></span><span aria-hidden="true">›</span></button>` +
       `<h3 class="group-head">${esc(t('simul_colour'))}</h3>` +
       `<div id="simul-colour" class="seg simul-colour">` + modes.map(([v, k]) =>
         `<button data-v="${v}"${v === this.mode ? ' class="on"' : ''}>${esc(t(k))}</button>`).join('') + `</div>` +
@@ -773,6 +848,7 @@ export const SimulUI = {
         `<b id="simul-extra-val" aria-live="polite"></b>` +
         `<button id="simul-extra-more" class="btn small" aria-label="${esc(t('simul_extra_more'))}">+</button></div>` +
         `<p id="simul-extra-hint" class="hint"></p></div>` +
+      `<p id="simul-op-bad" class="stu-note simul-op-bad hidden" role="alert"></p>` +
       `<button id="simul-invite" class="btn primary btn-wide"></button>`;
     const boxes = [...body.querySelectorAll('#simul-pick input')];
     const paint = () => {
@@ -782,8 +858,25 @@ export const SimulUI = {
         b.closest('label').classList.toggle('taken', b.disabled);
       }
       paintCapCounter('simul-count', n, SIMUL.MAX_BOARDS);
+      // What each ticked student gets, and whether the opening can be played
+      // on every board: Invite stays off until it can.
+      const plan = this.plan(roster);
+      for (const b of boxes) {
+        const row = b.closest('label'), sub = row.querySelector('.fr-sub');
+        const mine = plan.find(x => x.s === b.dataset.uid);
+        const less = mine ? missingPieces(mine.fen, mine.tc) : [];
+        sub.dataset.user ??= sub.textContent;
+        sub.textContent = !mine ? sub.dataset.user : less.length ? `${t('simul_less')} ${pieceList(less)}` : t('simul_handi_whole');
+        sub.classList.toggle('simul-less-on', less.length > 0);
+        row.querySelector('.simul-handi').classList.toggle('hidden', !mine);
+      }
+      $('simul-op-name').textContent = this.opening.length ? classifyOpening(this.opening) || t('simul_op_own') : t('simul_op_none');
+      $('simul-op-moves').textContent = this.opening.length ? movesText(this.opening) : t('simul_op_pick');
+      const bad = plan.filter(x => !x.r.ok).map(x => this.problem(x));
+      $('simul-op-bad').textContent = bad.join('\n');
+      $('simul-op-bad').classList.toggle('hidden', !bad.length);
       $('simul-invite').textContent = t('simul_invite_btn').replace('{n}', n);
-      $('simul-invite').disabled = !n || this.busy;
+      $('simul-invite').disabled = !n || this.busy || bad.length > 0;
       $('simul-colour-hint').textContent = t('simul_colour_' + this.mode);
       const c = this.clock < 0 ? null : SIMUL.CLOCKS[this.clock];
       $('simul-tc-hint').textContent = c
@@ -827,7 +920,171 @@ export const SimulUI = {
     $('simul-extra-less').onclick = () => step(-1);
     $('simul-extra-more').onclick = () => step(1);
     $('simul-invite').onclick = () => this.invite(roster);
+    // The sheets change what is chosen; the setup is drawn again when one closes.
+    const redraw = () => { this.bodyKey = ''; this.sync(); };
+    $('simul-pick').onclick = e => {
+      const b = e.target.closest('.simul-handi');
+      if (!b) return;
+      e.preventDefault();
+      const mine = this.plan(roster).find(x => x.s === b.dataset.uid);
+      if (mine) this.handicapSheet(mine, roster).then(redraw);
+    };
+    $('simul-op').onclick = () => this.openingSheet().then(redraw);
     paint();
+  },
+
+  // ── opening and handicap ───────────────────────────────────────────────
+
+  // The boards an invitation would send, in the order the students are listed
+  // (which is what "alternating" counts along): for each ticked student the
+  // teacher's colour, the start position with their handicap taken off, and the
+  // opening replayed on it. `r` is replayOpeningOn's answer: r.ok, or which
+  // move cannot be played there.
+  plan(roster) {
+    const students = roster.map(p => p.uid).filter(u => this.pick.has(u));
+    const cols = coloursFor(this.mode, students);
+    const full = replayOpening(START_FEN, this.opening);
+    return students.map((s, i) => {
+      const squares = handicapSquares(cols[i], this.handi.get(s) || []);
+      const fen = buildStart(cols[i], squares).fen;
+      return { s, tc: cols[i], squares, fen, full, r: full.ok ? replayOpeningOn(fen, full.op, full.sans) : full };
+    });
+  },
+
+  // Why a board of the plan does not hold, for the teacher: which student and
+  // which move, and the missing piece when giving that ONE back would cure it
+  // ("En el tablero de Luis no se puede jugar O-O sin la torre de h1").
+  problem(b) {
+    const say = key => named(key, Students.who(b.s).profileName).replace('{m}', b.r.san || '');
+    if (b.r.reason === 'over') return say('simul_op_bad_over');
+    if (b.r.reason !== 'illegal' || !b.r.san) return say('simul_op_bad_any');
+    const cure = missingPieces(b.fen, b.tc).filter(x =>
+      replayOpeningOn(buildStart(b.tc, b.squares.filter(q => q !== x.square)).fen, b.full.op, b.full.sans).ok);
+    return cure.length === 1 ? say('simul_op_bad_piece').replace('{p}', pieceWord(cure[0], true)) : say('simul_op_bad');
+  },
+
+  // The handicap of one board: the teacher taps their own pieces off a board
+  // (the Setup Position board: editorMode reports raw taps), never the king.
+  handicapSheet(b, roster) {
+    const who = Students.who(b.s).profileName;
+    const mine = sq => (b.tc === 'b' ? mirrorSquare(sq) : sq);   // a square of this board as White's
+    return modal((box, close) => {
+      box.classList.add('simul-sheet');
+      // The box is not in the page yet while this runs.
+      const q = id => box.querySelector('#' + id);
+      box.innerHTML = `<h3>${esc(named('simul_handi_title', who))}</h3>` +
+        `<p class="hint">${esc(t(b.tc === 'w' ? 'simul_handi_hint_w' : 'simul_handi_hint_b'))}</p>` +
+        `<div class="simul-sheet-board"></div>` +
+        `<p id="simul-handi-list" class="simul-handi-list" aria-live="polite"></p>` +
+        `<div class="simul-sheet-row"><button id="simul-handi-clear" class="btn small">${esc(t('simul_handi_whole'))}</button>` +
+        `<button id="simul-handi-all" class="btn small">${esc(t('simul_handi_all'))}</button></div>` +
+        `<button id="simul-handi-done" class="btn primary btn-wide">${esc(t('simul_sheet_done'))}</button>`;
+      if (!this.hBoard) {
+        const el = document.createElement('div');
+        el.className = 'board-wrap';
+        this.hBoard = new Board(el, { interactive: false });
+        this.hBoard.editorMode = true;
+      }
+      const board = this.hBoard;
+      box.querySelector('.simul-sheet-board').appendChild(board.el);
+      const draw = () => {
+        const squares = handicapSquares(b.tc, this.handi.get(b.s) || []);
+        const fen = buildStart(b.tc, squares).fen;
+        if (board.orientation !== b.tc) board.setOrientation(b.tc);
+        board.setPosition(fen);
+        const less = missingPieces(fen, b.tc);
+        q('simul-handi-list').textContent = less.length ? `${t('simul_less_me')} ${pieceList(less)}` : t('simul_handi_whole');
+        q('simul-handi-clear').disabled = !less.length;
+        q('simul-handi-all').disabled = this.pick.size < 2;
+      };
+      board.onEditorTap = sq => {
+        const w = mine(sq);
+        if (w[1] !== '1' && w[1] !== '2') return;
+        if (w === 'e1') { toast(t('simul_handi_king')); return; }
+        const set = new Set(this.handi.get(b.s) || []);
+        if (!set.delete(w)) set.add(w);
+        this.handi.set(b.s, [...set]);
+        draw();
+      };
+      q('simul-handi-clear').onclick = () => { this.handi.delete(b.s); draw(); };
+      // "Same for all": every ticked student gets this board's handicap. Kept
+      // as White's squares, so it is right on a board where I am Black too.
+      q('simul-handi-all').onclick = () => {
+        const squares = this.handi.get(b.s) || [];
+        for (const p of roster) if (this.pick.has(p.uid)) this.handi.set(p.uid, [...squares]);
+        toast(t('simul_handi_copied').replace('{n}', this.pick.size));
+        close(true);
+      };
+      q('simul-handi-done').onclick = () => close(true);
+      draw();
+    });
+  },
+
+  // The opening, one for the whole simul: played on a small board, or loaded
+  // onto it from the list of named openings and played on from there.
+  openingSheet() {
+    const MAX = SIMUL.OPENING_MAX_MOVES * 2;
+    return modal((box, close) => {
+      box.classList.add('simul-sheet');
+      // The box is not in the page yet while this runs.
+      const q = id => box.querySelector('#' + id);
+      box.innerHTML = `<h3>${esc(t('simul_op_head'))}</h3>` +
+        `<div class="simul-sheet-board"></div>` +
+        `<p class="simul-op-now"><b id="simul-op-now-name"></b><span id="simul-op-now-moves" class="fr-sub"></span></p>` +
+        `<div class="simul-sheet-row"><button id="simul-op-undo" class="btn small">↶ ${esc(t('simul_op_undo'))}</button>` +
+        `<button id="simul-op-clear" class="btn small">${esc(t('simul_op_none'))}</button></div>` +
+        `<button id="simul-op-done" class="btn primary btn-wide">${esc(t('simul_sheet_done'))}</button>` +
+        `<p class="hint">${esc(t('simul_op_list_hint'))}</p>` +
+        `<input id="simul-op-search" class="input" type="search" autocomplete="off" placeholder="${esc(t('search'))}" aria-label="${esc(t('search'))}">` +
+        `<div id="simul-op-list" class="simul-op-list"></div>`;
+      if (!this.oBoard) {
+        const el = document.createElement('div');
+        el.className = 'board-wrap';
+        this.oBoard = new Board(el, {});
+      }
+      const board = this.oBoard;
+      box.querySelector('.simul-sheet-board').appendChild(board.el);
+      const draw = last => {
+        const r = replayOpening(START_FEN, this.opening);
+        const n = this.opening.length;
+        board.setPosition(r.ok ? r.fen : START_FEN, last || null);
+        board.interactive = n < MAX;
+        q('simul-op-now-name').textContent = n ? classifyOpening(this.opening) || t('simul_op_own') : t('simul_op_none');
+        q('simul-op-now-moves').textContent = n >= MAX ? `${movesText(this.opening)} · ${t('simul_op_full').replace('{n}', SIMUL.OPENING_MAX_MOVES)}`
+          : n ? movesText(this.opening) : t('simul_op_play');
+        q('simul-op-undo').disabled = q('simul-op-clear').disabled = !n;
+      };
+      board.onMove = mv => {
+        const now = replayOpening(START_FEN, this.opening);
+        const r = now.ok ? replayOpeningOn(START_FEN, now.op + packMove(mv)) : now;
+        // A line cannot end the game: there would be nothing left to play.
+        if (!r.ok) { if (r.reason === 'over') toast(t('simul_op_over'), 3500); draw(); return; }
+        this.opening = r.sans;
+        draw({ from: mv.from, to: mv.to });
+      };
+      q('simul-op-undo').onclick = () => { this.opening = this.opening.slice(0, -1); draw(); };
+      q('simul-op-clear').onclick = () => { this.opening = []; draw(); };
+      q('simul-op-done').onclick = () => close(true);
+      const list = q('simul-op-list'), search = q('simul-op-search');
+      const fill = () => {
+        const q = search.value.trim().toLowerCase();
+        const found = ecoNames().filter(e => !q || e.name.toLowerCase().includes(q));
+        list.innerHTML = found.map(e => `<button class="sheet-btn simul-op-item" data-name="${esc(e.name)}">${esc(e.name)}` +
+          `<span class="fr-sub">${esc(movesText(e.moves))}</span></button>`).join('') ||
+          `<p class="hint empty-note">${esc(t('simul_op_nothing'))}</p>`;
+      };
+      search.oninput = fill;
+      list.onclick = e => {
+        const b = e.target.closest('.simul-op-item');
+        const pick = b && ecoNames().find(x => x.name === b.dataset.name);
+        if (!pick) return;
+        this.opening = [...pick.moves];
+        draw();
+        box.scrollTop = 0;
+      };
+      fill();
+      draw();
+    });
   },
 
   // One write at a time, with the buttons off while it travels.
@@ -846,14 +1103,18 @@ export const SimulUI = {
   // Boards in the order the students are listed, which is what "alternating"
   // counts along.
   async invite(roster) {
-    const students = roster.map(p => p.uid).filter(u => this.pick.has(u));
-    const cols = coloursFor(this.mode, students);
-    const boards = students.map((s, i) => ({ s, tc: cols[i], fen: buildStart(cols[i]).fen, op: '' }));
+    const plan = this.plan(roster);
+    // The button is off while a board does not hold; this is the same check again.
+    const bad = plan.find(x => !x.r.ok);
+    if (bad) { toast(this.problem(bad), 5000); return; }
+    const students = plan.map(x => x.s);
+    const boards = plan.map(x => ({ s: x.s, tc: x.tc, fen: x.fen, op: x.r.op }));
     const clock = this.clock < 0 ? SIMUL.NO_CLOCK : SIMUL.CLOCKS[this.clock];
     const extra = clock.base ? this.extra ?? suggestExtra(students.length) : 0;
     const r = await this.write(() => sendSimulInvite(boards, clock, extra));
     if (!r || r.ok) return;
     toast(r.reason === 'busy' ? named('simul_busy', Students.who(r.s).profileName)
+      : r.reason === 'start' ? named('simul_op_bad_any', Students.who(r.s).profileName)
       : t(r.reason === 'refused' ? 'simul_invite_refused' : 'stu_try_again'), 4000);
   },
 

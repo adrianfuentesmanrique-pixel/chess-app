@@ -69,6 +69,15 @@
 // on each side really waited out (the stored time seeded low, rules bypassed,
 // then the seconds waited), a move sent after time refused and taken off the
 // board, and what each phone kept in History.
+// OPENING AND HANDICAP (conversation 7), round 8 of the same passes, before
+// 6c, the teacher's phone at 375 x 667: the two sheets (an opening from the
+// list, searched, played on and taken back; a handicap tapped off each of three
+// boards, the king refused), what every board stores (fen before the opening,
+// op, the castling right of a missing rook), the words on the banner and the
+// card, a line that cannot be played on one board (named, nothing sent), the
+// handicap following a colour change, "same for all", then two games played to
+// an end, one with a clock: who moves first after an odd opening, the words
+// and pictures on both boards, what each phone keeps and opens in Analysis.
 // SIMUL_PASS=es-light (or es-dark, en-light, en-dark) runs one pass only.
 //
 // Local emulator only. Nothing here touches the real project.
@@ -479,6 +488,11 @@ async function screens() {
       extraHint: (m, b, g) => `Tu reloj corre en todos los tableros a la vez. Así tendrás ${m} minutos en cada tablero y cada alumno ${b}. Sugerido: ${g} (2 minutos por tablero).`,
       flagWon: n => `${n} se quedó sin tiempo. Ganaste.`, flagLost: n => `Se te acabó el tiempo. Gana ${n}.`, tFlagWon: '⏱ Ganada', tFlagLost: '⏱ Perdida',
       moveLate: 'Se te acabó el tiempo antes de que llegara esa jugada.', lowTime: n => `Te queda menos de 1 minuto en el tablero de ${n}.`, autoShort: 'Auto',
+      opNone: 'Sin apertura', opOwn: 'Tus jugadas', opLabel: 'Apertura', opNothing: 'Ninguna apertura con ese nombre.',
+      opOver: 'Esa jugada termina la partida: una apertura no puede acabar en mate ni en tablas.', whole: 'Tablero completo', less: 'Sin:', lessMe: 'Juegas sin:',
+      lessT: 'Tu profesor juega sin:', king: 'El rey no se puede quitar.', copied: n => `La misma ventaja en los ${n} tableros.`, handiTitle: n => `Ventaja para ${n}`,
+      bad: (n, m, p) => `En el tablero de ${n} no se puede jugar ${m} sin ${p}. Cambia la apertura o esa ventaja.`,
+      q: 'dama', r: sq => `torre de ${sq}`, n: sq => `caballo de ${sq}`, theR: sq => `la torre de ${sq}`, theN: sq => `el caballo de ${sq}`,
       inv: 'Tu profesor Marta te invita a una simultánea', black: 'Juegas con negras', white: 'Juegas con blancas', join: 'Unirme', notNow: 'Ahora no', ok: 'Entendido',
       wait: 'Esperando a que Marta empiece', live: 'La simultánea con Marta ha empezado', late: 'La simultánea de Marta empezó sin ti',
       expired: 'La invitación de Marta a la simultánea caducó' },
@@ -500,6 +514,11 @@ async function screens() {
       extraHint: (m, b, g) => `Your clock runs on every board at once. This gives you ${m} minutes on each board and each student ${b}. Suggested: ${g} (2 minutes a board).`,
       flagWon: n => `${n} ran out of time. You won.`, flagLost: n => `You ran out of time. ${n} wins.`, tFlagWon: '⏱ Won', tFlagLost: '⏱ Lost',
       moveLate: 'Your time ran out before that move arrived.', lowTime: n => `You have less than 1 minute left on ${n}’s board.`, autoShort: 'Auto',
+      opNone: 'No opening', opOwn: 'Your moves', opLabel: 'Opening', opNothing: 'No opening with that name.',
+      opOver: 'That move ends the game: an opening cannot end in mate or a draw.', whole: 'Full board', less: 'Without:', lessMe: 'You play without:',
+      lessT: 'Your teacher plays without:', king: 'The king cannot be taken off.', copied: n => `The same handicap on all ${n} boards.`, handiTitle: n => `Handicap for ${n}`,
+      bad: (n, m, p) => `On ${n}'s board ${m} cannot be played without ${p}. Change the opening or that handicap.`,
+      q: 'queen', r: sq => `${sq} rook`, n: sq => `${sq} knight`, theR: sq => `the ${sq} rook`, theN: sq => `the ${sq} knight`,
       inv: 'Your teacher Marta invites you to a simul', black: 'You play Black', white: 'You play White', join: 'Join', notNow: 'Not now', ok: 'OK',
       wait: 'Waiting for Marta to start', live: 'The simul with Marta has started', late: "Marta's simul started without you",
       expired: "Marta's invitation to the simul ran out" },
@@ -1566,6 +1585,378 @@ async function screens() {
       await luis.load(lang, scheme);
       check(`[${tag}] with every game of a timed simul over the teacher's row keeps their clock and "New simul" is under it; the picker comes back with no clock chosen again`,
         r.ctl && r.again && !r.end && (await setup()).on[0] === '-1', r);
+    }
+
+    // ── 8. Opening and handicap ──
+    console.log('  8. Opening and handicap');
+    {
+      const ids = [TA, TE, TL];
+      const ITAL = 'e2e4-e7e5-g1f3-b8c6-f1c4-', RUY = 'e2e4-e7e5-g1f3-b8c6-f1b5-a7a6-b5a4-g8f6-';
+      const sheet = '.modal-box.simul-sheet';
+      const hsq = name => `.simul-sheet-board .sq[data-sq="${name}"]`;
+      const HANDI = n => `#simul-pick label:nth-child(${n}) .simul-handi`;
+      const ageAll = async () => { for (const id of ids) await patch(`simulGames/${id}`, { invitedAt: { timestampValue: new Date(Date.now() - 660000).toISOString() } }); };
+      const tick3 = async () => {
+        await teach.until('the picker, three students', `document.querySelectorAll('#simul-pick input').length === 3`, 15000);
+        for (const n of [1, 2, 3]) {
+          if (!await teach.ev(`return document.querySelector('#simul-pick label:nth-child(${n}) input').checked`)) await teach.tap(`#simul-pick label:nth-child(${n}) input`);
+        }
+      };
+      const again = async () => {
+        await ageAll();
+        await teach.until('ran out', `!!document.getElementById('simul-again')`);
+        await teach.tap('#simul-again');
+        await tick3();
+      };
+      // The setup as the teacher reads it.
+      const setup = () => teach.ev(`
+        document.querySelector('main').scrollTop = 0;
+        const inv = document.getElementById('simul-invite');
+        return { op: __t.txt('#simul-op-name'), moves: __t.txt('#simul-op-moves'), subs: __t.all('#simul-pick .fr-sub'),
+          gold: [...document.querySelectorAll('#simul-pick .fr-sub')].map(e => e.classList.contains('simul-less-on')),
+          btns: [...document.querySelectorAll('#simul-pick .simul-handi')].filter(e => !e.classList.contains('hidden')).length,
+          bad: __t.vis('#simul-op-bad') ? document.getElementById('simul-op-bad').textContent.split('\\n') : [], off: inv.disabled,
+          inviteEnds: Math.round(inv.getBoundingClientRect().bottom), tall: document.querySelector('main').scrollHeight, wide: document.documentElement.scrollWidth }`);
+      // A sheet on screen: does it fit the phone, is its closing button in reach without scrolling.
+      const sheetBox = done => teach.ev(`
+        const box = document.querySelector(${JSON.stringify(sheet)}), b = box.getBoundingClientRect(), d = document.getElementById(${JSON.stringify(done)}).getBoundingClientRect();
+        const wide = [box, ...box.querySelectorAll('*')].filter(e => { const r = e.getBoundingClientRect(); return r.width && (r.right > 375.5 || r.left < -0.5); }).map(e => e.id || e.className);
+        return { h: innerHeight, top: Math.round(b.top), bottom: Math.round(b.bottom), done: Math.round(d.bottom), scrolls: box.scrollHeight > box.clientHeight + 1, wide,
+          board: Math.round(box.querySelector('.board').getBoundingClientRect().width), raw: /simul_[a-z_]+/.exec(box.innerText)?.[0] ?? null }`);
+      const openOp = async () => { await teach.tap('#simul-op'); await teach.until('the opening sheet', `!!document.querySelector('${sheet} #simul-op-list')`); };
+      const opNow = () => teach.ev(`return { name: __t.txt('#simul-op-now-name'), moves: __t.txt('#simul-op-now-moves'), fen: __t.S.oBoard.fen.split(' ')[0], live: __t.S.oBoard.interactive,
+        undoOff: document.getElementById('simul-op-undo').disabled, items: document.querySelectorAll('.simul-op-item').length, names: __t.all('.simul-op-item').slice(0, 3) }`);
+      const closeSheet = async id => { await teach.tap('#' + id); await teach.until('the sheet closed', `!document.querySelector('.modal-box')`); };
+      const openHandi = async n => { await teach.tap(HANDI(n)); await teach.until('the handicap sheet', `!!document.querySelector('${sheet} #simul-handi-list')`); };
+      const handiNow = () => teach.ev(`return { title: __t.txt('${sheet} h3'), list: __t.txt('#simul-handi-list'), fen: __t.S.hBoard.fen, side: __t.S.hBoard.orientation,
+        clearOff: document.getElementById('simul-handi-clear').disabled }`);
+      const search = text => teach.ev(`const i = document.getElementById('simul-op-search'); i.value = ${JSON.stringify(text)}; i.dispatchEvent(new Event('input'));`);
+      const pickOp = async name => { await search(name); await teach.tap(`.simul-op-item[data-name="${name}"]`); };
+      const hplay = async (from, to) => { await teach.tap(hsq(from)); await teach.tap(hsq(to)); };
+      const noQA1 = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NB1KBNR w Kkq - 0 1';
+      const noG8 = 'rnbqkb1r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+      const noH1 = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w Qkq - 0 1';
+      const noH8 = 'rnbqkbn1/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQq - 0 1';
+      const noQ = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1';
+      const noA1 = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR w Kkq - 0 1';
+      const three3 = () => Promise.all(ids.map(id => stored(`simulGames/${id}`)));
+
+      // 8a. The setup, the two sheets, an opening from the list and a different handicap on each board.
+      for (const p of students) await p.ev(`__t.app.showScreen('home')`);
+      await luis.ev(`__t.app.showScreen('students')`);
+      await tick3();
+      await teach.tap('#simul-colour button[data-v="alt"]');
+      r = await setup();
+      check(`[${tag}] the setup: "${w.opNone}" until the teacher chooses, and every ticked student's row says "${w.whole}" beside a handicap button`,
+        r.op === w.opNone && same(r.subs, [w.whole, w.whole, w.whole]) && r.btns === 3 && !r.bad.length && !r.off && r.wide <= 375, r);
+      console.log(`      measured at 375 x 667, three students ticked, no clock: Invite ends at ${r.inviteEnds} px, the setup is ${r.tall} px tall`);
+      await teach.shot(`${tag}-70-setup-opening-handicap`);
+      await openOp();
+      r = await opNow();
+      let box = await sheetBox('simul-op-done');
+      check(`[${tag}] the opening sheet: a board to play on, nothing chosen, the named openings under it (each name once) and its closing button in reach without scrolling at 375 x 667`,
+        r.name === w.opNone && r.live && r.undoOff && r.items > 60 && r.fen === START.split(' ')[0] && box.done <= box.h && box.bottom <= box.h && !box.wide.length && !box.raw && box.board >= 240, [r, box]);
+      await search('ital');
+      r = await teach.ev(`return __t.all('.simul-op-item .fr-sub').length && [...document.querySelectorAll('.simul-op-item')].every(b => b.dataset.name.toLowerCase().includes('ital')) && document.querySelectorAll('.simul-op-item').length`);
+      check(`[${tag}] the list is searched by name: "ital" leaves the Italian openings only`, r >= 3 && r < 12, r);
+      await search('zzzz');
+      check(`[${tag}] a search that finds nothing says so`, await teach.ev(`return document.querySelectorAll('.simul-op-item').length === 0 && __t.txt('#simul-op-list') === ${JSON.stringify(w.opNothing)}`));
+      await pickOp('Italian Game');
+      r = await opNow();
+      check(`[${tag}] a name from the list puts its moves on the sheet's board: Italian Game, 1. e4 e5 2. Nf3 Nc6 3. Bc4`,
+        r.name === 'Italian Game' && r.moves === '1. e4 e5 2. Nf3 Nc6 3. Bc4' && r.fen === after('e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4'), r);
+      await teach.shotOnly(`${tag}-71-opening-sheet`);
+      await hplay('f8', 'c5');
+      r = await opNow();
+      const more = [r.name, r.moves];
+      await teach.tap('#simul-op-undo');
+      r = await opNow();
+      check(`[${tag}] played on from there with a finger (3... Bc5: the name follows), and the last move taken back`,
+        same(more, ['Italian Game, Giuoco Piano', '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5']) && r.name === 'Italian Game' && r.moves === '1. e4 e5 2. Nf3 Nc6 3. Bc4', [more, r]);
+      await closeSheet('simul-op-done');
+      // Ana: the queen and the a1 rook. The king stays.
+      await openHandi(1);
+      r = await handiNow();
+      box = await sheetBox('simul-handi-done');
+      check(`[${tag}] the handicap sheet for Ana (I am White there): the whole board from my side, all of it on screen at 375 x 667 with no scrolling`,
+        r.title === w.handiTitle('Ana') && r.list === w.whole && r.fen === START && r.side === 'w' && r.clearOff && !box.scrolls && box.done <= box.h && !box.wide.length && !box.raw && box.board >= 240, [r, box]);
+      await teach.tap(hsq('d1')); await teach.tap(hsq('a1')); await teach.tap(hsq('e1'));
+      await teach.until('the king refused', toastIs(w.king));
+      await teach.tap(hsq('e7'));   // not mine
+      await teach.tap(hsq('b1')); await teach.tap(hsq('b1'));   // off, and back on
+      r = await handiNow();
+      check(`[${tag}] tapped off: the queen and the a1 rook (the castling right of that side goes with it); the king is refused, a student's piece is not mine to take, a piece tapped twice is back`,
+        r.fen === noQA1 && r.list === `${w.lessMe} ${w.q}, ${w.r('a1')}`, r);
+      await teach.shotOnly(`${tag}-72-handicap-sheet`);
+      await closeSheet('simul-handi-done');
+      // Eva: I am Black on the second board. The g8 knight.
+      await openHandi(2);
+      r = await handiNow();
+      await teach.tap(hsq('g8'));
+      a = await handiNow();
+      check(`[${tag}] Eva's sheet shows MY side of HER board: Black, in alternating colours; the g8 knight comes off`,
+        r.side === 'b' && r.fen === START && a.fen === noG8 && a.list === `${w.lessMe} ${w.n('g8')}`, [r, a]);
+      await teach.shotOnly(`${tag}-73-handicap-sheet-black`);
+      await closeSheet('simul-handi-done');
+      await openHandi(3);
+      await teach.tap(hsq('h1'));
+      await closeSheet('simul-handi-done');
+      r = await setup();
+      check(`[${tag}] back in the setup each row says what that student gets, in gold, and the opening is named with its moves`,
+        r.op === 'Italian Game' && r.moves === '1. e4 e5 2. Nf3 Nc6 3. Bc4' && same(r.subs, [`${w.less} ${w.q}, ${w.r('a1')}`, `${w.less} ${w.n('g8')}`, `${w.less} ${w.r('h1')}`])
+        && same(r.gold, [true, true, true]) && !r.bad.length && !r.off && r.wide <= 375, r);
+      await teach.shot(`${tag}-74-setup-chosen`);
+      await teach.tap('#simul-invite');
+      a = await waitStored(TA, g => g.status === 'invited' && g.op === ITAL, 'the invitation with an opening');
+      [a, e, l] = await three3();
+      check(`[${tag}] invited: every board stores its own start position BEFORE the opening (Ana no queen and no a1 rook, right "Kkq"; Eva no g8 knight; Luis no h1 rook, right "Qkq") and the same opening`,
+        a.fen === noQA1 && e.fen === noG8 && l.fen === noH1 && [a, e, l].every(g => g.op === ITAL) && same([a.tc, e.tc, l.tc], ['w', 'b', 'w']), [a, e, l].map(g => [g.tc, g.fen, g.op]));
+      const termsA = `${w.black} · ${w.noClock} · ${w.opLabel}: Italian Game · ${w.lessT} ${w.q}, ${w.r('a1')}`;
+      const termsL = `${w.black} · ${w.noClock} · ${w.opLabel}: Italian Game · ${w.lessT} ${w.r('h1')}`;
+      await ana.until('her banner', `${invited} && __t.txt('#simul-banner-who small') === ${JSON.stringify(termsA)}`);
+      await luis.until('his card', lead(w.inv));
+      r = [await banner(ana), await cards(luis)];
+      check(`[${tag}] the invitation says the opening and what the teacher plays without, before joining: Ana's banner, Luis's card`,
+        r[0][0] === w.inv + termsA && r[1][0][1].startsWith(termsL + ' · '), r);
+      await ana.shot(`${tag}-75-banner-terms`);
+      await luis.shot(`${tag}-76-card-terms`);
+      await again();
+
+      // 8b. A line that cannot be played on a board: said, and nothing sent.
+      await openOp();
+      await teach.tap('#simul-op-clear');
+      await pickOp('Ruy Lopez, Closed');
+      await hplay('e1', 'g1');
+      r = await opNow();
+      check(`[${tag}] the Closed Ruy Lopez from the list, and 5. O-O played on the board after it`, r.moves === '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O' && r.name === 'Ruy Lopez, Closed', r);
+      await closeSheet('simul-op-done');
+      await openHandi(1);
+      await teach.tap(hsq('g1'));
+      await closeSheet('simul-handi-done');
+      const before = (await stored(`simulGames/${TA}`)).invitedAt;
+      r = await setup();
+      check(`[${tag}] the opening is replayed on every board: Ana's stops at Nf3 (no g1 knight), Eva's at Nf6 (no g8 knight), Luis's at O-O (no h1 rook); each is said with the student, the move and the piece, and Invite is off`,
+        same(r.bad, [w.bad('Ana', 'Nf3', w.theN('g1')), w.bad('Eva', 'Nf6', w.theN('g8')), w.bad('Luis', 'O-O', w.theR('h1'))]) && r.off, r);
+      await teach.tap('#simul-invite');
+      await sleep(700);
+      await teach.shot(`${tag}-77-setup-cannot-be-played`);
+      check(`[${tag}] …and a tap on Invite sends nothing`, (await stored(`simulGames/${TA}`)).invitedAt === before && await teach.ev(`return !!document.getElementById('simul-invite') && !__t.S.busy`));
+      // The colour changes: the handicap follows it.
+      await teach.tap('#simul-colour button[data-v="black"]');
+      r = await setup();
+      check(`[${tag}] Black on every board: each handicap follows the colour (the queen stays the queen, a1 becomes a8, h1 becomes h8), and the line is judged again: Luis's board holds now, Ana's and Eva's stop at Nf6`,
+        same(r.subs, [`${w.less} ${w.q}, ${w.r('a8')}, ${w.n('g8')}`, `${w.less} ${w.n('g8')}`, `${w.less} ${w.r('h8')}`])
+        && same(r.bad, [w.bad('Ana', 'Nf6', w.theN('g8')), w.bad('Eva', 'Nf6', w.theN('g8'))]) && r.off, r);
+      // "Same for all", from Luis's board.
+      await openHandi(3);
+      r = await handiNow();
+      await teach.tap('#simul-handi-all');
+      await teach.until('copied, and said', `!document.querySelector('.modal-box') && ${toastIs(w.copied(3))}`);
+      a = await setup();
+      check(`[${tag}] "same for all" from Luis's board (shown from Black's side, no h8 rook): all three rows say the h8 rook, and the opening can be played on all three`,
+        r.side === 'b' && r.fen === noH8 && same(a.subs, Array(3).fill(`${w.less} ${w.r('h8')}`)) && !a.bad.length && !a.off, [r, a]);
+      await teach.tap('#simul-colour button[data-v="alt"]');
+      r = await setup();
+      check(`[${tag}] alternating again: the copied handicap is the h1 rook where I am White and the h8 rook where I am Black, and O-O cannot be played on the two White boards`,
+        same(r.subs, [`${w.less} ${w.r('h1')}`, `${w.less} ${w.r('h8')}`, `${w.less} ${w.r('h1')}`]) && same(r.bad, [w.bad('Ana', 'O-O', w.theR('h1')), w.bad('Luis', 'O-O', w.theR('h1'))]) && r.off, r);
+      await openOp();
+      await teach.tap('#simul-op-undo');
+      await closeSheet('simul-op-done');
+      r = await setup();
+      await teach.tap('#simul-invite');
+      a = await waitStored(TA, g => g.status === 'invited' && g.op === RUY, 'the invitation after the opening was changed');
+      [a, e, l] = await three3();
+      check(`[${tag}] with O-O taken back every board holds and the invitation goes: the same handicap on all three, the castling right gone on the side of the missing rook ("Qkq" as White, "KQq" as Black)`,
+        !r.bad.length && !r.off && a.fen === noH1 && e.fen === noH8 && l.fen === noH1 && [a, e, l].every(g => g.op === RUY), [r.bad, a.fen, e.fen, l.fen, a.op]);
+      await again();
+
+      // 8c. No opening and no handicap; a line that would end the game.
+      await openOp();
+      await teach.tap('#simul-op-clear');
+      await hplay('f2', 'f3'); await hplay('e7', 'e5'); await hplay('g2', 'g4'); await hplay('d8', 'h4');
+      await teach.until('refused, and said', toastIs(w.opOver));
+      r = await opNow();
+      check(`[${tag}] an opening cannot end the game: 2... Qh4 mate is not taken, and the teacher is told why`, r.moves === '1. f3 e5 2. g4' && r.fen === after('f2f3', 'e7e5', 'g2g4'), r);
+      await teach.tap('#simul-op-clear');
+      await closeSheet('simul-op-done');
+      await openHandi(1);
+      await teach.tap('#simul-handi-clear');
+      await teach.tap('#simul-handi-all');
+      await teach.until('copied', `!document.querySelector('.modal-box')`);
+      r = await setup();
+      await teach.tap('#simul-invite');
+      a = await waitStored(TA, g => g.status === 'invited' && g.op === '' && g.fen === START, 'the plain invitation');
+      [a, e, l] = await three3();
+      await ana.until('her banner', `${invited} && __t.txt('#simul-banner-who small') === ${JSON.stringify(w.black + ' · ' + w.noClock)}`);
+      check(`[${tag}] with no opening and the full board again ("same for all" copies that too): the normal start position and no opening on all three, and the invitation says neither`,
+        r.op === w.opNone && same(r.subs, [w.whole, w.whole, w.whole]) && [a, e, l].every(g => g.fen === START && g.op === ''), [r, a.fen, e.fen, l.fen]);
+      await again();
+
+      // 8d. A game: moves played on the board as the opening (one move, so the
+      // student moves first where I am White), Ana without my a1 rook. No clock.
+      await openOp();
+      await hplay('a2', 'a3');
+      r = await opNow();
+      await closeSheet('simul-op-done');
+      await openHandi(1);
+      await teach.tap(hsq('a1'));
+      await closeSheet('simul-handi-done');
+      a = await setup();
+      check(`[${tag}] moves played on the board with no name in the list are "${w.opOwn}", shown in words: 1. a3`, r.name === w.opOwn && r.moves === '1. a3' && a.op === w.opOwn && a.moves === '1. a3', [r, a]);
+      await teach.ev(`if (__t.S.auto) document.getElementById('simul-auto').click();`);
+      old = await keptAll();
+      await three();
+      [a, e, l] = await three3();
+      const measure = p => p.ev(`
+        document.querySelector('main').scrollTop = 0;
+        const b = sel => { const el = document.querySelector(sel); if (!el || el.closest('.hidden') || !el.getClientRects().length) return null; const r = el.getBoundingClientRect(); return { t: Math.round(r.top), b: Math.round(r.bottom), l: Math.round(r.left), r: Math.round(r.right), text: el.textContent.trim() }; };
+        const st = document.getElementById('simul-status');
+        return { h: innerHeight, status: b('#simul-status'), fits: st.scrollHeight <= st.clientHeight + 1, theme: b('#simul-theme'), title: b('#screen-simul h2'), back: b('#simul-back'), less: b('#simul-less'), ico: b('.simul-less-ico'),
+          pics: [...document.querySelectorAll('.simul-less-ico img')].map(i => i.getAttribute('src').split('/').pop()), board: b('#simul-board'), ctl: b('#simul-ctl'), end: b('#simul-end'), strip: b('#simul-strip') }`);
+      await ana.size(667);
+      r = await look(ana);
+      let m = await measure(ana);
+      check(`[${tag}] every board starts after the opening with whoever is to move there moving first: on Ana's (I am White, one opening move) SHE moves first, her board is live, and it stores the position before the opening`,
+        a.fen === noA1 && a.op === 'a2a3-' && a.n === 0 && e.op === 'a2a3-' && l.op === 'a2a3-' && e.fen === START && r.status === 'Marta · ' + w.your && r.live && r.side === 'b' && r.fen === afterOn(noA1, 'a2a3'), [a.fen, a.op, r]);
+      check(`[${tag}] Ana's board at 375 x 667 says the opening beside the title and, under the board in words, "${w.lessT} ${w.r('a1')}": all of it on screen with her buttons, the title not squeezed`,
+        m.theme && m.theme.text === '1. a3' && m.less && m.less.text === `${w.lessT} ${w.r('a1')}` && m.less.t >= m.board.b && m.ctl.t >= m.less.b && m.ctl.b <= m.h && m.theme.r <= 375 && m.title.r <= m.theme.l && m.back.r <= m.title.l && !m.ico, m);
+      await ana.shot(`${tag}-78-student-board-handicap`);
+      await ana.size(812);
+      r = await look(teach);
+      check(`[${tag}] the teacher is put on a board where it is THEIR move: Eva's (I am Black there, and Black is to move after 1. a3); Ana's and Luis's wait for the student`,
+        same(r.tiles.map(x => [x[0], x[2], x[3]]), [['Ana', false, false], ['Eva', true, true], ['Luis', false, false]]) && r.status === 'Eva · ' + w.your, r);
+      const plain = await measure(teach);
+      await teach.tap(TILE(1));
+      await teach.until('Ana\'s board', stat('Ana · ' + w.their));
+      m = await measure(teach);
+      r = await look(teach);
+      check(`[${tag}] the teacher's board at 375 x 667: the missing rook as a picture in the line above the board (their own colour's), the opening beside the title, and not one pixel taller than a board with neither: End still ends inside the screen`,
+        m.ico && same(m.pics, ['wR.svg']) && m.ico.t >= m.status.t && m.ico.b <= m.status.b && m.status.b - m.status.t === plain.status.b - plain.status.t && m.board.t === plain.board.t && m.end.b === plain.end.b && m.end.b <= m.h
+        && m.theme.text === '1. a3' && m.theme.r <= 375 && m.title.r <= m.theme.l && !m.less && !r.live && r.fen === afterOn(noA1, 'a2a3'), [m, plain.status, plain.end]);
+      console.log(`      measured at 375 x 667, no clock: strip from ${m.strip.t} px, status ${m.status.t}-${m.status.b}, board ${m.board.t}-${m.board.b}, End ends at ${m.end.b} px`);
+      await teach.shot(`${tag}-79-teacher-board-handicap`);
+      await teach.tap('.simul-less-ico');
+      await teach.until('said in words', toastIs(`${w.lessMe} ${w.r('a1')}`));
+      await teach.tap('#simul-theme');
+      await teach.until('the opening said', toastIs(`${w.opLabel}: 1. a3`));
+      check(`[${tag}] a tap on the picture says it in words ("${w.lessMe} ${w.r('a1')}"), a tap on the opening says the opening`, true);
+      // 1. a3 e5 2. f3 d5 3. g4 Qh4 mate.
+      await play(ana, 'e7', 'e5');
+      await teach.until('her move', stat('Ana · ' + w.your));
+      await play(teach, 'f2', 'f3');
+      await ana.until('my move', stat('Marta · ' + w.your));
+      await play(ana, 'd7', 'd5');
+      await teach.until('her move', stat('Ana · ' + w.your));
+      await play(teach, 'g2', 'g4');
+      await ana.until('my move', stat('Marta · ' + w.your));
+      await play(ana, 'd8', 'h4');
+      a = await waitStored(TA, g => g.status === 'done', 'the mate');
+      await ana.until('mate', stat('Marta · ' + w.mateWon));
+      await teach.until('mated', stat('Ana · ' + w.mateLost('Ana')));
+      check(`[${tag}] the first move was the student's, and the game is played to mate from the handicap position after the opening (5 moves stored after the opening's one)`,
+        same(result(a), ['done', 's', 'mate', null]) && a.n === 5 && a.mv === 'e7e5-f2f3-d7d5-g2g4-d8h4-' && a.op === 'a2a3-' && a.fen === noA1, [result(a), a.mv]);
+      await end();
+      await teach.tap('.modal-box .btn.danger');
+      await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+      const keptA = [await fresh(teach, old, 1), await fresh(ana, old, 1)];
+      check(`[${tag}] both phones keep it once, from the board's own start position (no a1 rook), in full moves (3)`,
+        same(keptA[0], [['Ana', 'w', '0-1', 'loss', 'checkmate', 3, noA1]]) && same(keptA[1], [['Marta', 'b', '0-1', 'win', 'checkmate', 3, noA1]]), keptA);
+      const analysed = p => p.ev(`
+        const db = await import('/js/db.js'), h = await import('/js/history.js');
+        const { items } = await db.pageHistory({ count: 1 });
+        await h.openGame(items[0]);
+        const T = __t.app.Analysis.tree;
+        return { screen: __t.app.activeScreen, start: T.startFen, pgn: T.toPgn(), opening: items[0].opening, tc: items[0].timeControl || null }`);
+      for (const p of [teach, ana]) {
+        r = await analysed(p);
+        check(`[${tag}] ${p.who}'s phone opens it in Analysis at the handicap position, the opening from move 1 and then the game: 1. a3 e5 2. f3 d5 3. g4 Qh4#`,
+          r.screen === 'analysis' && r.start === noA1 && r.pgn.includes(`[FEN "${noA1}"]`) && /1\.\s*a3\s+e5\s+2\.\s*f3\s+d5\s+3\.\s*g4\s+Qh4#/.test(r.pgn) && r.pgn.includes('[White "Marta"]') && r.pgn.includes('[Result "0-1"]'), r);
+        if (p === ana) await ana.shotOnly(`${tag}-80-analysis-handicap`);
+      }
+      await teach.ev(`__t.app.showScreen('simul')`);
+      await tick3();
+
+      // 8e. The same with a clock: an opening from the list (five moves, so the
+      // student moves first where I am White), Luis without my a1 rook, 10 + 5.
+      await openOp();
+      await teach.tap('#simul-op-clear');
+      await pickOp('Italian Game');
+      await closeSheet('simul-op-done');
+      await openHandi(1);
+      await teach.tap('#simul-handi-clear');
+      await closeSheet('simul-handi-done');
+      await openHandi(3);
+      await teach.tap(hsq('a1'));
+      await closeSheet('simul-handi-done');
+      await teach.tap('#simul-tc button[data-v="0"]');
+      r = await setup();
+      console.log(`      measured at 375 x 667, three students ticked, opening, a handicap and a clock: Invite ends at ${r.inviteEnds} px, the setup is ${r.tall} px tall`);
+      check(`[${tag}] the setup with an opening, one handicap and a clock: Ana and Eva the full board, Luis without the a1 rook`,
+        r.op === 'Italian Game' && same(r.subs, [w.whole, w.whole, `${w.less} ${w.r('a1')}`]) && same(r.gold, [false, false, true]) && !r.off && r.wide <= 375, r);
+      await teach.shot(`${tag}-81-setup-all`);
+      old = await keptAll();
+      await three();
+      const clocks = p => p.ev(`
+        const box = id => { const el = document.getElementById(id); return { text: el.textContent, shown: __t.vis('#' + id), run: el.classList.contains('run') }; };
+        return { me: box('simul-clock-me'), them: box('simul-clock-them') }`);
+      const secs = text => { const x = /^(\d+):(\d\d)$/.exec(text || ''); return x ? +x[1] * 60 + +x[2] : NaN; };
+      await luis.until('his clocks', `__t.vis('#simul-clock-me') && __t.fb.pulsoClockOffset() !== null`);
+      await teach.tap(TILE(3));
+      await teach.until('Luis\'s board', stat('Luis · ' + w.their));
+      await teach.until('the clocks measured', `__t.fb.pulsoClockOffset() !== null`);
+      l = await stored(`simulGames/${TL}`);
+      const c0 = [await clocks(luis), await clocks(teach)];
+      await sleep(2200);
+      const c1 = [await clocks(luis), await clocks(teach)];
+      r = await look(luis);
+      check(`[${tag}] with a clock and the student to move first (five opening moves, I am White): at move 0 Luis's phone says it is his move and HIS clock is the one running, on both phones; the teacher's 15:00 stands still`,
+        l.fen === noA1 && l.op === ITAL && l.n === 0 && l.tMs === 900000 && l.sMs === 600000 && r.status === 'Marta · ' + w.your && r.live && r.fen === afterOn(noA1, 'e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4')
+        && c0[0].me.run && !c0[0].them.run && c0[1].them.run && !c0[1].me.run && c0[0].them.text === '15:00' && c1[0].them.text === '15:00' && c0[1].me.text === '15:00' && c1[1].me.text === '15:00'
+        && secs(c1[0].me.text) < secs(c0[0].me.text) && secs(c1[1].them.text) < secs(c0[1].them.text) && secs(c0[0].me.text) <= 600 && secs(c1[0].me.text) > 560, [c0, c1, r.status]);
+      m = await measure(teach);
+      check(`[${tag}] the teacher's timed board at 375 x 667 with the opening's name and the missing rook's picture: the line above the board is still 31 px and holds its words, End ends inside the screen`,
+        m.status.b - m.status.t === 31 && m.fits && same(m.pics, ['wR.svg']) && m.theme.text === 'Italian Game' && m.title.r <= m.theme.l && m.theme.r <= 375 && m.end.b <= m.h, m);
+      console.log(`      measured at 375 x 667, with a clock: strip from ${m.strip.t} px, status ${m.status.t}-${m.status.b}, board ${m.board.t}-${m.board.b}, End ends at ${m.end.b} px`);
+      await teach.shot(`${tag}-82-teacher-board-clock-handicap`);
+      await luis.size(667);
+      m = await measure(luis);
+      check(`[${tag}] Luis's timed board at 375 x 667: "Italian Game" beside the title, "${w.lessT} ${w.r('a1')}" under the board, his clock and buttons on screen`,
+        m.theme.text === 'Italian Game' && m.less.text === `${w.lessT} ${w.r('a1')}` && m.ctl.b <= m.h && m.ctl.t >= m.less.b && m.title.r <= m.theme.l, m);
+      await luis.shot(`${tag}-83-student-board-clock-handicap`);
+      await luis.size(812);
+      await luis.tap('#simul-theme');
+      await luis.until('the opening said with its moves', toastIs(`${w.opLabel}: Italian Game · 1. e4 e5 2. Nf3 Nc6 3. Bc4`));
+      await play(luis, 'g8', 'f6');
+      await teach.until('his move', stat('Luis · ' + w.your));
+      await play(teach, 'f3', 'g5');
+      l = await waitStored(TL, g => g.n === 2, 'the teacher\'s move');
+      check(`[${tag}] the first move, the student's, settles nothing; the teacher's answer settles his: the teacher's stored clock is untouched, Luis's is 10:00 less what he used plus 5 s`,
+        l.tMs === 900000 && l.sMs > 585000 && l.sMs <= 605000 && l.mv === 'g8f6-f3g5-', [l.tMs, l.sMs, l.mv]);
+      await luis.until('my move', stat('Marta · ' + w.your));
+      await luis.tap('#simul-resign');
+      await luis.until('the question', ask);
+      await luis.tap('.modal-box .btn.danger');
+      l = await waitStored(TL, g => g.status === 'done', 'Luis\'s resignation');
+      await teach.until('said on the teacher\'s', stat('Luis · ' + w.resignWon('Luis')));
+      await end();
+      await teach.tap('.modal-box .btn.danger');
+      await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+      const keptB = [await fresh(teach, old, 1), await fresh(luis, old, 1)];
+      check(`[${tag}] the timed game is kept once on both phones from its own start position (no a1 rook)`,
+        same(keptB[0], [['Luis', 'w', '1-0', 'win', 'resign', 4, noA1]]) && same(keptB[1], [['Marta', 'b', '1-0', 'loss', 'resign', 4, noA1]]), keptB);
+      for (const p of [teach, luis]) {
+        r = await analysed(p);
+        check(`[${tag}] ${p.who}'s phone opens the timed game in Analysis at the handicap position with the opening from move 1 (1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5), its control kept, and History still names the opening`,
+          r.screen === 'analysis' && r.start === noA1 && r.pgn.includes(`[FEN "${noA1}"]`) && /1\.\s*e4\s+e5\s+2\.\s*Nf3\s+Nc6\s+3\.\s*Bc4\s+Nf6\s+4\.\s*Ng5/.test(r.pgn) && r.pgn.includes('[TimeControl "600+5"]')
+          && r.tc && r.tc.base === 600 && r.opening === 'Two Knights Defense, Fried Liver Attack' && r.pgn.includes('[Result "1-0"]'), r);
+      }
+      // As it was: no opening, no handicap, no clock, the switch on.
+      await teach.ev(`__t.app.showScreen('simul')`);
+      await tick3();
+      await teach.ev(`__t.S.opening = []; __t.S.handi.clear(); __t.S.extra = null; __t.S.bodyKey = ''; __t.S.sync(); if (!__t.S.auto) document.getElementById('simul-auto').click();`);
+      await teach.tap('#simul-tc button[data-v="-1"]');
+      r = await setup();
+      check(`[${tag}] the setup is as it was found: no opening, the full board for everyone, no clock`, r.op === w.opNone && same(r.subs, [w.whole, w.whole, w.whole]) && !r.off && await teach.ev(`return __t.S.clock === -1 && __t.S.auto`), r);
     }
 
     // ── 6c. A simul nobody closed: 3 hours ──

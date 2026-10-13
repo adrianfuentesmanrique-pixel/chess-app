@@ -9,6 +9,69 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 7 OF 8: OPENING AND HANDICAP (2026-10-13, v207).** Spec
+  `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 7.
+  `firestore.rules` and `js/firebase.js` untouched (`sendSimulInvite` already took a
+  `fen` and an `op` per board). This is `js/simul-ui.js`, five small pure functions in
+  `js/simul.js`, the words and the tool. No "Otros tableros", no link, no first-time
+  explanation: 8.
+  - **Adrian's four answers** (asked with measured mock-ups; he took all four
+    recommendations). (a) The opening picker and the handicap board each open in a
+    SHEET, not inline: inline, three ticked students put Invite at 2,427 px; with
+    sheets the setup is 837 px tall with three students and no clock (987 px with a
+    clock chosen). (b) A handicap FOLLOWS the teacher's colour: it is kept as White's
+    squares (`SimulUI.handi`, uid -> ['a1','d1']) and mirrored for a board where the
+    teacher is Black (`handicapSquares`), so the queen stays the queen and a1 becomes
+    a8; "same for all" is right across White and Black boards for the same reason.
+    (c) The student reads it in words under the board (`#simul-less`: "Tu profesor
+    juega sin: torre de a1"); the teacher, who has no height to spare, gets the missing
+    pieces as small pictures in the line above the board (`.simul-less-ico`, a tap says
+    it in words; past four pieces it is a count), and the opening's name sits beside the
+    Simultáneas title on both phones (`#simul-theme`, a tap says the moves). (d) Opening
+    and handicaps are kept while the app stays open, like colour and clock; nothing is
+    saved to the phone.
+  - **What it cost at 375x667: nothing.** Measured by the tool in all four passes, with
+    and without a clock: strip from 119 px, status 194-225, board 231-586, End ends at
+    666 px, exactly as before. The marker's "−" is drawn by the stylesheet (`data-n`),
+    so `#simul-status`'s text is what it was.
+  - **Setup** (`renderSetup`): a ticked student's second line says "Tablero completo" or,
+    in gold, "Sin: dama, torre de a1", beside a "Ventaja" button; an "Apertura" row
+    under the students shows the name and the moves in words. `plan(roster)` is the one
+    place that works out what would be sent (colour, start position, the opening
+    replayed on it) and both the setup and `invite()` use it. A board that does not hold
+    is said above Invite, which stays off: "En el tablero de Luis no se puede jugar O-O
+    sin la torre de h1." The piece is named only when giving that ONE piece back would
+    cure it (`problem`); otherwise "con esa ventaja". A line that ends the game on a
+    handicap board is said too.
+  - **The opening sheet** (`openingSheet`): one board (`Board`, 272 px) to play the moves
+    on, "Deshacer", "Sin apertura", and under it the named openings, searchable, each
+    name ONCE at the fewest moves that earn it (`ecoNames`); a tap loads the moves onto
+    the board and the teacher can play on from there. A move that would end the game is
+    refused and said; at 20 moves a side the board stops. A line with no name in the
+    list is "Tus jugadas" in the setup and its moves ("1. a3") on the game screen.
+  - **The handicap sheet** (`handicapSheet`): the Setup Position board (`editorMode`),
+    from the teacher's side of THAT board; a tap takes one of their pieces off, a tap on
+    the empty square puts it back, the king is refused. "Tablero completo", "Igual para
+    todos" (every ticked student). All of it fits 375x667 without scrolling.
+  - **A FINDING: `replayOpening` (by SAN) is the wrong tool on a handicap board.** The
+    full board spells a move "Nbd2"; on a board without the g1 knight the library reads
+    that as no move at all, so a playable line would be refused. `replayOpeningOn(fen,
+    op, sans)` replays by squares instead (`op` as the full board packed it) and gives
+    the same answers; `openingSans(fen, op)` reads a stored opening back as the full
+    board spells it, which is what `classifyOpening` needs. Both unit-tested.
+  - **Who moves first**: nothing new was needed. With an odd number of opening moves
+    the student moves first where the teacher is White; with a clock the student's
+    clock is the one running at move 0 on both phones and the teacher's stands still
+    (the tool reads both twice, two seconds apart).
+  - **Saved games**: `record()` was already right. A handicap + opening game opens in
+    Analysis from the handicap position with the opening from move 1 on both phones,
+    and History still names the opening.
+  - **The tool**: round 8, before 6c. 913 checks (713 before), about 40 minutes for the
+    four passes. A trap it met: a builder passed to `modal()` runs BEFORE its box is in
+    the page, so `$('id')` finds nothing there; look inside the box.
+  - **Not asked for, said plainly**: none built. **Still owed**: nobody has set an
+    opening or a handicap on a real phone (v207); the emulator proves the rules, not
+    the live project. The three readings of conversation 6 are still unasked.
 - **SIMULS, CONVERSATION 6 OF 8: THE CLOCK (2026-10-13, v206).** Spec
   `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 6.
   `firestore.rules`, `js/simul.js` and `js/firebase.js` untouched: the clock was already

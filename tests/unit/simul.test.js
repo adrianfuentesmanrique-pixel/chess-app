@@ -15,7 +15,7 @@ import {
   unpackMoves, tryMove, replayOpening, checkStart, colourToMove, roleOf, sideToMove,
   positionOf, settle, timeLeft, inTime, flagged, mayClaimFlag, moveWrite, boardResult,
   resultOf, resultHolds, mayOfferDraw, waitingBoards, nextBoard, coloursFor, inviteOpen, shownPosition, voidable,
-  mayReplace,
+  mayReplace, replayOpeningOn, openingSans, mirrorSquare, handicapSquares, missingPieces,
 } from '../../js/simul.js';
 import { clockOffset as pulsoClockOffset } from '../../js/pulso.js';
 import { Chess } from '../../vendor/chess.js';
@@ -801,4 +801,71 @@ test('voidable: a game in play, or one a move ended; nothing else', () => {
   for (const reason of ['mate', 'stalemate', 'repetition', 'fifty', 'material']) assert.equal(voidable(game({ status: 'done', reason })), true, reason);
   for (const reason of ['resign', 'agreed', 'flag', 'void', 'unfinished']) assert.equal(voidable(game({ status: 'done', reason })), false, reason);
   for (const status of ['invited', 'joined', 'out']) assert.equal(voidable(game({ status })), false, status);
+});
+
+// ── Conversation 7: the opening on a handicap board, and the handicap in words ──
+
+test('replayOpeningOn: by squares, so the full board\'s spelling of a move never refuses a line', () => {
+  const sans = ['d4', 'd5', 'Nf3', 'Nf6', 'Nbd2'];
+  const full = replayOpening(START_FEN, sans);
+  assert.equal(full.ok, true);
+  // Without the g1 knight the line stops at Nf3...
+  assert.deepEqual(replayOpeningOn(buildStart('w', ['g1']).fen, full.op, sans), { ok: false, reason: 'illegal', index: 2, san: 'Nf3' });
+  // ...and without the g8 knight Black cannot answer Nf6.
+  assert.equal(replayOpeningOn(buildStart('b', ['g8']).fen, full.op, sans).san, 'Nf6');
+  // 'Nbd2' as SAN is refused where only one knight is left; by squares it plays.
+  const one = ['d4', 'd5', 'Nbd2'], oneFull = replayOpening(START_FEN, ['d4', 'd5', 'Nd2']);
+  const noG1 = buildStart('w', ['g1']).fen;
+  assert.equal(replayOpening(noG1, ['d4', 'd5', 'Nf3', 'Nf6', 'Nbd2']).ok, false);
+  const r = replayOpeningOn(noG1, oneFull.op, one);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.sans, ['d4', 'd5', 'Nd2']);
+  assert.equal(r.op, oneFull.op);
+  assert.equal(checkStart(noG1, r.op).fen, r.fen);
+});
+
+test('replayOpeningOn: castling without the rook, a line that ends the game, one too long, none', () => {
+  const ruy = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O'];
+  const op = replayOpening(START_FEN, ruy).op;
+  assert.deepEqual(replayOpeningOn(buildStart('w', ['h1']).fen, op, ruy), { ok: false, reason: 'illegal', index: 8, san: 'O-O' });
+  assert.equal(replayOpeningOn(buildStart('w', ['a1', 'd1']).fen, op, ruy).ok, true);
+  assert.deepEqual(replayOpeningOn(START_FEN, '', []), { ok: true, fen: START_FEN, op: '', sans: [] });
+  // 1. e4 e5 2. Qh5 Ke7 3. Qxe5 is mate: a line cannot end the game.
+  const mate = replayOpeningOn(START_FEN, 'e2e4-e7e5-d1h5-e8e7-h5e5-', ['e4', 'e5', 'Qh5', 'Ke7', 'Qxe5#']);
+  assert.deepEqual(mate, { ok: false, reason: 'over', index: 4, san: 'Qxe5#' });
+  assert.equal(replayOpeningOn(START_FEN, 'e2e4-'.repeat(41)).reason, 'long');
+  assert.equal(replayOpeningOn('not a position', 'e2e4-').reason, 'fen');
+});
+
+test('openingSans: a stored opening as the full board spells it', () => {
+  const op = replayOpening(START_FEN, ['d4', 'd5', 'Nf3', 'Nf6', 'Nbd2']).op;
+  assert.deepEqual(openingSans(buildStart('w', ['a1']).fen, op), ['d4', 'd5', 'Nf3', 'Nf6', 'Nbd2']);
+  assert.deepEqual(openingSans(START_FEN, ''), []);
+  assert.deepEqual(openingSans(START_FEN, 'nonsense'), []);
+});
+
+test('the handicap follows the colour: kept as White\'s squares, mirrored for Black', () => {
+  assert.equal(mirrorSquare('a1'), 'a8');
+  assert.equal(mirrorSquare('e2'), 'e7');
+  assert.deepEqual(handicapSquares('w', ['a1', 'd1']), ['a1', 'd1']);
+  assert.deepEqual(handicapSquares('b', ['a1', 'd1', 'e2']), ['a8', 'd8', 'e7']);
+  for (const tc of ['w', 'b']) {
+    const r = buildStart(tc, handicapSquares(tc, ['a1', 'd1', 'g1', 'e2']));
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.removed.map(x => x.type).sort(), ['n', 'p', 'q', 'r']);
+    assert.equal(r.fen.split(' ')[2], tc === 'w' ? 'Kkq' : 'KQk');
+    assert.equal(checkStart(r.fen, '').ok, true);
+  }
+});
+
+test('missingPieces: what the teacher plays without, read back from the stored position', () => {
+  assert.deepEqual(missingPieces(START_FEN, 'w'), []);
+  assert.deepEqual(missingPieces(START_FEN, 'b'), []);
+  assert.deepEqual(missingPieces(buildStart('w', ['e2', 'h1', 'b1', 'd1', 'a1', 'c1']).fen, 'w'), [
+    { square: 'd1', type: 'q' }, { square: 'a1', type: 'r' }, { square: 'h1', type: 'r' },
+    { square: 'c1', type: 'b' }, { square: 'b1', type: 'n' }, { square: 'e2', type: 'p' },
+  ]);
+  assert.deepEqual(missingPieces(buildStart('b', ['d8', 'a7']).fen, 'b'), [{ square: 'd8', type: 'q' }, { square: 'a7', type: 'p' }]);
+  // Only the teacher's own side is read.
+  assert.deepEqual(missingPieces(buildStart('b', ['d8']).fen, 'w'), []);
 });

@@ -1,13 +1,20 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **conversations 1, 2, 3, 4, 5 and 6 of 8 are built
-(2026-10-13). 6 is the clock (v206): "no clock" or one of the four controls
+Date: 2026-10-11. Status: **conversations 1, 2, 3, 4, 5, 6 and 7 of 8 are built
+(2026-10-13). 7 is opening and handicap (v207): one thematic opening for the
+simul, from the searchable list or played on a board, and a handicap per
+student tapped off a board, "same for all"; each opens in a sheet. Every board
+is checked before inviting and a line that cannot be played names the student,
+the move and the piece. Adrian's four answers for 7 (sheets, the handicap
+follows the colour, words for the student and pictures for the teacher, kept
+while the app stays open) are in HANDOVER.md; no rule changed. Still open: 8
+(watching, the link, the first-time explanation).
+6 is the clock (v206): "no clock" or one of the four controls
 and the teacher's extra minutes in the setup, both clocks on both screens, the
 running clock on every tile, the flag claimed by either phone, a move that
 arrives after time taken off the board, the control kept with the saved game.
 Adrian's four answers for 6 (where the clocks go, the tiles, the warning, the
-suggestion pre-filled) are in HANDOVER.md; no rule changed. Still open: 7
-(opening and handicap) and 8 (watching, the link, the first-time explanation).
+suggestion pre-filled) are in HANDOVER.md; no rule changed.
 5 is endings and keeping the games (v205): resign, the draw
 offer, the student told when away, every finished game saved once to each
 phone's History; Adrian's answers are in HANDOVER.md. 2 is the database: the Simul block in `firestore.rules`,
