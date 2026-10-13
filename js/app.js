@@ -8587,9 +8587,11 @@ async function main() {
   });
   Avatars.paintTopbar();
   // The app always opens on Home. What opens it for a reason runs after this
-  // and wins: a shared file (handleIncomingFiles), a Pulso link (PulsoUI.boot).
+  // and wins: a shared file (handleIncomingFiles), a Pulso link (PulsoUI.boot),
+  // a simul link (SimulUI.boot).
   showScreen('home');
   PulsoUI.boot();
+  SimulUI.boot();
   // make sure at least one base exists so saving is one tap
   const bases = await db.listBases();
   if (!bases.length) await db.createBase(t('my_games'));

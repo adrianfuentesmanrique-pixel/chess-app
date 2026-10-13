@@ -8,7 +8,14 @@
 // And the game (conversation 4; sections 3c, 3h and 3k): ONE board on the same
 // screen. The teacher's has a strip of tiles above it, one per student, and
 // goes from board to board; a student's is opened from the banner or the card
-// (`sOpen`) and shows their own game only.
+// (`sOpen`) and shows their own game.
+// And watching, the link and the first-time explanation (conversation 8;
+// sections 3j and 3l): "Others" on a student's row opens the list of the other
+// boards of the same simul, and one of them can be put on screen over their
+// own, read only (`wOpen`); a ?simul=<teacherUid> link is followed once
+// (follow); Kael explains a simul once to a teacher and once to a student, in
+// the page. What watching costs is decided here too: the phone listens to the
+// whole class only while that list is open, and to the ONE board it shows.
 // And how a game ends and is kept (conversation 5; sections 3h and 3i): resign
 // and the draw offer on the row under the board, the student told when a game
 // ended while they were elsewhere, and every finished game saved ONCE to this
@@ -49,8 +56,9 @@ import {
 import {
   watchSimulTeacher, watchSimulStudent, sendSimulInvite, joinSimul, declineSimul,
   startSimul, endSimul, simulMove, voidSimul, resignSimul, offerSimulDraw, answerSimulDraw, syncSimulClock, simulServerNow, pulsoClockOffset, claimSimulFlag,
+  watchSimulClass, watchSimulBoard, fetchLeaderboardByUids, Auth,
 } from './firebase.js';
-import { $, esc, toast, askConfirm, modal, showScreen, activeScreen, paintCapCounter } from './app.js';
+import { $, esc, toast, askConfirm, modal, showScreen, activeScreen, paintCapCounter, KaelQuotes } from './app.js';
 import { Students } from './students.js';
 import { PulsoUI } from './pulso-ui.js';
 
@@ -86,6 +94,11 @@ const WARN_MS = 60_000;
 // a claim that was refused is tried again after CLAIM_RETRY_MS.
 const CLAIM_AFTER_MS = 300;
 const CLAIM_RETRY_MS = 3000;
+// The teacher's "Tell them" link, as Duel's: the app opens on the invitation.
+const LINK = 'https://chesstrainingcenter.app/?simul=';
+// What Kael has explained on this phone: { t, s, b } — to the teacher, to the
+// student, and his one line where the banner arrives.
+const KAEL_KEY = 'simulKael';
 // The banner shows one board: the one that asks for something first.
 const ORDER = ['invited', 'live', 'joined', 'over', 'late', 'expired'];
 
@@ -164,8 +177,40 @@ export const SimulUI = {
   ended: null,        // ENDED_KEY, read once
   claims: new Map(),  // flags this phone has claimed: 'id|startAt|n' -> when (this phone's time)
   warned: new Set(),  // boards the teacher has been told are low on time: 'id|startAt|n'
+  // Watching.
+  sLoaded: false,     // the student's listener has heard from the server
+  mates: {},          // classmates' public rows, read once: uid -> { profileName, avatarId }
+  oStop: null,        // the class listener: it runs only while the list of other boards is open
+  oBoards: null,      // what it holds; null until the server has answered
+  oPaint: null,       // draws the open list
+  wOpen: null,        // the classmate's board on screen (its id), over my own
+  wStop: null,
+  wBoard: null,
+  told: '',           // what I was last told my own board wants, while watching
+  // The link. `link` is the ?simul= the app was opened with, { host, duel,
+  // since, shown, asked, mine }, or null once it has been followed.
+  link: null,
+  up: false,          // the app has put its first screen up
+  notice: '',         // what a link that led nowhere has to say, in Students
+  kael: null,         // KAEL_KEY, read once
 
   init() {
+    // The link is read once and taken out of the address, as Duel's is
+    // (PulsoUI.init has already taken its own).
+    const q = new URLSearchParams(location.search);
+    const host = q.get('simul');
+    if (host !== null) {
+      q.delete('simul');
+      const rest = q.toString();
+      history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+      if (/^\w{1,128}$/.test(host)) this.link = { host, duel: !!PulsoUI.link, since: Date.now() };
+    }
+    // Firebase can say who is signed in after the app is up, and "nobody" is
+    // told to nobody else here (Students.onAuth has nothing to change).
+    Auth.onChange(() => this.follow());
+    $('simul-others').onclick = () => this.openOthers();
+    $('simul-mine').onclick = () => this.unwatch();
+    $('stu-simul-how').onclick = () => this.how('s');
     $('simul-back').onclick = () => showScreen('students');
     $('stu-simul-open').onclick = () => showScreen('simul');
     try {
@@ -216,17 +261,27 @@ export const SimulUI = {
     const want = uid && Students.hasTeacher() ? uid : null;
     if (want !== this.sFor) {
       if (this.sStop) this.sStop();
-      this.sStop = null; this.sBoards = []; this.sFor = want;
-      if (want) this.sStop = watchSimulStudent(list => { this.sBoards = list; this.sync(); });
+      this.sStop = null; this.sBoards = []; this.sFor = want; this.sLoaded = false;
+      this.dropWatch(); this.closeOthers();
+      if (want) {
+        this.sStop = watchSimulStudent((list, meta) => {
+          this.sBoards = list;
+          if (!meta || !meta.fromCache) this.sLoaded = true;
+          this.sync();
+          this.follow();
+        });
+      }
     }
     if (this.tFor && this.tFor !== uid) this.closeTeacher();
     if (activeScreen === 'simul' && !this.tFor && !this.sOpen) { showScreen('students'); return; }
     this.sync();
+    this.follow();
   },
 
   // Called by showScreen() for every screen.
   onScreen(name) {
-    if (name !== 'simul') { this.closeTeacher(); this.sOpen = null; }
+    if (name !== 'students') this.notice = '';
+    if (name !== 'simul') { this.closeTeacher(); this.sOpen = null; this.dropWatch(); this.closeOthers(); }
     // A student's own board: their listener is already running.
     else if (this.sOpen) this.closeTeacher();
     else if (!Students.hasStudents()) { showScreen('students'); return; }
@@ -336,6 +391,7 @@ export const SimulUI = {
     this.paintBanner(shown);
     if (activeScreen === 'students') this.paintCards(shown);
     if (onScreen) this.render();
+    if (this.oPaint) this.oPaint();
     const now = simulServerNow();
     document.querySelectorAll('[data-simul-left]').forEach(el => {
       el.textContent = fmtLeft(+el.dataset.simulLeft + SIMUL.INVITE_MS - now);
@@ -409,17 +465,33 @@ export const SimulUI = {
     const sub = x.state === 'invited' ? `<small>${esc(this.terms(x.g))}</small>` : '';
     $('simul-banner-who').innerHTML = avatarHtml(p.avatarId, 32) + `<span>${esc(this.line(x))}${sub}</span>`;
     this.buttons($('simul-banner-acts'), this.actions(x));
+    // A student's first invitation ever: Kael says one line where he always
+    // speaks (his bubble on Home, his corner elsewhere: the banner is at the
+    // top), and a tap on it opens the explanation.
+    if (x.state === 'invited' && !this.explained('s') && !this.explained('b')) {
+      this.explain('b');
+      KaelQuotes.show({ title: t('simul_kael_title'), text: t('simul_kael_s_short'), cta: t('simul_kael_cta'), onTap: () => this.how('s') }, 15000);
+    }
   },
 
   // The cards in Students, under "My teachers".
   paintCards(shown = this.shown()) {
     const el = $('stu-simul-list');
     if (!el) return;
-    const key = JSON.stringify([getLang(), this.busy,
+    // A link that led nowhere is answered by the invitation, if one comes.
+    if (this.notice && shown.some(x => x.state === 'invited' || x.state === 'live')) this.notice = '';
+    // Kael's card waits for the first invitation, and goes with "OK".
+    const first = shown.some(x => x.state === 'invited' || x.state === 'joined') && !this.explained('s');
+    const key = JSON.stringify([getLang(), this.busy, this.notice, first,
       shown.map(x => [x.g.id, x.g.invitedAt, x.state, Students.who(x.g.t)])]);
     if (key === this.cardsKey && el.childElementCount === shown.length) return;
     this.cardsKey = key;
+    $('stu-simul-note').textContent = this.notice;
+    $('stu-simul-note').classList.toggle('hidden', !this.notice);
     $('stu-simul').classList.toggle('hidden', !shown.length);
+    $('stu-simul-kael').innerHTML = first ? this.kaelCard('s') : '';
+    if (first) $('stu-simul-kael').querySelector('.simul-kael-ok').onclick = () => { this.explain('s'); this.sync(); };
+    $('stu-simul-how').classList.toggle('hidden', first);
     el.innerHTML = '';
     for (const x of shown) {
       const card = document.createElement('div');
@@ -451,6 +523,271 @@ export const SimulUI = {
     this.sync();
   },
 
+  // ── the link ───────────────────────────────────────────────────────────
+
+  // Called by js/app.js once its own first screen is up.
+  boot() { this.up = true; this.follow(); },
+
+  // Where a ?simul=<teacherUid> link leads, decided once: when the app has
+  // started, it is known who is signed in, Students has ASKED THE SERVER who my
+  // teachers are (what this phone remembers may be last week's), and my
+  // listener has heard from the server.
+  //  - Invited: the card in Students, or my board if the game is on. Joining is
+  //    never done by the link itself, as with Duel: a preview must not join.
+  //  - No invitation, or not that teacher's student: said plainly in Students,
+  //    with nothing about whether there is a simul or who is in it. Neither
+  //    sentence costs a read: a board I am not on cannot be read at all.
+  //  - Signed out: Students says "sign in", and the link is followed after it.
+  //  - My own link: my waiting room.
+  //  - Opened with a Duel link as well: Duel has the screen. An invitation is
+  //    then the banner there, and a link that led nowhere is said in a toast.
+  follow() {
+    const link = this.link;
+    if (!link || !this.up || !Auth.known) return;
+    if (!Auth.user) {
+      if (!link.shown) { link.shown = true; if (!link.duel) showScreen('students'); }
+      return;
+    }
+    const uid = Students.uid;
+    if (!uid) return;
+    if (Students.cachedAt < link.since) {
+      if (link.asked) return;
+      link.asked = true;
+      // Opening Students loads its lists. Already there after a sign-in, it is
+      // loading them now (Students.onAuth).
+      if (link.duel) Students.load();
+      else if (activeScreen !== 'students') showScreen('students');
+      else if (!link.shown) Students.load();
+      return;
+    }
+    const dead = text => {
+      this.link = null;
+      if (link.duel) { toast(text, 6000); return; }
+      if (activeScreen !== 'students') showScreen('students');
+      this.notice = text;
+      this.sync();
+    };
+    if (link.host === uid) {
+      this.link = null;
+      if (!link.duel && Students.hasStudents()) showScreen('simul');
+      toast(t('simul_link_own'), 5000);
+      return;
+    }
+    if (!Students.asStudent.some(l => l.teacherUid === link.host && l.status === 'active')) { dead(t('simul_link_stranger')); return; }
+    if (this.sFor !== uid || !this.sLoaded) return;
+    const g = this.sBoards.find(x => x.t === link.host);
+    const state = g ? this.stateOf(g) : null;
+    // 'late' and 'expired' are cards that say what happened themselves.
+    if (!state) { dead(named('simul_link_none', Students.who(link.host).profileName)); return; }
+    this.link = null;
+    if (link.duel) return;
+    if (state === 'live') this.openBoard(g.id);
+    else if (activeScreen !== 'students') showScreen('students');
+  },
+
+  // The teacher says it themselves: there is no notification. The phone's own
+  // share sheet, or the text copied where there is none (PulsoUI.tell).
+  async tell() {
+    const me = await db.kvGet('profileName', '') || t('simul_tell_teacher');
+    const text = named('simul_tell_text', me).replace('{u}', LINK + Students.uid);
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(text); toast(t('pulso_tell_copied'), 3000); } catch { toast(text, 6000); }
+  },
+
+  // ── Kael's explanation ─────────────────────────────────────────────────
+
+  // Once to a teacher (the first time Simultáneas is opened) and once to a
+  // student (their first invitation), as a card IN the page, so it is never
+  // over the board or a button. Remembered on this phone.
+  explained(k) {
+    if (!this.kael) { try { this.kael = JSON.parse(localStorage.getItem(KAEL_KEY)) || {}; } catch { this.kael = {}; } }
+    return !!this.kael[k];
+  },
+  explain(k) {
+    if (this.explained(k)) return;
+    this.kael[k] = 1;
+    try { localStorage.setItem(KAEL_KEY, JSON.stringify(this.kael)); } catch {}
+  },
+  kaelCard(role) {
+    return `<div class="home-kael simul-kael"><img class="home-kael-pic" src="icons/kael/kael-bust.png" alt="Kael">` +
+      `<div class="home-kael-bubble"><b class="kael-quote-title">${esc(t('simul_kael_title'))}</b><p>${esc(t('simul_kael_' + role))}</p>` +
+      `<button class="btn small simul-kael-ok">${esc(t('simul_ok'))}</button></div></div>`;
+  },
+  // The same words again, asked for ("How does it work?").
+  how(role) {
+    this.explain(role);
+    this.cardsKey = this.bodyKey = '';
+    this.sync();
+    modal((box, close) => {
+      box.innerHTML = `<h3>${esc(t('simul_kael_title'))}</h3><p>${esc(t('simul_kael_' + role))}</p>` +
+        `<button class="btn primary btn-wide">${esc(t('close'))}</button>`;
+      box.querySelector('button').onclick = () => close(null);
+    });
+  },
+
+  // ── watching (a student) ───────────────────────────────────────────────
+
+  // My own board, while it is the one I opened.
+  mine() { return this.sOpen ? this.sBoards.find(g => g.id === this.sOpen) || null : null; },
+
+  // The other boards of MY simul: the ones that carry my board's invitation
+  // stamp (one batch, one server time) and have a game on them. The class
+  // listener also brings the boards of older simuls that still name me.
+  others(mine = this.mine()) {
+    if (!mine || !this.oBoards) return [];
+    return this.oBoards.filter(g => g.t === mine.t && g.invitedAt === mine.invitedAt && g.id !== mine.id && g.startAt)
+      .sort((a, b) => mine.cls.indexOf(a.s) - mine.cls.indexOf(b.s));
+  },
+
+  // A classmate, as their public profile row shows them (spec 3l). Students
+  // knows my teachers and my own students, not my classmates.
+  mate(uid) {
+    const p = Students.who(uid);
+    return p.profileName !== '?' ? p : { ...p, ...this.mates[uid] };
+  },
+  // One read a classmate, once while the app stays open.
+  async names(uids) {
+    const need = uids.filter(u => !this.mates[u] && Students.who(u).profileName === '?');
+    if (!need.length) return;
+    for (const u of need) this.mates[u] = {};
+    try {
+      const rows = await fetchLeaderboardByUids(need);
+      for (const u of need) if (rows[u]) this.mates[u] = { profileName: rows[u].profileName || '?', avatarId: rows[u].avatarId };
+    } catch (e) {
+      console.error('Reading the names of a simul failed', e);
+      for (const u of need) delete this.mates[u];
+    }
+    this.sync();
+  },
+
+  // The list. The class listener is billed for every board it holds when it
+  // opens and for every move on any of them after that, so it runs while the
+  // list is on screen and not a moment longer.
+  openOthers() {
+    const mine = this.mine();
+    if (!mine || this.oStop) return;
+    if (!navigator.onLine) { toast(t('stu_needs_network')); return; }
+    this.oBoards = null;
+    this.oStop = watchSimulClass((list, meta) => {
+      // What this phone remembers is not the class: it waits for the server.
+      if (meta && meta.fromCache && !this.oBoards) return;
+      this.oBoards = list;
+      this.names(this.others().map(g => g.s));
+      if (this.oPaint) this.oPaint();
+    });
+    modal((box, close) => {
+      box.classList.add('simul-sheet');
+      box.innerHTML = `<h3>${esc(t('simul_others'))}</h3><p class="hint">${esc(t('simul_others_hint'))}</p>` +
+        `<div class="list simul-others-list"></div><button class="btn btn-wide">${esc(t('close'))}</button>`;
+      const list = box.querySelector('.simul-others-list');
+      let key = null;
+      this.oPaint = () => {
+        const me = this.mine();
+        if (!me) { close(null); return; }
+        const boards = this.others(me), now = simulServerNow(), sure = pulsoClockOffset() !== null;
+        const tName = Students.who(me.t).profileName;
+        const rows = boards.map(g => {
+          const p = this.mate(g.s), v = this.look(g);
+          const isVoid = !v || v.bad || g.reason === 'void', live = g.status === 'live' && !isVoid;
+          const turn = live ? sideToMove(g) : null;
+          const name = who => (who === 't' ? tName : p.profileName);
+          return { g, p, live, turn, sub: live ? named('simul_w_move', name(turn)) : t('simul_w_done'),
+            res: live ? '' : isVoid ? t('simul_tile_void') : g.winner === 'draw' ? t('simul_tile_draw')
+              : g.winner ? named('simul_w_won', name(g.winner)) : t('simul_tile_open') };
+        });
+        const k = JSON.stringify([getLang(), this.oBoards === null, navigator.onLine, rows.map(r => [r.g.id, r.p.profileName, r.p.avatarId, r.sub, r.res, !!r.g.base])]);
+        if (k !== key) {
+          key = k;
+          list.innerHTML = this.oBoards === null ? `<p class="hint empty-note">${esc(t(navigator.onLine ? 'loading' : 'stu_needs_network'))}</p>`
+            : !rows.length ? `<p class="hint empty-note">${esc(t('simul_others_none'))}</p>`
+            : rows.map(r => `<button class="fr-row tappable" data-id="${esc(r.g.id)}">${Students.nameHtml(r.p, r.sub)}` +
+              (r.live ? `<span class="simul-clock run${r.g.base ? '' : ' hidden'}"></span>` : `<span class="mc-role simul-chip off">${esc(r.res)}</span>`) + `</button>`).join('');
+        }
+        // The clock running on each board: text and marks only.
+        rows.forEach((r, i) => {
+          const el = list.children[i] && list.children[i].querySelector('.simul-clock');
+          if (!el || !r.g.base) return;
+          const left = timeLeft(r.g, r.turn, now), text = formatClock(left);
+          if (el.textContent !== text) el.textContent = text;
+          el.classList.toggle('low', sure && left < LOW_MS);
+          el.classList.toggle('unsure', !sure);
+        });
+      };
+      list.onclick = e => {
+        const b = e.target.closest('[data-id]');
+        if (b) close(b.dataset.id);
+      };
+      box.querySelector('.btn-wide').onclick = () => close(null);
+      this.oPaint();
+    }).then(id => {
+      const g = id ? this.others().find(x => x.id === id) : null;
+      this.closeOthers();
+      if (g && activeScreen === 'simul' && this.mine()) this.watch(g);
+    });
+  },
+
+  closeOthers() {
+    if (this.oStop) this.oStop();
+    this.oStop = null; this.oBoards = null; this.oPaint = null;
+  },
+
+  // What my own board wants of me while I look at another: 'move', 'draw'
+  // (the teacher offers one), 'over' (it ended and I have not seen how), or ''.
+  wants(mine = this.mine()) {
+    if (!mine) return '';
+    if (mine.status !== 'live') return this.seen()[mine.id] === mine.invitedAt ? '' : 'over';
+    const v = this.look(mine);
+    if (!v || v.bad) return '';
+    return mine.draw === 't' ? 'draw' : sideToMove(mine) === 's' ? 'move' : '';
+  },
+
+  // A classmate's board on screen, read only: ONE listener on that board. My
+  // own listener goes on underneath, so my game does too.
+  watch(g) {
+    const id = g.id;
+    this.wOpen = id; this.wBoard = g;
+    const w = this.wants();
+    this.told = w ? `${w}|${this.mine().n}` : '';
+    this.wStop = watchSimulBoard(id, b => {
+      if (this.wOpen !== id) return;
+      const mine = this.mine();
+      // It is gone, or the teacher has invited that classmate to another simul.
+      if (!b || !mine || b.t !== mine.t || b.invitedAt !== mine.invitedAt) {
+        this.unwatch();
+        toast(t('simul_w_gone'), 3500);
+        return;
+      }
+      this.wBoard = b;
+      this.sync();
+    });
+    this.sync();
+  },
+
+  // Back to my own board.
+  unwatch() {
+    this.dropWatch();
+    this.sync();
+  },
+
+  dropWatch() {
+    if (this.wStop) this.wStop();
+    this.wStop = null; this.wOpen = null; this.wBoard = null; this.told = '';
+  },
+
+  // A board I am watching, in words: whose move, or how it ended.
+  watchLine(g, isVoid, sName, tName) {
+    const name = who => (who === 't' ? tName : sName);
+    if (isVoid) return t('simul_res_void');
+    if (g.status === 'live') return named('simul_w_move', name(sideToMove(g)));
+    const w = g.winner === 't' || g.winner === 's' ? g.winner : null;
+    if (w && g.reason === 'mate') return named('simul_res_mate_lost', name(w));
+    if (w && g.reason === 'resign') return named('simul_w_resign', name(otherSide(w))).replace('{w}', name(w));
+    if (w && g.reason === 'flag') return named('simul_w_flag', name(otherSide(w))).replace('{w}', name(w));
+    return this.resultLine(g, '');
+  },
+
   // ── the teacher's screen ───────────────────────────────────────────────
 
   roster() {
@@ -480,7 +817,9 @@ export const SimulUI = {
         $('simul-body').innerHTML = '';
         paintCapCounter('simul-count', null, SIMUL.MAX_BOARDS);
       }
-      this.renderGame(mine ? [mine] : this.playing());
+      // A classmate's board over my own, while I am watching one.
+      const seen = mine && this.wOpen ? this.wBoard : null;
+      this.renderGame(seen ? [seen] : mine ? [mine] : this.playing(), seen ? mine : null);
       return;
     }
     const key = JSON.stringify([getLang(), view, this.busy, roster,
@@ -505,8 +844,11 @@ export const SimulUI = {
         `<p class="hint">${esc(t('simul_room_left'))} <b class="simul-left" data-simul-left="${cur[0].invitedAt}"></b></p>` +
         rows +
         `<button id="simul-start" class="btn primary btn-wide"${joined && !this.busy ? '' : ' disabled'}>${esc(t('simul_start').replace('{n}', joined))}</button>` +
-        `<p class="hint">${esc(t(joined ? 'simul_start_hint' : 'simul_start_nobody'))}</p>`;
+        `<p class="hint">${esc(t(joined ? 'simul_start_hint' : 'simul_start_nobody'))}</p>` +
+        `<button id="simul-tell" class="btn btn-wide">${esc(t('simul_tell'))}</button>` +
+        `<p class="hint simul-tell-hint">${esc(t('simul_tell_hint'))}</p>`;
       $('simul-start').onclick = () => this.start();
+      $('simul-tell').onclick = () => this.tell();
     } else {
       body.innerHTML = `<p class="simul-lead">${esc(t('simul_room_expired'))}</p>` + rows +
         `<button id="simul-again" class="btn primary btn-wide">${esc(t('simul_again'))}</button>`;
@@ -624,25 +966,43 @@ export const SimulUI = {
   },
 
   // `boards`: the student's one board, or the teacher's boards of this simul.
-  renderGame(boards) {
+  // `own`: a student is WATCHING boards[0], a classmate's, and this is their
+  // own board. A watched board has no `me`: nothing on it is mine to do, and
+  // it is shown as its student sees it.
+  renderGame(boards, own = null) {
     const teacher = !this.sOpen;
+    const watching = !!own;
     let g = boards[0];
     if (teacher) {
       g = boards.find(x => x.s === this.sel) || nextBoard(boards) || boards[0];
       this.sel = g.s;
     }
     const v = this.look(g);
-    const them = Students.who(teacher ? g.s : g.t);
+    const them = watching ? this.mate(g.s) : Students.who(teacher ? g.s : g.t);
+    const pov = g.me || 's';
     const live = g.status === 'live';
     const isVoid = !v || v.bad || g.reason === 'void';
-    const myMove = live && !isVoid && sideToMove(g) === g.me;
+    const myMove = !watching && live && !isVoid && sideToMove(g) === g.me;
     // The row under the board: resign and offer a draw, or the answer to the
     // other side's offer in their place.
-    const canAct = live && !isVoid;
+    const canAct = !watching && live && !isVoid;
     const offer = canAct && !!g.draw && g.draw !== g.me;
     const mayOffer = canAct && mayOfferDraw(g, g.me);
     // A student who is looking at how their game ended has been told.
-    if (!teacher && !live && this.seen()[g.id] !== g.invitedAt) this.markSeen(g);
+    if (!teacher && !watching && !live && this.seen()[g.id] !== g.invitedAt) this.markSeen(g);
+    // "Others" is offered to a student whose simul has more boards than theirs.
+    const hasOthers = !teacher && (own || g).cls.length > 1;
+    // While I watch, my own game goes on: the move sound once when it wants me,
+    // and the way back says what for as long as it does. No toast: at 375 x 667
+    // it would lie on that very button and stop the tap.
+    const want = watching ? this.wants(own) : '';
+    if (watching) {
+      const tk = want ? `${want}|${own.n}` : '';
+      if (tk !== this.told) {
+        this.told = tk;
+        if (want) Sound.play('move');
+      }
+    }
     // A write of mine that is taking its time: said, so that a move made with
     // no signal is not taken for one that arrived.
     const sk = `${g.id}|${g.n}`;
@@ -692,7 +1052,7 @@ export const SimulUI = {
     // player's is on the line above the board, mine under it.
     const timed = !!g.base && !!g.startAt && !isVoid;
     const run = live && timed ? sideToMove(g) : null;
-    for (const [id, who] of [['simul-clock-them', otherSide(g.me)], ['simul-clock-me', g.me]]) {
+    for (const [id, who] of [['simul-clock-them', otherSide(pov)], ['simul-clock-me', pov]]) {
       const el = $(id);
       el.classList.toggle('hidden', !timed);
       if (!timed) continue;
@@ -705,7 +1065,8 @@ export const SimulUI = {
     $('simul-top').classList.toggle('timed', timed);
 
     const key = JSON.stringify([getLang(), teacher, this.busy, g.id, g.status, g.reason, g.winner, myMove, isVoid, slow,
-      them.profileName, anyLive, !!next, g.draw, mayOffer, timed, g.fen, g.op, g.tc]);
+      them.profileName, anyLive, !!next, g.draw, mayOffer, timed, g.fen, g.op, g.tc, watching, want, hasOthers,
+      watching && [sideToMove(g), Students.who(g.t).profileName]]);
     if (key !== this.gameKey) {
       this.gameKey = key;
       // The opening beside the title, on both phones. What the teacher plays
@@ -715,15 +1076,19 @@ export const SimulUI = {
       $('simul-theme').textContent = theme;
       $('simul-theme').classList.toggle('hidden', !theme);
       const less = missingPieces(g.fen, g.tc);
-      $('simul-less').textContent = teacher ? '' : this.handicapLine(g);
-      $('simul-less').classList.toggle('hidden', teacher || !less.length);
+      // Under a board I am watching the same line says so first.
+      $('simul-less').textContent = teacher ? ''
+        : !watching ? this.handicapLine(g)
+        : less.length ? `${t('simul_w_only')} · ${this.handicapLine(g)}` : named('simul_w_note', them.profileName);
+      $('simul-less').classList.toggle('hidden', teacher || (!less.length && !watching));
       // The minus (and the count, past four pieces) is drawn by the stylesheet
       // from data-n: the line's text stays what it says.
       const pics = !teacher || !less.length ? ''
         : `<button class="simul-less-ico" aria-label="${esc(this.handicapLine(g))}" data-n="−${less.length > LESS_ICONS ? less.length : ''}">` + (less.length > LESS_ICONS ? ''
           : less.map(x => `<img src="${getPieceSet()}/${g.tc}${x.type.toUpperCase()}.svg" alt="">`).join('')) + `</button>`;
       const turn = t(myMove ? 'simul_your_move' : 'simul_their_move');
-      const text = isVoid ? t('simul_res_void') : !live ? this.resultLine(g, them.profileName)
+      const text = watching ? this.watchLine(g, isVoid, them.profileName, Students.who(g.t).profileName)
+        : isVoid ? t('simul_res_void') : !live ? this.resultLine(g, them.profileName)
         : slow ? t('simul_sending') : offer ? t('simul_draw_theirs')
         : g.draw === g.me ? `${t('simul_draw_mine')} · ${turn}` : turn;
       const st = $('simul-status');
@@ -732,7 +1097,7 @@ export const SimulUI = {
       const ctl = $('simul-ctl');
       // A game with a clock keeps the row for as long as it is on screen: my
       // clock is in it.
-      ctl.classList.toggle('hidden', (teacher ? !anyLive : !canAct) && !timed);
+      ctl.classList.toggle('hidden', (teacher ? !anyLive : !canAct && !hasOthers && !watching) && !timed);
       ctl.classList.toggle('timed', timed);
       // A student's row holds two buttons and has room for their words.
       ctl.classList.toggle('solo', !teacher);
@@ -742,6 +1107,14 @@ export const SimulUI = {
       hide('simul-resign', !canAct || offer);
       hide('simul-accept', !offer);
       hide('simul-decline', !offer);
+      // A student's own: the way back from a classmate's board, which says
+      // what their own board wants and then has the row to itself, and the
+      // list of the other boards.
+      hide('simul-mine', !watching);
+      $('simul-mine').textContent = t(want ? 'simul_w_back_' + want : 'simul_w_back');
+      $('simul-mine').classList.toggle('primary', !!want);
+      hide('simul-others', !hasOthers || !!want);
+      $('simul-others').classList.toggle('tight', offer);
       // Not `disabled`: a tap on it says why.
       $('simul-draw').classList.toggle('off', !mayOffer);
       $('simul-skip').classList.toggle('hidden', !teacher || !anyLive);
@@ -762,7 +1135,8 @@ export const SimulUI = {
     }
     const b = this.board;
     if (v) {
-      const side = (g.me === 't') === (g.tc === 'w') ? 'w' : 'b';
+      // A board I am watching is seen from its student's side.
+      const side = ((g.me || 's') === 't') === (g.tc === 'w') ? 'w' : 'b';
       if (b.orientation !== side) b.setOrientation(side);
       const d = this.drawn;
       const same = !!d && d.id === g.id && d.startAt === g.startAt;
@@ -775,8 +1149,10 @@ export const SimulUI = {
     if (b.interactive !== myMove) b.interactive = myMove;
   },
 
-  // The board on screen, as its listener has it.
+  // The board on screen, as its listener has it. A classmate's board has no
+  // `me`: everything below that writes stops there.
   onBoard() {
+    if (this.sOpen && this.wOpen) return this.wBoard;
     return this.sOpen ? this.sBoards.find(g => g.id === this.sOpen) : this.playing().find(g => g.s === this.sel);
   },
 
@@ -827,8 +1203,13 @@ export const SimulUI = {
     const ids = new Set(roster.map(p => p.uid));
     this.pick = new Set([...this.pick].filter(u => ids.has(u)));
     const modes = [['white', 'white'], ['black', 'black'], ['alt', 'simul_alt']];
+    // Kael explains a simul the first time this screen is opened; after his
+    // "OK" the same words are behind "How does it work?".
+    const first = !this.explained('t');
     body.innerHTML =
+      (first ? this.kaelCard('t') : '') +
       `<p class="hint">${esc(t('simul_setup_hint').replace('{n}', SIMUL.MAX_BOARDS))}</p>` +
+      (first ? '' : `<button id="simul-how" class="simul-link">${esc(t('simul_how'))}</button>`) +
       `<div id="simul-pick">` + roster.map(p =>
         `<label class="mc-pick simul-pick"><input type="checkbox" data-uid="${esc(p.uid)}"${this.pick.has(p.uid) ? ' checked' : ''}>` +
         `${Students.nameHtml(p)}<button type="button" class="btn small simul-handi hidden" data-uid="${esc(p.uid)}">${esc(t('simul_handi_btn'))}</button></label>`).join('') + `</div>` +
@@ -920,6 +1301,8 @@ export const SimulUI = {
     $('simul-extra-less').onclick = () => step(-1);
     $('simul-extra-more').onclick = () => step(1);
     $('simul-invite').onclick = () => this.invite(roster);
+    if (first) body.querySelector('.simul-kael-ok').onclick = () => { this.explain('t'); this.bodyKey = ''; this.sync(); };
+    else $('simul-how').onclick = () => this.how('t');
     // The sheets change what is chosen; the setup is drawn again when one closes.
     const redraw = () => { this.bodyKey = ''; this.sync(); };
     $('simul-pick').onclick = e => {
@@ -1128,7 +1511,7 @@ export const SimulUI = {
   // the question: the teacher's screen may have jumped by the time it is answered.
   async resign() {
     const g = this.onBoard();
-    if (!g || g.status !== 'live' || this.busy) return;
+    if (!g || !g.me || g.status !== 'live' || this.busy) return;
     const q = g.me === 't' ? named('simul_resign_confirm_t', Students.who(g.s).profileName) : t('simul_resign_confirm');
     if (!await askConfirm(esc(q))) return;
     const r = await this.write(() => resignSimul(g.id));
@@ -1138,7 +1521,7 @@ export const SimulUI = {
   // One offer per player per 10 moves by each side, and one at a time.
   async offer() {
     const g = this.onBoard();
-    if (!g || g.status !== 'live' || this.busy) return;
+    if (!g || !g.me || g.status !== 'live' || this.busy) return;
     if (!mayOfferDraw(g, g.me)) {
       const last = g.me === 't' ? g.tDr : g.sDr;
       const left = Math.ceil((SIMUL.DRAW_GAP_MOVES * 2 - (g.n - last)) / 2);
@@ -1151,7 +1534,7 @@ export const SimulUI = {
 
   async answerDraw(accept) {
     const g = this.onBoard();
-    if (!g || g.status !== 'live' || this.busy) return;
+    if (!g || !g.me || g.status !== 'live' || this.busy) return;
     const r = await this.write(() => answerSimulDraw(g.id, accept));
     if (r && r.reason === 'refused') toast(t('stu_try_again'));
   },

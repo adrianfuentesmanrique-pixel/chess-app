@@ -1438,6 +1438,8 @@
       <button id="stu-signin" class="btn primary btn-wide" data-i18n="sign_in_or_up"></button>
     </div>
     <div id="stu-body">
+      <!-- What a ?simul= link that led nowhere has to say (js/simul-ui.js). -->
+      <p id="stu-simul-note" class="stu-note hidden" role="status"></p>
       <!-- Students stage 6 (teacher): homework a student finished that I have
            not opened yet. A line opens how it went. -->
       <div id="stu-fin" class="mc-section stu-fin hidden">
@@ -1462,7 +1464,11 @@
            (js/simul-ui.js). The banner says the same on every other screen. -->
       <div id="stu-simul" class="mc-section hidden">
         <h3 class="group-head" data-i18n="simul_title"></h3>
+        <!-- Kael explains a simul once, here, above the first invitation;
+             "How does it work?" stays under the cards after that. -->
+        <div id="stu-simul-kael"></div>
         <div id="stu-simul-list" class="list"></div>
+        <button id="stu-simul-how" class="simul-link" data-i18n="simul_how"></button>
       </div>
       <!-- Homework my teachers gave me (Students stage 4): open cards with
            Start / Mark done, finished ones folded underneath. -->
@@ -1526,6 +1532,10 @@
         <button id="simul-resign" class="btn small simul-resign" data-i18n-aria="simul_resign"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M6 3.5v17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7.5 4.5h10l-2.4 3.6 2.4 3.6h-10z" fill="currentColor"/></svg><span class="simul-word" data-i18n="simul_resign"></span></button>
         <button id="simul-accept" class="btn small primary hidden" data-i18n="simul_draw_accept"></button>
         <button id="simul-decline" class="btn small hidden" data-i18n="simul_draw_decline"></button>
+        <!-- A student only: back from a classmate's board to my own, and the
+             list of the other boards of this simul. -->
+        <button id="simul-mine" class="btn small hidden"></button>
+        <button id="simul-others" class="btn small hidden" data-i18n-aria="simul_others"><span aria-hidden="true">▦</span><span class="simul-word" data-i18n="simul_others_short"></span></button>
         <button id="simul-skip" class="btn small" data-i18n="simul_skip"></button>
       </div>
       <button id="simul-end" class="btn danger btn-wide" data-i18n="simul_end"></button>

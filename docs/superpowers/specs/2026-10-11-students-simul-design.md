@@ -1,14 +1,21 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **conversations 1, 2, 3, 4, 5, 6 and 7 of 8 are built
-(2026-10-13). 7 is opening and handicap (v207): one thematic opening for the
+Date: 2026-10-11. Status: **ALL 8 conversations are built (2026-10-13). 8 is
+watching, the link and the first-time explanation (v209): "Otros" on a
+student's row opens the list of the other boards of the same simul and one of
+them can be watched live, read only, the student told when their own board
+wants them; `?simul=<teacherUid>` is followed for an invited student, one with
+no invitation, somebody else's student, signed out, the teacher, and beside a
+Duel link; "Avisarles" in the waiting room; Kael explains once to a teacher and
+once to a student, in the page. Adrian's four answers for 8 and the measured
+reads are in HANDOVER.md; no rule changed. Nothing in section 4 is left.
+7 is opening and handicap (v207): one thematic opening for the
 simul, from the searchable list or played on a board, and a handicap per
 student tapped off a board, "same for all"; each opens in a sheet. Every board
 is checked before inviting and a line that cannot be played names the student,
 the move and the piece. Adrian's four answers for 7 (sheets, the handicap
 follows the colour, words for the student and pictures for the teacher, kept
-while the app stays open) are in HANDOVER.md; no rule changed. Still open: 8
-(watching, the link, the first-time explanation).
+while the app stays open) are in HANDOVER.md; no rule changed.
 6 is the clock (v206): "no clock" or one of the four controls
 and the teacher's extra minutes in the setup, both clocks on both screens, the
 running clock on every tile, the flag claimed by either phone, a move that
@@ -415,6 +422,18 @@ listener; a user with no teacher costs nothing.
   teacher's other teachers. The board document is readable only by the
   teacher, that student and the others invited to that simul.
 - A student's phone listens only to the one board it is showing.
+- **AS BUILT (conversation 8, Adrian's answers):** "Otros" is a third button in
+  the row under the student's board (no height: a strip of tiles like the
+  teacher's would have meant listening to every board all game). It opens a
+  sheet listing the other boards; the phone listens to the whole class only
+  while that sheet is open, then to the ONE board being watched, beside its
+  own. Measured: opening the list is one read for every board that names the
+  student (this simul's, their own included, and boards of older simuls that
+  still do, which are not listed) plus one read a classmate for the names,
+  once while the app stays open; then 1 read a move on any of them while it is
+  open. Watching a board is 1 read to open and 1 a move. A student watching is
+  told when their own board wants them (the move sound, and the way back
+  says it) and is never moved by the app.
 
 ---
 

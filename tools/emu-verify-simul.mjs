@@ -78,6 +78,16 @@
 // handicap following a colour change, "same for all", then two games played to
 // an end, one with a clock: who moves first after an odd opening, the words
 // and pictures on both boards, what each phone keeps and opens in Analysis.
+// WATCHING, THE LINK AND KAEL (conversation 8), round 9 of the same passes,
+// before 6c: Kael's card for the teacher and for a student (on Home, in
+// Students, from his corner), once, and not again after a reload; "Tell them"
+// in the waiting room; the ?simul= link opened by an invited student, signed
+// out, by the teacher, with no invitation, by somebody else's student and with
+// a Duel link beside it; then a simul with a clock, an opening and a handicap:
+// the student's row with "Others" at 375 x 667, the list (two boards, then nine,
+// boards of other simuls left out), a classmate's board watched live and read
+// only, the student told when their own board wants them, a refusal by the
+// rules for somebody not invited, and what each of those costs in reads.
 // SIMUL_PASS=es-light (or es-dark, en-light, en-dark) runs one pass only.
 //
 // Local emulator only. Nothing here touches the real project.
@@ -128,7 +138,7 @@ const WEB = 9900 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-simul-'));
 const OUT = process.env.SIMUL_SHOTS || path.join(os.tmpdir(), 'simul-shots');
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 2400000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 3600000).unref();
 
 const TEACH = 'teach_uid', ANA = 'ana_uid', LUIS = 'luis_uid', EVA = 'eva_uid';
 const TA = `${TEACH}_${ANA}`, TL = `${TEACH}_${LUIS}`, TE = `${TEACH}_${EVA}`;
@@ -138,7 +148,7 @@ const SHIMS = {
   [SDK + 'firebase-firestore.js']: `
     export * from './firebase-firestore.real.js';
     import * as real from './firebase-firestore.real.js';
-    const cost = window.__cost = { writes: 0, reads: 0 };
+    const cost = window.__cost = { writes: 0, reads: 0, gets: 0 };
     export function getFirestore(app) {
       const f = real.getFirestore(app);
       real.connectFirestoreEmulator(f, '${EMU_HOST}', ${EMU_PORT}, { mockUserToken: { sub: new URLSearchParams(location.search).get('uid') } });
@@ -157,10 +167,17 @@ const SHIMS = {
       };
     }
     export async function getDocFromServer(...a) { const d = await real.getDocFromServer(...a); cost.reads++; return d; }
+    // A plain getDoc (a public profile row) is a read too, kept apart so the
+    // counts of the first half stay what they were.
+    export async function getDoc(...a) { const d = await real.getDoc(...a); cost.gets++; return d; }
     export function onSnapshot(q, opts, next, err) {
       let opened = false;
       return real.onSnapshot(q, opts, snap => {
-        if (!snap.metadata.fromCache && !opened) {
+        if (typeof snap.exists === 'function') {
+          // ONE document (watchSimulBoard): a read each time the server delivers it.
+          const k = snap.exists() && !snap.metadata.fromCache && !snap.metadata.hasPendingWrites ? JSON.stringify(snap.data()) : null;
+          if (k && k !== opened) { opened = k; cost.reads++; }
+        } else if (!snap.metadata.fromCache && !opened) {
           // A listener that opens is billed for every document it holds, the
           // ones this phone already had in memory included.
           opened = true;
@@ -175,12 +192,16 @@ const SHIMS = {
     }`,
   [SDK + 'firebase-auth.js']: `
     const no = () => { throw new Error('auth is a stand-in here'); };
-    const uid = new URLSearchParams(location.search).get('uid');
-    const auth = { currentUser: { uid, email: uid + '@example.test', displayName: uid, providerData: [{ providerId: 'password' }] } };
+    const q = new URLSearchParams(location.search), uid = q.get('uid');
+    const user = { uid, email: uid + '@example.test', displayName: uid, providerData: [{ providerId: 'password' }] };
+    // &out=1: the app starts signed out, and window.__signIn() signs that user in.
+    const auth = { currentUser: q.get('out') ? null : user };
+    const cbs = [];
+    window.__signIn = () => { auth.currentUser = user; for (const cb of cbs) cb(user); };
     export function getAuth() { return auth; }
     // The whole app waits to be told who is signed in. The bare page of the
     // first half is not told: the reads that follow would be in its count.
-    export function onAuthStateChanged(a, cb) { if (location.pathname !== '/__simul.html') setTimeout(() => cb(auth.currentUser), 0); return () => {}; }
+    export function onAuthStateChanged(a, cb) { cbs.push(cb); if (location.pathname !== '/__simul.html') setTimeout(() => cb(auth.currentUser), 0); return () => {}; }
     export class GoogleAuthProvider {}
     export const EmailAuthProvider = { credential: no };
     export const signInWithPopup = no, signOut = no, createUserWithEmailAndPassword = no,
@@ -389,11 +410,27 @@ async function openPhone(who, host, uid) {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await send('Page.navigate', { url });
       await sleep(1500);
-      await ev(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1'); localStorage.removeItem('simulSeen');`);
+      // Kael has explained a simul on every phone already: his card and his
+      // bubble are round 9's, which takes this back for itself.
+      await ev(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1'); localStorage.removeItem('simulSeen'); localStorage.setItem('simulKael', '{"t":1,"s":1,"b":1}');`);
       await send('Page.reload', {});
       await sleep(300);
       for (let i = 0; i < 60 && await ev(`return document.readyState`) !== 'complete'; i++) await sleep(100);
       await sleep(2500);
+      await tab.hook();
+      await tab.until('signed in', `__t.fb.Auth.user && __t.St.uid === '${uid}'`, 10000);
+    },
+    // The app opened on an address of its own (a link), once, with no reload:
+    // the app takes the link out of the address when it starts.
+    async open(query, signedIn = true) {
+      await send('Page.navigate', { url: url + query });
+      await sleep(300);
+      for (let i = 0; i < 60 && await ev(`return document.readyState`) !== 'complete'; i++) await sleep(100);
+      await sleep(2500);
+      await tab.hook();
+      if (signedIn) await tab.until('signed in', `__t.fb.Auth.user && __t.St.uid === '${uid}'`, 10000);
+    },
+    async hook() {
       await ev(`
         document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());
         const app = await import('/js/app.js'), ui = await import('/js/simul-ui.js'), fb = await import('/js/firebase.js');
@@ -412,7 +449,6 @@ async function openPhone(who, host, uid) {
           tiles: () => [...document.querySelectorAll('#simul-strip .simul-tile')].map(e =>
             [e.querySelector('.simul-tile-name').textContent, e.lastChild.textContent, e.classList.contains('on'), e.classList.contains('turn')]),
           all: sel => [...document.querySelectorAll(sel)].map(e => e.textContent.trim()) };`);
-      await tab.until('signed in', `__t.fb.Auth.user && __t.St.uid === '${uid}'`, 10000);
     },
     async until(what, expr, ms = 8000) {
       for (const t0 = Date.now(); ;) {
@@ -495,7 +531,13 @@ async function screens() {
       q: 'dama', r: sq => `torre de ${sq}`, n: sq => `caballo de ${sq}`, theR: sq => `la torre de ${sq}`, theN: sq => `el caballo de ${sq}`,
       inv: 'Tu profesor Marta te invita a una simultánea', black: 'Juegas con negras', white: 'Juegas con blancas', join: 'Unirme', notNow: 'Ahora no', ok: 'Entendido',
       wait: 'Esperando a que Marta empiece', live: 'La simultánea con Marta ha empezado', late: 'La simultánea de Marta empezó sin ti',
-      expired: 'La invitación de Marta a la simultánea caducó' },
+      expired: 'La invitación de Marta a la simultánea caducó',
+      how: '¿Cómo funciona?', kaelTitle: 'Una simultánea', kaelShort: 'Tu profesor contra toda la clase a la vez, y un tablero es el tuyo.', kaelCta: 'Toca para saber cómo va',
+      tell: '📤 Avisarles', tellText: (n, u) => `${n} te invita a una simultánea en Chess Training Center. Tienes 10 minutos para unirte: ${u}`, tellCopied: 'Mensaje copiado. Pégalo donde quieras.',
+      others: 'Otros tableros', othersShort: 'Otros', wMove: n => `Juega ${n}`, wDone: 'Partida terminada', wWon: n => `Ganó ${n}`, wResign: (n, x) => `${n} se rindió. Gana ${x}.`,
+      wNote: n => `Estás mirando el tablero de ${n}. Solo se puede mirar.`, back: '← Mi tablero', backMove: '● Te toca · Volver a mi tablero', wGone: 'Ese tablero ya no se puede ver.',
+      linkOwn: 'Este es tu propio enlace: envíalo a tus alumnos.', linkNone: n => `No tienes ninguna invitación de ${n} ahora. Si la esperabas, pídele que te invite otra vez.`,
+      linkStranger: 'Este enlace es de una simultánea para los alumnos de un profesor. No eres alumno suyo en la app.' },
     en: { entry: '♟ Simuls', alt: 'White on the first board, Black on the second, and so on, in the order of the list.', invite: n => `Invite (${n})`,
       waiting: '⏳ Waiting', joined: '✓ Joined', declined: 'Not now', noanswer: 'No answer',
       start: n => `▶ Start (${n})`, roomExpired: 'The invitation ran out: 10 minutes went by without starting.',
@@ -521,7 +563,13 @@ async function screens() {
       q: 'queen', r: sq => `${sq} rook`, n: sq => `${sq} knight`, theR: sq => `the ${sq} rook`, theN: sq => `the ${sq} knight`,
       inv: 'Your teacher Marta invites you to a simul', black: 'You play Black', white: 'You play White', join: 'Join', notNow: 'Not now', ok: 'OK',
       wait: 'Waiting for Marta to start', live: 'The simul with Marta has started', late: "Marta's simul started without you",
-      expired: "Marta's invitation to the simul ran out" },
+      expired: "Marta's invitation to the simul ran out",
+      how: 'How does it work?', kaelTitle: 'A simul', kaelShort: 'Your teacher against the whole class at once, and one board is yours.', kaelCta: 'Tap to see how it goes',
+      tell: '📤 Tell them', tellText: (n, u) => `${n} invites you to a simul in Chess Training Center. You have 10 minutes to join: ${u}`, tellCopied: 'Message copied. Paste it anywhere.',
+      others: 'Other boards', othersShort: 'Others', wMove: n => `${n} to move`, wDone: 'Game over', wWon: n => `${n} won`, wResign: (n, x) => `${n} resigned. ${x} wins.`,
+      wNote: n => `You are watching ${n}’s board. Watching only.`, back: '← My board', backMove: '● Your move · Back to my board', wGone: 'That board can no longer be watched.',
+      linkOwn: 'This is your own link: send it to your students.', linkNone: n => `You have no invitation from ${n} right now. If you were expecting one, ask them to invite you again.`,
+      linkStranger: 'This link is for a simul for one teacher’s students. You are not their student in the app.' },
   };
   await fetch(`http://${EMU}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
   for (const [uid, first, user, avatar] of [[TEACH, 'Marta', 'marta_p', 'owl'], [ANA, 'Ana', 'ana_m', 'lion'], [LUIS, 'Luis', 'luis77', 'raven'], [EVA, 'Eva', 'eva_r', 'bear']]) {
@@ -1048,6 +1096,8 @@ async function screens() {
       return { h: innerHeight, top: document.querySelector('main').scrollTop, ctl: b('#simul-ctl'), auto: b('.simul-auto'), draw: b('#simul-draw'), resign: b('#simul-resign'),
         accept: b('#simul-accept'), decline: b('#simul-decline'), skip: b('#simul-skip'), end: b('#simul-end') }`);
     // Everything named is in the row, side by side, inside the phone.
+    // After a game the row keeps "Others" (conversation 8) and nothing to play with.
+    const noActs = async p => { const x = await row(p); return !x.resign && !x.draw && !x.accept && !x.decline; };
     const inRow = (x, ...names) => !!x.ctl && names.every((k, i) => x[k] && x[k].t >= x.ctl.t - 1 && x[k].b <= x.ctl.b + 1 && x[k].l >= 0 && x[k].r <= 375 && (i === 0 || x[names[i - 1]].r <= x[k].l));
     const toastIs = text => `!document.getElementById('toast').classList.contains('hidden') && __t.txt('#toast') === ${JSON.stringify(text)}`;
     const ask = `document.querySelector('.modal-box .btn.danger') && document.querySelector('.modal-box p').textContent`;
@@ -1158,8 +1208,8 @@ async function screens() {
     await ana.until('said on her phone', stat('Marta · ' + w.resignLost('Marta')));
     await teach.until('said on the teacher\'s', stat('Ana · ' + w.resignWon('Ana')));
     r = await look(teach);
-    check(`[${tag}] a student resigns, after "${w.resignAsk}": the teacher wins; her phone says "${w.resignLost('Marta')}", the teacher's "${w.resignWon('Ana')}" and the tile "${w.tResigned}"; her row is gone`,
-      q1 === w.resignAsk && same(result(a), ['done', 't', 'resign', null]) && r.tiles[0][1] === w.tResigned && !(await look(ana)).ctl && !(await row(teach)).resign, [q1, result(a), r.tiles[0]]);
+    check(`[${tag}] a student resigns, after "${w.resignAsk}": the teacher wins; her phone says "${w.resignLost('Marta')}", the teacher's "${w.resignWon('Ana')}" and the tile "${w.tResigned}"; nothing is left to press on her row but "Others"`,
+      q1 === w.resignAsk && same(result(a), ['done', 't', 'resign', null]) && r.tiles[0][1] === w.tResigned && await noActs(ana) && !(await row(teach)).resign, [q1, result(a), r.tiles[0]]);
     await teach.shot(`${tag}-33-teacher-student-resigned`);
     await ana.shot(`${tag}-34-student-resigned`);
 
@@ -1173,7 +1223,7 @@ async function screens() {
     await luis.until('said on his phone', stat('Marta · ' + w.agreed));
     await teach.until('said on the teacher\'s', stat('Luis · ' + w.agreed));
     check(`[${tag}] a draw offered and accepted: "${w.agreed}" on both phones, "${w.tDraw}" on the tile`,
-      same(result(l), ['done', 'draw', 'agreed', null]) && (await look(teach)).tiles[2][1] === w.tDraw && !(await look(luis)).ctl, result(l));
+      same(result(l), ['done', 'draw', 'agreed', null]) && (await look(teach)).tiles[2][1] === w.tDraw && await noActs(luis), result(l));
     await luis.shot(`${tag}-35-student-draw-agreed`);
 
     // The teacher resigns on Eva's board, while she is on another screen.
@@ -1200,7 +1250,7 @@ async function screens() {
     await eva.ev(`__t.app.showScreen('home')`);
     await sleep(1200);
     check(`[${tag}] "${w.seeBoard}" shows how it ended ("${w.resignWon('Marta')}"), with nothing to press; having seen it she is not told again`,
-      !r.ctl && !r.live && r.fen === afterOn(QLESS, 'e2e4', 'e7e5', 'g1f3') && await banner(eva) === null, r);
+      await noActs(eva) && !r.live && r.fen === afterOn(QLESS, 'e2e4', 'e7e5', 'g1f3') && await banner(eva) === null, r);
 
     // What each phone kept.
     const wantT = [['Ana', 'w', '1-0', 'win', 'resign', 1, 'start'], ['Eva', 'b', '1-0', 'loss', 'resign', 2, QLESS], ['Luis', 'w', '1/2-1/2', 'draw', 'agreed', 1, 'start']];
@@ -1273,7 +1323,7 @@ async function screens() {
     await teach.until('said on the teacher\'s', stat('Ana · ' + w.repetition));
     r = await look(teach);
     check(`[${tag}] the knights go out and back twice: the position has come up three times and the game is a draw, stored with the move; both phones say "${w.repetition}"`,
-      same(result(a), ['done', 'draw', 'repetition', null]) && a.n === 8 && r.tiles[0][1] === w.tDraw && !r.live && !(await look(ana)).ctl, result(a));
+      same(result(a), ['done', 'draw', 'repetition', null]) && a.n === 8 && r.tiles[0][1] === w.tDraw && !r.live && await noActs(ana), result(a));
     await teach.shot(`${tag}-41-teacher-repetition`);
     await ana.shot(`${tag}-42-student-repetition`);
     // The other three automatic draws: their reason seeded on this real draw
@@ -1308,7 +1358,7 @@ async function screens() {
     await eva.until('told on the screen she is on', says(w.over));
     check(`[${tag}] End simul closes EVERY open board as not finished, with no winner, and leaves the finished one alone; Luis's board says so, Eva is told by the banner`,
       same(result(l), ['done', null, 'unfinished', null]) && same(result(e), ['done', null, 'unfinished', null]) && same(result(a), ['done', 'draw', 'repetition', null])
-      && !(await look(luis)).ctl && await teach.ev(`return __t.S.auto`), [result(l), result(e), result(a)]);
+      && await noActs(luis) && await teach.ev(`return __t.S.auto`), [result(l), result(e), result(a)]);
     r = [await fresh(teach, old, 3), await fresh(ana, old, 1), await fresh(eva, old, 1), await fresh(luis, old, 1)];
     check(`[${tag}] kept: the draw once (the seeded reasons did not save it again), and the two games not finished, on both phones, as unfinished`,
       same(r[0], [['Ana', 'w', '1/2-1/2', 'draw', 'repetition', 4, 'start'], ['Eva', 'b', '*', 'unfinished', 'abandoned', 1, 'start'], ['Luis', 'w', '*', 'unfinished', 'abandoned', 1, 'start']])
@@ -1957,6 +2007,377 @@ async function screens() {
       await teach.tap('#simul-tc button[data-v="-1"]');
       r = await setup();
       check(`[${tag}] the setup is as it was found: no opening, the full board for everyone, no clock`, r.op === w.opNone && same(r.subs, [w.whole, w.whole, w.whole]) && !r.off && await teach.ev(`return __t.S.clock === -1 && __t.S.auto`), r);
+    }
+
+    // ── 9. Watching, the link, and Kael's explanation (conversation 8) ──
+    console.log('  9. Watching, the link, Kael');
+    {
+      const ids = [TA, TE, TL];
+      const ZED = `${TEACH}_zed_uid`, FAR = 'other_uid_zoe_uid';
+      const noA1 = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/1NBQKBNR w Kkq - 0 1';
+      const ITAL = ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4'];
+      // A text as the app has it (Kael's long ones: what is checked is where they are shown).
+      const tx = (p, key) => p.ev(`return (await import('/js/i18n.js')).t(${JSON.stringify(key)})`);
+      // Kael has never spoken on this phone.
+      const unKael = p => p.ev(`localStorage.removeItem('simulKael'); __t.S.kael = null; __t.S.bodyKey = __t.S.cardsKey = __t.S.bannerKey = ''; __t.S.sync();`);
+      const box = `(sel => { const el = document.querySelector(sel); if (!el || el.closest('.hidden') || !el.getClientRects().length) return null; const r = el.getBoundingClientRect(); return { t: Math.round(r.top), b: Math.round(r.bottom), l: Math.round(r.left), r: Math.round(r.right), text: el.innerText.replace(/\\s+/g, ' ').trim() }; })`;
+      const noModal = p => p.until('the sheet closed', `!document.querySelector('.modal-box')`);
+      const sheetSays = async p => {
+        await p.until('the sheet', `!!document.querySelector('.modal-box h3')`);
+        const x = await p.ev(`return [__t.txt('.modal-box h3'), __t.txt('.modal-box p')]`);
+        await p.tap('.modal-box .btn.primary');
+        await noModal(p);
+        return x;
+      };
+      const cost = p => p.ev(`return { ...window.__cost }`);
+      const secs = text => { const x = /^(\d+):(\d\d)$/.exec(text || ''); return x ? +x[1] * 60 + +x[2] : NaN; };
+      const kaelSays = `${w.kaelTitle} ${w.kaelShort} ${w.kaelCta}`;
+
+      // 9a. Kael, to the teacher: the first time Simultáneas is opened.
+      await teach.until('the picker', `!!document.getElementById('simul-invite')`);
+      await unKael(teach);
+      await teach.until('his card', `!!document.querySelector('#simul-body .simul-kael')`);
+      const kt = await tx(teach, 'simul_kael_t');
+      r = await teach.ev(`document.querySelector('main').scrollTop = 0; const b = ${box};
+        return { card: b('#simul-body .simul-kael'), title: __t.txt('.simul-kael .kael-quote-title'), text: __t.txt('.simul-kael p'), ok: b('.simul-kael-ok'), hint: b('#simul-body > .hint'), pick: b('#simul-pick'),
+          how: !!document.getElementById('simul-how'), corner: document.getElementById('kael-bubble').classList.contains('show') }`);
+      check(`[${tag}] the first time a teacher opens Simultáneas Kael explains it in a card at the top of the page ("${w.kaelTitle}"), above the hint and the students, inside 375 px, with "${w.ok}"; nothing in his corner`,
+        r.card && r.title === w.kaelTitle && r.text === kt && kt.length > 80 && r.ok.text === w.ok && r.card.b <= r.hint.t && r.hint.b <= r.pick.t && r.card.l >= 0 && r.card.r <= 375 && !r.how && !r.corner, r);
+      await teach.shot(`${tag}-84-kael-teacher`);
+      await teach.tap('.simul-kael-ok');
+      await teach.until('his card gone', `!document.querySelector('#simul-body .simul-kael') && __t.vis('#simul-how')`);
+      await teach.tap('#simul-how');
+      r = await sheetSays(teach);
+      check(`[${tag}] after "${w.ok}" the card is gone and "${w.how}" says the same words again in a sheet; remembered on the phone`,
+        same(r, [w.kaelTitle, kt]) && await teach.ev(`return __t.txt('#simul-how') === ${JSON.stringify(w.how)} && localStorage.getItem('simulKael') === '{"t":1}'`), r);
+
+      // 9b. An invitation: "Tell them", Kael to a student, and the link.
+      for (const p of students) await unKael(p);
+      await ana.ev(`__t.app.showScreen('home')`);
+      await luis.ev(`__t.app.showScreen('students')`);
+      await eva.ev(`__t.app.showScreen('profile')`);
+      await invite3();
+
+      const ks = await tx(ana, 'simul_kael_s');
+      // Ana is on Home: the banner, and Kael's line in his own bubble at the top.
+      await ana.until('the invitation', invited);
+      await ana.until('Kael, on Home', `document.getElementById('home-kael-line').classList.contains('saying')`);
+      r = await ana.ev(`const b = ${box}; return { line: b('#home-kael-line'), acts: b('#simul-banner-acts'), go: document.getElementById('home-kael-line').classList.contains('actionable'), corner: document.getElementById('kael-bubble').classList.contains('show') }`);
+      check(`[${tag}] a student's first invitation, on Home: the banner, and Kael says one line in his bubble at the top ("${w.kaelShort}" · "${w.kaelCta}"), not over Join`,
+        r.line && r.line.text === kaelSays && r.go && !r.corner && r.acts && (r.line.t >= r.acts.b || r.line.b <= r.acts.t), r);
+      await ana.shot(`${tag}-86-kael-student-home`);
+      await ana.tap('#home-kael-line');
+      r = await sheetSays(ana);
+      check(`[${tag}] a tap on it opens the explanation for a student`, same(r, [w.kaelTitle, ks]) && ks.length > 80 && ks !== kt, r);
+
+      // Luis is in Students: the card, above his invitation.
+      await luis.until('his card', `!!document.querySelector('#stu-simul-kael .simul-kael') && ${lead(w.inv)}`);
+      r = await luis.ev(`document.querySelector('#stu-simul').scrollIntoView({ block: 'center' }); await new Promise(r => setTimeout(r, 120)); const b = ${box};
+        return { card: b('#stu-simul-kael .simul-kael'), text: __t.txt('#stu-simul-kael p'), inv: b('#stu-simul-list .stu-invite'), join: b('#stu-simul-list .btn.primary'), how: __t.vis('#stu-simul-how'),
+          corner: document.getElementById('kael-bubble').classList.contains('show') }`);
+      check(`[${tag}] in Students the same first invitation has Kael's card ABOVE it, the words for a student, inside 375 px; Join is not covered and his corner says nothing`,
+        r.card && r.text === ks && r.card.b <= r.inv.t && r.card.l >= 0 && r.card.r <= 375 && r.join && r.join.t >= r.card.b && !r.how && !r.corner, r);
+      await luis.shot(`${tag}-87-kael-student-card`);
+      await luis.tap('#stu-simul-kael .simul-kael-ok');
+      await luis.until('his card gone', `!document.querySelector('#stu-simul-kael .simul-kael') && __t.vis('#stu-simul-how')`);
+
+      // Eva is somewhere else: his corner, under the banner.
+      await eva.until('the invitation', invited);
+      await eva.until('Kael, in his corner', `document.getElementById('kael-bubble').classList.contains('show')`);
+      await sleep(500);
+      r = await eva.ev(`const b = ${box}; return { bubble: b('#kael-bubble'), banner: b('#simul-banner'), acts: b('#simul-banner-acts') }`);
+      check(`[${tag}] on any other screen Kael says it from his corner, at the bottom: the banner and Join are at the top, uncovered`,
+        r.bubble && r.bubble.text === kaelSays && r.acts && r.bubble.t >= r.banner.b && r.bubble.r <= 375, r);
+      await eva.shot(`${tag}-88-kael-student-corner`);
+      await eva.tap('#kael-bubble');
+      r = await sheetSays(eva);
+      await eva.ev(`__t.S.bannerKey = ''; __t.S.sync();`);
+      await sleep(400);
+      check(`[${tag}] …a tap opens the same explanation, and he does not say it a second time`,
+        same(r, [w.kaelTitle, ks]) && await eva.ev(`return !document.getElementById('kael-bubble').classList.contains('show') && !!__t.S.explained('s')`), r);
+
+      // "Tell them", in the teacher's waiting room.
+      const LINKTEXT = w.tellText('Marta', `https://chesstrainingcenter.app/?simul=${TEACH}`);
+      r = await teach.ev(`document.querySelector('main').scrollTop = 0; const b = ${box}; return { tell: b('#simul-tell'), start: b('#simul-start'), hint: b('.simul-tell-hint'), h: innerHeight }`);
+      await teach.ev(`window.__shared = null; navigator.share = async d => { window.__shared = d; };`);
+      await teach.tap('#simul-tell');
+      await teach.until('handed to the share sheet', `!!window.__shared`);
+      const shared = await teach.ev(`return window.__shared`);
+      await teach.ev(`window.__copied = null; navigator.share = undefined; navigator.clipboard.writeText = async x => { window.__copied = x; };`);
+      await teach.tap('#simul-tell');
+      await teach.until('copied', toastIs(w.tellCopied));
+      const copied = await teach.ev(`return window.__copied`);
+      check(`[${tag}] the waiting room has "${w.tell}" under Start, on screen at 375 x 667: it hands the share sheet one sentence with the teacher's name, the 10 minutes and https://chesstrainingcenter.app/?simul=<the teacher's uid>, and copies it where there is no share sheet ("${w.tellCopied}")`,
+        r.tell && r.tell.text === w.tell && r.tell.t >= r.start.b && r.hint.b <= r.h && same(shared, { text: LINKTEXT }) && copied === LINKTEXT, [r, shared, copied]);
+      await teach.shot(`${tag}-85-room-tell`);
+
+      // The link, with a Duel link in the same address: Duel has the screen,
+      // the invitation is the banner there.
+      await eva.open(`&duel=${TEACH}&simul=${TEACH}`);
+      await eva.until('Duel has the screen', `__t.app.activeScreen === 'pulso' && __t.S.link === null`, 15000);
+      await eva.until('the invitation, as the banner', invited);
+      r = await eva.ev(`return { q: location.search, screen: __t.app.activeScreen, mine: __t.S.sBoards.map(g => g.status) }`);
+      check(`[${tag}] THE LINK with a Duel link in the same address: Duel has the screen, the simul invitation is the banner there, both are out of the address`,
+        r.q === `?uid=${EVA}` && r.screen === 'pulso' && same(r.mine, ['invited']), r);
+
+      // …opened by an invited student: the invitation, not joined by the link.
+      await ana.open(`&simul=${TEACH}`);
+      await ana.until('her invitation, in Students', `__t.app.activeScreen === 'students' && ${lead(w.inv)} && __t.S.link === null`, 15000);
+      a = await stored(`simulGames/${TA}`);
+      r = await ana.ev(`return { q: location.search, note: __t.vis('#stu-simul-note'), kael: !!document.querySelector('#stu-simul-kael .simul-kael'), how: __t.txt('#stu-simul-how'), howOn: __t.vis('#stu-simul-how') }`);
+      check(`[${tag}] THE LINK opened by an invited student: Students, on the invitation card with Join; the link itself joins nothing and is gone from the address`,
+        a.status === 'invited' && r.q === `?uid=${ANA}` && !r.note && same((await cards(ana))[0][2], [w.notNow, w.join]), [a.status, r]);
+      check(`[${tag}] after that reload Kael does not explain again to a student he has told: no card, "${w.how}" under the invitation`, !r.kael && r.howOn && r.how === w.how, r);
+      await ana.shot(`${tag}-89-link-invited`);
+
+      // …signed out: sign in first, then followed.
+      await luis.open(`&out=1&simul=${TEACH}`, false);
+      await luis.until('Students asks to sign in', `__t.app.activeScreen === 'students' && __t.vis('#stu-signedout')`, 15000);
+      r = await luis.ev(`return { q: location.search, link: !!__t.S.link, listening: !!__t.S.sStop, banner: __t.vis('#simul-banner'), body: __t.vis('#stu-body') }`);
+      check(`[${tag}] THE LINK signed out: Students with "sign in", no listener, no banner, nothing shown; the link waits and is out of the address`,
+        r.q === `?uid=${LUIS}&out=1` && r.link && !r.listening && !r.banner && !r.body, r);
+      await luis.shot(`${tag}-90-link-signed-out`);
+      await luis.ev(`window.__signIn();`);     // seeded: the sign-in form is not filled in
+      await luis.until('followed after signing in', `__t.app.activeScreen === 'students' && ${lead(w.inv)} && __t.S.link === null`, 15000);
+      r = await luis.ev(`return { kael: !!document.querySelector('#stu-simul-kael .simul-kael'), how: __t.vis('#stu-simul-how'), note: __t.vis('#stu-simul-note') }`);
+      check(`[${tag}] …and after signing in it is followed to the invitation; Kael, who had his "${w.ok}" before the reload, has no card`, !r.kael && r.how && !r.note, r);
+
+      // …by the teacher themself: their waiting room.
+      await teach.open(`&simul=${TEACH}`);
+      await teach.until('said', toastIs(w.linkOwn), 15000);
+      await teach.until('my waiting room', `__t.app.activeScreen === 'simul' && !!document.getElementById('simul-start') && __t.S.link === null`, 15000);
+      check(`[${tag}] THE LINK opened by the teacher: their own waiting room, and "${w.linkOwn}"`, await teach.ev(`return location.search`) === `?uid=${TEACH}`);
+
+      // That invitation runs out; the next simul has a clock, an opening and a
+      // handicap on Ana's board.
+      for (const id of ids) await patch(`simulGames/${id}`, { invitedAt: { timestampValue: new Date(Date.now() - 660000).toISOString() } });
+      await teach.until('ran out', `!!document.getElementById('simul-again')`);
+      await teach.tap('#simul-again');
+      await teach.until('the picker', `document.querySelectorAll('#simul-pick input').length === 3`, 15000);
+      r = await teach.ev(`return { card: !!document.querySelector('#simul-body .simul-kael'), how: __t.vis('#simul-how') }`);
+      check(`[${tag}] after a reload Kael does not explain again to the teacher: no card on the setup, "${w.how}" there`, !r.card && r.how, r);
+      await teach.tap('#simul-tc button[data-v="0"]');
+      await teach.ev(`__t.S.opening = ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4']; __t.S.handi.clear(); __t.S.handi.set('${ANA}', ['a1']); __t.S.extra = null; __t.S.bodyKey = ''; __t.S.sync();`);
+      old = await keptAll();
+      await three();
+
+      // 9c. "Otros tableros".
+      const fit = p => p.ev(`
+        const main = document.querySelector('main'); main.scrollTop = 0;
+        const b = ${box};
+        return { h: innerHeight, scrolls: main.scrollHeight - main.clientHeight, wide: document.documentElement.scrollWidth, status: b('#simul-status'), theme: b('#simul-theme'), board: b('#simul-board'), less: b('#simul-less'),
+          ctl: b('#simul-ctl'), clock: b('#simul-clock-me'), top: b('#simul-clock-them'), draw: b('#simul-draw'), resign: b('#simul-resign'), accept: b('#simul-accept'), decline: b('#simul-decline'), mine: b('#simul-mine'), others: b('#simul-others'),
+          primary: document.getElementById('simul-mine').classList.contains('primary'),
+          run: [document.getElementById('simul-clock-me').classList.contains('run'), document.getElementById('simul-clock-them').classList.contains('run')],
+          cut: [...document.querySelectorAll('#simul-ctl > *')].filter(e => e.getClientRects().length && e.scrollWidth > e.clientWidth + 1).map(e => e.id) }`);
+      const inLine = (m, ...names) => !!m.ctl && names.every((k, i) => m[k] && m[k].t >= m.ctl.t - 1 && m[k].b <= m.ctl.b + 1 && m[k].l >= 0 && m[k].r <= 375 && (i === 0 || m[names[i - 1]].r <= m[k].l));
+      const lists = p => p.ev(`return { o: !!__t.S.oStop, w: !!__t.S.wStop, open: __t.S.wOpen, mine: __t.S.sBoards.map(g => [g.id, g.n, g.status]) }`);
+      const rowsOf = p => p.ev(`return [...document.querySelectorAll('.simul-others-list .fr-row')].map(r => [r.querySelector('.fr-name').firstChild.textContent, r.querySelector('.fr-sub').textContent,
+        r.querySelector('.simul-clock:not(.hidden)')?.textContent ?? r.querySelector('.simul-chip')?.textContent ?? ''])`);
+      const listed = n => `document.querySelectorAll('.simul-others-list .fr-row').length === ${n} && [...document.querySelectorAll('.simul-others-list .fr-name')].every(e => e.firstChild.textContent !== '?')`;
+      await ana.size(667);
+      await ana.until('her clocks', `__t.vis('#simul-clock-me') && __t.fb.pulsoClockOffset() !== null`);
+      let m = await fit(ana);
+      check(`[${tag}] Ana's own board at 375 x 667 with a clock, the opening beside the title and a handicap line: her clock, "½ ${w.draw}", "${w.resign}" and "▦ ${w.othersShort}" share ONE row, no word cut, nothing wider than the phone, nothing to scroll`,
+        m.h === 667 && m.scrolls <= 0 && m.wide <= 375 && inLine(m, 'clock', 'draw', 'resign', 'others') && m.draw.text === '½ ' + w.draw && m.resign.text === w.resign && m.others.text === '▦ ' + w.othersShort && !m.cut.length
+        && m.less.text === `${w.lessT} ${w.r('a1')}` && m.theme.text === 'Italian Game' && !m.mine && m.ctl.t >= m.less.b, m);
+      console.log(`      measured at 375 x 667, a student's board with a clock and a handicap line: board ${m.board.t}-${m.board.b}, the line ${m.less.t}-${m.less.b}, the row ${m.ctl.t}-${m.ctl.b} (draw ${m.draw.l}-${m.draw.r}, resign ${m.resign.l}-${m.resign.r}, others ${m.others.l}-${m.others.r}); the page is ${-m.scrolls} px shorter than the screen's room`);
+      await ana.shot(`${tag}-91-student-board-others`);
+      check(`[${tag}] the teacher's row has no "Others"`, !(await fit(teach)).others);
+
+      // Ana moves (five opening moves and the teacher White there: she is first).
+      await play(ana, 'g8', 'f6');
+      await waitStored(TA, g => g.n === 1, 'Ana\'s move');
+      await ana.until('sent', stat('Marta · ' + w.their));
+      // Two boards of OTHER simuls that still name Ana: one of this teacher's
+      // from yesterday, one of another teacher's, in play.
+      const day = new Date(Date.now() - 86400_000), min = new Date(Date.now() - 240_000);
+      const blank = { op: '', tc: 'w', base: 0, inc: 0, tMs: 0, sMs: 0, draw: null, tDr: -1, sDr: -1, by: null, fen: START };
+      await seed(`simulGames/${ZED}`, { ...blank, t: TEACH, s: 'zed_uid', cls: [ANA, 'zed_uid'], status: 'done', invitedAt: day, startAt: day, at: day, prevAt: day, mv: 'e2e4-', n: 1, winner: null, reason: 'void', by: 't' });
+      await seed(`simulGames/${FAR}`, { ...blank, t: 'other_uid', s: 'zoe_uid', cls: [ANA, 'zoe_uid'], status: 'live', invitedAt: min, startAt: min, at: min, prevAt: min, mv: '', n: 0, winner: null, reason: null });
+      let c0 = await cost(ana);
+      await ana.tap('#simul-others');
+      await ana.until('the list', listed(2), 12000);
+      r = await rowsOf(ana);
+      await sleep(2100);
+      const r2 = await rowsOf(ana);
+      let c1 = await cost(ana);
+      let who = await lists(ana);
+      check(`[${tag}] "▦ ${w.othersShort}" opens "${w.others}": the two other boards of THIS simul by name, as their public rows have them, in the order invited, each with whose move it is and the clock running there (the teacher's on Eva's, Luis's own on his), counting down`,
+        same(r.map(x => x.slice(0, 2)), [['Eva', w.wMove('Marta')], ['Luis', w.wMove('Luis')]]) && secs(r[0][2]) > 800 && secs(r[0][2]) <= 900 && secs(r[1][2]) > 500 && secs(r[1][2]) <= 600
+        && secs(r2[0][2]) < secs(r[0][2]) && secs(r2[1][2]) < secs(r[1][2]) && await ana.ev(`return __t.txt('.modal-box h3')`) === w.others, [r, r2]);
+      check(`[${tag}] a board of an older simul of the same teacher, and one of another teacher's simul, both naming Ana, are NOT listed; the class listener runs only now`, r.length === 2 && who.o && !who.w, [r.length, who]);
+      check(`[${tag}] COUNTED on Ana's phone: opening the list is 5 reads (every board that names her: 3 of this simul, her own included, and the 2 others) and 2 for the names`,
+        c1.reads - c0.reads === 5 && c1.gets - c0.gets === 2 && c1.writes === c0.writes, [c0, c1]);
+      const openCost = [c1.reads - c0.reads, c1.gets - c0.gets];
+      await ana.shot(`${tag}-92-others-list`);
+
+      // Nine classmates: seven more boards of this same simul, seeded while the
+      // list is open (copies of Luis's, each with a public row of its own).
+      const raw = await fields(`simulGames/${TL}`);
+      const KIDS = ['Maximiliano', 'Inés', 'Pablo', 'Carla', 'Hugo', 'Sol', 'Leo'];
+      for (const [i, name] of KIDS.entries()) {
+        await seed(`leaderboard/kid${i}_uid`, { profileName: name, username: `kid${i}`, usernameLower: `kid${i}`, avatarId: ['owl', 'lion', 'raven', 'bear'][i % 4], puzzleElo: 1200 });
+        await patch(`simulGames/${TEACH}_kid${i}_uid`, { ...raw, s: { stringValue: `kid${i}_uid` } });
+      }
+      await ana.until('nine classmates', listed(9), 12000);
+      m = await ana.ev(`const b = ${box}; const bx = document.querySelector('.modal-box');
+        return { h: innerHeight, sheet: b('.modal-box'), rows: document.querySelectorAll('.simul-others-list .fr-row').length, inside: bx.scrollHeight > bx.clientHeight,
+          wide: [...bx.querySelectorAll('*')].filter(e => { const r = e.getBoundingClientRect(); return r.width && (r.right > 375.5 || r.left < -0.5); }).map(e => e.className),
+          long: [...bx.querySelectorAll('.fr-name')].filter(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).textOverflow !== 'ellipsis').length, rowH: Math.round(bx.querySelector('.fr-row').getBoundingClientRect().height) }`);
+      const c2 = await cost(ana);
+      check(`[${tag}] the list with NINE classmates at 375 x 667: nine rows, nothing wider than the phone, the sheet inside the screen and scrolling inside itself`,
+        m.rows === 9 && !m.wide.length && !m.long && m.sheet.t >= 0 && m.sheet.b <= m.h && m.sheet.l >= 0 && m.sheet.r <= 375 && m.inside, m);
+      check(`[${tag}] COUNTED: seven boards more are 7 reads more and 7 names more`, c2.reads - c1.reads === 7 && c2.gets - c1.gets === 7, [c1, c2]);
+      console.log(`      measured at 375 x 667, nine classmates: the sheet is ${m.sheet.t}-${m.sheet.b} px of ${m.h}, a row is ${m.rowH} px, and it scrolls inside`);
+      await ana.shot(`${tag}-93-others-nine`);
+      for (const i of KIDS.keys()) await drop(`simulGames/${TEACH}_kid${i}_uid`);
+      await ana.until('two again', listed(2));
+      await teach.until('three tiles again', `__t.tiles().length === 3`);
+
+      // Luis's board, live and read only.
+      c0 = await cost(ana);
+      await ana.tap('.simul-others-list .fr-row:nth-child(2)');
+      await ana.until('Luis\'s board', stat(`Luis · ${w.wMove('Luis')}`));
+      await sleep(700);
+      r = await look(ana); m = await fit(ana); who = await lists(ana); c1 = await cost(ana);
+      check(`[${tag}] a tap on Luis: HIS board on Ana's screen, from his side, his position after the opening (no handicap there), not playable; the line above says "Luis · ${w.wMove('Luis')}" and the one below "${w.wNote('Luis')}"`,
+        r.status === `Luis · ${w.wMove('Luis')}` && r.fen === after(...ITAL) && r.side === 'b' && !r.live && m.less.text === w.wNote('Luis') && m.theme.text === 'Italian Game' && !r.banner, [r, m.less]);
+      check(`[${tag}] …with both clocks (his running, the teacher's 15:00 standing), and a row of its own: his clock, "${w.back}" and "▦ ${w.othersShort}"; no draw, no resign, nothing to scroll at 375 x 667`,
+        inLine(m, 'clock', 'mine', 'others') && m.mine.text === w.back && !m.primary && !m.draw && !m.resign && !m.accept && !m.decline && m.run[0] && !m.run[1] && m.top.text === '15:00' && secs(m.clock.text) < 600
+        && m.scrolls <= 0 && m.wide <= 375 && !m.cut.length, m);
+      check(`[${tag}] COUNTED: the class listener is closed with the list, and the phone now listens to ONE board besides its own: 1 read to open it`,
+        !who.o && who.w && who.open === TL && c1.reads - c0.reads === 1 && c1.gets === c0.gets, [who, c0, c1]);
+      await ana.shot(`${tag}-94-watching`);
+      await play(luis, 'g8', 'f6');
+      await ana.until('his move, live', fenIs(...ITAL, 'g8f6') + ' && ' + stat(`Luis · ${w.wMove('Marta')}`));
+      await sleep(500);
+      c0 = await cost(ana);
+      m = await fit(ana);
+      check(`[${tag}] Luis moves: Ana sees it at once, the line says "${w.wMove('Marta')}", the teacher's clock is the one running; COUNTED: 1 read a move`,
+        c0.reads - c1.reads === 1 && !m.run[0] && m.run[1], [c1, c0, m.run]);
+      const watchCost = [1, c0.reads - c1.reads];
+
+      // Nothing on it is hers to do.
+      const before = [await stored(`simulGames/${TA}`), await stored(`simulGames/${TL}`)];
+      await play(ana, 'd2', 'd3');
+      r = await ana.ev(`
+        const S = __t.S, out = { fb: [] };
+        S.userMove({ from: 'd2', to: 'd3' });
+        await S.resign(); await S.offer(); await S.answerDraw(true);
+        out.asked = !!document.querySelector('.modal-box');
+        for (const [name, ...args] of [['simulMove', '${TL}', 'd2d3-'], ['resignSimul', '${TL}'], ['offerSimulDraw', '${TL}'], ['answerSimulDraw', '${TL}', true], ['voidSimul', '${TL}'], ['claimSimulFlag', '${TL}']]) {
+          try { const x = await __t.fb[name](...args); out.fb.push(x && x.ok === false ? x.reason : 'DONE'); } catch (e) { out.fb.push('threw ' + (e.code || e)); }
+        }
+        const real = await import('/vendor/firebase-10.14.1/firebase-firestore.real.js');
+        try { await real.updateDoc(real.doc(real.getFirestore(), 'simulGames', '${TL}'), { draw: 's' }); out.raw = 'WRITTEN'; } catch (e) { out.raw = e.code; }
+        return out;`);
+      await sleep(600);
+      const now2 = [await stored(`simulGames/${TA}`), await stored(`simulGames/${TL}`)];
+      check(`[${tag}] a watcher changes NOTHING: a finger on the squares, and move, resign, draw offer, draw answer, void and flag asked for outright, leave both boards as stored; no question is asked, every function says no, and the same write sent raw is REFUSED BY THE RULES`,
+        same(now2, before) && !r.asked && r.fb.length === 6 && r.fb.every(x => x !== 'DONE') && r.raw === 'permission-denied' && (await look(ana)).fen === after(...ITAL, 'g8f6'), r);
+
+      // Her own game goes on: the teacher moves on her board.
+      await teach.tap(TILE(1));
+      await teach.until('Ana\'s board', stat('Ana · ' + w.your));
+      await play(teach, 'd2', 'd3');
+      await ana.until('the way back says so', `__t.txt('#simul-mine') === ${JSON.stringify(w.backMove)}`);
+      r = await look(ana); m = await fit(ana); who = await lists(ana);
+      check(`[${tag}] the teacher moves on ANA's board while she watches Luis's: she stays on Luis's board, and the way back takes the row, turns primary and says "${w.backMove}"; no toast lies over it`,
+        r.status.startsWith('Luis · ') && r.fen === after(...ITAL, 'g8f6') && inLine(m, 'clock', 'mine') && m.primary && !m.others && !m.draw && !m.resign && m.scrolls <= 0 && !m.cut.length
+        && same(who.mine, [[TA, 2, 'live']]) && await ana.ev(`return document.getElementById('toast').classList.contains('hidden')`), [r.status, m, who]);
+      await ana.shot(`${tag}-95-watching-my-move`);
+      await ana.tap('#simul-mine');
+      await ana.until('her own board', stat('Marta · ' + w.your));
+      r = await look(ana); m = await fit(ana); who = await lists(ana);
+      check(`[${tag}] one tap and she is back on her own board, her move, from her side, with her own row; the phone listens to one board again`,
+        r.live && r.side === 'b' && r.fen === afterOn(noA1, ...ITAL, 'g8f6', 'd2d3') && inLine(m, 'clock', 'draw', 'resign', 'others') && !m.mine && m.less.text === `${w.lessT} ${w.r('a1')}` && !who.w && !who.o && who.open === null, [r, who]);
+      await play(ana, 'd7', 'd6');
+      a = await waitStored(TA, g => g.n === 3, 'Ana\'s move on her own board');
+      check(`[${tag}] …and plays on: her move is stored`, a.mv === 'g8f6-d2d3-d7d6-' && a.status === 'live', a.mv);
+
+      // How a watched game ends, and what the list says of it.
+      await ana.tap('#simul-others');
+      await ana.until('the list', listed(2), 12000);
+      await ana.tap('.simul-others-list .fr-row:nth-child(2)');
+      await ana.until('Luis\'s board again', on('Luis'));
+      await luis.tap('#simul-resign');
+      await luis.until('the question', ask);
+      await luis.tap('.modal-box .btn.danger');
+      l = await waitStored(TL, g => g.status === 'done', 'Luis\'s resignation');
+      await ana.until('how it ended', stat(`Luis · ${w.wResign('Luis', 'Marta')}`));
+      m = await fit(ana);
+      check(`[${tag}] Luis resigns while Ana watches: "${w.wResign('Luis', 'Marta')}", in the third person, the clocks stopped, "${w.back}" and "▦ ${w.othersShort}" still there`,
+        same(result(l), ['done', 't', 'resign', null]) && !m.run[0] && !m.run[1] && inLine(m, 'clock', 'mine', 'others') && m.mine.text === w.back, m);
+      await ana.shot(`${tag}-96-watching-result`);
+      await ana.tap('#simul-others');
+      await ana.until('the list', listed(2), 12000);
+      r = await rowsOf(ana);
+      check(`[${tag}] the list says the result: Luis "${w.wDone}" · "${w.wWon('Marta')}", Eva still in play`,
+        same(r[1], ['Luis', w.wDone, w.wWon('Marta')]) && same(r[0].slice(0, 2), ['Eva', w.wMove('Marta')]), r);
+      await ana.shot(`${tag}-97-others-result`);
+      await ana.tap('.modal-box .btn-wide');
+      await noModal(ana);
+      who = await lists(ana);
+      check(`[${tag}] "close" leaves her where she was, on Luis's board, the class listener closed again`, !who.o && who.w && who.open === TL && await ana.ev(`return ${on('Luis')}`), who);
+
+      // The board she watches goes to another simul: its stamp is no longer hers.
+      const stamp = (await fields(`simulGames/${TL}`)).invitedAt;
+      await patch(`simulGames/${TL}`, { invitedAt: { timestampValue: new Date(Date.now() - 7200_000).toISOString() } });
+      await ana.until('said, and back on her own board', toastIs(w.wGone) + ' && ' + stat('Marta · ' + w.their));
+      who = await lists(ana);
+      check(`[${tag}] a watched board that is no longer of her simul is left at once: "${w.wGone}", her own board, no listener on it`, !who.w && who.open === null, who);
+      await patch(`simulGames/${TL}`, { invitedAt: stamp });
+      await teach.until('three tiles again', `__t.tiles().length === 3`);
+
+      // Somebody who was not invited.
+      const zed = await openTab('zed_uid', 'watchSimulStudent', HOSTS[0]);
+      r = await zed.ev(`
+        const f = await import('/vendor/firebase-10.14.1/firebase-firestore.real.js'), db = f.getFirestore(), out = {};
+        const q = uid => f.query(f.collection(db, 'simulGames'), f.where('cls', 'array-contains', uid));
+        try { await f.getDocFromServer(f.doc(db, 'simulGames', '${TL}')); out.one = 'READ'; } catch (e) { out.one = e.code; }
+        try { await f.getDocsFromServer(q('${ANA}')); out.cls = 'READ'; } catch (e) { out.cls = e.code; }
+        try { out.own = (await f.getDocsFromServer(q('zed_uid'))).docs.map(d => d.id); } catch (e) { out.own = e.code; }
+        return out;`);
+      await zed.close();
+      check(`[${tag}] REFUSED BY THE RULES: a signed-in user who was not invited cannot read a board of the simul, nor ask for the boards that name Ana; the same question about THEIR OWN simul is answered`,
+        r.one === 'permission-denied' && r.cls === 'permission-denied' && same(r.own, [ZED]), r);
+
+      // The end. A watcher keeps her own game and nobody else's.
+      await end();
+      await teach.tap('.modal-box .btn.danger');
+      await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+      await ana.until('her game closed', stat('Marta · ' + w.unfinished));
+      r = await fresh(ana, old, 2, 2500);
+      check(`[${tag}] Ana's History has ONE new game, her own against Marta: the board she watched is not kept, voided or flagged by her phone`,
+        r.length === 1 && r[0][0] === 'Marta' && (await stored(`simulGames/${TL}`)).by === null, r);
+      console.log(`      COUNTED, a student's phone: the list of other boards ${openCost[0]} reads to open (one for every board that names her: this simul's and older ones) + ${openCost[1]} for the names (once while the app stays open), then 1 a move on any of them while it is open; watching one board ${watchCost[0]} read to open + ${watchCost[1]} a move; closed, nothing`);
+
+      // 9d. The link when there is no invitation.
+      await ana.open(`&simul=${TEACH}`);
+      await ana.until('said in Students', `__t.app.activeScreen === 'students' && __t.vis('#stu-simul-note') && __t.S.link === null`, 15000);
+      r = await ana.ev(`return { note: __t.txt('#stu-simul-note'), q: location.search, cards: __t.vis('#stu-simul'), board: __t.vis('#simul-board') }`);
+      check(`[${tag}] THE LINK opened by a student of that teacher with no invitation: Students says "${w.linkNone('Marta')}"; no card, no board`,
+        r.note === w.linkNone('Marta') && r.q === `?uid=${ANA}` && !r.cards && !r.board, r);
+      await ana.shot(`${tag}-98-link-none`);
+      await luis.open(`&simul=nobody_uid`);
+      await luis.until('said in Students', `__t.app.activeScreen === 'students' && __t.vis('#stu-simul-note') && __t.S.link === null`, 15000);
+      r = await luis.ev(`return { note: __t.txt('#stu-simul-note'), q: location.search }`);
+      check(`[${tag}] THE LINK of a teacher who is not theirs: "${w.linkStranger}" — no name, nothing about any simul`, r.note === w.linkStranger && r.q === `?uid=${LUIS}`, r);
+      await luis.shot(`${tag}-99-link-stranger`);
+      await luis.ev(`__t.app.showScreen('home')`);
+      check(`[${tag}] the sentence goes when Students is left`, await luis.ev(`__t.app.showScreen('students'); await new Promise(r => setTimeout(r, 300)); return !__t.vis('#stu-simul-note')`));
+      await eva.open(`&duel=${TEACH}&simul=nobody_uid`);
+      await eva.until('said in a toast, Duel on screen', `__t.app.activeScreen === 'pulso' && ${toastIs(w.linkStranger)}`, 15000);
+      check(`[${tag}] …and with a Duel link in the same address it is said in a toast, Duel keeping the screen`, await eva.ev(`return location.search`) === `?uid=${EVA}`);
+
+      // As it was: no opening, no handicap, no clock, the switch on.
+      await drop(`simulGames/${ZED}`); await drop(`simulGames/${FAR}`);
+      for (const i of KIDS.keys()) await drop(`leaderboard/kid${i}_uid`);
+      await ana.size(812);
+      await teach.ev(`__t.S.opening = []; __t.S.handi.clear(); __t.S.extra = null; __t.S.bodyKey = ''; __t.S.sync(); if (!__t.S.auto) document.getElementById('simul-auto').click();`);
+      await teach.tap('#simul-tc button[data-v="-1"]');
+      check(`[${tag}] the setup is as it was found: no opening, no handicap, no clock, auto on`, await teach.ev(`return __t.S.clock === -1 && __t.S.auto && !__t.S.opening.length && !__t.S.handi.size`));
     }
 
     // ── 6c. A simul nobody closed: 3 hours ──

@@ -9,6 +9,82 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 8 OF 8: WATCHING, THE LINK, KAEL (2026-10-13, v209).** Spec
+  `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 8, the
+  LAST one: the spec's plan is finished. `firestore.rules` untouched (the read rule
+  already let everyone in `cls` read a board). `js/simul-ui.js`, one function in
+  `js/firebase.js`, the words, three elements in `index.html`, the tool.
+  - **Adrian's four answers** (asked with four measured pictures; he took all four
+    recommendations). (a) "Otros" is a THIRD BUTTON in the row under the student's board
+    (`#simul-others`), which opens a sheet listing the other boards; not a strip of tiles
+    (75 px, and it would listen to every board all game). (b) A student watching a
+    classmate is TOLD when their own board wants them and goes back themselves: the move
+    sound, and the way back (`#simul-mine`) turns primary and says "● Te toca · Volver a
+    mi tablero" with the row to itself. Nothing jumps. (A toast was built and taken
+    out: at 375x667 it lay exactly on that button and swallowed the tap for 3.5 s.) (c) Somebody with no
+    invitation reads one of two sentences in Students (`#stu-simul-note`): their own
+    teacher's link, "No tienes ninguna invitación de Marta ahora…"; anybody else's, "Este
+    enlace es de una simultánea para los alumnos de un profesor. No eres alumno suyo en la
+    app." No name for a stranger, no read, nothing about whether a simul exists. (d) Kael
+    speaks in a CARD IN THE PAGE (Home's `.home-kael` bubble): at the top of the teacher's
+    setup the first time, above a student's first invitation in Students, each with
+    "Entendido"; where the banner arrives he says one line where he always speaks (his
+    bubble on Home, his corner elsewhere, which is at the bottom and the banner at the
+    top) and a tap opens the explanation. "¿Cómo funciona?" stays afterwards for both.
+  - **Watching** (`SimulUI.wOpen / wBoard / wStop`): the student's own board stays
+    `sOpen`; a watched board is drawn over it by the same `renderGame(boards, own)`. A
+    watched board has no `me`: it is shown from its STUDENT's side (`pov`), nothing on it
+    is live, `onBoard()` returns it so every writer stops at `!g.me`, and `referee`,
+    `claimFlags` and `keep` never see it (they walk `sBoards`/`tBoards` only). The line
+    above says "Luis · Juega Marta" or the result in the third person (`watchLine`); the
+    line below says "Estás mirando el tablero de Luis. Solo se puede mirar." (or "Solo
+    mirar · Tu profesor juega sin: …"). `wants()` is what my own board asks of me:
+    'move', 'draw', 'over' (an ending I have not seen), or nothing.
+  - **What it costs, MEASURED** (the tool's counters, Ana's phone): opening the list is
+    ONE READ FOR EVERY BOARD THAT NAMES HER in `cls`: this simul's, her own included, and
+    boards of OLDER simuls that still name her (they are read and not listed: same
+    teacher AND same `invitedAt` as her own board is "this simul"). 5 reads with three
+    boards and two old ones, 12 with ten boards and the same two; plus 1 read a classmate for the public
+    profile row (`fetchLeaderboardByUids`, kept in `SimulUI.mates` while the app stays
+    open); then 1 read a move on any of them while the sheet is open. `watchSimulClass`
+    runs ONLY while the sheet is open. Watching one board is `watchSimulBoard(id, cb)`
+    (new, `js/firebase.js`: one document, no part of the section's memory): 1 read to
+    open, 1 a move. Closed, nothing.
+  - **The link** (`SimulUI.follow`, `boot()` after `PulsoUI.boot()`): `?simul=<teacherUid>`
+    is read once and taken out of the address. It waits until Students has ASKED THE
+    SERVER who my teachers are (`Students.cachedAt` later than the app's start: what the
+    phone remembers may be old) and my listener has heard from the server
+    (`SimulUI.sLoaded`). Invited: the card in Students, or the board if the game is on;
+    the link never joins. No invitation / not their student: (c) above. Signed out:
+    Students' "sign in", followed after it. The teacher's own: their waiting room and
+    "Este es tu propio enlace". With a Duel link in the same address Duel keeps the
+    screen: an invitation is the banner there, a dead link is a toast.
+  - **"📤 Avisarles"** in the waiting room, under Start (`tell`, as `PulsoUI.tell`): the
+    share sheet, or the text copied: "Marta te invita a una simultánea en Chess Training
+    Center. Tienes 10 minutos para unirte: https://chesstrainingcenter.app/?simul=<uid>".
+  - **Kael is remembered** in `localStorage` `simulKael` (`{t,s,b}`: teacher, student, his
+    one line at the banner). Not synced: a second phone explains once more.
+  - **A change to what was there**: a student's row is no longer hidden when their game
+    is over if the simul has other boards (it keeps "Otros"); five old checks that said
+    "the row is gone" now say "nothing to play with on it".
+  - **Measured at 375x667**, a clock, the opening beside the title and a handicap line:
+    the row is 544-579 px (draw 92-170, resign 180-278, others 288-365), no word cut, and
+    the page exactly fills the screen's room: THERE IS NO SPARE HEIGHT LEFT on the
+    student's board. While a draw offer is answered "Otros" is its sign alone. The list
+    with nine classmates is a sheet from 100 px to the bottom, rows of 57 px, scrolling
+    inside itself.
+  - **The tool**: round 9, before 6c. 1,141 checks (913 before), about 50 minutes for the
+    four passes (its own time limit is now 60). Its Firestore stand-in counts one
+    document's listener and counts `getDoc` apart (`gets`); its Auth stand-in can start
+    signed out (`&out=1`, then `window.__signIn()`); `phone.open(query)` opens the app on
+    a link with no reload; `load()` marks Kael as heard so rounds 1-8 are as they were.
+    A refusal by the rules is asked for: a signed-in user who was not invited cannot read
+    a board nor ask for the boards that name Ana.
+  - **Not asked for**: none built. HANDOVER's "Still to do" had no simul line to strike.
+    **Still owed**: nobody has run a simul on a real phone or against the real database
+    (v203 to v209), the link has not been opened from WhatsApp, and the three readings
+    of conversation 6 are still unasked. Kael's "next mission" bubble over a live simul
+    board is still its own task.
 - **PUZZLE TAB: THE NEXT BUTTON (2026-10-13, v208).** No spec; Adrian chose from four
   measured mock-ups. The small arrow at the end of `#puzzle-actions` is gone. `#puzzle-next`
   now lives INSIDE `#puzzle-status` (index.html), at its right end, beside a new

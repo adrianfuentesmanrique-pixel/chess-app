@@ -902,7 +902,8 @@ export async function finishPulso(pairId, { left = false } = {}) {
 // reads and writes.
 //
 // Three listeners, one per query the read rule allows: the teacher's boards,
-// the student's own boards, and the boards of a simul I was invited to. They
+// the student's own boards, and the boards of a simul I was invited to (and a
+// fourth on one single board of those, watchSimulBoard). They
 // are also this section's memory, as watchPulso() is Pulso's: every function
 // that writes works from the copy the teacher's or the student's listener
 // keeps, so none of them reads a document and none works until it runs.
@@ -914,7 +915,7 @@ export async function finishPulso(pairId, { left = false } = {}) {
 
 const simulRef = id => doc(firestore, 'simulGames', id);
 const simulSeen = { t: new Map(), s: new Map(), cls: new Map() };
-const simulStops = { t: null, s: null, cls: null };
+const simulStops = { t: null, s: null, cls: null, one: null };
 // id -> `at` exactly as the server holds it. A move must write it back as
 // prevAt, and the rule compares the two stamps whole, finer than the
 // millisecond a board is given.
@@ -985,6 +986,20 @@ export function watchSimulStudent(cb) {
 // every board it holds.
 export function watchSimulClass(cb) {
   return watchSimul('cls', uid => where('cls', 'array-contains', uid), 100, cb);
+}
+// ONE board I may read and do not play on: a classmate's, while it is the board
+// on screen. One read to open it and one for every move made on it. cb(board),
+// or cb(null) when it is not there or not mine to read. It is no part of this
+// section's memory: nothing that writes will work from it.
+export function watchSimulBoard(id, cb) {
+  const user = auth.currentUser;
+  if (simulStops.one) simulStops.one();
+  if (!user) return () => {};
+  const stop = onSnapshot(simulRef(id), { includeMetadataChanges: true },
+    d => cb(d.exists() ? simulView(d, user.uid) : null),
+    err => { console.error('simul watch failed', id, err); cb(null); });
+  simulStops.one = () => { stop(); simulStops.one = null; };
+  return simulStops.one;
 }
 
 // One phone has one clock, so the offset Duel measured is the offset here: the

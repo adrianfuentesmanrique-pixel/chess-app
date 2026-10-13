@@ -2568,6 +2568,21 @@ body.read-spread #read-reader {
 .simul-auto { display: flex; align-items: center; gap: 8px; min-width: 0; margin-right: auto; font-size: 14px; white-space: nowrap; cursor: pointer; }
 .simul-auto input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--gold); margin: 0; }
 #simul-game .btn-wide { margin-top: 8px; }
+/* Watching (conversation 8). The list of the other boards is a sheet of
+   Students rows; a row's clock is the one running on that board. While a draw
+   offer is being answered the row is full, and "Others" is its sign alone. */
+.simul-others-list { margin: 0 0 4px; }
+.simul-others-list .fr-row { border: none; font: inherit; background: var(--panel2); cursor: pointer; }
+.simul-others-list .simul-clock { min-height: 27px; }
+.simul-ctl.solo #simul-others.tight { flex: 0 0 42px; }
+.simul-ctl.solo #simul-others.tight .simul-word { display: none; }
+/* Kael's explanation, in the page: his bubble from Home. "How does it work?"
+   is a line of text, not one more button. */
+.simul-kael { align-items: flex-start; }
+.simul-kael .home-kael-bubble p { margin: 2px 0 8px; font-size: 13px; }
+.simul-kael .btn { margin-top: 0; }
+.simul-link { display: block; background: none; border: none; padding: 4px 0; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.simul-tell-hint { margin-top: 4px; }
 #tabbar button.pulso-dot, #tabmenu-btn.pulso-dot { position: relative; }
 #tabbar button.pulso-dot::after, #tabmenu-btn.pulso-dot::after {
   content: ''; width: 9px; height: 9px; border-radius: 50%;
