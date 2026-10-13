@@ -1032,7 +1032,14 @@
       <button id="blind-go" class="btn primary big" data-i18n="blind_go"></button>
     </div>
     <div id="blind-game" class="hidden">
-      <div id="blind-status" class="status-bar"></div>
+      <!-- As on Puzzles: the words, then Next at the right end; the whole bar
+           goes gold and is the button once the puzzle is over (Blind.setDone).
+           The countdown of the opening look sits between the two. -->
+      <div id="blind-status" class="status-bar">
+        <span id="blind-status-text"></span>
+        <div id="blind-countdown" class="blind-countdown hidden"></div>
+        <button id="blind-next" class="btn primary"><span data-i18n="next_puzzle"></span> ➡</button>
+      </div>
       <!-- Whose move it is, with the blindfold rating at the right edge. -->
       <div class="row blind-head">
         <div id="blind-turn" class="hint blind-turn"></div>
@@ -1040,7 +1047,6 @@
       </div>
       <!-- Before scoring: what the look is worth. After: what it paid. -->
       <div id="blind-bonus" class="blind-bonus" aria-live="polite"></div>
-      <div id="blind-countdown" class="blind-countdown hidden"></div>
       <!-- List mode: stands where the board is, for the opening read and for
            a peek. The board is not on screen while this is. -->
       <div id="blind-list" class="blind-list hidden">
@@ -1054,7 +1060,6 @@
         <button id="blind-peek" class="btn"></button>
         <button id="blind-solution" class="btn" data-i18n="show_solution"></button>
         <button id="blind-share" class="btn hidden">📤</button>
-        <button id="blind-next" class="btn primary" data-i18n="next_puzzle"></button>
       </div>
       <div id="blind-log" class="plog"></div>
     </div>
@@ -1096,7 +1101,7 @@
       <button id="calc-options" class="btn ico" data-i18n-aria="puzzle_options">⚙</button>
       <button id="calc-analyze" class="btn ico hidden" data-i18n-aria="analyze_short">📈</button>
       <button id="calc-submit" class="btn primary" data-i18n="calc_submit"></button>
-      <button id="calc-next" class="btn primary hidden" data-i18n="next_puzzle"></button>
+      <button id="calc-next" class="btn primary hidden"><span data-i18n="next_puzzle"></span> ➡</button>
     </div>
   </section>
 

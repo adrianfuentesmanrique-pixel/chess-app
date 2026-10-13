@@ -6088,7 +6088,10 @@ export const Blind = {
     $('blind-change-time').onclick = () => this.changeTime();
     $('blind-peek').onclick = () => this.peek();
     $('blind-solution').onclick = () => this.showSolution();
-    $('blind-next').onclick = () => this.nextPuzzle();
+    // One handler on the bar, as on Puzzles: a tap on the button bubbles here.
+    $('blind-status').onclick = e => {
+      if (e.target.closest('#blind-next') || e.currentTarget.classList.contains('done')) this.nextPuzzle();
+    };
     $('blind-share').onclick = () => this.share();
   },
 
@@ -6157,6 +6160,7 @@ export const Blind = {
     $('blind-last-paid').textContent = this.paidLine ? t('blind_last_paid').replace('{x}', this.paidLine) : '';
     $('blind-game').classList.add('hidden');
     $('blind-start').classList.remove('hidden');
+    $('screen-blind').classList.remove('playing');
     this.updateTimeControl();
   },
 
@@ -6165,6 +6169,7 @@ export const Blind = {
     $('blind-log').before($('blind-time-range').closest('.blind-time'));
     $('blind-start').classList.add('hidden');
     $('blind-game').classList.remove('hidden');
+    $('screen-blind').classList.add('playing');
     this.nextPuzzle();
   },
 
@@ -6282,6 +6287,7 @@ export const Blind = {
     if (this.current && !this.logged && this.failedThis) this.log(false);
     if (this.changeArmed) { this.showStart(); return; }
     this.cleanup();
+    this.setDone(false);
     $('blind-share').classList.add('hidden');
     const target = this.targetRating();
     try { await ensureForRating(target); } catch { /* play what is already loaded */ }
@@ -6321,7 +6327,7 @@ export const Blind = {
     this.board.setPosition(this.chess.fen(), first ? { from: first.from, to: first.to } : null);
     this.board.interactive = false;
     this.memorising = true;
-    $('blind-status').textContent = t(listMode ? 'blind_list_read_now' : 'blind_watch_now');
+    this.setStatus(t(listMode ? 'blind_list_read_now' : 'blind_watch_now'));
     this.updatePeekBtn();
     this.updateTurnIndicator();
     if (!this.greetedThisOpen) {
@@ -6416,7 +6422,9 @@ export const Blind = {
     btn.disabled = left === 0 || this.isOver() || this.memorising;
   },
 
-  setStatus(msg) { $('blind-status').textContent = msg; },
+  setStatus(msg) { $('blind-status-text').textContent = msg; },
+  // The puzzle is over: the whole bar is gold and is the Next button.
+  setDone(on) { $('blind-status').classList.toggle('done', on); },
 
   async peek() {
     if (!this.current) return;
@@ -6491,6 +6499,7 @@ export const Blind = {
         this.setStatus(t('solved'));
         this.recordResult(true);
         this.log(!this.failedThis);
+        this.setDone(true);
         this.updatePeekBtn();
         $('blind-share').classList.remove('hidden');
         Streak.recordActivity();
@@ -6555,6 +6564,7 @@ export const Blind = {
     const token = this.token;
     this.markFailed();
     this.log(false);
+    this.setDone(true);
     this.updatePeekBtn();
     this.board.setPiecesHidden(false);
     this.board.interactive = false;

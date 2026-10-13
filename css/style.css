@@ -277,17 +277,20 @@ main { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; touch-action: pan-y
    board ends a pixel or two above the bottom of the screen, so this row may
    not cost any height. .done (Puzzles.setDone) is the puzzle being over: the
    whole bar goes gold and is the tap target, the button melting into it. */
-#puzzle-status {
+#puzzle-status, #blind-status {
   justify-content: space-between; align-items: stretch; gap: 8px;
   padding: 0 0 0 14px; min-height: 44px; margin: 6px 0;
 }
-#puzzle-status-text { flex: 1 1 auto; min-width: 0; align-self: center; padding: 6px 0; }
-#puzzle-next {
+#puzzle-status-text, #blind-status-text { flex: 1 1 auto; min-width: 0; align-self: center; padding: 6px 0; }
+#puzzle-next, #blind-next {
   flex: 0 0 auto; min-height: 44px; padding: 0 14px;
   font-size: 15px; white-space: nowrap;
 }
-#puzzle-status.done { background: var(--gold); color: #0b1526; font-weight: 700; cursor: pointer; }
-#puzzle-status.done #puzzle-next { background: none; color: inherit; }
+#puzzle-status.done, #blind-status.done { background: var(--gold); color: #0b1526; font-weight: 700; cursor: pointer; }
+#puzzle-status.done #puzzle-next, #blind-status.done #blind-next { background: none; color: inherit; }
+/* Sealed Moves has no status bar and its Next only exists once the puzzle is
+   over, so the button itself is the gold: same place, same size. */
+#calc-next { background: var(--gold); color: #0b1526; }
 
 /* ── puzzle session log ────────────────── */
 /* One dot per puzzle attempted this session, newest last. Tapping one opens a
@@ -1561,6 +1564,15 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
   text-align: center; font-size: 46px; font-weight: 800; color: var(--accent);
   padding: 4px 0;
 }
+/* The countdown lives in the status bar, between the words and Next: on its
+   own row it pushed three ranks of the board off a 667px screen. */
+#blind-status .blind-countdown {
+  flex: 0 0 auto; align-self: center; min-width: 36px; padding: 0;
+  font-size: 30px; line-height: 1; text-align: right;
+}
+/* While a puzzle is on (Blind.go / showStart), the explanation is not: it is
+   read on the start panel, and its four lines cost the board its last rank. */
+#screen-blind.playing > p.hint { display: none; }
 .blind-turn { font-weight: 600; }
 .blind-head { justify-content: space-between; margin: 0 0 6px; min-height: 28px; }
 .blind-head .elo-badge { margin-left: auto; }

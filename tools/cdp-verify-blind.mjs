@@ -28,7 +28,7 @@
 // a native range is not reproducible over CDP), and the page reload.
 // SEEDED: in step 3 the blindfold attempt count is set to 10, so the peek and
 // loss checks run at normal speed rather than fast-start speed; in step 5c
-// Puzzles.autoNext is switched on in memory (not by its checkbox). Nothing else:
+// Blind.autoNext (Blindfold's own since v180) is switched on in memory (not by its checkbox). Nothing else:
 // the rating, the chosen seconds and the puzzles are whatever the app made.
 // READ FROM THE APP, not from the screen: the puzzle's rating and solution
 // (Blind.current) and the unrounded rating (Blind.elo). The expected numbers
@@ -47,8 +47,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = process.argv[2];
 if (!OUT) { console.error('usage: node tools/cdp-verify-blind.mjs <outDir>'); process.exit(1); }
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const PORT = 9300 + Math.floor(Math.random() * 600);
-const WEB = 9900 + Math.floor(Math.random() * 90);
+// Clear of tools/emu-verify-simul.mjs (9300-9899, 9900-9989), which another session may be running.
+const PORT = 9100 + Math.floor(Math.random() * 90);
+const WEB = 8700 + Math.floor(Math.random() * 90);
 const APP_URL = `http://localhost:${WEB}`;
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-blind-'));
 fs.mkdirSync(OUT, { recursive: true });
@@ -170,7 +171,7 @@ const state = () => evalP(`${B}
     counting: !document.getElementById('blind-countdown').classList.contains('hidden'),
     pays: document.getElementById('blind-pays').textContent, lastPaid: document.getElementById('blind-last-paid').textContent,
     goText: document.getElementById('blind-go').textContent,
-    badge: document.getElementById('blind-elo').textContent, status: document.getElementById('blind-status').textContent,
+    badge: document.getElementById('blind-elo').textContent, status: document.getElementById('blind-status-text').textContent,
     stored: await (await import('${APP_URL}/js/db.js')).kvGet('blindfoldSeconds', null),
     storedAttempts: await (await import('${APP_URL}/js/db.js')).kvGet('blindfoldAttemptCount', null),
     mode: Blind.mode, storedMode: await (await import('${APP_URL}/js/db.js')).kvGet('blindfoldMode', null),
@@ -442,8 +443,8 @@ try {
   const hides = await doubleNext();
   check('two quick finger taps on Next: the pieces are hidden once, not every second', hides === 1, hides);
 
-  // ── 5c. Change time, with auto-next on (SEEDED: Puzzles.autoNext = true) ──
-  await evalP(`const { Puzzles } = await import('${APP_URL}/js/app.js'); Puzzles.autoNext = true;`);
+  // ── 5c. Change time, with auto-next on (SEEDED: Blind.autoNext = true) ──
+  await evalP(`const { Blind } = await import('${APP_URL}/js/app.js'); Blind.autoNext = true;`);
   np = await nextPuzzle();
   before = np.st;
   await waitInteractive();
@@ -475,7 +476,7 @@ try {
   const quiet3 = await staysQuiet(3000);
   const st3 = await state();
   check('CHANGE TIME between puzzles: panel at once, and the late auto-next starts nothing', st.startShown && quiet3 && st3.startShown && !st3.gameShown, { start: st.startShown, quiet3 });
-  await evalP(`const { Puzzles } = await import('${APP_URL}/js/app.js'); Puzzles.autoNext = false;`);
+  await evalP(`const { Blind } = await import('${APP_URL}/js/app.js'); Blind.autoNext = false;`);
 
   // ── 6. 20 s: remembered across a reload, pays half ────────────────────────
   await setSeconds(20);
@@ -525,7 +526,7 @@ try {
     st = await state();
     check(`${lang}/${scheme}: Go runs the 3 s countdown, offer line shown`, close(secs, 3, 0.4) && /\+\d+ extra/.test(st.bonus), { secs, bonus: st.bonus });
     check(`${lang}/${scheme}: slider locked and says so`, st.locked && st.lockedLook && st.label.startsWith('🔒') && st.timeHint === (lang === 'es' ? 'Bloqueado hasta que este puzzle se puntúe.' : 'Locked until this puzzle is scored.')
-      && st.changeBtn === (lang === 'es' ? '⚙ Cambiar modo o tiempo' : '⚙ Change mode or time'), { hint: st.timeHint, btn: st.changeBtn });
+      && st.changeBtn === (lang === 'es' ? '⚙ Cambiar ajustes' : '⚙ Change settings'), { hint: st.timeHint, btn: st.changeBtn });
     await evalP(`document.querySelector('.blind-time').scrollIntoView({ block: 'end' });`);
     await sleep(200);
     await shot(`6-${lang}-${scheme}-locked`);

@@ -9,6 +9,51 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD AND SEALED MOVES: THE NEXT BUTTON (2026-10-13, v210).** No spec; Adrian chose
+  from measured pictures (today and two mock-ups of each screen, 375 x 667, light and dark).
+  - **Measured before (Spanish, same in dark).** Blindfold: `#blind-next` was 37 px tall and
+    100 wide in the row UNDER the board, at 733-770 px while solving and 750-787 after a
+    solve: off a 667 px screen, 115-132 px of scrolling away. The board itself ended at 723
+    (56 px off) and, during the opening look, at 793 (126 px off, almost three ranks), because
+    the four-line explanation and a 70 px countdown row stood over it. Kael covered nothing.
+    Sealed Moves: `#calc-next` was already 44 x 197 at 609-653, on screen, beside Kael.
+  - **Adrian's three answers.** (a) Blindfold: option C, the Puzzle design AND the board made
+    to fit. (b) Sealed Moves: same place, gold, with the arrow; NOT moved into Kael's line
+    (mocked: the text wrapped and the board lost 8 px) and NO skip added. (c) Blindfold's Next
+    stays a skip while the puzzle is in play, as it always was.
+  - **Blindfold, built.** index.html: `#blind-status` now holds `#blind-status-text`, then
+    `#blind-countdown` (moved in from its own row), then `#blind-next` (out of
+    `#blind-actions`), `<span data-i18n="next_puzzle">` plus " ➡". css/style.css: the
+    `#puzzle-status` rules are shared (`#puzzle-status, #blind-status` and so on);
+    `#blind-status .blind-countdown` is the 30 px number; `#screen-blind.playing > p.hint`
+    hides the explanation. js/app.js `Blind`: `setStatus` writes the span (the one direct
+    write in `nextPuzzle` goes through it now); `setDone(on)` toggles `.done`, false in
+    `nextPuzzle`, true in the solve branch of `userMove` and in `showSolution`; `go()` and
+    `showStart()` put and take `.playing` on `#screen-blind`; ONE click handler on the bar
+    in `init`, as on Puzzles. Do not add an onclick to `#blind-next` itself.
+    Now: the board ends at 628 px (ES) to 645 (EN, a two-line bonus) memorising, solving and
+    solved; Next is 44 px tall at 154-198.
+  - **Sealed Moves, built.** `#calc-next` holds the span and " ➡"; css `#calc-next` is gold
+    (`var(--gold)`, `#0b1526`). Nothing in js/calc-ui.js changed. `js/i18n.js` untouched.
+  - **Verified.** `node tools/cdp-verify-blind-calc-next.mjs <outDir>` (new; ports 9100s and
+    8700s): 92 of 92 in ES and EN, light and dark: words, 44 px, colours, button and whole
+    board on screen with nothing scrolled while memorising, solving and solved, Kael not over
+    it, a real tap loads exactly one exercise; a wrong move, a skip, a peek, the solution,
+    auto-next, List mode; hand in then next, a failed hand-in, the solution, auto-next.
+    cdp-verify-puzzle-next 50 of 50 (Puzzles unchanged), cdp-verify-blind 154 of 154,
+    cdp-verify-blind-theme 54 of 54, test:tree and test:precache pass.
+  - **Tools repaired on the way.** cdp-verify-blind, -blind-theme and -calc moved to ports
+    9100s / 8700s (they sat on the simul tool's). cdp-verify-blind had been failing on main
+    since v180: it seeded `Puzzles.autoNext` (Blindfold has its own) and expected the old
+    "Change mode or time" wording; both corrected, and it reads `#blind-status-text`.
+  - **Still owed / reported, not fixed.** (1) cdp-verify-calc is 276 of 280 on untouched
+    main too: "a plain solve pays +1, less than the perfect +1" fails in all four runs (both
+    round to +1 for the puzzle it picks). A tool or rating-rounding question, its own task.
+    (2) In Blindfold, Peek and Show solution are still half under the fold at 375 x 667 (the
+    row is at about 636-676). (3) The start panel's Go button is at 648-700, 33 px under a
+    667 px screen. (4) cdp-verify-premove and cdp-verify-swipe-modes were not re-run; they
+    find `#blind-next` and `#blind-countdown` by id, which are kept.
+
 - **SIMULS, CONVERSATION 8 OF 8: WATCHING, THE LINK, KAEL (2026-10-13, v209).** Spec
   `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 8, the
   LAST one: the spec's plan is finished. `firestore.rules` untouched (the read rule

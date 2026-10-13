@@ -48,8 +48,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = process.argv[2];
 if (!OUT) { console.error('usage: node tools/cdp-verify-calc.mjs <outDir>'); process.exit(1); }
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const PORT = 9300 + Math.floor(Math.random() * 600);
-const WEB = 9900 + Math.floor(Math.random() * 90);
+// Clear of tools/emu-verify-simul.mjs (9300-9899, 9900-9989), which another session may be running.
+const PORT = 9100 + Math.floor(Math.random() * 90);
+const WEB = 8700 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-modes-'));
 fs.mkdirSync(OUT, { recursive: true });
 setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 540000).unref();
