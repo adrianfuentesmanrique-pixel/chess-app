@@ -1,7 +1,9 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **conversations 1, 2, 3 and 4 of 8 are built
-(2026-10-13). 2 is the database: the Simul block in `firestore.rules`,
+Date: 2026-10-11. Status: **conversations 1, 2, 3, 4 and 5 of 8 are built
+(2026-10-13). 5 is endings and keeping the games (v205): resign, the draw
+offer, the student told when away, every finished game saved once to each
+phone's History; Adrian's answers are in HANDOVER.md. 2 is the database: the Simul block in `firestore.rules`,
 `tests/rules/simul.test.js`, the Simul section of `js/firebase.js`
 and `tools/emu-verify-simul.mjs`. 3 is the invitation and the waiting room,
 `js/simul-ui.js` (v203): the Simultáneas screen for the teacher, a banner and

@@ -8,8 +8,11 @@
 // And the game (conversation 4; sections 3c, 3h and 3k): ONE board on the same
 // screen. The teacher's has a strip of tiles above it, one per student, and
 // goes from board to board; a student's is opened from the banner or the card
-// (`sOpen`) and shows their own game only. No clock, no resigning, no draw
-// offers and nothing saved yet: conversations 5 and 6.
+// (`sOpen`) and shows their own game only.
+// And how a game ends and is kept (conversation 5; sections 3h and 3i): resign
+// and the draw offer on the row under the board, the student told when a game
+// ended while they were elsewhere, and every finished game saved ONCE to this
+// phone's own History (keep). No clock yet: conversation 6.
 //
 // The database cannot tell legal chess (spec 3k, "The honest part"), so this
 // file does: a board is replayed before it is shown (shownPosition), a move
@@ -28,13 +31,16 @@ import { t, getLang } from './i18n.js';
 import { avatarHtml } from './avatars.js';
 import { Board } from './board.js';
 import { Sound } from './sound.js';
+import * as db from './db.js';
+import { GameTree, START_FEN } from './tree.js';
+import { buildRecord, saveGame } from './history.js';
 import {
   SIMUL, coloursFor, buildStart, inviteOpen, sideToMove, packMove, tryMove, shownPosition, voidable,
-  nextBoard,
+  nextBoard, mayOfferDraw, positionOf,
 } from './simul.js';
 import {
   watchSimulTeacher, watchSimulStudent, sendSimulInvite, joinSimul, declineSimul,
-  startSimul, endSimul, simulMove, voidSimul, syncSimulClock, simulServerNow, pulsoClockOffset,
+  startSimul, endSimul, simulMove, voidSimul, resignSimul, offerSimulDraw, answerSimulDraw, syncSimulClock, simulServerNow, pulsoClockOffset,
 } from './firebase.js';
 import { $, esc, toast, askConfirm, showScreen, activeScreen, paintCapCounter } from './app.js';
 import { Students } from './students.js';
@@ -50,12 +56,22 @@ const SEEN_KEY = 'simulSeen';
 // A finished simul the teacher has closed ("New simul"): its startAt.
 const CLOSED_KEY = 'simulClosed';
 const AUTO_KEY = 'simulAuto';
+// Games this phone has put in its History: 'me|id' -> startAt. A board is
+// reused for every simul of a pair, so "this game" is the board and its start.
+const SAVED_KEY = 'simulSaved';
+// When this phone first saw a game over: id -> [startAt, this phone's time].
+// No stamp is stored for an ending, so the hour of "your game is over" is the
+// phone's own.
+const ENDED_KEY = 'simulEnded';
+// A simul reason as History names it (history_end_*).
+const END = { mate: 'checkmate', stalemate: 'stalemate', repetition: 'repetition', fifty: 'fiftyMove',
+  material: 'insufficient', resign: 'resign', agreed: 'agreed', flag: 'timeout', unfinished: 'abandoned' };
 // The teacher sees their own move land before the screen jumps to the next board.
 const JUMP_MS = 600;
 // A move of mine still unconfirmed after this long is said to be on its way.
 const SLOW_MS = 2000;
 // The banner shows one board: the one that asks for something first.
-const ORDER = ['invited', 'live', 'joined', 'late', 'expired'];
+const ORDER = ['invited', 'live', 'joined', 'over', 'late', 'expired'];
 
 const named = (key, name) => t(key).replace('{n}', name);
 const fmtLeft = ms => {
@@ -90,6 +106,9 @@ export const SimulUI = {
   memo: new Map(),    // id -> { key, v }: a board is replayed when it changes, not once a second
   voided: new Set(),  // boards this phone has asked to void: it asks once
   slow: null,         // { key, at }: since when the write on the board on screen is unconfirmed
+  saved: null,        // SAVED_KEY, read once
+  keeping: new Set(), // games on their way into History
+  ended: null,        // ENDED_KEY, read once
 
   init() {
     $('simul-back').onclick = () => showScreen('students');
@@ -111,6 +130,10 @@ export const SimulUI = {
       const next = nextBoard(this.playing(), this.sel);
       if (next) this.show(next.s);
     };
+    $('simul-resign').onclick = () => this.resign();
+    $('simul-draw').onclick = () => this.offer();
+    $('simul-accept').onclick = () => this.answerDraw(true);
+    $('simul-decline').onclick = () => this.answerDraw(false);
     $('simul-end').onclick = () => this.end();
     $('simul-new').onclick = () => this.close();
     for (const ev of ['online', 'offline']) addEventListener(ev, () => this.sync());
@@ -168,10 +191,25 @@ export const SimulUI = {
     try { localStorage.setItem(SEEN_KEY, JSON.stringify(all)); } catch {}
   },
 
+  // This phone's time when it first saw this game over.
+  endedAt(g) {
+    if (!this.ended) { try { this.ended = JSON.parse(localStorage.getItem(ENDED_KEY)) || {}; } catch { this.ended = {}; } }
+    const e = this.ended[g.id];
+    if (e && e[0] === g.startAt) return e[1];
+    this.ended[g.id] = [g.startAt, Date.now()];
+    try { localStorage.setItem(ENDED_KEY, JSON.stringify(this.ended)); } catch {}
+    return this.ended[g.id][1];
+  },
+
   // What one of my boards as a student has to say, or null for nothing:
-  // 'invited', 'joined', 'live', 'late' (it started without me), 'expired'.
+  // 'invited', 'joined', 'live', 'late' (it started without me), 'expired',
+  // 'over' (my game ended and I have not seen how).
   stateOf(g, now = simulServerNow()) {
     if (g.status === 'live') return now - g.startAt < SIMUL.ABANDONED_MS ? 'live' : null;
+    if (g.status === 'done') {
+      if (!g.startAt || this.seen()[g.id] === g.invitedAt) return null;
+      return Date.now() - this.endedAt(g) < NOTICE_MS ? 'over' : null;
+    }
     if (g.status !== 'invited' && g.status !== 'joined' && g.status !== 'out') return null;
     if (g.status !== 'out' && inviteOpen(g, now)) return g.status;
     if (now - g.invitedAt > NOTICE_MS || this.seen()[g.id] === g.invitedAt) return null;
@@ -214,6 +252,7 @@ export const SimulUI = {
     const shown = this.shown();
     const onScreen = activeScreen === 'simul' && (!!this.tFor || !!this.sOpen);
     this.referee();
+    this.keep();
     const counting = shown.some(x => x.state === 'invited' || x.state === 'joined')
       || (onScreen && this.view() === 'room');
     // Ten minutes are the SERVER's ten minutes: measured once a session.
@@ -238,7 +277,7 @@ export const SimulUI = {
   line(x) {
     const name = Students.who(x.g.t).profileName;
     return named({ invited: 'simul_invite', joined: 'simul_waiting_for', live: 'simul_started_with',
-      late: 'simul_late', expired: 'simul_expired' }[x.state], name);
+      over: 'simul_over_with', late: 'simul_late', expired: 'simul_expired' }[x.state], name);
   },
   // The student plays the colour the teacher does not.
   colourLine(g) { return t(g.tc === 'w' ? 'simul_you_black' : 'simul_you_white'); },
@@ -251,6 +290,10 @@ export const SimulUI = {
     }
     if (x.state === 'live') {
       return [{ key: 'simul_to_board', cls: 'btn small primary', on: () => this.openBoard(x.g.id) }];
+    }
+    if (x.state === 'over') {
+      return [{ key: 'simul_ok', cls: 'btn small', on: () => { this.markSeen(x.g); this.sync(); } },
+        { key: 'simul_see_board', cls: 'btn small primary', on: () => this.openBoard(x.g.id) }];
     }
     if (x.state === 'late' || x.state === 'expired') {
       return [{ key: 'simul_ok', cls: 'btn small', on: () => { this.markSeen(x.g); this.sync(); } }];
@@ -329,7 +372,9 @@ export const SimulUI = {
   render() {
     const mine = this.sOpen ? this.sBoards.find(g => g.id === this.sOpen) : null;
     // The board I was on is no longer mine to see (the link ended, I signed out).
-    if (this.sOpen && !mine) { showScreen('students'); return; }
+    // Or it holds no game any more: the teacher has invited me again over the
+    // one I was looking at, and the card in Students is where that is answered.
+    if (this.sOpen && (!mine || !mine.startAt)) { showScreen('students'); return; }
     const view = this.sOpen ? 'game' : this.view();
     const game = view === 'game' || view === 'started';
     const cur = view === 'setup' || view === 'loading' || game ? [] : this.current();
@@ -447,12 +492,14 @@ export const SimulUI = {
   // How a game ended, in words. `name` is the other player.
   resultLine(g, name) {
     if (g.reason === 'mate') return g.winner === g.me ? t('simul_res_mate_won') : named('simul_res_mate_lost', name);
-    const key = { stalemate: 'simul_res_stalemate', repetition: 'simul_res_repetition', fifty: 'simul_res_fifty',
+    if (g.reason === 'resign') return named(g.winner === g.me ? 'simul_res_resign_won' : 'simul_res_resign_lost', name);
+    const key = { agreed: 'simul_res_agreed', stalemate: 'simul_res_stalemate', repetition: 'simul_res_repetition', fifty: 'simul_res_fifty',
       material: 'simul_res_material', void: 'simul_res_void', unfinished: 'simul_res_unfinished' }[g.reason];
     return t(key || 'simul_res_over');
   },
   // The same on a tile, where there is room for one word.
   tileResult(g) {
+    if (g.reason === 'resign') return t(g.winner === 't' ? 'simul_tile_resigned' : 'simul_tile_i_resigned');
     return t(g.winner === 't' ? 'simul_tile_won' : g.winner === 's' ? 'simul_tile_lost' : g.winner === 'draw' ? 'simul_tile_draw'
       : g.reason === 'void' ? 'simul_tile_void' : 'simul_tile_open');
   },
@@ -470,6 +517,13 @@ export const SimulUI = {
     const live = g.status === 'live';
     const isVoid = !v || v.bad || g.reason === 'void';
     const myMove = live && !isVoid && sideToMove(g) === g.me;
+    // The row under the board: resign and offer a draw, or the answer to the
+    // other side's offer in their place.
+    const canAct = live && !isVoid;
+    const offer = canAct && !!g.draw && g.draw !== g.me;
+    const mayOffer = canAct && mayOfferDraw(g, g.me);
+    // A student who is looking at how their game ended has been told.
+    if (!teacher && !live && this.seen()[g.id] !== g.invitedAt) this.markSeen(g);
     // A write of mine that is taking its time: said, so that a move made with
     // no signal is not taken for one that arrived.
     const sk = `${g.id}|${g.n}`;
@@ -495,7 +549,9 @@ export const SimulUI = {
       [...strip.children].forEach((el, i) => {
         const x = boards[i], turn = x.status === 'live' && sideToMove(x) === 't';
         const on = x.id === g.id;
-        const text = x.status === 'done' ? this.tileResult(x) : turn ? t('simul_tile_turn') : '';
+        const asks = x.status === 'live' && x.draw === 's';
+        const text = x.status === 'done' ? this.tileResult(x) : asks ? t('simul_tile_offer') : turn ? t('simul_tile_turn') : '';
+        el.classList.toggle('offer', asks);
         if (on && !el.classList.contains('on')) el.scrollIntoView({ block: 'nearest', inline: 'center' });
         el.classList.toggle('on', on);
         el.classList.toggle('turn', turn);
@@ -505,15 +561,29 @@ export const SimulUI = {
     }
 
     const key = JSON.stringify([getLang(), teacher, this.busy, g.id, g.status, g.reason, g.winner, myMove, isVoid, slow,
-      them.profileName, anyLive, !!next]);
+      them.profileName, anyLive, !!next, g.draw, mayOffer]);
     if (key !== this.gameKey) {
       this.gameKey = key;
+      const turn = t(myMove ? 'simul_your_move' : 'simul_their_move');
       const text = isVoid ? t('simul_res_void') : !live ? this.resultLine(g, them.profileName)
-        : slow ? t('simul_sending') : t(myMove ? 'simul_your_move' : 'simul_their_move');
+        : slow ? t('simul_sending') : offer ? t('simul_draw_theirs')
+        : g.draw === g.me ? `${t('simul_draw_mine')} · ${turn}` : turn;
       const st = $('simul-status');
       st.innerHTML = `<b>${esc(them.profileName)}</b> · ${esc(text)}`;
       st.classList.toggle('mine', myMove);
-      $('simul-ctl').classList.toggle('hidden', !teacher || !anyLive);
+      const ctl = $('simul-ctl');
+      ctl.classList.toggle('hidden', teacher ? !anyLive : !canAct);
+      // A student's row holds two buttons and has room for their words.
+      ctl.classList.toggle('solo', !teacher);
+      const hide = (id, off) => { $(id).classList.toggle('hidden', off); $(id).disabled = this.busy; };
+      ctl.querySelector('.simul-auto').classList.toggle('hidden', !teacher || offer);
+      hide('simul-draw', !canAct || offer);
+      hide('simul-resign', !canAct || offer);
+      hide('simul-accept', !offer);
+      hide('simul-decline', !offer);
+      // Not `disabled`: a tap on it says why.
+      $('simul-draw').classList.toggle('off', !mayOffer);
+      $('simul-skip').classList.toggle('hidden', !teacher);
       $('simul-skip').disabled = !next;
       $('simul-end').classList.toggle('hidden', !teacher || !anyLive);
       $('simul-end').disabled = this.busy;
@@ -653,6 +723,94 @@ export const SimulUI = {
     const r = await this.write(() => startSimul());
     if (!r || r.ok) return;
     toast(t(r.reason === 'nobody' ? 'simul_start_nobody' : 'simul_start_again'), 3500);
+  },
+
+  // My own board only, and only after a question. The board is fixed before
+  // the question: the teacher's screen may have jumped by the time it is answered.
+  async resign() {
+    const g = this.onBoard();
+    if (!g || g.status !== 'live' || this.busy) return;
+    const q = g.me === 't' ? named('simul_resign_confirm_t', Students.who(g.s).profileName) : t('simul_resign_confirm');
+    if (!await askConfirm(esc(q))) return;
+    const r = await this.write(() => resignSimul(g.id));
+    if (r && r.reason === 'refused') toast(t('stu_try_again'));
+  },
+
+  // One offer per player per 10 moves by each side, and one at a time.
+  async offer() {
+    const g = this.onBoard();
+    if (!g || g.status !== 'live' || this.busy) return;
+    if (!mayOfferDraw(g, g.me)) {
+      const last = g.me === 't' ? g.tDr : g.sDr;
+      const left = Math.ceil((SIMUL.DRAW_GAP_MOVES * 2 - (g.n - last)) / 2);
+      toast(g.draw === g.me ? t('simul_draw_wait') : t('simul_draw_later').replace('{n}', left), 3500);
+      return;
+    }
+    const r = await this.write(() => offerSimulDraw(g.id));
+    if (r && r.reason === 'refused') toast(t('stu_try_again'));
+  },
+
+  async answerDraw(accept) {
+    const g = this.onBoard();
+    if (!g || g.status !== 'live' || this.busy) return;
+    const r = await this.write(() => answerSimulDraw(g.id, accept));
+    if (r && r.reason === 'refused') toast(t('stu_try_again'));
+  },
+
+  // ── keeping the games ──────────────────────────────────────────────────
+
+  // Spec 3i: each phone keeps its own games in the History it already has.
+  // Every finished game with a move on it, once: a board is stored until the
+  // pair's next simul, so the listener shows the same ending again after every
+  // reload. A void board is not a game and is not kept; "not finished" is.
+  // The student's phone does this on any screen; the teacher's only while its
+  // screen is open, so a game that ended while they were elsewhere is kept
+  // when they come back, and never if that student is invited again first.
+  keep() {
+    if (!this.saved) { try { this.saved = JSON.parse(localStorage.getItem(SAVED_KEY)) || {}; } catch { this.saved = {}; } }
+    for (const g of [...this.sBoards, ...this.tBoards]) {
+      if (!g.me || g.pending || g.status !== 'done' || !g.startAt || !g.n || g.reason === 'void') continue;
+      const key = `${g.me}|${g.id}`, once = `${key}|${g.startAt}`;
+      if (this.saved[key] === g.startAt || this.keeping.has(once)) continue;
+      // A mate that is not one is about to be voided (referee).
+      const v = this.look(g);
+      if (!v || v.bad) continue;
+      this.keeping.add(once);
+      this.record(g).then(() => {
+        this.saved[key] = g.startAt;
+        try { localStorage.setItem(SAVED_KEY, JSON.stringify(this.saved)); } catch {}
+      }, e => console.error('Saving a simul game failed', e));
+    }
+  },
+
+  // The game as History keeps one: from the board's own start position, the
+  // opening moves first, then the game's.
+  async record(g) {
+    const p = positionOf(g);
+    if (!p.ok) return;
+    const mine = (g.me === 't') === (g.tc === 'w') ? 'w' : 'b';
+    const them = Students.who(g.me === 't' ? g.s : g.t).profileName;
+    const me = await db.kvGet('profileName', '') || t('history_you');
+    const tree = new GameTree(g.fen === START_FEN ? undefined : g.fen);
+    for (const san of [...p.opening, ...p.sans]) tree.play(san);
+    const won = g.winner === 't' ? g.tc : g.winner === 's' ? (g.tc === 'w' ? 'b' : 'w') : g.winner;
+    const d = new Date(g.startAt), two = n => String(n).padStart(2, '0');
+    const rec = buildRecord({
+      chess: p.chess, startFen: g.fen, playerColor: mine, playedAt: g.startAt, endedAt: Math.max(g.at || 0, g.startAt), pgn: '',
+      source: 'simul', opponent: them,
+      ended: {
+        result: won === 'w' ? '1-0' : won === 'b' ? '0-1' : won === 'draw' ? '1/2-1/2' : '*',
+        outcome: !g.winner ? 'unfinished' : g.winner === 'draw' ? 'draw' : g.winner === g.me ? 'win' : 'loss',
+        endReason: END[g.reason] || 'abandoned',
+      },
+    });
+    tree.setHeader('White', mine === 'w' ? me : them);
+    tree.setHeader('Black', mine === 'b' ? me : them);
+    tree.setHeader('Date', `${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())}`);
+    tree.setHeader('Event', t('history_simul'));
+    tree.setHeader('Result', rec.result);
+    rec.pgn = tree.toPgn();
+    await saveGame(rec);
   },
 
   // Ended by the teacher, it is closed too: the picker comes back.

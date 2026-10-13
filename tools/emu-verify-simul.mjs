@@ -50,6 +50,18 @@
 //      reload of both phones in the middle, a move made with no signal that is
 //      sent when it comes back.
 //
+// ENDINGS AND KEEPING THE GAMES (conversation 5), round 6 of the same passes,
+// three simuls on three boards with the teacher's phone at 375 x 667:
+//   6a. A draw offered and declined, offered again too soon, an offer that goes
+//       when the other side moves, a student who resigns, a draw accepted, the
+//       teacher resigning one board while its student is on another screen.
+//       What each phone kept in its History, once, and still once after a
+//       reload; a kept game opened in Analysis from its own start position.
+//   6b. A threefold repetition played with a finger (the other automatic draws
+//       are seeded on it); the teacher ends the simul with two boards open.
+//   6c. The start is made 3 hours old (seeded): the teacher invites over it.
+// SIMUL_PASS=es-light (or es-dark, en-light, en-dark) runs one pass only.
+//
 // Local emulator only. Nothing here touches the real project.
 import { spawn, spawnSync } from 'node:child_process';
 import http from 'node:http';
@@ -437,7 +449,13 @@ async function screens() {
       toBoard: 'Ir al tablero', your: 'Te toca', their: 'Esperando su jugada', sending: 'Enviando tu jugada…',
       offline: 'Sin señal. Lo que juegues se envía cuando vuelva.', mateWon: 'Jaque mate. Ganaste.', mateLost: n => `Jaque mate. Gana ${n}.`,
       voidRes: 'Anulada: jugada no válida.', unfinished: 'Sin terminar: la simultánea se cerró.',
-      tTurn: 'Te toca', tWon: 'Ganada', tLost: 'Perdida', tVoid: 'Anulada', next: '⏭ Siguiente', auto: 'Saltar al siguiente tablero', again: 'Nueva simultánea',
+      tTurn: 'Te toca', tWon: 'Ganada', tLost: 'Perdida', tVoid: 'Anulada', next: '⏭ Siguiente', auto: 'Salto automático', again: 'Nueva simultánea',
+      resign: 'Rendirse', draw: 'Tablas', accept: 'Aceptar tablas', decline: 'Rechazar', resignWon: n => `${n} se rindió. Ganaste.`, resignLost: n => `Te rendiste. Gana ${n}.`,
+      agreed: 'Tablas de mutuo acuerdo.', drawTheirs: 'Te ofrece tablas', drawMine: 'Ofreciste tablas', later: n => `Una oferta de tablas cada 10 jugadas. Jugadas que faltan: ${n}.`,
+      resignAsk: '¿Rendirte? Pierdes esta partida.', resignAskT: n => `¿Rendirte en el tablero de ${n}? Pierdes esa partida; las demás siguen.`,
+      over: 'Tu partida con Marta terminó', seeBoard: 'Ver el tablero', tOffer: '¿Tablas?', tResigned: 'Se rindió', tIResigned: 'Me rendí', tDraw: 'Tablas',
+      repetition: 'Tablas: la posición se repitió tres veces.', stalemate: 'Tablas: rey ahogado.', fifty: 'Tablas: 50 jugadas sin capturas ni peones.',
+      material: 'Tablas: no quedan piezas para dar mate.', histSimul: 'Simultánea',
       inv: 'Tu profesor Marta te invita a una simultánea', black: 'Juegas con negras', white: 'Juegas con blancas', join: 'Unirme', notNow: 'Ahora no', ok: 'Entendido',
       wait: 'Esperando a que Marta empiece', live: 'La simultánea con Marta ha empezado', late: 'La simultánea de Marta empezó sin ti',
       expired: 'La invitación de Marta a la simultánea caducó' },
@@ -447,7 +465,13 @@ async function screens() {
       toBoard: 'Go to the board', your: 'Your move', their: 'Waiting for their move', sending: 'Sending your move…',
       offline: 'No signal. What you play is sent when it comes back.', mateWon: 'Checkmate. You won.', mateLost: n => `Checkmate. ${n} wins.`,
       voidRes: 'Void: invalid move.', unfinished: 'Not finished: the simul was ended.',
-      tTurn: 'Your move', tWon: 'Won', tLost: 'Lost', tVoid: 'Void', next: '⏭ Next', auto: 'Jump to the next board', again: 'New simul',
+      tTurn: 'Your move', tWon: 'Won', tLost: 'Lost', tVoid: 'Void', next: '⏭ Next', auto: 'Auto-jump', again: 'New simul',
+      resign: 'Resign', draw: 'Draw', accept: 'Accept draw', decline: 'Decline', resignWon: n => `${n} resigned. You won.`, resignLost: n => `You resigned. ${n} wins.`,
+      agreed: 'Draw by agreement.', drawTheirs: 'Offers you a draw', drawMine: 'You offered a draw', later: n => `One draw offer every 10 moves. Moves to go: ${n}.`,
+      resignAsk: 'Resign? You lose this game.', resignAskT: n => `Resign on ${n}'s board? You lose that game; the others go on.`,
+      over: 'Your game with Marta is over', seeBoard: 'See the board', tOffer: 'Draw?', tResigned: 'Resigned', tIResigned: 'I resigned', tDraw: 'Draw',
+      repetition: 'Draw: the position came up three times.', stalemate: 'Draw: stalemate.', fifty: 'Draw: 50 moves with no capture or pawn move.',
+      material: 'Draw: not enough pieces left to mate.', histSimul: 'Simul',
       inv: 'Your teacher Marta invites you to a simul', black: 'You play Black', white: 'You play White', join: 'Join', notNow: 'Not now', ok: 'OK',
       wait: 'Waiting for Marta to start', live: 'The simul with Marta has started', late: "Marta's simul started without you",
       expired: "Marta's invitation to the simul ran out" },
@@ -492,7 +516,8 @@ async function screens() {
     await teach.until('the question', `!!document.querySelector('.modal-box .btn.danger')`);
   };
 
-  for (const [lang, scheme] of [['es', 'light'], ['es', 'dark'], ['en', 'light'], ['en', 'dark']]) {
+  const only = process.env.SIMUL_PASS;
+  for (const [lang, scheme] of [['es', 'light'], ['es', 'dark'], ['en', 'light'], ['en', 'dark']].filter(x => !only || only === x.join('-'))) {
     const tag = `${lang}-${scheme}`, w = T[lang];
     console.log(`\n── The screens: ${lang.toUpperCase()}, ${scheme}, 375 px ──`);
     await Promise.all([teach.load(lang, scheme), ana.load(lang, scheme), luis.load(lang, scheme)]);
@@ -620,8 +645,8 @@ async function screens() {
     await ana.tap('#stu-simul-list .btn.primary');
     await ana.until('her board', onBoard);
     r = await look(ana);
-    check(`[${tag}] Ana's board: Black at the bottom, not her move yet, no strip, no buttons, no banner over it`,
-      r.status === 'Marta · ' + w.their && r.side === 'b' && !r.live && r.fen === after() && !r.strip && !r.ctl && !r.end && !r.again && !r.banner, r);
+    check(`[${tag}] Ana's board: Black at the bottom, not her move yet, no strip, a row of her own (draw, resign), no End, no banner over it`,
+      r.status === 'Marta · ' + w.their && r.side === 'b' && !r.live && r.fen === after() && !r.strip && r.ctl && !r.end && !r.again && !r.banner, r);
     await play(teach, 'e2', 'e4');
     await teach.until('the move on the teacher\'s board', fenIs('e2e4'));
     await ana.until('the move arrives', fenIs('e2e4') + ' && ' + stat('Marta · ' + w.your));
@@ -947,6 +972,332 @@ async function screens() {
     await ana.shot(`${tag}-26-student-mated`);
     await teach.tap('#simul-new');
     await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+    console.log('  6. Endings and keeping the games');
+    // The teacher Black against Eva and without a queen, as a handicap will
+    // make it (conversation 7): seeded, to prove a saved game starts where its
+    // board did.
+    const QLESS = 'rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const afterOn = (fen, ...uci) => { const c = new Chess(fen); for (const u of uci) c.move({ from: u.slice(0, 2), to: u.slice(2, 4) }); return c.fen().split(' ')[0]; };
+    const students = [ana, eva, luis];
+    const kept = p => p.ev(`
+      const db = await import('/js/db.js');
+      const { items } = await db.pageHistory({ count: 500 });
+      return items.filter(x => x.source === 'simul').map(x => ({ id: x.id, vs: x.opponent, col: x.playerColor, res: x.result, out: x.outcome, end: x.endReason, moves: x.moveCount, fen: x.startFen }));`);
+    const keptAll = async () => Object.fromEntries(await Promise.all(all.map(async p => [p.who, await kept(p)])));
+    // The simul games a phone has kept since `old` was read: waits for `n` of them.
+    const fresh = async (p, old, n, ms = 8000) => {
+      const ids = new Set(old[p.who].map(x => x.id));
+      let now = [];
+      for (const t0 = Date.now(); ;) {
+        now = (await kept(p)).filter(x => !ids.has(x.id));
+        if (now.length >= n || Date.now() - t0 > ms) break;
+        await sleep(150);
+      }
+      return now.sort((x, y) => (x.vs < y.vs ? -1 : 1)).map(x => [x.vs, x.col, x.res, x.out, x.end, x.moves, x.fen === START ? 'start' : x.fen]);
+    };
+    const row = p => p.ev(`
+      const box = e => { const r = e.getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right), t: Math.round(r.top), b: Math.round(r.bottom), text: e.innerText.replace(/\\s+/g, ' ').trim(), label: e.getAttribute('aria-label'), off: e.classList.contains('off') }; };
+      const b = sel => __t.vis(sel) ? box(document.querySelector(sel)) : null;
+      return { h: innerHeight, top: document.querySelector('main').scrollTop, ctl: b('#simul-ctl'), auto: b('.simul-auto'), draw: b('#simul-draw'), resign: b('#simul-resign'),
+        accept: b('#simul-accept'), decline: b('#simul-decline'), skip: b('#simul-skip'), end: b('#simul-end') }`);
+    // Everything named is in the row, side by side, inside the phone.
+    const inRow = (x, ...names) => !!x.ctl && names.every((k, i) => x[k] && x[k].t >= x.ctl.t - 1 && x[k].b <= x.ctl.b + 1 && x[k].l >= 0 && x[k].r <= 375 && (i === 0 || x[names[i - 1]].r <= x[k].l));
+    const toastIs = text => `!document.getElementById('toast').classList.contains('hidden') && __t.txt('#toast') === ${JSON.stringify(text)}`;
+    const ask = `document.querySelector('.modal-box .btn.danger') && document.querySelector('.modal-box p').textContent`;
+    const invited = `(__t.txt('#simul-banner-who span') || '').startsWith(${JSON.stringify(w.inv)}) && __t.vis('#simul-banner-acts .btn.primary')`;
+    const waitStored = async (id, test, what) => {
+      for (const t0 = Date.now(); ;) {
+        const g = await stored(`simulGames/${id}`);
+        if (test(g)) return g;
+        if (Date.now() - t0 > 12000) throw new Error(`never stored: ${what} — ` + JSON.stringify(g));
+        await sleep(100);
+      }
+    };
+    const invite3 = async () => {
+      await teach.until('the picker, three students', `document.querySelectorAll('#simul-pick input').length === 3`, 15000);
+      for (const n of [1, 2, 3]) {
+        if (!await teach.ev(`return document.querySelector('#simul-pick label:nth-child(${n}) input').checked`)) await teach.tap(`#simul-pick label:nth-child(${n}) input`);
+      }
+      await teach.tap('#simul-colour button[data-v="alt"]');
+      await teach.tap('#simul-invite');
+      await teach.until('the waiting room', `document.getElementById('simul-start') && __t.S.tBoards.filter(g => g.status === 'invited' && !g.pending).length === 3`);
+    };
+    // A new simul on three boards, every student on their own.
+    const three = async () => {
+      for (const p of students) await p.ev(`__t.app.showScreen('home')`);
+      await invite3();
+      for (const p of students) { await p.until('the invitation', invited); await p.tap('#simul-banner-acts .btn.primary'); }
+      await teach.until('all three joined', `__t.txt('#simul-start') === ${JSON.stringify(w.start(3))} && !document.getElementById('simul-start').disabled`);
+      await teach.tap('#simul-start');
+      await teach.until('the boards', `__t.vis('#simul-end') && __t.tiles().length === 3`);
+      for (const p of students) { await p.until('started', says(w.live)); await p.tap('#simul-banner-acts .btn.primary'); await p.until('the board', onBoard); }
+    };
+
+    // ── 6a. Resign, the draw offer, and what each phone keeps ──
+    let old = await keptAll();
+    await three();
+    r = await row(ana);
+    check(`[${tag}] a student's board has a row of its own: "½ ${w.draw}" and "${w.resign}", in words, and nothing of the teacher's`,
+      inRow(r, 'draw', 'resign') && r.draw.text === '½ ' + w.draw && r.resign.text === w.resign && !r.draw.off && !r.auto && !r.skip && !r.end && !r.accept && !r.decline, r);
+    await ana.shot(`${tag}-27-student-row`);
+    await teach.until('Ana\'s board', stat('Ana · ' + w.your));
+    r = await row(teach);
+    check(`[${tag}] 375 x 667, the teacher: the switch, draw, resign and skip share ONE row; the strip, the board, that row and End are on screen with nothing scrolled`,
+      r.h === 667 && r.top === 0 && inRow(r, 'auto', 'draw', 'resign', 'skip') && r.ctl.b <= r.end.t && r.end.b <= 667 && r.auto.text === w.auto
+      && r.draw.text === '½' && r.draw.label === w.draw && r.resign.text === '' && r.resign.label === w.resign && r.skip.text === w.next, r);
+    await teach.shot(`${tag}-28-teacher-row`);
+
+    // A move on each board; Eva's is given its handicap and opening first.
+    await play(teach, 'e2', 'e4');
+    await teach.until('the jump to Luis\'s board', on('Luis'));
+    await play(teach, 'd2', 'd4');
+    await luis.until('d4 on Luis\'s board', fenIs('d2d4') + ' && ' + stat('Marta · ' + w.your));
+    await ana.until('e4 on Ana\'s board', fenIs('e2e4') + ' && ' + stat('Marta · ' + w.your));
+    await seed(`simulGames/${TE}`, { fen: QLESS, op: 'e2e4-e7e5-' });
+    await eva.until('the seeded start', `__t.fen() === ${JSON.stringify(afterOn(QLESS, 'e2e4', 'e7e5'))} && ` + stat('Marta · ' + w.your));
+    await play(eva, 'g1', 'f3');
+    await teach.until('Eva has moved', `__t.tiles()[1][3]`);
+
+    // Ana offers a draw; the teacher declines.
+    await ana.tap('#simul-draw');
+    await ana.until('her offer, said', stat(`Marta · ${w.drawMine} · ${w.your}`));
+    a = await waitStored(TA, g => g.draw === 's', 'Ana\'s offer');
+    await teach.until('the mark on her tile', `__t.tiles()[0][1] === ${JSON.stringify(w.tOffer)}`);
+    r = await look(teach);
+    check(`[${tag}] Ana offers a draw: stored with the move it was made at; her phone says "${w.drawMine}", her button is off, and her tile on the teacher's strip says "${w.tOffer}" while they are on another board`,
+      a.draw === 's' && a.sDr === 1 && a.tDr === -1 && a.status === 'live' && (await row(ana)).draw.off && same(r.tiles[0], ['Ana', w.tOffer, false, false]) && r.status.startsWith('Luis · '), [a.draw, a.sDr, r.tiles[0]]);
+    await teach.tap(TILE(1));
+    await teach.until('the offer, on her board', stat('Ana · ' + w.drawTheirs));
+    r = await row(teach);
+    check(`[${tag}] on Ana's board the teacher reads "${w.drawTheirs}" with "${w.accept}" and "${w.decline}" in the row, in place of draw, resign and the switch; still one screen`,
+      r.top === 0 && inRow(r, 'accept', 'decline', 'skip') && r.accept.text === w.accept && r.decline.text === w.decline && !r.draw && !r.resign && !r.auto && r.end.b <= 667, r);
+    await teach.shot(`${tag}-29-teacher-draw-offered`);
+    await teach.tap('#simul-decline');
+    a = await waitStored(TA, g => g.draw === null, 'the offer declined');
+    await ana.until('declined', stat('Marta · ' + w.your));
+    await teach.until('the row back', `__t.vis('#simul-draw') && __t.vis('.simul-auto')`);
+    check(`[${tag}] declined: the offer is gone from both phones and the game goes on`, a.status === 'live' && a.draw === null && a.sDr === 1 && !(await row(ana)).accept && (await look(teach)).tiles[0][1] === '', [a.status, a.draw]);
+    // Too soon.
+    r = await row(ana);
+    await ana.tap('#simul-draw');
+    await ana.until('told why not', toastIs(w.later(10)));
+    const no = await ana.ev(`return await __t.fb.offerSimulDraw('${TA}')`);
+    a = await stored(`simulGames/${TA}`);
+    check(`[${tag}] offered again too soon: the button is off, a tap says "${w.later(10)}", and nothing is written`,
+      r.draw.off && no.ok === false && no.reason === 'limit' && a.draw === null && a.sDr === 1, [no, a.draw]);
+    await ana.shotOnly(`${tag}-30-student-too-soon`);
+    // The teacher offers; Ana moves instead.
+    await teach.tap('#simul-draw');
+    await ana.until('the teacher\'s offer', stat('Marta · ' + w.drawTheirs));
+    a = await waitStored(TA, g => g.draw === 't', 'the teacher\'s offer');
+    r = await row(ana);
+    const tSaid = (await look(teach)).status;
+    check(`[${tag}] the teacher offers: Ana reads "${w.drawTheirs}" with the two answers in her row; the teacher's phone says "${w.drawMine}"`,
+      a.tDr === 1 && inRow(r, 'accept', 'decline') && !r.draw && !r.resign && tSaid === `Ana · ${w.drawMine} · ${w.their}`, [a.tDr, tSaid]);
+    await ana.shot(`${tag}-31-student-draw-offered`);
+    await play(ana, 'e7', 'e5');
+    a = await waitStored(TA, g => g.n === 2, 'Ana\'s move');
+    await teach.until('her move, and no offer', stat('Ana · ' + w.your));
+    await ana.until('her row back', `__t.vis('#simul-resign') && ` + stat('Marta · ' + w.their));
+    check(`[${tag}] an offer goes when the other side moves: Ana plays e5, the offer is off the board in the same write`, a.draw === null && a.mv === 'e2e4-e7e5-' && a.status === 'live', [a.draw, a.mv]);
+
+    // Ana resigns.
+    await ana.tap('#simul-resign');
+    await ana.until('the question', ask);
+    const q1 = await ana.ev(`return ${ask}`);
+    await ana.shot(`${tag}-32-student-resign-ask`);
+    await ana.tap('.modal-box .btn.danger');
+    a = await waitStored(TA, g => g.status === 'done', 'Ana\'s resignation');
+    await ana.until('said on her phone', stat('Marta · ' + w.resignLost('Marta')));
+    await teach.until('said on the teacher\'s', stat('Ana · ' + w.resignWon('Ana')));
+    r = await look(teach);
+    check(`[${tag}] a student resigns, after "${w.resignAsk}": the teacher wins; her phone says "${w.resignLost('Marta')}", the teacher's "${w.resignWon('Ana')}" and the tile "${w.tResigned}"; her row is gone`,
+      q1 === w.resignAsk && same(result(a), ['done', 't', 'resign', null]) && r.tiles[0][1] === w.tResigned && !(await look(ana)).ctl && !(await row(teach)).resign, [q1, result(a), r.tiles[0]]);
+    await teach.shot(`${tag}-33-teacher-student-resigned`);
+    await ana.shot(`${tag}-34-student-resigned`);
+
+    // Luis offers a draw and the teacher accepts.
+    await luis.tap('#simul-draw');
+    await teach.until('the mark on his tile', `__t.tiles()[2][1] === ${JSON.stringify(w.tOffer)}`);
+    await teach.tap(TILE(3));
+    await teach.until('the offer', stat('Luis · ' + w.drawTheirs));
+    await teach.tap('#simul-accept');
+    l = await waitStored(TL, g => g.status === 'done', 'the draw agreed');
+    await luis.until('said on his phone', stat('Marta · ' + w.agreed));
+    await teach.until('said on the teacher\'s', stat('Luis · ' + w.agreed));
+    check(`[${tag}] a draw offered and accepted: "${w.agreed}" on both phones, "${w.tDraw}" on the tile`,
+      same(result(l), ['done', 'draw', 'agreed', null]) && (await look(teach)).tiles[2][1] === w.tDraw && !(await look(luis)).ctl, result(l));
+    await luis.shot(`${tag}-35-student-draw-agreed`);
+
+    // The teacher resigns on Eva's board, while she is on another screen.
+    await eva.ev(`__t.app.showScreen('home')`);
+    await teach.tap(TILE(2));
+    await teach.until('Eva\'s board', stat('Eva · ' + w.your));
+    await teach.tap('#simul-resign');
+    await teach.until('the question', ask);
+    const q2 = await teach.ev(`return ${ask}`);
+    await teach.shot(`${tag}-36-teacher-resign-ask`);
+    await teach.tap('.modal-box .btn.danger');
+    e = await waitStored(TE, g => g.status === 'done', 'the teacher\'s resignation');
+    await teach.until('said, and every board over', `__t.vis('#simul-new') && ` + stat('Eva · ' + w.resignLost('Eva')));
+    r = await look(teach);
+    check(`[${tag}] the teacher resigns one board, after "${w.resignAskT('Eva')}": Eva wins; the tile says "${w.tIResigned}", the other results stand`,
+      q2 === w.resignAskT('Eva') && same(result(e), ['done', 's', 'resign', null]) && same(r.tiles.map(x => x[1]), [w.tResigned, w.tIResigned, w.tDraw]) && !r.ctl && !r.end, [q2, result(e), r.tiles]);
+    await teach.shot(`${tag}-37-teacher-resigned`);
+    await eva.until('told on the screen she is on', says(w.over));
+    check(`[${tag}] Eva was not on her board: a banner says "${w.over}", with "${w.ok}" and "${w.seeBoard}"`, same((await banner(eva))[1], [w.ok, w.seeBoard]));
+    await eva.shot(`${tag}-38-banner-game-over`);
+    await eva.tap('#simul-banner-acts .btn.primary');
+    await eva.until('her board', onBoard + ' && ' + stat('Marta · ' + w.resignWon('Marta')));
+    r = await look(eva);
+    await eva.ev(`__t.app.showScreen('home')`);
+    await sleep(1200);
+    check(`[${tag}] "${w.seeBoard}" shows how it ended ("${w.resignWon('Marta')}"), with nothing to press; having seen it she is not told again`,
+      !r.ctl && !r.live && r.fen === afterOn(QLESS, 'e2e4', 'e7e5', 'g1f3') && await banner(eva) === null, r);
+
+    // What each phone kept.
+    const wantT = [['Ana', 'w', '1-0', 'win', 'resign', 1, 'start'], ['Eva', 'b', '1-0', 'loss', 'resign', 2, QLESS], ['Luis', 'w', '1/2-1/2', 'draw', 'agreed', 1, 'start']];
+    const wantS = { Ana: [['Marta', 'b', '1-0', 'loss', 'resign', 1, 'start']], Eva: [['Marta', 'w', '1-0', 'win', 'resign', 2, QLESS]], Luis: [['Marta', 'b', '1/2-1/2', 'draw', 'agreed', 1, 'start']] };
+    r = await fresh(teach, old, 3);
+    check(`[${tag}] kept on the teacher's phone: three games, each once, with the student's name, the colour, the result and its reason, and the board's own start position`, same(r, wantT), r);
+    for (const p of students) {
+      r = await fresh(p, old, 1);
+      check(`[${tag}] kept on ${p.who}'s phone: that one game, once, against Marta`, same(r, wantS[p.who]), r);
+    }
+    // A reload: the boards are still stored and the listeners deliver the same endings again.
+    await Promise.all(all.map(p => p.load(lang, scheme)));
+    for (const p of students) {
+      await p.ev(`__t.app.showScreen('students')`);
+      await p.until('the invitation listener', `__t.S.sFor === '${p === ana ? ANA : p === eva ? EVA : LUIS}'`, 15000);
+      await p.ev(`__t.app.showScreen('home')`);
+    }
+    await teach.ev(`__t.app.showScreen('students')`);
+    await teach.until('the Simultáneas entry', `__t.vis('#stu-simul-open')`);
+    await teach.tap('#stu-simul-open');
+    await teach.until('the finished simul', `__t.vis('#simul-new') && __t.tiles().length === 3`);
+    await sleep(2500);
+    const again = [await fresh(teach, old, 4, 1500), await fresh(ana, old, 2, 1), await fresh(eva, old, 2, 1), await fresh(luis, old, 2, 1)];
+    const marks = await teach.ev(`return Object.keys(JSON.parse(localStorage.getItem('simulSaved') || '{}')).length`);
+    check(`[${tag}] after a reload of all four phones every game is still there ONCE: the phone remembers what it kept`,
+      same(again[0], wantT) && same(again[1], wantS.Ana) && same(again[2], wantS.Eva) && same(again[3], wantS.Luis) && marks >= 3, again.map(x => x.length));
+    // The tool's reload forgets what a phone was told (simulSeen): told again, and "OK" ends it.
+    for (const p of students) { await p.until('told again', says(w.over)); await p.tap('#simul-banner-acts .btn:not(.primary)'); await p.until('the banner gone', `!__t.vis('#simul-banner')`); }
+
+    // History, and the game opened in Analysis.
+    await eva.ev(`__t.app.showScreen('play'); (await import('/js/history.js')).open();`);
+    await eva.until('her games', `!!document.querySelector('#hist-list .hist-item')`);
+    r = await eva.ev(`const c = document.querySelector('#hist-list .hist-item'); return { cls: c.className, lines: [...c.querySelectorAll('.hist-players .ellipsis, .hist-result, .hist-line2, .hist-meta')].map(x => x.textContent), wide: document.documentElement.scrollWidth }`);
+    check(`[${tag}] History shows it like any game, the teacher's name where the engine's level is, marked "${w.histSimul}"`,
+      r.cls.includes('win') && r.lines[0].endsWith(' – Marta') && r.lines[1] === '1-0' && r.lines[3].startsWith(w.histSimul + ' · ') && r.wide <= 375, r);
+    await eva.shotOnly(`${tag}-39-history-card`);
+    await eva.tap('#hist-list .hist-item');
+    await eva.until('Analysis', `__t.app.activeScreen === 'analysis'`);
+    r = await eva.ev(`const T = __t.app.Analysis.tree; return { start: T.startFen, pgn: T.toPgn() }`);
+    check(`[${tag}] opened in Analysis from History: the board's own start position (no black queen), the opening moves first (1. e4 e5), then the game's (2. Nf3), the names and the result`,
+      r.start === QLESS && r.pgn.includes(`[FEN "${QLESS}"]`) && /1\.\s*e4\s+e5\s+2\.\s*Nf3/.test(r.pgn) && r.pgn.includes('[Black "Marta"]') && r.pgn.includes('[Result "1-0"]'), r);
+    await eva.shotOnly(`${tag}-40-analysis`);
+    r = await ana.ev(`
+      const db = await import('/js/db.js'), h = await import('/js/history.js');
+      const { items } = await db.pageHistory({ count: 1 });
+      await h.openGame(items[0]);
+      const T = __t.app.Analysis.tree;
+      return { screen: __t.app.activeScreen, start: T.startFen, pgn: T.toPgn() }`);
+    check(`[${tag}] …and a game from the normal start position opens as one: 1. e4 e5, no position written into it`,
+      r.screen === 'analysis' && r.start === START && !r.pgn.includes('[FEN') && /1\.\s*e4\s+e5/.test(r.pgn) && r.pgn.includes('[White "Marta"]') && r.pgn.includes('[Result "1-0"]'), r);
+    await teach.tap('#simul-new');
+    await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+
+    // ── 6b. A draw the board decides, and End simul ──
+    old = await keptAll();
+    await three();
+    await teach.until('Ana\'s board', stat('Ana · ' + w.your));
+    // The switch off: the teacher stays on Ana's board for the whole dance.
+    await teach.tap('#simul-auto');
+    const dance = [['g1', 'f3'], ['g8', 'f6'], ['f3', 'g1'], ['f6', 'g8']], line = [];
+    for (let i = 0; i < 8; i++) {
+      const [from, to] = dance[i % 4], p = i % 2 ? ana : teach, q = i % 2 ? teach : ana;
+      await p.until('to move', stat((i % 2 ? 'Marta' : 'Ana') + ' · ' + w.your));
+      await play(p, from, to);
+      line.push(from + to);
+      await q.until('the move', fenIs(...line));
+    }
+    a = await waitStored(TA, g => g.status === 'done', 'the repetition');
+    await ana.until('said on her phone', stat('Marta · ' + w.repetition));
+    await teach.until('said on the teacher\'s', stat('Ana · ' + w.repetition));
+    r = await look(teach);
+    check(`[${tag}] the knights go out and back twice: the position has come up three times and the game is a draw, stored with the move; both phones say "${w.repetition}"`,
+      same(result(a), ['done', 'draw', 'repetition', null]) && a.n === 8 && r.tiles[0][1] === w.tDraw && !r.live && !(await look(ana)).ctl, result(a));
+    await teach.shot(`${tag}-41-teacher-repetition`);
+    await ana.shot(`${tag}-42-student-repetition`);
+    // The other three automatic draws: their reason seeded on this real draw
+    // (a phone holds a draw to being one, not to its reason).
+    const said = [];
+    for (const k of ['stalemate', 'fifty', 'material']) {
+      await seed(`simulGames/${TA}`, { reason: k });
+      await ana.until(k + ', on her phone', stat('Marta · ' + w[k]));
+      await teach.until(k + ', on the teacher\'s', stat('Ana · ' + w[k]));
+      said.push(k);
+    }
+    await seed(`simulGames/${TA}`, { reason: 'repetition' });
+    await ana.until('as it was', stat('Marta · ' + w.repetition));
+    a = await stored(`simulGames/${TA}`);
+    check(`[${tag}] stalemate, the 50 moves and not enough pieces (seeded on that draw) are said in their own words on both phones, and the board is not voided`, said.length === 3 && same(result(a), ['done', 'draw', 'repetition', null]), said);
+    // A move on the other two boards, then the teacher ends the simul.
+    await teach.tap(TILE(3));
+    await teach.until('Luis\'s board', stat('Luis · ' + w.your));
+    await play(teach, 'e2', 'e4');
+    await luis.until('e4 on Luis\'s board', fenIs('e2e4') + ' && ' + stat('Marta · ' + w.your));
+    await play(eva, 'e2', 'e4');
+    await teach.until('Eva has moved', `__t.tiles()[1][3]`);
+    await eva.ev(`__t.app.showScreen('home')`);
+    await teach.tap('#simul-auto');
+    await end();
+    await teach.tap('.modal-box .btn.danger');
+    await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+    l = await waitStored(TL, g => g.status === 'done', 'Luis\'s board closed');
+    e = await waitStored(TE, g => g.status === 'done', 'Eva\'s board closed');
+    a = await stored(`simulGames/${TA}`);
+    await luis.until('said on his phone', stat('Marta · ' + w.unfinished));
+    await eva.until('told on the screen she is on', says(w.over));
+    check(`[${tag}] End simul closes EVERY open board as not finished, with no winner, and leaves the finished one alone; Luis's board says so, Eva is told by the banner`,
+      same(result(l), ['done', null, 'unfinished', null]) && same(result(e), ['done', null, 'unfinished', null]) && same(result(a), ['done', 'draw', 'repetition', null])
+      && !(await look(luis)).ctl && await teach.ev(`return __t.S.auto`), [result(l), result(e), result(a)]);
+    r = [await fresh(teach, old, 3), await fresh(ana, old, 1), await fresh(eva, old, 1), await fresh(luis, old, 1)];
+    check(`[${tag}] kept: the draw once (the seeded reasons did not save it again), and the two games not finished, on both phones, as unfinished`,
+      same(r[0], [['Ana', 'w', '1/2-1/2', 'draw', 'repetition', 4, 'start'], ['Eva', 'b', '*', 'unfinished', 'abandoned', 1, 'start'], ['Luis', 'w', '*', 'unfinished', 'abandoned', 1, 'start']])
+      && same(r[1], [['Marta', 'b', '1/2-1/2', 'draw', 'repetition', 4, 'start']]) && same(r[2], [['Marta', 'w', '*', 'unfinished', 'abandoned', 1, 'start']])
+      && same(r[3], [['Marta', 'b', '*', 'unfinished', 'abandoned', 1, 'start']]), r);
+
+    // ── 6c. A simul nobody closed: 3 hours ──
+    old = await keptAll();
+    await three();
+    await eva.ev(`__t.app.showScreen('home')`);
+    await eva.until('her banner', says(w.live));
+    const hoursAgo = async ms => {
+      const d = new Date(Date.now() - ms);
+      for (const id of [TA, TE, TL]) await seed(`simulGames/${id}`, { startAt: d, at: d, prevAt: d });
+    };
+    await hoursAgo(3 * 3600_000 - 60_000);
+    await teach.until('the seeded start', `__t.S.tBoards.every(g => !g.startAt || Date.now() - g.startAt > 3600_000)`);
+    await sleep(1500);
+    const before = await teach.ev(`return __t.vis('#simul-end') && __t.tiles().length === 3 && !document.getElementById('simul-invite')`) && await banner(eva) !== null;
+    await hoursAgo(3 * 3600_000 + 60_000);
+    await teach.until('the picker is back', `!!document.getElementById('simul-invite')`, 15000);
+    await eva.until('her banner gone', `!__t.vis('#simul-banner')`);
+    a = await stored(`simulGames/${TA}`);
+    await teach.tap('#simul-invite');
+    const a2 = await waitStored(TA, g => g.status === 'invited', 'the invitation over the abandoned simul');
+    e = await stored(`simulGames/${TE}`); l = await stored(`simulGames/${TL}`);
+    check(`[${tag}] a simul nobody closed: at 2 h 59 min the boards are still the teacher's screen; at 3 h 1 min the picker is back and Eva's banner is gone, the boards still stored as live`, before && a.status === 'live', [before, a.status]);
+    check(`[${tag}] …and the rules take a new invitation over the three abandoned boards`,
+      [a2, e, l].every(g => g.status === 'invited' && g.startAt === null && g.n === 0 && g.mv === ''), [a2.status, e.status, l.status]);
+    await ana.until('sent to her invitation', `__t.app.activeScreen === 'students' && ${lead(w.inv)}`);
+    r = [await fresh(teach, old, 1, 1500), await fresh(ana, old, 1, 1)];
+    check(`[${tag}] Ana was on the abandoned board: she is taken to the new invitation in Students; a game nobody ended is not kept`, !r[0].length && !r[1].length, r);
+    // Leave nothing waiting for the next round.
+    await age();
+    await patch(`simulGames/${TE}`, { invitedAt: { timestampValue: new Date(Date.now() - 660000).toISOString() } });
+    await teach.until('ran out', `!!document.getElementById('simul-again')`);
     // Eva is nobody's student again.
     await drop(`coaching/${TEACH}_${EVA}`); await drop(`simulGames/${TE}`);
     await teach.ev(`__t.app.showScreen('home')`);

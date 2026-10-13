@@ -67,11 +67,16 @@ export function resultOf(chess, playerColor, { resigned = false, flag = null } =
   return { result: '*', outcome: 'unfinished' };
 }
 
+// A game against a person (a simul board) passes `source`, the `opponent`'s
+// name and `ended` ({ result, outcome, endReason }): how it ended is stored
+// with the board, and a draw agreed or a game left open is in no position.
+// `opponent` is an optional field like `timeControl`; such a record has no level.
 export function buildRecord({ chess, startFen, playerColor, level, levelElo,
                               playedAt, pgn, resigned = false, abandoned = false,
-                              flag = null, timeControl = null }) {
+                              flag = null, timeControl = null,
+                              source = 'stockfish', opponent = null, ended = null, endedAt = Date.now() }) {
   const history = chess.history();
-  const { result, outcome } = resultOf(chess, playerColor, { resigned, flag });
+  const { result, outcome } = ended || resultOf(chess, playerColor, { resigned, flag });
   // Only a game played with a clock carries `timeControl` ({ base, inc }, in
   // seconds); a record without the field was played with none. An optional
   // field, so HISTORY_VERSION stays where it is.
@@ -80,15 +85,14 @@ export function buildRecord({ chess, startFen, playerColor, level, levelElo,
     ...timed,
     uid: newUid(),
     version: HISTORY_VERSION,
-    source: 'stockfish',
+    source,
     playedAt,
-    endedAt: Date.now(),
+    endedAt,
     playerColor,
-    level,
-    levelElo,
+    ...(opponent ? { opponent } : { level, levelElo }),
     result,
     outcome,
-    endReason: endReasonOf(chess, { resigned, abandoned, flag }),
+    endReason: ended ? ended.endReason : endReasonOf(chess, { resigned, abandoned, flag }),
     moveCount: Math.ceil(history.length / 2),
     opening: classifyOpening(history) || '',
     startFen,
@@ -169,7 +173,8 @@ export function formatWhen(ms) {
 // label nor a colour dot.
 export function namesFor(rec) {
   const me = t('history_you');
-  const bot = t('history_bot_name').replace('{lvl}', t('level_names')[rec.level]);
+  // A person's name where the engine's level is, for a game against one.
+  const bot = rec.opponent || t('history_bot_name').replace('{lvl}', t('level_names')[rec.level]);
   return rec.playerColor === 'w' ? { white: me, black: bot } : { white: bot, black: me };
 }
 
@@ -255,6 +260,7 @@ function card(rec) {
   const { white, black } = namesFor(rec);
   const line2 = rec.opening || t(`history_end_${rec.endReason}`);
   const meta = [
+    rec.source === 'simul' ? t('history_simul') : '',
     rec.timeControl ? controlLabel(rec.timeControl) : '',
     `${rec.moveCount} ${tn('history_moves', rec.moveCount)}`,
     formatDuration(rec.endedAt - rec.playedAt),

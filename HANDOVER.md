@@ -9,6 +9,67 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 5 OF 8: ENDINGS AND KEEPING THE GAMES (2026-10-13, v205).** Spec
+  `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 5.
+  `firestore.rules` untouched (every ending was already in the rules). Conversation 4
+  (`571179c`) was pushed at the start of this one, after Adrian said so. No clock: 6.
+  - **Adrian's four answers ("follow your recommendations").** (a) A game "not finished"
+    IS saved to History, a void board is NOT. (b) A student away from the board is told:
+    a banner and a card "Tu partida con Ana terminó", "Entendido" / "Ver el tablero", for
+    an hour. (c) Back on a board in play still asks nothing. (d) History shows the
+    opponent's name where the engine's level is, with "Simultánea" on the card's last line.
+  - **The row under the board** (`#simul-ctl`, `renderGame`): `#simul-draw`, `#simul-resign`,
+    `#simul-accept`, `#simul-decline` join the switch and skip. A student's row (`.solo`)
+    is draw + resign with their words. The teacher's row has no room for another line at
+    375x667, so there the two are signs only (½ and Play's flag, aria-label and title carry
+    the word) and the switch's text became "Salto automático" / "Auto-jump". An offer from
+    the other side puts Accept / Decline in the row in place of draw, resign and the
+    switch; the status says "Te ofrece tablas"; the student's tile says "¿Tablas?".
+    `SimulUI.resign()` asks first (`askConfirm`, the name escaped) and fixes the board
+    before the question; `offer()`; `answerDraw()`. All through `write()`: they need a
+    signal. The draw button is never `disabled`: when `mayOfferDraw` says no it is `.off`
+    and a tap says why (an offer standing, or how many moves to go).
+  - **Words.** `resultLine`: resign ("Ana se rindió. Ganaste." / "Te rendiste. Gana Ana.")
+    and agreed ("Tablas de mutuo acuerdo."); `tileResult`: "Se rindió" / "Me rendí". Flag
+    still falls through to `simul_res_over` (conversation 6).
+  - **Told when away.** `stateOf` has a state `'over'`: a `done` board with a start, not
+    yet seen (`simulSeen`, id -> invitedAt, the same mark "late" and "expired" use), for an
+    hour of THIS PHONE'S time since it first saw the ending (`localStorage` `simulEnded`,
+    id -> [startAt, ms]): no stamp is stored for an ending. A student looking at the
+    finished board is marked as told.
+  - **Keeping.** `SimulUI.keep()` runs in every `sync()`: a `done` board of mine with at
+    least one move, not void, not about to be voided, is saved ONCE (`localStorage`
+    `simulSaved`, `'me|id'` -> startAt; `keeping` while the save travels). `record()`
+    builds the tree from `g.fen` and `positionOf(g).opening` + `.sans`, so a handicap and an
+    opening (conversation 7) need no change here. `buildRecord()` in `js/history.js` takes
+    `source`, `opponent`, `ended` ({ result, outcome, endReason }) and `endedAt`; a record
+    with `opponent` has no `level` (the level filter leaves it out). New end reason
+    `agreed`. `playedAt` is the simul's start, `endedAt` the last move's stamp.
+  - **Said plainly.** The teacher's phone keeps a game only while the Simultáneas screen is
+    open (its listener is off elsewhere): one that ended meanwhile is kept on return, and
+    NEVER if that student is invited again first. A game resigned with no move on the
+    board is not kept. A simul abandoned for 3 hours is never "done", so never kept.
+    Home's "Continuar" card shows a kept simul game with the engine's robot icon.
+  - **A defect of conversation 4, fixed.** A student still looking at a finished board
+    when the teacher invited again saw neither banner nor card (the banner skips the board
+    on screen). `render()` now sends them to Students when their board holds no game.
+  - **Tool.** Round 6 of every pass, three simuls: 6a draw offered / declined / too soon /
+    gone on a move / accepted, a resignation by each side, the banner for a student who was
+    away, what each phone kept, the same after a reload of all four phones, the game
+    opened in Analysis from History (Eva's board seeded with no black queen and 1. e4 e5 as
+    its opening: the saved game starts there); 6b a threefold repetition played by taps,
+    the other three automatic draws seeded on it, End simul with two boards open; 6c the
+    start seeded 2 h 59 min old (nothing changes) then 3 h 1 min (picker back, a new
+    invitation accepted over three live boards). `SIMUL_PASS=es-light` runs one pass.
+    About 25 minutes.
+  - **Verified:** `test:tree` 453, `test:rules` 535, `test:precache` 59 files and 142 art,
+    the tool 573 of 573 with no console errors, 188 screenshots (about 17 opened and looked
+    at, es/en, light/dark). At 375x667 the teacher's row is one line and "End the simul"
+    still ends at 666 px with nothing scrolled. NOT checked: a real phone, the live
+    database, a draw-offer refusal by the RULES from a changed app (the rules tests cover
+    it; the tool proves the app's own refusal), stalemate / 50 moves / bare kings reached
+    by real play (their words were shown on a seeded reason).
+
 - **SIMULS, CONVERSATION 4 OF 8: THE GAME (2026-10-13, v204).** Spec
   `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 4.
   **`firestore.rules` changed (one helper): the push waited for Adrian's
