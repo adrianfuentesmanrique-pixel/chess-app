@@ -12,6 +12,12 @@ and ask the user if he want to play this opening against the engine. another
 interactive space, beside the puzzle of the day, where the user can visually see
 another board."
 
+And on 2026-10-12, after reading the first version of this spec: "you can remove
+the switch between endgame and opening, and just show 1 thing. That will switch
+aleatory, sometimes show endgame position, sometime an opening. so we can call
+it simple "Discover"." And: "in the home, there will be no Kael in the lower
+right corner right? because it will be repetitive as well."
+
 ---
 
 ## 1. What it is
@@ -49,10 +55,10 @@ every rating, "nivel 4", "38 jugadas", "mates básicos", "Nivel 1, sin reloj".
 They show the shape, not the app's data. The endgame (La regla del cuadrado,
 `p1`) is real.
 
-**One sentence in the pictures is wrong and must not be built:** "Te faltan 2
-misiones para que la racha llegue a 13." The streak and the missions are two
-separate things in the code (`Streak` counts real practice; `DailyMissions` has
-its own counter). See decision a, item 1.
+Kael's sentence in the pictures speaks about the streak only. The streak and the
+missions are two separate things in the code (`Streak` counts real practice;
+`DailyMissions` has its own counter) and his line must never mix them. See
+decision a, item 1.
 
 ---
 
@@ -88,8 +94,9 @@ its own counter). See decision a, item 1.
    - the last game against the engine (`db.pageHistory({ count: 1 })`) → that
      game, opened the way Play's history opens it.
    With no rows at all the heading is not drawn either (see b).
-4. **"Descubre": the second board — ADDED BY ADRIAN.** One card, one board, one
-   question, one button. It shows one of two things:
+4. **"Descubre" / "Discover": the second board — ADDED AND NAMED BY ADRIAN.** One
+   card, one board, one question, one button, **no switch**. It shows one of two
+   things, and a small grey word in the corner says which ("Final" / "Apertura"):
    - **An endgame:** the position of one of the 265 studies, its name, "¿Conoces
      este final?" and its subtitle. Button **Aprenderlo** → the Learn screen with
      that study open (`Endgame.openPosition(pos)`).
@@ -97,17 +104,30 @@ its own counter). See decision a, item 1.
      contra el motor?" and the moves. Button **Jugarla** → Openings, with the
      library's own Study question for that line (colour and level,
      `OpeningLib.study()`), so there is one way to start such a game, not two.
-   - **Which one, and which position — my reading of "show between two things",
-     to be confirmed:** they alternate by the calendar: an endgame one day, an
-     opening the next. The position is picked from the date, like the puzzle of
-     the day, so it is the same all day and changes at midnight. Two small chips
-     in the card's corner, "Final | Apertura", let the user look at the other
-     one; the choice is not remembered.
+   - **Which one — DECIDED BY ADRIAN: at random.** Sometimes an endgame,
+     sometimes an opening, and a random position of that kind. **When the dice
+     are thrown is my reading, to be confirmed:** once each time the app is
+     opened. The card then stays the same while the app is open, so it does not
+     change under the user's finger when they come back to Home from another
+     tab. Nothing is stored and it is not the same for every user.
    - It is not a mission and does not touch the streak by itself.
 
 Nothing else. **Not on Home:** the eight section buttons (Adrian: repetitive;
 the menu is one tap away), the four rating cards, friend requests (the gold dot
 on the avatar already says it), practice time, Rush bests, leaderboards.
+
+### a2. Kael in the corner — DECIDED BY ADRIAN: not on Home
+
+Checked in `css/style.css` and `index.html`: `#kael-corner` is on every screen.
+Idle, it is a faded sliver of his face at the right edge; when he has something
+to say (`KaelQuotes.show`: a mission finished, a streak step, a badge) it slides
+in with a speech bubble.
+
+**On Home the idle sliver is hidden**: he is already at the top of the page.
+**My recommendation for the one case left open:** if he really has something to
+say while Home is in view, he still slides in to say it and leaves again.
+Otherwise a mission's "well done" would be lost for a user who returns to Home
+quickly.
 
 ### b. What a brand-new, signed-out user sees — RECOMMENDED, shown to Adrian with the designs
 
@@ -204,7 +224,8 @@ counts as no practice. That is right and stays so.
    `main()` opens Home; swipe and Back as in c. Kael's line (the five rules).
    The "Hoy" card with the puzzle's title and button but **no board yet**, the
    chip, and the two mission rows; `DailyMissions.render()` draws there.
-   Profile's card becomes the one row. The tour as in f, because moving the
+   Profile's card becomes the one row. Kael's corner hidden on Home while idle
+   (decision a2). The tour as in f, because moving the
    missions breaks its `profMiss` step otherwise. The 45-second reminder skipped
    on Home. A new `js/home.js` for the parts that are pure (which sentence Kael
    says, given streak and missions), with unit tests. Both languages. Precache
@@ -217,10 +238,11 @@ counts as no practice. That is right and stays so.
    and `npm.cmd run test:precache` pass.
 2. **The two boards.** The puzzle board in the "Hoy" card, loaded after the
    screen is drawn, with the offline case; "Resuelto ✓" once solved. The
-   "Descubre" card: the pick by date (pure, unit-tested: alternation, the same
-   all day, different tomorrow), the endgame side, the short opening list (a
-   unit test checks every entry is a real line of the library), the two chips,
-   both buttons landing in the right place.
+   "Descubre" card: the random pick (a pure function that takes the random
+   number as an argument, so it can be unit-tested: both kinds come up, every
+   position can come up), thrown once per app open, the endgame side, the
+   short opening list (a unit test checks every entry is a real line of the
+   library), both buttons landing in the right place. No switch.
    *Checks:* Home's first paint does not request a puzzle file or the opening
    library (read the network list); with the network off the page still draws;
    "Aprenderlo" opens that exact study; "Jugarla" opens the Study question for
@@ -251,9 +273,11 @@ Firestore rule or index.
   at the 667px line). A user who never scrolls will not see it. If that matters,
   the fix is to put it above "Continuar"; that is Adrian's call after seeing it
   on a phone.
-- **The alternation rule and the two chips are my reading** of "show between two
-  things". He may have meant something else (both on one card to flip between,
-  or a random one each time the app opens).
+- **"Once each time the app is opened" is my reading** of "switch aleatory". He
+  may want a new one every time Home is shown, or a new one each day.
+- **A random card can show the same thing twice in a row**, and with no switch
+  the user who wanted the other kind has to reopen the app. That is the price of
+  keeping it simple.
 - **The puzzle of the day is easier than expected, and that is how it is built
   today, not something Home changes.** Read in `puzzleOfDay()`: every player
   rated under 1800 gets a puzzle from the lowest file (`puzzles-0.json`, ratings
@@ -265,9 +289,6 @@ Firestore rule or index.
 - **Opening names are in English only.** The library says so itself ("name: the
   opening, in English"). In Spanish the card will read "Italian Game". Fine for
   most names, odd for a few.
-- **Two Kaels on one screen:** his bust beside the line at the top, and the
-  floating button in the corner that every screen has. The first build session
-  looks at the screenshot and decides whether the corner one hides on Home.
 - **Homework on Home is only as fresh as the Students module's own check.**
   Home adds no server read, so a homework given a minute ago may not show until
   that check runs. That is the price of "opens instantly and offline".

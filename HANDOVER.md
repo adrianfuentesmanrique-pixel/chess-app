@@ -22,8 +22,10 @@ are in `CLAUDE.md` under "Finish by pushing".
     first in the swipe; the app always opens on Home; Back ends on Home; the missions move
     from Profile to Home (Profile keeps one row); the tour starts on Home; Home reads only
     what is on the phone and loads the puzzle file after it is drawn.
-  - **Still his to confirm:** that "Descubre" alternates by the day with two chips to see the
-    other one (my reading of his words).
+  - **Changed by Adrian the same day:** "Descubre" has no switch and shows an endgame or an
+    opening at random; Kael's corner is not shown on Home (he is already at the top).
+  - **Still his to confirm:** that the random pick is thrown once each time the app opens
+    (my reading), and that Kael still slides in on Home when he really has something to say.
   - **Found while reading, not fixed:** `puzzleOfDay()` gives every player under 1800 a
     puzzle from `puzzles-0.json` (ratings up to 799), and that file is not in the offline
     list in `sw.js` (only `puzzles-3.json` is). Written up in the spec's risks.

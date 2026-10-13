@@ -192,7 +192,7 @@ function second(kind) {
   const eg = kind === 'endgame';
   const seg = (on, txt) => '<span class="chip' + (on ? '' : ' plain') + '">' + txt + '</span>';
   return '<div class="card"><div class="row between" style="margin-bottom:10px;"><h3 style="margin:0">' + L('Descubre', 'Discover') + '</h3>'
-    + '<span class="row" style="gap:6px;">' + seg(eg, L('Final', 'Endgame')) + seg(!eg, L('Apertura', 'Opening')) + '</span></div>'
+    + '<span class="hint">' + (eg ? L('Final', 'Endgame') : L('Apertura', 'Opening')) + '</span></div>'
     + '<div class="row" style="align-items:stretch; gap:12px;"><div style="width:118px;">'
     + (eg ? board(['a2'], '6k1/8/8/8/8/8/P7/7K') : board(['c4'], 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R')) + '</div>'
     + '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">'
@@ -204,7 +204,7 @@ function second(kind) {
 function designA(kind) {
   const greet = NEW
     ? L('<b>Bienvenido.</b> Soy Kael. Empieza por el puzzle de hoy: es un minuto.', '<b>Welcome.</b> I am Kael. Start with today\'s puzzle: it takes a minute.')
-    : L('<b>Buenas tardes, Adrián.</b> Te faltan 2 misiones para que la racha llegue a 13.', '<b>Good afternoon, Adrián.</b> Two missions left for the streak to reach 13.');
+    : L('<b>Buenas tardes, Adrián.</b> Tu racha de 12 días te espera: hoy todavía no cuenta.', '<b>Good afternoon, Adrián.</b> Your 12-day streak is waiting: today does not count yet.');
   return `<div class="screen">
     <div class="row" style="align-items:flex-end; margin-top:4px;"><img class="kael" src="${APP}icons/kael/kael-bust.png"><div class="bubble">${greet}</div></div>
     <div class="card" style="border:1px solid var(--gold);">
@@ -312,8 +312,8 @@ const D = [
   ['c', L('C — «Kael te guía»: un solo paso siguiente', 'C — "Kael guides you": one next step'), designC],
 ];
 if (only === 'final') { D.length = 0;
-  D.push(['f1', L('A final — hoy toca un final', 'Final A — an endgame today'), () => designA('endgame')]);
-  D.push(['f2', L('A final — hoy toca una apertura', 'Final A — an opening today'), () => designA('opening')]); }
+  D.push(['f1', L('A final — sale un final', 'Final A — an endgame comes up'), () => designA('endgame')]);
+  D.push(['f2', L('A final — sale una apertura', 'Final A — an opening comes up'), () => designA('opening')]); }
 document.getElementById('sheet').innerHTML = D.filter(d => !only || only === 'final' || d[0] === only).map(([id, name, fn]) =>
   `<div class="col"><h4>${name}</h4><div class="phone">${topbar()}${fn()}<div class="fold"><span>667px</span></div></div></div>`).join('');
 // Report the sheet's size so the screenshot can be cut to fit.
