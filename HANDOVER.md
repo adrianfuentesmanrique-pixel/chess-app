@@ -9,6 +9,58 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS: ♟ ENDGAME HOMEWORK - ONE STUDY OF THE LEARN TAB, DONE WHEN A PRACTICE OF IT ENDS IN SUCCESS (2026-10-13, v217).**
+  Session 2 of 3 of Adrian's plan. The sheet now has three buttons: 🧩 Puzzles, 📖 Chapter,
+  ♟ Endgame. 🤖 Position (session 3) is NOT BUILT. FIRESTORE.RULES CHANGED: the rules were
+  deployed by Adrian before the push.
+  ADRIAN'S DECISIONS (2026-10-13, do not re-open): (a) ANY success counts, wrong moves on the
+  way included - the practice takes a wrong move back and waits for the right one, so reaching
+  the end already means every move was found; only resigning, or being mated after leaving the
+  line, fails. It counts however he got to the study, from the card or through the Learn tab.
+  (b) the words: "♟ Final" / "♟ Endgame"; pickers "Tipo de final" + "Final" / "Endgame type" +
+  "Endgame"; card "Final: {name} — resuélvelo en Practicar" / "Endgame: {name} — solve it in
+  Practice", for the teacher "… — hecho cuando lo resuelve en Practicar" / "… — done when they
+  solve it in Practice"; button "Abrir" / "Open". (c) he ALSO sees tries and mistakes (he
+  chose this over "done + time" knowing it needs two new stored numbers).
+  WHAT IS STORED: kind `'endgame'`, params `{ endgameId }` (the `id` of js/endgames-data.js,
+  `[A-Za-z0-9_-]{1,40}`). Two new progress fields, endgame only: `tries` (practices STARTED,
+  increment(), only grows, ≤ 1000) and `mistakes` (wrong moves of the practice that solved it,
+  0–999, accepted only on the write that moves status to 'done'). No Results button: nothing
+  to list. The four older kinds are untouched ('text' and 'list' still stored and still work).
+  WHERE: js/students.js - `assignSheet` (`.hw-eg` with two selects `.hw-egc` / `.hw-egs`; the
+  second shows name — subtitle, because 54 of the 265 names repeat), `hwEndgame(h)` (null = the
+  app no longer has that id: the card says so and gets "Mark done", through `markTextDone`),
+  `hwEndgameDetail(h)` (" · 3 tries · 1 mistake", in `hwProgressHtml`, so both sides see it),
+  `hwOpenEndgame(h)` (as Home's discovery card: showScreen('endgame'), category, openPosition),
+  `hwEndgameTry(id)` and `hwEndgameDone(id, success, mistakes)`, `hwOnTask` (seconds count
+  while that study is open in Learn). js/app.js - two lines only: `Endgame.startPractice()`
+  calls `Students.hwEndgameTry`, `Endgame.finishPractice()` calls `Students.hwEndgameDone`.
+  The walkthrough reaches neither, so it is neither a try nor a solve. js/firebase.js -
+  `saveHomeworkProgress` takes `addTries` / `mistakes`; if a write with them is refused it is
+  sent again without them (the count matters more than the detail). css: `.hw-sheet .hw-kind`
+  is three columns - SESSION 3 MAKES IT FOUR BUTTONS, look at 375 px again (2 x 2 probably).
+  TWO TEACHERS, SAME ENDGAME: one solve finishes both homeworks.
+  VERIFIED: test:rules 550 of 550 (535 on main before + 15 new; about 90 s), test:tree 469,
+  test:precache 59 files. NEW tools/cdp-verify-students8.mjs: 133 of 133, real taps, 375 px,
+  ES/EN, light/dark, pictures looked at - what is sent has kind and id; the card lands on
+  exactly that study; the walkthrough to its last move leaves it open with no try; a resigned
+  practice leaves it open with one try; a practice with one wrong move finishes it (2 tries,
+  1 mistake, "Homework done!"); a clean one reached through the Learn tab finishes another;
+  an unknown id is ticked off; a Task, a List, a Puzzles and a Chapter sent before still show
+  and still complete. tools/cdp-verify-students7.mjs 73 of 73 with ONE expectation changed on
+  purpose ("the sheet has two buttons" is now three). students4 and students5 print what they
+  print on main (differences: the random puzzle on the board, the kinds list now with
+  'endgame', the cache name).
+  NOT PROVED IN A BROWSER: the write itself (headless Chrome has no Firebase user) - the app
+  builds the patch in `saveHomeworkProgress` and test:rules proves that shape is accepted.
+  The Chapter in students8 is stood in for (`Masterclass.openForHomework` replaced, its last
+  move reported by calling `hwChapterStep`). The two pickers are native selects: their values
+  were set by script, CDP cannot tap an OS list. NOT CHECKED ON A REAL PHONE: the rook list
+  (121 entries) in the phone's own picker.
+  SEEN, NOT TOUCHED (existing behaviour): after a practice ends, failed or not, "Practice vs
+  the engine" stays hidden - to try again he goes Back and opens the study again. A closed
+  picker cuts a long endgame name short at 375 px; the open list shows it whole.
+
 - **COORDINATES: WITH A RESULT UP, ITS LINE SAYS THE BEST OF WHAT IS NOW CHOSEN (2026-10-13, v216).**
   THE FAULT: after a run the best card (`#coord-best-row`) is hidden, because card and result
   together do not fit above "Otra vez" at 375x667; so moving the slider or changing the
