@@ -515,7 +515,8 @@ try {
     const wantBonus = lang === 'es' ? '20 s: los aciertos pagan el 50% de los puntos normales' : '20 s look: a win pays 50% of the normal points';
     check(`${lang}/${scheme}: control shown, remembered, in the right language`, st.label === wantLabel && st.pays === wantBonus && st.range === '20', { label: st.label, pays: st.pays });
     check(`${lang}/${scheme}: theme applied, fits 375px`, lay.mode.includes('mode-' + scheme) && lay.docW <= 375 && lay.left >= 0 && lay.right <= 375, { mode: lay.mode, docW: lay.docW });
-    check(`${lang}/${scheme}: help text no longer says a fixed 10 seconds`, !/10 se/.test(lay.explain) && /1 (a|to) 20/.test(lay.explain), lay.explain.slice(0, 80));
+    // One line since v212 (the 1 to 20 range is the slider's to show), so that Go fits a 375 x 667 screen.
+    check(`${lang}/${scheme}: help text no longer says a fixed 10 seconds`, !/10 se/.test(lay.explain) && lay.explain.length > 20, lay.explain.slice(0, 80));
     check(`${lang}/${scheme}: start panel up, no countdown, Go on screen`, st.startShown && !st.gameShown && !st.counting && st.goText === (lang === 'es' ? '▶ Empezar' : '▶ Go') && lay.goBottom <= 812 && lay.goW > 300,
       { go: st.goText, goBottom: lay.goBottom });
     // a short look in this language/theme too, so the gold lines are photographed

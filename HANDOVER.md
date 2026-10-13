@@ -9,6 +9,38 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **BLINDFOLD: THE WHOLE SCREEN FITS 375x667 (2026-10-13, v212).** No spec; Adrian chose
+  both from pictures of the real app (three options each, "leave it" included).
+  - **The row under the board** (`#blind-actions`: Peek, Show solution, share) was 9 px
+    under the screen in Spanish and 26 px in English, its buttons 37-40 px tall. Now: the
+    board gives up width on SHORT phones only, `#blind-board { max-width: max(240px,
+    min(560px, calc(100dvh - 346px))) }` in `css/style.css`: 321 px instead of 355 at
+    375x667 (squares 44 to 40 px), full width from about 700 px of height up. The row is
+    one line, 44 px buttons, `padding-right: 52px` for Kael (his corner slides in to
+    x=315 when he speaks), share a 44 px square. Row at 602-646 (619-663 when the bonus
+    line takes two lines). Rejected: hiding the mode chips during play.
+  - **The start panel** (`#blind-start`): Go was 33 px under the screen on a first visit
+    and 78 px under once the "last puzzle" line was there. Now `blind_explain` is ONE line
+    in both languages (the "1 to 20" is the slider's to show), the slider's grey note is
+    hidden on the start panel only (`#blind-start #blind-time-hint`; it still shows in
+    the game), the rating card is one line, the gaps are smaller. Go at 509-561 on a first
+    visit, 533-585 with a one-line "last puzzle", 552-604 with a two-line one (a miss):
+    always above Kael's corner (y=607). Rejected: a floating Go. `blind_list_explain` is
+    untouched (List mode already fitted: Go at 534-586).
+  - **No JS changed**: css/style.css, one string in js/i18n.js, three tools.
+  - **Verified:** `tools/cdp-verify-blind-calc-next.mjs` 116 of 116 (92 + 24 new: Go and
+    the row on screen with nothing scrolled, 44 px, clear of Kael, all nine points
+    reachable, and every tap on Go, Peek, Show solution, share and the List switch is now
+    made WITHOUT scrolling; share is counted through a stub); cdp-verify-blind 154 of 154
+    (its help-text check no longer asks for "1 to 20"); cdp-verify-blind-theme 54 of 54
+    (its tapEl now hides Kael's bubble first); cdp-verify-puzzle-next 50 of 50; test:tree
+    457 pass 0 fail; test:precache OK (59 files). ES and EN, light and dark, screenshots
+    looked at.
+  - **Found, not fixed (not this task):** Kael's speech bubble comes up at random at
+    y=515-599, x=123-363, over whatever is at the bottom of the screen: the lower ranks of
+    the board, and now Go (the other set-up screens anchor their start button at the same
+    height by the same CSS rule, so probably theirs too: not measured). It goes by itself
+    after its time and a tap on it closes it (`KaelQuotes`, js/app.js).
 - **HOME: THE THREE SLOTS ARE ALWAYS THERE (2026-10-13, v211).** Spec:
   `docs/superpowers/specs/2026-10-12-home-tab-design.md`, decision a item 3 (rewritten).
   The block between "Hoy" and "Descubre" is now "Tu entrenamiento" / "Your training" and

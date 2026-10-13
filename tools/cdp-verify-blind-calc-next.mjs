@@ -19,8 +19,16 @@
 // wrong move, a skip, the solution shown, a peek, auto-next on, List mode
 // (Blindfold); hand in then next, a failed hand-in, the solution, auto-next
 // (Sealed Moves).
-// REALLY TAPPED: the mode chip, Go, Next, the bar, Show solution, Peek, the
-// List switch, "I'm ready", every Sealed Moves square and button.
+// ALSO (v212): the rest of the Blindfold screen fits the same 375 x 667
+// screen. The start panel's Go, on a first visit and with the "last puzzle"
+// line there, and the Peek / Show solution / share row under the board are on
+// screen with nothing scrolled, 44 px tall, clear of Kael's corner, and every
+// tap on them below is made WITHOUT scrolling first.
+// REALLY TAPPED: the mode chip, Go, Next, the bar, Show solution, Peek, share,
+// the List switch, "I'm ready", every Sealed Moves square and button.
+// STUBBED: Blind.share() for the one tap on share (it is counted, not run: a
+// headless browser has nothing to share to). HIDDEN before Go is measured:
+// Kael's speech bubble, which comes up at random over the bottom of any screen.
 // CALLED, not tapped: Blind.userMove() with the puzzle's own moves (the pieces
 // are hidden), Blind.showStart() to get back to the start panel, CalcUI.next()
 // to pass over a puzzle with a promotion in it. SET in memory: autoNext.
@@ -101,13 +109,19 @@ const tapAt = async pt => {
 };
 // A real touch at a point of an element: fx is how far across it (0 to 1).
 const tap = async (sel, fx = 0.5) => tapAt(await ev(`const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: r.left + r.width * ${fx}, y: r.top + r.height / 2 };`));
-// For what is allowed to be under the fold (the start panel's Go, the row
-// under the board): bring it up, tap it, and put the screen back.
-const tapScrolled = async sel => {
-  await ev(`document.querySelector(${JSON.stringify(sel)}).scrollIntoView({ block: 'center' });`); await sleep(200);
-  await tap(sel);
-  await ev(`document.querySelector('main').scrollTop = 0;`); await sleep(100);
-};
+// One control as a finger meets it: where it is, whether all of it is on the
+// screen as it stands, whether it is what a touch reaches, and Kael.
+const seen = sel => ev(`
+  const e = document.querySelector(${JSON.stringify(sel)}), r = e.getBoundingClientRect();
+  let mine = 0;
+  if (r.height) for (const fx of [0.1, 0.5, 0.9]) for (const fy of [0.2, 0.5, 0.8]) { const x = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy); if (x && (x === e || e.contains(x))) mine++; }
+  const fab = document.getElementById('kael-fab').getBoundingClientRect(), bub = document.querySelector('.kael-quote-bubble.show')?.getBoundingClientRect();
+  const over = k => !!k && k.left < r.right && k.right > r.left && k.top < r.bottom && k.bottom > r.top;
+  return { top: Math.round(r.top * 10) / 10, bottom: Math.round(r.bottom * 10) / 10, left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height * 10) / 10, w: Math.round(r.width),
+    on: r.height > 0 && r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, reach: mine, kaelOver: over(fab) || over(bub),
+    scrolled: document.querySelector('main').scrollTop + scrollY, cut: e.scrollWidth > e.clientWidth };`);
+const fits = v => v.on && v.h >= 44 && v.scrolled === 0 && !v.kaelOver && v.reach === 9 && !v.cut;
+const hush = async () => { await ev(`document.querySelector('.kael-quote-bubble.show')?.classList.remove('show');`); await sleep(350); };
 const B = '__app.Blind', C = '__calc';
 const WORDS = { es: 'Siguiente ➡', en: 'Next ➡' };
 
@@ -192,7 +206,11 @@ try {
     check(`[${tag}] blindfold, start panel: the explanation is there to be read`, s0.explain, s0);
     // Every Next from here on is counted: a call that gets past the start-panel guard.
     await ev(`const P = ${B}, real = P.nextPuzzle; window.__nexts = 0; P.nextPuzzle = function () { if (document.getElementById('blind-start').classList.contains('hidden')) window.__nexts++; return real.call(this); };`);
-    await tapScrolled('#blind-go');
+    await hush();
+    const go0 = await seen('#blind-go');
+    check(`[${tag}] blindfold, start panel: Go is on screen at 375 x 667 with nothing scrolled (${go0.top} to ${go0.bottom}), ${go0.h} px tall, clear of Kael's corner, all of it reachable`, fits(go0), go0);
+    await shot(`${tag}-blind-0-start`);
+    await tap('#blind-go');
 
     // 1. The opening look.
     const cnt = await counting();
@@ -200,6 +218,7 @@ try {
     check(`[${tag}] blindfold, memorising: the countdown ("${m.count}") is in the status bar and the explanation is gone`, cnt && m.counting && m.countInBar && +m.count > 0 && !m.explain, m);
     check(`[${tag}] blindfold, memorising: the whole board is on screen at 375 x 667, nothing scrolled (ends at ${m.board.bottom}), Next too`,
       m.boardOn && m.btnOn && m.barOn && m.scrolled === 0 && m.noSideScroll && !m.hidden, { board: m.board, btn: m.btn });
+    check(`[${tag}] blindfold, start panel: a real tap on Go, nothing scrolled, starts exactly one puzzle`, cnt && m.calls === 1, { calls: m.calls });
     await shot(`${tag}-blind-1-memorising`);
 
     // 2. Solving.
@@ -209,6 +228,9 @@ try {
       sv && a.text === WORDS[lang] && a.btn.h >= 44 && !a.cut && a.inBar && a.only && !a.nextInRow && a.btnBg === a.navy && a.barBg === a.panel && !a.done, a);
     check(`[${tag}] blindfold, solving: button and the whole board on screen at 375 x 667, nothing scrolled (board ends at ${a.board.bottom}); Kael not over the button, all of it reachable`,
       a.btnOn && a.barOn && a.boardOn && a.scrolled === 0 && a.noSideScroll && a.hidden && !a.counting && !a.kaelOver && a.reach === 9, { board: a.board, btn: a.btn, reach: a.reach });
+    const pk0 = await seen('#blind-peek'), so0 = await seen('#blind-solution');
+    check(`[${tag}] blindfold, solving: Peek and Show solution are on screen with nothing scrolled (row ${pk0.top} to ${pk0.bottom}), ${pk0.h} and ${so0.h} px tall, clear of Kael, all reachable; the board is whole and ${a.board.w} px wide`,
+      fits(pk0) && fits(so0) && a.boardOn && a.board.w >= 320 && a.rowOneLine, { pk0, so0, board: a.board });
     await shot(`${tag}-blind-2-solving`);
 
     // 3. A wrong move: the bar says so, and the button is still the navy skip.
@@ -228,7 +250,7 @@ try {
     check(`[${tag}] blindfold, skip: a tap on the navy button loads another puzzle, exactly once`, b.id !== a.id && b.calls === 2, { from: a.id, to: b.id, calls: b.calls });
 
     // 5. A peek: the pieces come back for a moment, the button stays put.
-    await tapScrolled('#blind-peek');
+    await tap('#blind-peek');
     let pk = await lookB();
     check(`[${tag}] blindfold, a peek: the pieces are on show, one peek is spent ("${pk.peek}"), Next still navy and on screen`,
       !pk.hidden && /\(1\)/.test(pk.peek) && pk.btnBg === pk.navy && pk.btnOn && !pk.done && pk.calls === 2, pk);
@@ -243,6 +265,13 @@ try {
     check(`[${tag}] blindfold, solved: button and the whole board on screen at 375 x 667, nothing scrolled (board ends at ${c.board.bottom}); Kael not over the button`,
       c.btnOn && c.barOn && c.boardOn && c.scrolled === 0 && c.noSideScroll && !c.kaelOver && c.reach === 9, { board: c.board, bar: c.bar, reach: c.reach });
     await shot(`${tag}-blind-3-solved`);
+    const sh0 = await seen('#blind-share'), so1 = await seen('#blind-solution');
+    check(`[${tag}] blindfold, solved: share is on screen beside the other two with nothing scrolled (${sh0.top} to ${sh0.bottom}), ${sh0.h} px tall and ${sh0.w} wide, clear of Kael, all reachable`,
+      fits(sh0) && sh0.w >= 44 && so1.on && sh0.left >= so1.right, { sh0, so1 });
+    await ev(`const P = ${B}; window.__shares = 0; P.__share = P.share; P.share = () => { window.__shares++; };`);
+    await tap('#blind-share');
+    check(`[${tag}] blindfold, solved: a real tap on share, nothing scrolled, shares exactly once`, await ev(`return window.__shares;`) === 1);
+    await ev(`const P = ${B}; P.share = P.__share; delete P.__share;`);
 
     // 7. A tap on the LEFT of the gold bar, on the words, not on the button.
     await tap('#blind-status', 0.15);
@@ -252,7 +281,7 @@ try {
       d.id !== c.id && d.calls === 3 && !d.done && d.barBg === d.panel && d.btnBg === d.navy && !d.share, { from: c.id, to: d.id, calls: d.calls });
 
     // 8. The solution shown, then a tap on the button itself.
-    await tapScrolled('#blind-solution');
+    await tap('#blind-solution');
     const shown = await until(`document.getElementById('blind-status').classList.contains('done')`, 3000);
     let e = await lookB();
     check(`[${tag}] blindfold, solution shown: the bar turns gold; board and button on screen`, shown && e.barBg === e.gold && e.boardOn && e.btnOn && !e.hidden, e);
@@ -277,8 +306,9 @@ try {
       await ev(`${B}.showStart();`);
       await sleep(300);
       check(`[${tag}] blindfold, back on the start panel: the explanation is back`, (await lookB()).explain);
-      await tapScrolled('#blind-mode-seg [data-v="list"]');
-      await tapScrolled('#blind-go');
+      await hush();
+      await tap('#blind-mode-seg [data-v="list"]');
+      await tap('#blind-go');
       const listUp = await until(`!document.getElementById('blind-list').classList.contains('hidden')`, 6000);
       let l = await lookB();
       const ready = await ev(`const r = document.getElementById('blind-ready').getBoundingClientRect(); return r.height > 0 && r.bottom <= innerHeight;`);
@@ -293,8 +323,15 @@ try {
       await tap('#blind-status', 0.15);
       const again = await until(`!document.getElementById('blind-list').classList.contains('hidden')`, 6000);
       check(`[${tag}] blindfold, List mode: a tap on the gold bar brings the next list, once`, again && (await lookB()).calls === 7);
-      await ev(`${B}.showStart(); ${B}.mode = 'look'; ${B}.updateTimeControl();`);
     }
+    // 11. Back on the start panel after a solve: the "last puzzle" line is
+    // there now, and Go is still on screen.
+    await ev(`${B}.showStart(); ${B}.mode = 'look'; ${B}.updateTimeControl();`);
+    await hush();
+    const go1 = await seen('#blind-go'), paid = await ev(`const e = document.getElementById('blind-last-paid'); return e.offsetParent ? e.textContent : '';`);
+    check(`[${tag}] blindfold, start panel after a solve ("${paid}"): Go is still on screen with nothing scrolled (${go1.top} to ${go1.bottom}), ${go1.h} px tall, clear of Kael's corner, all reachable`,
+      paid.length > 5 && fits(go1), go1);
+    await shot(`${tag}-blind-5-start-after`);
 
     // ═════ SEALED MOVES ═════
     await ev(`document.querySelector('.kael-quote-bubble.show')?.click(); __app.showScreen('calc');`);

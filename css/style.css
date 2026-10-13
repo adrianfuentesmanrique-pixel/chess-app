@@ -1605,6 +1605,25 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 #blind-start { min-height: calc(100dvh - 330px); }
 #blind-start #blind-change-time { display: none; }
 #blind-last-paid:empty { display: none; }
+/* So that Go is on a 375 x 667 screen, above Kael, even with the "last puzzle"
+   line there: the rating is one line, the slider's note is left for the game
+   (the pay line under it says what the time is worth) and the gaps are small
+   enough for that line to take two (a miss does). */
+#blind-start .elo-card { flex-direction: row; justify-content: space-between; align-items: center; padding: 6px 14px; }
+#blind-start #blind-setup-row { margin-top: 6px; }
+#blind-start .seg.blind-mode { margin: 6px 0; }
+#blind-start .blind-time { margin-top: 4px; }
+#blind-start #blind-time-hint { display: none; }
+#blind-last-paid { margin: 2px 0 6px; }
+/* The game: on a phone under about 700 px tall the board gives up some width
+   so that the row under it is on screen too, whatever the bonus line wraps to
+   (346 px is everything above and below the board at 375 px wide, two-line
+   bonus). Taller screens keep the full width. */
+#blind-board { max-width: max(240px, min(560px, calc(100dvh - 346px))); }
+/* Kael's corner is 48px wide and slides in 50px when he speaks. */
+#blind-actions { padding-right: 52px; flex-wrap: nowrap; }
+#blind-actions .btn { min-height: 44px; white-space: nowrap; }
+#blind-share { flex: 0 0 auto; width: 44px; padding-left: 0; padding-right: 0; }
 /* Theme and settings, the pair the Puzzles screen has: the theme button takes
    the width and ellipsises, the gear stays square. */
 #blind-setup-row { flex-wrap: nowrap; gap: 6px; align-items: stretch; margin-top: 10px; }

@@ -126,6 +126,9 @@ async function tapEl(sel) {
   const pt = await evalP(`
     const el = document.querySelector(${JSON.stringify(sel)});
     if (!el) return null;
+    // Kael's speech bubble comes up at random over the bottom of the screen, where
+    // Go now is (v212: the start panel no longer scrolls). It is not what is tested.
+    document.querySelector('.kael-quote-bubble.show')?.classList.remove('show');
     el.scrollIntoView({ block: 'center' });
     await new Promise(r => setTimeout(r, 60));
     const r = el.getBoundingClientRect();

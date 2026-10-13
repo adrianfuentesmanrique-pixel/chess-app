@@ -1221,7 +1221,7 @@ const DICT = {
   card_rush_title: { es: '¡Puzzle Rush!', en: 'Puzzle Rush!' },
   blind_open: { es: '🙈 A ciegas', en: '🙈 Blindfold' },
   blind_title: { es: 'Puzzles a ciegas', en: 'Blindfold Puzzles' },
-  blind_explain: { es: 'Memoriza la posición: tú eliges cuántos segundos verla (de 1 a 20). Después las piezas se ocultarán y deberás resolver el puzzle de memoria — puedes seguir tocando o arrastrando en las casillas normalmente.', en: "Memorize the position: you choose how many seconds to look (1 to 20). Then the pieces vanish and you'll need to solve the puzzle from memory — you can still tap or drag on the squares normally." },
+  blind_explain: { es: 'Memoriza la posición y resuélvela sin ver las piezas.', en: 'Memorise the position, then solve it from memory.' },
   blind_watch_now: { es: 'Memoriza la posición…', en: 'Memorize the position...' },
   blind_solve_now: { es: '¡Resuelve a ciegas!', en: 'Solve it blindfolded!' },
   blind_time_label: { es: '⏱ Tiempo para memorizar: {n} s', en: '⏱ Memorising time: {n} s' },
