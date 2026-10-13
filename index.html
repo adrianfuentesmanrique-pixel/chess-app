@@ -1142,9 +1142,10 @@
         <div class="option-group">
           <label data-i18n="coord_time"></label>
           <div class="seg coord-seg" id="coord-time">
-            <button data-v="timed" class="on" data-i18n="coord_time_timed"></button>
+            <button data-v="timed" class="on" id="coord-time-timed"></button>
             <button data-v="free" data-i18n="coord_time_free"></button>
           </div>
+          <div class="blind-time" id="coord-len"><input id="coord-seconds" type="range" min="30" max="180" step="30" value="30"></div>
         </div>
         <div class="option-group">
           <label data-i18n="coord_side"></label>
@@ -1154,8 +1155,15 @@
             <button data-v="b" data-i18n="black"></button>
           </div>
         </div>
-        <div class="row wrap profile-elo-row">
-          <div class="elo-card"><span data-i18n="coord_best"></span><b id="coord-best"></b></div>
+        <div class="option-group">
+          <label data-i18n="coord_pieces"></label>
+          <div class="seg coord-seg" id="coord-pieces">
+            <button data-v="on" class="on" data-i18n="coord_pieces_on"></button>
+            <button data-v="off" data-i18n="coord_pieces_off"></button>
+          </div>
+        </div>
+        <div class="row wrap profile-elo-row" id="coord-best-row">
+          <div class="elo-card"><span id="coord-best-label"></span><b id="coord-best"></b></div>
         </div>
         <button id="coord-start" class="btn primary big" data-i18n="coord_start"></button>
       </div>

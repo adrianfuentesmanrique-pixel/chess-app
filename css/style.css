@@ -656,6 +656,13 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .coord-seg.three { grid-template-columns: 1fr 1fr 1fr; }
 .coord-seg button { min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; }
 #coord-setup .elo-card { flex: 1 1 auto; }
+/* Four choices and a slider above Start on a 667 px phone: the groups sit closer. */
+#coord-setup .option-group { margin: 8px 0; }
+#coord-setup .option-group > label { margin-bottom: 4px; }
+/* The run's length: Blindfold's slider (.blind-time), in a lower box. */
+#coord-setup .blind-time { margin: 6px 0 0; padding: 0 12px; }
+/* With "no clock" chosen the slider is dimmed, not locked: moving it chooses the clock. */
+#coord-setup .blind-time.locked input[type=range] { cursor: pointer; }
 .coord-result { text-align: center; margin: 10px 0 0; }
 .coord-result.best { border: 1px solid var(--gold); background: var(--gold-bg); }
 .coord-result-score { font-size: 44px; line-height: 1.1; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }

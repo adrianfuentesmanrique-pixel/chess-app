@@ -6,8 +6,8 @@
 // Run: npm run test:tree
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { COORD_SQUARES, COORD_SECONDS, COORD_STREAK_MIN, coordNext, coordSide, coordNewRun, coordAnswer, coordKey,
-  coordBestKey, coordIsBest, coordCountsForStreak, coordClock } from '../../js/coord.js';
+import { COORD_SQUARES, COORD_SECONDS, COORD_SECONDS_MAX, COORD_SECONDS_STEP, COORD_LENGTHS, COORD_STREAK_MIN, coordNext, coordSide,
+  coordSeconds, coordNewRun, coordBar, coordAnswer, coordKey, coordBestKey, coordIsBest, coordCountsForStreak, coordClock } from '../../js/coord.js';
 
 // A random source that hands out the given numbers in turn, then repeats.
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
@@ -108,6 +108,69 @@ test('the keys: a second letter replaces the first, a number alone does nothing'
 test('each exercise keeps its own best', () => {
   assert.equal(coordBestKey('find'), 'coordBestFind');
   assert.equal(coordBestKey('name'), 'coordBestName');
+});
+
+test('a run lasts from 30 seconds to 3 minutes, in steps of 30', () => {
+  assert.deepEqual([COORD_SECONDS, COORD_SECONDS_MAX, COORD_SECONDS_STEP], [30, 180, 30]);
+  assert.deepEqual(COORD_LENGTHS, [30, 60, 90, 120, 150, 180]);
+  for (const s of COORD_LENGTHS) assert.equal(coordSeconds(s), s);
+  assert.equal(coordSeconds('90'), 90);
+});
+
+test('a length that is not on the slider becomes the nearest one, or the shortest', () => {
+  assert.equal(coordSeconds(100), 90);
+  assert.equal(coordSeconds(110), 120);
+  assert.equal(coordSeconds(10), 30);
+  assert.equal(coordSeconds(0), 30);
+  assert.equal(coordSeconds(-60), 30);
+  assert.equal(coordSeconds(999), 180);
+  for (const junk of [undefined, null, '', 'abc', NaN, {}]) assert.equal(coordSeconds(junk), 30);
+});
+
+test('a timed run carries its length; with no length given it is 30 seconds; with no clock it has none', () => {
+  assert.equal(coordNewRun({ mode: 'find', timed: true, side: 'w', seconds: 120 }).seconds, 120);
+  assert.equal(coordNewRun({ mode: 'find', timed: true, side: 'w' }).seconds, 30);
+  assert.equal(coordNewRun({ mode: 'find', timed: true, side: 'w', seconds: 4000 }).seconds, 180);
+  assert.equal(coordNewRun({ mode: 'find', timed: true, side: 'w', seconds: 'x' }).seconds, 30);
+  assert.equal(coordNewRun({ mode: 'find', timed: false, side: 'w', seconds: 120 }).seconds, 0);
+});
+
+test('the bar empties over the run\'s own length', () => {
+  const short = coordNewRun({ mode: 'find', timed: true, side: 'w' });
+  const long = coordNewRun({ mode: 'find', timed: true, side: 'w', seconds: 180 });
+  assert.equal(coordBar(short, 30000), 100);
+  assert.equal(coordBar(short, 15000), 50);
+  assert.equal(coordBar(long, 180000), 100);
+  assert.equal(coordBar(long, 45000), 25);
+  assert.equal(coordBar(long, 0), 0);
+  assert.equal(coordBar(long, -500), 0);
+  assert.equal(coordBar(long, 999999), 100);
+  assert.equal(coordBar(coordNewRun({ mode: 'find', timed: false, side: 'w' }), 5000), 0);
+});
+
+test('each length keeps its own best, and the 30-second ones keep the names they had', () => {
+  assert.equal(coordBestKey('find', 30), 'coordBestFind');
+  assert.equal(coordBestKey('name', 30), 'coordBestName');
+  assert.equal(coordBestKey('find', 60), 'coordBestFind60');
+  assert.equal(coordBestKey('name', 90), 'coordBestName90');
+  assert.equal(coordBestKey('find', 180), 'coordBestFind180');
+  const keys = ['find', 'name'].flatMap(m => COORD_LENGTHS.map(s => coordBestKey(m, s)));
+  assert.equal(new Set(keys).size, 12);
+  assert.ok(keys.every(k => /^coordBest(Find|Name)(60|90|120|150|180)?$/.test(k)));
+});
+
+test('the day counts with the same ten right answers whatever the length', () => {
+  for (const seconds of COORD_LENGTHS) {
+    assert.equal(coordCountsForStreak({ timed: true, seconds, score: 10 }), true);
+    assert.equal(coordCountsForStreak({ timed: true, seconds, score: 9 }), false);
+  }
+});
+
+test('the clock reads minutes too', () => {
+  assert.equal(coordClock(180000), '3:00');
+  assert.equal(coordClock(90000), '1:30');
+  assert.equal(coordClock(60001), '1:01');
+  assert.equal(coordClock(60000), '1:00');
 });
 
 test('a best is a timed run that beats the one before', () => {

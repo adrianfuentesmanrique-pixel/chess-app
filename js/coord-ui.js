@@ -2,12 +2,13 @@
 // only decides what is on the screen.
 //
 // A view inside #screen-endgame (the Learn tab), opened from its section list.
-// It has two faces: the SETUP (exercise, time, side, the player's best, Start)
+// It has two faces: the SETUP (exercise, time, side, pieces, the best, Start)
 // and the RUN (clock, score, what is asked, the board, the keys).
 //
 // A TRAINING TOOL: no rating, no leaderboard, nothing published. What is kept:
-// the best timed score of each exercise (kv coordBestFind, coordBestName; they
-// follow the account, they are not public) and, on this device only, the three
+// the best timed score of each exercise at each length (js/coord.js
+// coordBestKey: kv coordBestFind ... coordBestName180; they
+// follow the account, they are not public) and, on this device only, the
 // choices last made (kv coordPrefs).
 //
 // THE BOARD'S OWN a-h / 1-8 LABELS ARE HIDDEN here (css: #coord-board .coords):
@@ -25,12 +26,13 @@ import { t } from './i18n.js';
 import { Board } from './board.js';
 import * as db from './db.js';
 import { Sound } from './sound.js';
-import { COORD_SECONDS, coordNewRun, coordAnswer, coordKey, coordBestKey, coordIsBest, coordCountsForStreak, coordClock } from './coord.js';
+import { COORD_SECONDS, COORD_SECONDS_MAX, COORD_SECONDS_STEP, COORD_LENGTHS, coordSeconds, coordNewRun, coordBar, coordAnswer, coordKey, coordBestKey, coordIsBest, coordCountsForStreak, coordClock } from './coord.js';
 import { $, modal, esc, segInit, Endgame, Streak, KaelQuotes } from './app.js';
 
 const TICK_MS = 100;
 const FLASH_MS = 320;
-const MODES = ['find', 'name'], TIMES = ['timed', 'free'], SIDES = ['w', 'random', 'b'];
+const MODES = ['find', 'name'], TIMES = ['timed', 'free'], SIDES = ['w', 'random', 'b'], PIECES = ['on', 'off'];
+const SEGS = ['mode', 'time', 'side', 'pieces'];
 
 export const CoordUI = {
   board: null,
@@ -39,9 +41,9 @@ export const CoordUI = {
   deadline: 0,        // ms, a timed run's end
   timer: null,
   entry: '',          // 'name': the letter already given
-  last: null,         // the run just ended: { reason, score, wrong, isBest, timed }
-  best: { find: 0, name: 0 },
-  prefs: { mode: 'find', time: 'timed', side: 'random' },
+  last: null,         // the run just ended: { reason, score, wrong, isBest, timed, best }
+  best: {},           // by coordBestKey(mode, seconds)
+  prefs: { mode: 'find', time: 'timed', side: 'random', seconds: COORD_SECONDS, pieces: 'on' },
   read: null,
   introOpen: false,
 
@@ -51,7 +53,17 @@ export const CoordUI = {
       const sq = e.target.closest('.sq');
       if (sq) this.tapSquare(sq.dataset.sq);
     });
-    for (const k of ['mode', 'time', 'side']) segInit(this.seg(k), v => this.setPref(k, v));
+    for (const k of SEGS) segInit(this.seg(k), v => this.setPref(k, v));
+    // The run's length, as Blindfold's slider: it paints as it moves and is
+    // saved when it is let go. Moving it also chooses the clock.
+    const range = $('coord-seconds');
+    range.min = COORD_SECONDS; range.max = COORD_SECONDS_MAX; range.step = COORD_SECONDS_STEP;
+    range.oninput = () => {
+      this.prefs.seconds = coordSeconds(range.value);
+      this.prefs.time = 'timed';
+      this.paintSetup();
+    };
+    range.onchange = () => this.setPref('seconds', coordSeconds(range.value));
     $('coord-keys').addEventListener('click', e => {
       const b = e.target.closest('button');
       if (b) this.tapKey(b.dataset.k);
@@ -71,12 +83,16 @@ export const CoordUI = {
       if (MODES.includes(p.mode)) this.prefs.mode = p.mode;
       if (TIMES.includes(p.time)) this.prefs.time = p.time;
       if (SIDES.includes(p.side)) this.prefs.side = p.side;
+      if (PIECES.includes(p.pieces)) this.prefs.pieces = p.pieces;
+      this.prefs.seconds = coordSeconds(p.seconds);
       await this.readBest();
     })();
   },
 
   async readBest() {
-    for (const m of MODES) this.best[m] = +(await db.kvGet(coordBestKey(m), 0)) || 0;
+    for (const m of MODES) {
+      for (const s of COORD_LENGTHS) this.best[coordBestKey(m, s)] = +(await db.kvGet(coordBestKey(m, s), 0)) || 0;
+    }
   },
 
   // After a sign-in the saved bests may have been replaced by the account's.
@@ -122,14 +138,15 @@ export const CoordUI = {
   // ── the run ──
 
   start() {
-    const { mode, time, side } = this.prefs;
+    const { mode, time, side, seconds, pieces } = this.prefs;
     this.clear();
-    this.run = coordNewRun({ mode, timed: time === 'timed', side });
+    this.run = coordNewRun({ mode, timed: time === 'timed', side, seconds });
     this.running = true;
     this.entry = '';
     this.last = null;
     KaelQuotes.hide();   // nothing of Kael's is left over the board
     this.board.setOrientation(this.run.orientation);
+    this.board.setPiecesHidden(pieces === 'off');
     $('coord-setup').classList.add('hidden');
     $('coord-run').classList.remove('hidden');
     // The run takes the whole height and Kael's corner gives up its place (css).
@@ -137,7 +154,7 @@ export const CoordUI = {
     document.body.classList.add('coord-running');
     document.querySelector('main').scrollTop = 0;
     if (this.run.timed) {
-      this.deadline = Date.now() + COORD_SECONDS * 1000;
+      this.deadline = Date.now() + this.run.seconds * 1000;
       this.timer = setInterval(() => this.tick(), TICK_MS);
     }
     this.paintRun();
@@ -191,12 +208,13 @@ export const CoordUI = {
   finish(reason) {
     if (!this.running) return;
     const run = this.run;
-    const isBest = coordIsBest(run, this.best[run.mode]);
+    const key = coordBestKey(run.mode, run.seconds);
+    const isBest = coordIsBest(run, this.best[key]);
     if (isBest) {
-      this.best[run.mode] = run.score;
-      db.kvSet(coordBestKey(run.mode), run.score);
+      this.best[key] = run.score;
+      db.kvSet(key, run.score);
     }
-    this.last = { reason, score: run.score, wrong: run.wrong, isBest, timed: run.timed };
+    this.last = { reason, score: run.score, wrong: run.wrong, isBest, timed: run.timed, best: run.timed ? this.best[key] : 0 };
     this.clear();
     this.paintSetup();
     if (coordCountsForStreak(run)) Streak.recordActivity();
@@ -234,26 +252,37 @@ export const CoordUI = {
 
   paintSetup() {
     if (!this.board || this.running) return;
-    for (const k of ['mode', 'time', 'side']) {
+    for (const k of SEGS) {
       for (const b of this.seg(k).querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === this.prefs[k]);
     }
-    $('coord-best').textContent = this.best[this.prefs.mode] || '—';
+    const length = coordClock(this.prefs.seconds * 1000);
+    $('coord-time-timed').textContent = t('coord_time_timed').replace('{t}', length);
+    $('coord-seconds').value = this.prefs.seconds;
+    $('coord-seconds').setAttribute('aria-label', t('coord_time'));
+    $('coord-seconds').setAttribute('aria-valuetext', length);
+    $('coord-len').classList.toggle('locked', this.prefs.time !== 'timed');
+    // The best of this exercise at the length the slider is on.
+    $('coord-best-label').textContent = t('coord_best').replace('{t}', length);
+    $('coord-best').textContent = this.best[coordBestKey(this.prefs.mode, this.prefs.seconds)] || '—';
     const last = this.last;
     $('coord-result').classList.toggle('hidden', !last);
     $('coord-explain').classList.toggle('hidden', !!last);
+    // With a result on the screen the best is said in the result's own line:
+    // the card and the result together do not fit above Start on a short phone.
+    $('coord-best-row').classList.toggle('hidden', !!last);
     $('coord-start').textContent = t(last ? 'coord_again' : 'coord_start');
     if (!last) return;
     $('coord-result-title').textContent = t(last.reason === 'time' ? 'coord_result_time' : 'coord_result_stopped');
     $('coord-result-score').textContent = last.score;
     $('coord-result-line').textContent = t('coord_result_line').replace('{n}', last.score).replace('{w}', last.wrong)
-      + (last.isBest ? ' · ' + t('coord_result_best') : '');
+      + (last.isBest ? ' · ' + t('coord_result_best') : last.best ? ' · ' + t('coord_result_best_n').replace('{n}', last.best) : '');
     $('coord-result').classList.toggle('best', last.isBest);
   },
 
   paintClock(left) {
     $('coord-clock').textContent = '⏱ ' + coordClock(left);
     // The bar empties as the time goes.
-    $('coord-bar-fill').style.width = Math.max(0, Math.min(100, left / (COORD_SECONDS * 10))) + '%';
+    $('coord-bar-fill').style.width = coordBar(this.run, left) + '%';
   },
 
   paintRun() {

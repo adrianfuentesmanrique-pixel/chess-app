@@ -2,7 +2,7 @@
 // js/coord.js). Dev tool, not shipped. Headless Chrome over CDP, signed out,
 // no service worker. It serves the app itself.
 //
-//   node tools/cdp-verify-coord.mjs <outDir>     about two minutes
+//   node tools/cdp-verify-coord.mjs <outDir>     about three minutes
 //
 // At 375 x 667 in ES and EN, light and dark. REALLY TAPPED (CDP touch events):
 // the Learn list's row, every choice, Start, Finish, the squares and the keys.
@@ -10,6 +10,8 @@
 // worked out here from the board's rectangle, never looked up by name in the
 // page: so "with Black below the squares asked are the right ones" is a real
 // check of where a1 is.
+// DRAGGED (CDP touch start / move / end on the track): the slider of the
+// run's length, to its two ends and to a stop in the middle.
 // CALLED, not tapped: showScreen() to get to Learn and to walk away from a
 // run; and, after the first round has waited out a real 30 seconds, the run's
 // deadline is brought forward so the other rounds do not wait again.
@@ -22,6 +24,15 @@
 // best; with no clock there is no clock, and Finish ends it with no best and
 // no day counted; leaving the tab drops the run; the best is in SYNCED_KEYS
 // and nowhere near anything published.
+// The length (30 s to 3 min) and the empty board: the slider shows the time as
+// it moves and saves it when let go; moving it takes "no clock" off; a run of
+// 1:30 has a deadline 90 s away (THE DEADLINE THAT WAS SET is read, the tool
+// does not wait it out), its bar is at half with 45 s left, and its best is
+// kept apart from the 30-second one; ten right answers count the day at any
+// length; "without pieces" leaves no piece to see, a right tap still flashes
+// green and a wrong one red, and "name" still lights its square; all of it
+// is back after a reload. The 30-second run that is waited out for real is
+// also the run with every choice untouched: it must behave as before.
 // NOT checked here: sync to Firestore (the tool is signed out).
 import { spawn } from 'node:child_process';
 import http from 'node:http';
@@ -35,8 +46,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = process.argv[2];
 if (!OUT) { console.error('usage: node tools/cdp-verify-coord.mjs <outDir>'); process.exit(1); }
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const PORT = 9300 + Math.floor(Math.random() * 600);
-const WEB = 9900 + Math.floor(Math.random() * 90);
+// Not 9300-9899 / 9900-9989: tools/emu-verify-simul.mjs has those.
+const PORT = 9100 + Math.floor(Math.random() * 90);
+const WEB = 8700 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-coord-'));
 fs.mkdirSync(OUT, { recursive: true });
 setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 400000).unref();
@@ -123,9 +135,30 @@ const boot = async () => {
     window.__app = await import('/js/app.js'); window.__coord = (await import('/js/coord-ui.js')).CoordUI;
     // The streak is watched, not run: its celebration would cover the screen.
     window.__streak = 0; __app.Streak.recordActivity = () => { window.__streak++; };
+    // Kael's reminder of the day's missions comes once, 45 s after the page loads,
+    // over the lower choices, and a tap on it asks to leave the screen: not here.
+    __app.DailyMissions.reminded = true;
     __app.showScreen('endgame'); __app.Endgame.showSections();`);
   await until(`document.getElementById('learn-coord-item')`, 4000);
 };
+// The slider, dragged by a finger to `frac` of its travel (0 left, 1 right).
+const THUMB = 16;
+const slide = async frac => {
+  const r = await ev(`const e = document.getElementById('coord-seconds'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect();
+    return { l: r.left, w: r.width, y: r.top + r.height / 2, f: (e.value - e.min) / (e.max - e.min) };`);
+  const xAt = f => r.l + THUMB / 2 + f * (r.w - THUMB);
+  const touch = (type, x) => send('Input.dispatchTouchEvent', { type, touchPoints: x === undefined ? [] : [{ x: Math.round(x), y: Math.round(r.y), id: 1 }] });
+  await touch('touchStart', xAt(r.f));
+  for (let i = 1; i <= 8; i++) { await touch('touchMove', xAt(r.f + (frac - r.f) * i / 8)); await sleep(25); }
+  const moving = await ev(`return { text: document.getElementById('coord-time-timed').textContent, saved: ((await (await import('/js/db.js')).kvGet('coordPrefs', null)) || {}).seconds };`);
+  await touch('touchEnd');
+  await sleep(200);
+  return moving;
+};
+const len = () => ev(`const e = document.getElementById('coord-seconds'); return { value: +e.value, text: document.getElementById('coord-time-timed').textContent, label: document.getElementById('coord-best-label').textContent,
+  best: document.getElementById('coord-best').textContent, time: __coord.prefs.time, dim: document.getElementById('coord-len').classList.contains('locked'), saved: ((await (await import('/js/db.js')).kvGet('coordPrefs', null)) || {}) };`);
+const seen = () => ev(`const i = [...document.querySelectorAll('#coord-board img')]; return { all: i.length, seen: i.filter(x => getComputedStyle(x).visibility !== 'hidden').length };`);
+const BEST_KEYS = ['Find', 'Name'].flatMap(m => ['', 60, 90, 120, 150, 180].map(s => 'coordBest' + m + s));
 const choose = async (mode, time, side) => {
   await tap(`#coord-mode [data-v="${mode}"]`);
   await tap(`#coord-time [data-v="${time}"]`);
@@ -136,8 +169,8 @@ const TITLE = { es: 'Coordenadas', en: 'Coordinates' };
 // Not published: read off the source, since the tool is signed out.
 const fb = fs.readFileSync(path.join(ROOT, 'js/firebase.js'), 'utf8');
 const synced = fb.slice(fb.indexOf('const SYNCED_KEYS'), fb.indexOf('];', fb.indexOf('const SYNCED_KEYS')));
-check('the two bests are in SYNCED_KEYS', synced.includes("'coordBestFind'") && synced.includes("'coordBestName'"));
-check('... and "coordBest" is nowhere else in js/firebase.js (nothing published)', fb.split('coordBest').length - 1 === 2);
+check('the twelve bests (two exercises, six lengths) are in SYNCED_KEYS', BEST_KEYS.length === 12 && BEST_KEYS.every(k => synced.includes(`'${k}'`)));
+check('... and "coordBest" is nowhere else in js/firebase.js (nothing published)', fb.split('coordBest').length - 1 === 12 && synced.split('coordBest').length - 1 === 12);
 check('firestore.rules does not mention coord', !/coord/i.test(fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8')));
 
 let failed = false, waited = false;
@@ -151,7 +184,8 @@ try {
     await sleep(1200);
     await ev(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1'); localStorage.removeItem('coordIntroDone');
       const db = await import('/js/db.js');
-      await db.kvSet('coordBestFind', null); await db.kvSet('coordBestName', null); await db.kvSet('coordPrefs', null);`);
+      for (const k of ${JSON.stringify(BEST_KEYS)}) await db.kvSet(k, null);
+      await db.kvSet('coordPrefs', null);`);
     await boot();
 
     // ── the Learn list, Kael, the setup ──
@@ -165,7 +199,11 @@ try {
     check(`[${tag}] ... and it is remembered`, await until(`!document.querySelector('.modal-back') && localStorage.getItem('coordIntroDone') === '1'`, 2000));
     const setup = await ev(`return { best: document.getElementById('coord-best').textContent, result: document.getElementById('coord-result').classList.contains('hidden'),
       on: [...document.querySelectorAll('#coord-setup .seg button.on')].map(b => b.dataset.v), empty: [...document.querySelectorAll('#coord-setup [data-i18n]')].filter(e => !e.textContent.trim()).length };`);
-    check(`[${tag}] the setup: find, 30 seconds, random; no best yet; no text missing`, setup.best === '—' && setup.result && setup.on.join() === 'find,timed,random' && setup.empty === 0, setup);
+    check(`[${tag}] the setup: find, the clock, random, with pieces; no best yet; no text missing`, setup.best === '—' && setup.result && setup.on.join() === 'find,timed,random,on' && setup.empty === 0, setup);
+    const first = await len();
+    check(`[${tag}] untouched, the slider is on 30 seconds and every line says so`, first.value === 30 && first.text.includes('0:30') && first.label.includes('0:30') && !first.dim, first);
+    const room = await ev(`const s = document.getElementById('coord-start').getBoundingClientRect(), m = document.querySelector('main'); return { bottom: Math.round(s.bottom), inner: innerHeight, top: m.scrollTop };`);
+    check(`[${tag}] Start is on the screen with nothing scrolled`, room.bottom <= room.inner && room.top === 0, room);
     check(`[${tag}] the setup fits the width`, (await fits()).wide);
     await shot(`${tag}-2-setup`);
 
@@ -184,6 +222,8 @@ try {
     check(`[${tag}] Kael's corner is put away for the run`, await until(`getComputedStyle(document.getElementById('kael-corner')).opacity === '0'`, 1500));
     let f = await fits();
     check(`[${tag}] nothing scrolls during a find run`, f.scroll <= f.client && f.wide, f);
+    const pcs = await seen();
+    check(`[${tag}] untouched, the board has its 32 pieces`, pcs.all === 32 && pcs.seen === 32, pcs);
     await shot(`${tag}-3-find-black`);
     // The place worked out here is the square the page has there.
     const pt = await sqPoint(s.asked, 'b');
@@ -203,6 +243,8 @@ try {
     for (let i = 0; i < 10; i++) { const now = await st(); await sqTap(now.asked, 'b'); }
     w = await st();
     check(`[${tag}] eleven right answers, each tapped where its name says`, w.score === 11 && w.wrong === 1, w);
+    const bar = await ev(`return { w: parseFloat(document.getElementById('coord-bar-fill').style.width), left: __coord.deadline - Date.now(), seconds: __coord.run.seconds }`);
+    check(`[${tag}] the run is 30 seconds long and the bar is where the time is (${bar.w.toFixed(0)}% with ${(bar.left / 1000).toFixed(1)} s left)`, bar.seconds === 30 && Math.abs(bar.w - bar.left / 300) < 2, bar);
     if (!waited) {
       // The real thirty seconds, once.
       const ended = await until(`!__coord.running`, 34000);
@@ -218,6 +260,8 @@ try {
       best: document.getElementById('coord-best').textContent, isBest: document.getElementById('coord-result').classList.contains('best'), title: document.getElementById('coord-result-title').textContent,
       line: document.getElementById('coord-result-line').textContent, running: document.body.classList.contains('coord-running'), setup: !document.getElementById('coord-setup').classList.contains('hidden'), streak: window.__streak };`);
     check(`[${tag}] the result: 11, a new best, shown on the setup`, !res.hidden && res.score === '11' && res.best === '11' && res.isBest && res.setup && !res.running && res.line.includes('11') && res.line.includes('1'), res);
+    const fold = await ev(`const s = document.getElementById('coord-start').getBoundingClientRect(); return { row: document.getElementById('coord-best-row').classList.contains('hidden'), bar: document.getElementById('coord-bar-fill').style.width, bottom: Math.round(s.bottom), inner: innerHeight, top: document.querySelector('main').scrollTop };`);
+    check(`[${tag}] the bar ran empty; with the result up the best is said in its line and Again is on the screen, nothing scrolled`, parseFloat(fold.bar) === 0 && fold.row && fold.bottom <= fold.inner && fold.top === 0, fold);
     check(`[${tag}] the best is saved (coordBestFind = 11) and the day counted once`, (await kv('coordBestFind')) === 11 && res.streak === 1, res.streak);
     await shot(`${tag}-5-result`);
 
@@ -229,8 +273,9 @@ try {
     await ev(`__coord.deadline = Date.now() + 300;`);
     await until(`!__coord.running`, 3000);
     await sleep(150);
-    const low = await ev(`return { score: document.getElementById('coord-result-score').textContent, best: document.getElementById('coord-best').textContent, isBest: document.getElementById('coord-result').classList.contains('best'), streak: window.__streak };`);
+    const low = await ev(`return { score: document.getElementById('coord-result-score').textContent, best: document.getElementById('coord-best').textContent, isBest: document.getElementById('coord-result').classList.contains('best'), streak: window.__streak, line: document.getElementById('coord-result-line').textContent };`);
     check(`[${tag}] a run of 1 does not replace the best, and does not count the day`, low.score === '1' && low.best === '11' && !low.isBest && low.streak === 1 && (await kv('coordBestFind')) === 11, low);
+    check(`[${tag}] ... and its line says what the best is`, / 11$/.test(low.line), low.line);
 
     // ── name the square, White below ──
     await choose('name', 'timed', 'w');
@@ -279,6 +324,71 @@ try {
     const fin = await ev(`return { running: __coord.running, score: document.getElementById('coord-result-score').textContent, best: document.getElementById('coord-best').textContent, isBest: document.getElementById('coord-result').classList.contains('best'), streak: window.__streak };`);
     check(`[${tag}] Finish ends it: 12 shown, the best is still 11, the day is not counted again`, !fin.running && fin.score === '12' && fin.best === '11' && !fin.isBest && fin.streak === 1, fin);
 
+    // ── the length of a run ──
+    let m = await slide(1);
+    let l = await len();
+    check(`[${tag}] the slider, dragged to its right end, shows 3:00 while it moves and saves it only when let go`, m.text.includes('3:00') && m.saved !== 180 && l.value === 180 && l.text.includes('3:00') && l.saved.seconds === 180, { m, l });
+    check(`[${tag}] ... moving it takes "no clock" off, and the best asked about is the 3-minute one: none yet`, l.time === 'timed' && l.saved.time === 'timed' && !l.dim && l.label.includes('3:00'), l);
+    await slide(0);
+    l = await len();
+    check(`[${tag}] dragged to its left end it shows 0:30`, l.value === 30 && l.text.includes('0:30') && l.saved.seconds === 30, l);
+    await slide(0.4);
+    l = await len();
+    check(`[${tag}] dragged to the stop in the middle it shows 1:30`, l.value === 90 && l.text.includes('1:30') && l.label.includes('1:30') && l.saved.seconds === 90, l);
+    await shot(`${tag}-8-setup-130`);
+    await tap('#coord-time [data-v="free"]');
+    l = await len();
+    check(`[${tag}] "no clock" dims the slider and keeps its place`, l.time === 'free' && l.dim && l.value === 90, l);
+    await tap('#coord-time [data-v="timed"]');
+
+    // ── without pieces, for a minute and a half ──
+    await tap('#coord-pieces [data-v="off"]');
+    check(`[${tag}] "without pieces" is chosen and saved`, (await len()).saved.pieces === 'off' && await ev(`return document.querySelector('#coord-pieces button.on').dataset.v;`) === 'off');
+    room.again = await ev(`const s = document.getElementById('coord-start').getBoundingClientRect(); return Math.round(s.bottom);`);
+    await tap('#coord-start');
+    await until(`__coord.running`, 3000);
+    const long = await ev(`return { seconds: __coord.run.seconds, left: __coord.deadline - Date.now(), clock: document.getElementById('coord-clock').textContent, w: parseFloat(document.getElementById('coord-bar-fill').style.width) };`);
+    check(`[${tag}] the run is 1:30 long: the deadline is 90 s away, the clock says so, the bar is full`, long.seconds === 90 && long.left > 88000 && long.left <= 90000 && /1:(30|29)/.test(long.clock) && long.w > 97, long);
+    const none = await seen();
+    check(`[${tag}] without pieces there is no piece to see on the board`, none.seen === 0, none);
+    f = await fits();
+    check(`[${tag}] ... and nothing scrolls`, f.scroll <= f.client && f.wide, f);
+    s = await st();
+    await touchAt(await sqPoint(s.asked, 'w'), 30, 40);
+    const green = await ev(`return [...document.querySelectorAll('#coord-board .sq.coord-right')].map(e => e.dataset.sq);`);
+    a = await st();
+    check(`[${tag}] a right tap on the empty board scores and flashes green`, a.score === 1 && green.join() === s.asked && a.asked === s.next, { a, green });
+    await sleep(350);
+    await touchAt(await sqPoint(other(a.asked), 'w'), 30, 40);
+    const red2 = await ev(`return [...document.querySelectorAll('#coord-board .sq.coord-wrong')].map(e => e.dataset.sq);`);
+    await shot(`${tag}-9-empty-wrong`);
+    w = await st();
+    check(`[${tag}] a wrong tap on the empty board scores nothing and flashes red`, w.score === 1 && w.wrong === 1 && red2.join() === other(a.asked), { w, red2 });
+    for (let i = 0; i < 9; i++) { const now = await st(); await sqTap(now.asked, 'w'); }
+    // Half of this run's time: 45 seconds.
+    await ev(`__coord.deadline = Date.now() + 45000; __coord.tick();`);
+    const half = await ev(`return { w: parseFloat(document.getElementById('coord-bar-fill').style.width), clock: document.getElementById('coord-clock').textContent, score: __coord.run.score };`);
+    check(`[${tag}] with 45 s left of 90 the bar is at half and the clock reads 0:45`, Math.abs(half.w - 50) < 1.5 && /0:4[45]/.test(half.clock) && half.score === 10, half);
+    await ev(`__coord.deadline = Date.now() + 300;`);
+    await until(`!__coord.running`, 3000);
+    await sleep(150);
+    const r90 = await ev(`return { score: document.getElementById('coord-result-score').textContent, isBest: document.getElementById('coord-result').classList.contains('best'), streak: window.__streak };`);
+    check(`[${tag}] ten right answers in 1:30 are that length's best, and the 30-second best is still 11`, r90.score === '10' && r90.isBest && (await kv('coordBestFind90')) === 10 && (await kv('coordBestFind')) === 11, r90);
+    check(`[${tag}] ... and ten count the day at this length as at 30 seconds`, r90.streak === 2, r90.streak);
+    await shot(`${tag}-10-result-130`);
+    check(`[${tag}] Start stayed on the screen with every choice changed`, room.again <= room.inner, room);
+    // "name" on the empty board: the square asked is still lit.
+    await tap('#coord-mode [data-v="name"]');
+    await tap('#coord-start');
+    await until(`__coord.running && __coord.run.mode === 'name'`, 3000);
+    s = await st();
+    const litE = await ev(`return [...document.querySelectorAll('#coord-board .sq.coord-lit')].map(e => e.dataset.sq);`);
+    check(`[${tag}] "name" without pieces: no piece, and the square asked is lit`, (await seen()).seen === 0 && litE.join() === s.asked, litE);
+    await shot(`${tag}-11-name-empty`);
+    await tap('#coord-end');
+    await sleep(150);
+    await tap('#coord-mode [data-v="find"]');
+
     // ── leaving ──
     await tap('#coord-start');
     await until(`__coord.running`, 3000);
@@ -297,7 +407,15 @@ try {
     await until(`!document.getElementById('coord-view').classList.contains('hidden')`, 4000);
     await sleep(400);
     const again = await ev(`return { intro: !!document.querySelector('#coord-intro-ok'), on: [...document.querySelectorAll('#coord-setup .seg button.on')].map(b => b.dataset.v), best: document.getElementById('coord-best').textContent };`);
-    check(`[${tag}] after a reload: no explanation again, the last choices are back, the best is still 11`, !again.intro && again.on.join() === 'find,free,w' && again.best === '11', again);
+    l = await len();
+    check(`[${tag}] after a reload: no explanation again, the last choices are back (1:30 and no pieces too), that length's best is 10`, !again.intro && again.on.join() === 'find,timed,w,off' && l.value === 90 && l.text.includes('1:30') && l.label.includes('1:30') && again.best === '10', { again, l });
+    await tap('#coord-start');
+    await until(`__coord.running`, 3000);
+    const back = await ev(`return { seconds: __coord.run.seconds, left: __coord.deadline - Date.now() };`);
+    check(`[${tag}] ... and a run started now is 1:30 long, without pieces`, back.seconds === 90 && back.left > 88000 && (await seen()).seen === 0, back);
+    await ev(`__coord.stop();`);
+    await slide(0);
+    check(`[${tag}] back at 0:30 the best shown is the 30-second one: 11`, (await len()).best === '11');
     await tap('#coord-mode [data-v="name"]');
     check(`[${tag}] ... and the other exercise's best is still 1`, await ev(`return document.getElementById('coord-best').textContent;`) === '1');
   }

@@ -50,9 +50,12 @@ const SYNCED_KEYS = [
   // Sealed Moves: its own rating. The keys say calc, like every id of the mode.
   // calcElo is also published (PUBLIC_ALWAYS_KEYS); the other three are not.
   'calcElo', 'calcEloHistory', 'calcAttemptCount', 'calcSolved',
-  // Coordinates (Learn): the player's own best timed score, one per exercise.
-  // A training tool: NEVER published, never on a leaderboard.
+  // Coordinates (Learn): the player's own best timed score, one per exercise
+  // and per length of run (js/coord.js names them; the first two are the
+  // 30-second ones). A training tool: NEVER published, never on a leaderboard.
   'coordBestFind', 'coordBestName',
+  'coordBestFind60', 'coordBestFind90', 'coordBestFind120', 'coordBestFind150', 'coordBestFind180',
+  'coordBestName60', 'coordBestName90', 'coordBestName120', 'coordBestName150', 'coordBestName180',
 ];
 
 // Profile visibility is stored as a WORD, not a yes/no, so further levels
