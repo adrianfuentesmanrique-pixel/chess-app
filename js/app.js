@@ -1300,6 +1300,9 @@ export function showScreen(name) {
   for (const s of SCREENS) $('screen-' + s).classList.toggle('hidden', s !== name);
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.classList.toggle('on', b.dataset.screen === name));
+  // Profile is not in the drawer: its light is the ring on the top bar's
+  // avatar, on for Profile and every screen reached from it.
+  $('btn-profile')?.classList.toggle('on', MENU_AREA[name] === 'profile');
   if (name !== 'analysis') Analysis.pauseEngine();
   if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
   if (name === 'base') Base.refresh();
@@ -1414,10 +1417,20 @@ export function updateTabMenu() {
   // title's ink.
   const btn = document.querySelector('#tabbar button.on') ||
     document.querySelector(`#tabbar button[data-screen="${MENU_AREA[activeScreen] || 'analysis'}"]`);
+  // Profile and the screens reached from it have no drawer button to copy
+  // (the way in is #btn-profile, the avatar in the top bar), so their title
+  // is written here.
+  if (!btn && MENU_AREA[activeScreen] === 'profile') {
+    name.textContent = t('tab_profile');
+    const ico = $('app-title-ico');
+    if (ico) ico.innerHTML = PROFILE_ICO;
+    return;
+  }
   name.textContent = btn?.querySelector('[data-i18n]')?.textContent ?? '';
   const ico = btn?.querySelector('.tab-ico');
   $('app-title-ico')?.replaceChildren(...(ico ? [ico.cloneNode(true)] : []));
 }
+const PROFILE_ICO = '<svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.8-4 3.8-6.5 7.5-6.5s6.7 2.5 7.5 6.5"/></svg>';
 
 function openMenu(push = true) {
   if (menuOpen) return;
@@ -1725,17 +1738,20 @@ document.querySelectorAll('#tabbar button').forEach(b =>
 $('tabmenu-btn')?.addEventListener('click', () => openMenu());
 $('tabsheet-backdrop')?.addEventListener('click', () => closeMenu(false));
 
-// The Limits & storage row in the drawer. Not a destination: it closes
-// the menu (consuming its history entry the same way a tap on a tab does) and
-// opens the info sheet, so Android back still just shuts the menu.
-{
-  const openLimits = () => { closeMenu(false); openLimitsSheet(); };
-  const link = $('menu-limits');
-  link?.addEventListener('click', openLimits);
+// The Limits & storage and Settings rows in the drawer. Not destinations: each
+// closes the menu (consuming its history entry the same way a tap on a tab
+// does) and opens its sheet, so Android back still just shuts the menu.
+for (const [id, open] of [['menu-limits', () => openLimitsSheet()], ['menu-settings', () => openSettings()]]) {
+  const go = () => { closeMenu(false); open(); };
+  const link = $(id);
+  link?.addEventListener('click', go);
   link?.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLimits(); }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
   });
 }
+
+// The avatar in the top bar is the way to Profile, from any screen.
+$('btn-profile')?.addEventListener('click', () => { closeMenu(false); showScreen('profile'); });
 
 // segment control helper
 export function segInit(el, onChange) {
@@ -8221,9 +8237,10 @@ async function main() {
     }
     if (activeScreen === 'endgame') Endgame.refreshLists();
     if (activeScreen === 'profile') Profile.refresh();
+    else Avatars.paintTopbar();
     if (Auth.user && Auth.needsProfileCompletion) openCompleteProfileModal();
   });
-  $('btn-settings').onclick = openSettings;
+  Avatars.paintTopbar();
   showScreen('analysis');
   PulsoUI.boot();
   // make sure at least one base exists so saving is one tap

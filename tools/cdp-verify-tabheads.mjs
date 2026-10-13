@@ -133,7 +133,8 @@ const click = (sel, ms = 450) => evalP(LIB + `
   const e = document.querySelector(${JSON.stringify(sel)});
   if (!e) return false;
   e.click(); await wait(${ms}); return true;`);
-const tab = async screen => { await click('#tabmenu-btn', 350); await click(`#tabbar button[data-screen="${screen}"]`, 800); };
+// Profile is not in the drawer: its way in is the avatar in the top bar.
+const tab = async screen => { if (screen === 'profile') return click('#btn-profile', 800); await click('#tabmenu-btn', 350); await click(`#tabbar button[data-screen="${screen}"]`, 800); };
 const call = (screen) => evalP(`const app = await import('/js/app.js'); app.showScreen('${screen}'); await new Promise(r => setTimeout(r, 500));`);
 const modalUp = () => evalP(`return !!document.querySelector('.modal-back');`);
 const viewOpen = id => evalP(`const e = document.getElementById('${id}'); return !!e && !e.classList.contains('hidden') && e.getClientRects().length > 0;`);
@@ -231,7 +232,9 @@ for (const lang of ['en', 'es']) {
     const bl = await topTab(tag, L, 'blind', 'puzzles');
     const be = await ctl('blind-elo');
     check(`${tag}: blind — hidden heading "${L.blind}" for screen readers, Blindfold chip lit`, bl.srH2[0] === L.blind && await evalP(`return document.querySelector('#screen-blind .puzzle-modes button.on')?.dataset.v === 'blind';`), bl.srH2);
-    check(`${tag}: blind — rating badge shown`, be.exists && be.visible && be.inside && /\d/.test(be.text), be);
+    // Blindfold opens on its start panel now; the badge is in #blind-game, shown
+    // once a puzzle is started, so only its being filled in is checked here.
+    check(`${tag}: blind — rating badge in the page with its number (not yet shown: the screen opens on the start panel)`, be.exists && /\d/.test(be.text), be);
     await click('#screen-blind .puzzle-modes button[data-v="rush"]', 900);
     const ru = await topTab(tag, L, 'rush', 'puzzles');
     check(`${tag}: rush — hidden heading "${L.rush}" for screen readers, Rush chip lit`, ru.srH2[0] === L.rush && await evalP(`return document.querySelector('#screen-rush .puzzle-modes button.on')?.dataset.v === 'rush';`), ru.srH2);
@@ -317,7 +320,7 @@ for (const lang of ['en', 'es']) {
 
     // ── The guided tour, from Settings, every step ──
     await load(lang, scheme);
-    await click('#btn-settings', 600);
+    await click('#menu-settings', 600);
     const started = await evalP(LIB + `
       const { t } = await import('/js/i18n.js');
       const b = [...document.querySelectorAll('.modal-back button')].find(x => txt(x) === t('tour_replay'));

@@ -292,7 +292,7 @@ await evalP(`const { Masterclass } = await import('/js/masterclass.js'); Masterc
 
 // G. Settings → Variation colour, with the real buttons; then a reload.
 await evalP(LOAD_NESTED); await sleep(200);
-await click('#btn-settings'); await sleep(500);
+await click('#menu-settings'); await sleep(500);
 const segs = await evalP(`const lab = [...document.querySelectorAll('.modal-box .fld-label')].find(l => l.textContent === 'Variation color');
   if (!lab) return null; lab.nextElementSibling.id = 'cdp-var-seg'; lab.scrollIntoView({ block: 'center' });
   return [...lab.nextElementSibling.querySelectorAll('button')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''));`);

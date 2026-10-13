@@ -133,6 +133,14 @@ body { display: flex; flex-direction: column; height: 100dvh; }
 .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px 8px; }
 #offline-ico { color: var(--gold); padding: 4px 2px; display: flex; align-items: center; }
 #offline-ico.hidden { display: none; }
+/* The shortcut to Profile: the user's own avatar, a 44px target. The negative
+   margin keeps the bar the height it had with the old settings button. */
+#btn-profile {
+  width: 44px; height: 44px; padding: 0; margin: -6px -6px -6px 0; position: relative;
+  display: flex; align-items: center; justify-content: center; border-radius: 50%;
+}
+#btn-profile-pic { display: flex; border-radius: 50%; }
+#btn-profile.on #btn-profile-pic { box-shadow: 0 0 0 2px var(--gold); }
 
 /* ── splash screen ─────────────────────── */
 #splash {
@@ -328,7 +336,7 @@ body.menu-open #tabbar { transform: translateX(0); }
 #tabbar button.on, #tabbar button.on .tab-ico { color: var(--gold); }
 #tabbar button.on { background: var(--gold-bg); }
 .tab-ico { width: 24px; height: 24px; flex: 0 0 auto; display: block; }
-/* Separates the bottom group (Limits & storage, then Profile) from the
+/* Separates the bottom group (Limits & storage, then Settings) from the
    destinations above; margin-top:auto pushes the group to the drawer's foot. */
 #tabbar .drawer-sep {
   flex: 0 0 auto; width: auto;
@@ -1770,6 +1778,9 @@ body.tour-on #kael-corner { opacity: 0; pointer-events: none; }
 .tour-btns { display: flex; gap: 8px; }
 .tour-btns .btn { flex: 1; }
 .tour-btns .btn[hidden] { display: none; }
+/* The same for the "tap here" pill and the "keep scrolling" arrow: their own
+   display rules beat the browser's [hidden], so js/tour.js could not hide them. */
+.tour-tap[hidden], .tour-scroll[hidden] { display: none; }
 .tour-skipbtn { width: 100%; margin-top: 6px; font-size: 13px; }
 .tour-card.is-final .tour-btns .btn { flex: 1; }
 
@@ -2251,12 +2262,14 @@ body.read-spread #read-reader {
 /* The gold dot: an invite waits for my answer. On the drawer entry and on ☰,
    since the drawer is closed most of the time. */
 #tabbar button.has-dot, #tabmenu-btn.has-dot { position: relative; }
-#tabbar button.has-dot::after, #tabmenu-btn.has-dot::after {
+#tabbar button.has-dot::after, #tabmenu-btn.has-dot::after, #btn-profile.has-dot::after {
   content: ''; width: 9px; height: 9px; border-radius: 50%;
   background: var(--gold); box-shadow: 0 0 0 2px var(--panel);
 }
 #tabbar button.has-dot::after { margin-left: auto; }
 #tabmenu-btn.has-dot::after { position: absolute; top: 5px; right: 3px; }
+/* A friend request is waiting (Friends.paintCount). */
+#btn-profile.has-dot::after { position: absolute; top: 4px; right: 4px; }
 
 /* ── Pulso: lobby, waiting, the incoming banner ───────────────────────────
    Only existing tokens. The lobby rows are .fr-row; the cards are

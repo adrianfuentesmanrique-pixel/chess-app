@@ -49,6 +49,14 @@ export const Avatars = {
   async refresh() {
     const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
     $('profile-avatar-wrap').innerHTML = avatarHtml(id, 56);
+    this.paintTopbar(id);
     return id;
+  },
+
+  // The top bar's shortcut to Profile (#btn-profile) wears the same picture.
+  async paintTopbar(id) {
+    id ??= await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
+    const pic = $('btn-profile-pic');
+    if (pic) pic.innerHTML = avatarHtml(id, 32);
   },
 };

@@ -127,7 +127,7 @@ async function load(lang, scheme, seed = {}) {
       N: (await import('${APP_URL}/js/notifications.js')).Notifications, i18n: await import('${APP_URL}/js/i18n.js') };`);
 }
 
-const openSettings = async () => { await killModals(); await evalP(`document.getElementById('btn-settings').click();`); await sleep(700); };
+const openSettings = async () => { await killModals(); await evalP(`document.getElementById('menu-settings').click();`); await sleep(700); };
 const settingsBlock = () => evalP(`const seg = document.getElementById('remind-seg'), sel = document.getElementById('remind-hour'), hint = document.getElementById('remind-hint');
   if (!seg) return null;
   const btns = [...seg.querySelectorAll('button')];

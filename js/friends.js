@@ -104,6 +104,8 @@ export const Friends = {
     const pill = $('profile-friends-count');
     pill.textContent = n;
     pill.classList.toggle('hidden', n === 0);
+    // The same news on the top bar's profile icon, so it is seen from any tab.
+    $('btn-profile')?.classList.toggle('has-dot', n > 0);
   },
 
   // Both queries, then one batch of public profiles for every uid in either

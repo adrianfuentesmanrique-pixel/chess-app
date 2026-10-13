@@ -213,7 +213,7 @@ async function run(scenario, lang, scheme) {
     await c.send('Network.clearBrowserCache');
     await c.send('Page.reload', {});
     await opened(c);
-    await c.evalP(`document.querySelector('button[data-screen="profile"]').click();`);
+    await c.evalP(`document.getElementById('btn-profile').click();`);
     await sleep(1500);
     const ui = await c.evalP(`
       document.querySelectorAll('#trophy-case img').forEach(i => { i.loading = 'eager'; });

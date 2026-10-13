@@ -96,7 +96,8 @@ const click = (sel, ms = 450) => evalP(`
   const e = document.querySelector(${JSON.stringify(sel)});
   if (!e) return false;
   e.click(); await new Promise(r => setTimeout(r, ${ms})); return true;`);
-const tab = async screen => { await click('#tabmenu-btn', 350); await click(`#tabbar button[data-screen="${screen}"]`, 800); };
+// Profile is not in the drawer: its way in is the avatar in the top bar.
+const tab = async screen => { if (screen === 'profile') return click('#btn-profile', 800); await click('#tabmenu-btn', 350); await click(`#tabbar button[data-screen="${screen}"]`, 800); };
 const call = screen => evalP(`const app = await import('/js/app.js'); app.showScreen('${screen}'); await new Promise(r => setTimeout(r, 500));`);
 const back = async () => { await evalP(`history.back(); await new Promise(r => setTimeout(r, 500));`); };
 const where = () => evalP(`const app = await import('/js/app.js');
@@ -303,7 +304,7 @@ for (const lang of ['en', 'es']) {
 
     // ── Sub-screens that keep a Back button: no neighbours, as before ──
     await tab('profile');
-    for (const [name, open] of [['leaderboard', () => click('#profile-leaderboard-btn', 700)], ['friends', () => click('#profile-friends-btn', 700)],
+    for (const [name, open] of [['profile', async () => {}], ['leaderboard', () => click('#profile-leaderboard-btn', 700)], ['friends', () => click('#profile-friends-btn', 700)],
       ['friends-leaderboard', () => call('friends-leaderboard')], ['friends-blocked', () => call('friends-blocked')],
       ['public-profile', () => call('public-profile')], ['masterclass', () => call('masterclass')], ['setup', () => call('setup')]]) {
       await open();

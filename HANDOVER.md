@@ -9,6 +9,38 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **PROFILE ICON IN THE TOP BAR, SETTINGS IN THE MENU (2026-10-12, v196).** The two swapped
+  places. Adrian's decisions: the icon is the user's own avatar; a gold dot on it for a
+  waiting friend request; Profile is reached by the icon only, not by swiping.
+  - **Top bar:** `#btn-settings` is GONE. `#btn-profile` (44 x 44, `.icon-btn`) holds
+    `#btn-profile-pic`, painted by `Avatars.paintTopbar()` in `js/avatars.js` (called from
+    `Avatars.refresh()`, from `main()` and from the `Auth.onChange` in `main()`). Signed out or
+    new, it is the white pawn, the default Profile already showed. `.on` (a gold ring) is set
+    in `showScreen` for every screen whose `MENU_AREA` is `profile`; `.has-dot` is set by
+    `Friends.paintCount()` beside the pill on Profile. The teacher-invite dot was never on
+    Profile: it stays on Students and on the menu button.
+  - **Menu:** `<a id="menu-settings" class="sheet-link">` is the last row, after
+    `#menu-limits`. An `<a>`, not a `<button>`, for the reason in the comment above
+    `#menu-limits`: `#tabbar button` is now exactly the EIGHT destinations. One loop in
+    `js/app.js` wires both sheet rows.
+  - **No Profile button in the drawer any more.** `updateTabMenu()` writes the title for
+    Profile and its sub-screens itself (`PROFILE_ICO`). `TAB_ORDER` ends at Students, so a
+    swipe on Profile goes nowhere and Back returns to where the icon was tapped.
+  - **Tour:** the Profile step rings `#btn-profile`; the Settings step is
+    `'#tabbar #menu-settings'` (the `#tabbar` in the selector is what opens the drawer).
+    Texts `tour_prof_tab_b`, `tour_settings_b`, `tour_skipped_toast` say the new places.
+  - **A defect found and fixed on the way:** `.tour-tap` and `.tour-scroll` have their own
+    `display`, so `hidden` never hid them: an empty gold pill on every step without a tap, and
+    a "keep scrolling" arrow that stayed up after the radar step. One CSS rule.
+  - **Checked:** `tools/cdp-verify-profile-icon.mjs` (new, 193 checks: 375px, ES and EN,
+    light and dark, real taps and swipes; its first lines say what was called or seeded).
+    The check tools that pressed the old places now press the new ones (tabheads,
+    swipe-modes, movelist, lichess, remind, remind-invite, offline-art); only tabheads,
+    swipe-modes and puzzle-modes were RUN. tabheads' "blind rating badge shown" check had
+    been failing since Blindfold got its start panel; it now checks the badge is filled in.
+  - **NOT seen:** a signed-in user's avatar arriving from the cloud, and a real friend
+    request lighting the dot (the tools are signed out; the dot was seeded).
+
 - **PLAY: A CLOCK, OR NONE (2026-10-12, v195).** A game against the engine can be played
   with a time control. No clock stays the default and plays exactly as before.
   - **The clock** is `js/play-clock.js`: PURE, imports nothing, starts no timer, is handed the

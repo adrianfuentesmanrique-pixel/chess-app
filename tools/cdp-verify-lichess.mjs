@@ -289,7 +289,7 @@ async function run(lang, scheme) {
     seen.length = 0;
     const SET_BTN = `[...document.querySelectorAll('.modal-box button')].find(x => x.textContent === a || x.textContent === b)`;
     const findBtn = `const a = ${JSON.stringify(tr.lichess_connect)}, b = ${JSON.stringify(tr.lichess_disconnect)}; const btn = ${SET_BTN};`;
-    await c.evalP(`document.getElementById('btn-settings').click();`);
+    await c.evalP(`document.getElementById('menu-settings').click();`);
     const label1 = await until(c, `${findBtn} if (!btn) return null; btn.scrollIntoView({ block: 'center' }); return btn.textContent;`);
     await sleep(300); await shoot(c, `${name}-5-settings-connected`);
     await c.evalP(`${findBtn} btn.click();`);
@@ -326,7 +326,7 @@ async function run(lang, scheme) {
     check(fresh.test(legal.terms) && freshP.test(legal.privacy) && !stale.test(legal.terms) && !stale.test(legal.privacy) && legal.updated.includes('2026-10-06'), 'legal: both paragraphs reworded, old claim gone, date 2026-10-06');
     for (const [key, file] of [['view_terms', '8-terms'], ['view_privacy', '9-privacy']]) {
       await c.send('Page.reload', {}); await opened(c); await sleep(500);
-      await c.evalP(`document.getElementById('btn-settings').click();`);
+      await c.evalP(`document.getElementById('menu-settings').click();`);
       await until(c, `const { t } = await import('/js/i18n.js'); const b = [...document.querySelectorAll('.modal-box button')].find(x => x.textContent === t('${key}')); if (!b) return null; b.click(); return true;`);
       const shown = await until(c, `const p = [...document.querySelectorAll('.legal-p')].find(x => x.textContent.includes('Lichess') && x.textContent.includes('FEN')); if (!p) return null; p.scrollIntoView({ block: 'center' }); return p.textContent;`);
       check(shown === (key === 'view_terms' ? legal.terms : legal.privacy), `legal: ${key} shows the reworded paragraph on screen`);

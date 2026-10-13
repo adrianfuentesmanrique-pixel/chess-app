@@ -257,7 +257,7 @@ try {
 
   // 6 ── using the Settings switch by hand closes the invitation
   await reset(); await load('en', 'light'); await signIn();
-  await killModals(); await evalP(`document.getElementById('btn-settings').click();`); await sleep(700);
+  await killModals(); await evalP(`document.getElementById('menu-settings').click();`); await sleep(700);
   await evalP(`document.querySelector('#remind-seg button[data-v="off"]').click();`); await sleep(600);
   check('Settings switch used by hand: count 2', (await kv('remindAskCount')) === 2);
   await killModals();

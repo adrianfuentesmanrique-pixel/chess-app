@@ -118,14 +118,17 @@ const STEPS = [
   // ── Profile ───────────────────────────────────────────────────────────
   {
     key: 'profTab', screen: 'read', t: 'tour_prof_tab_t', b: 'tour_prof_tab_b',
-    target: '#tabbar button[data-screen="profile"]', action: 'tap', waitFor: '#screen-profile',
+    // Not in the drawer: the avatar in the top bar.
+    target: '#btn-profile', action: 'tap', waitFor: '#screen-profile',
   },
   { key: 'profMiss', screen: 'profile', t: 'tour_prof_miss_t', b: 'tour_prof_miss_b', target: '#daily-missions-list', wrap: '.profile-card' },
   { key: 'profLb', screen: 'profile', t: 'tour_prof_lb_t', b: 'tour_prof_lb_b', target: '#profile-leaderboard-btn' },
   // The only step below the fold on a phone — the scroll hint earns its keep here.
   { key: 'profRadar', screen: 'profile', t: 'tour_prof_radar_t', b: 'tour_prof_radar_b', target: '#chart-overall', wrap: '.profile-card' },
 
-  { key: 'settings', screen: 'profile', t: 'tour_settings_t', b: 'tour_settings_b', target: '#btn-settings' },
+  // Settings is the last row of the drawer; '#tabbar' in the target is what
+  // makes go() open the drawer for this step.
+  { key: 'settings', screen: 'profile', t: 'tour_settings_t', b: 'tour_settings_b', target: '#tabbar #menu-settings' },
   { key: 'done', screen: 'profile', t: 'tour_done_t', b: 'tour_done_b', target: null },
 ];
 

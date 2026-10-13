@@ -264,7 +264,11 @@
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19h.01M8.5 15.5a5 5 0 0 1 7 0M5 12a10 10 0 0 1 14 0M2 8.5a15 15 0 0 1 20 0M4 3l16 18"/></svg>
     </button>
     <span id="streak-badge" class="streak-badge" data-i18n-aria="streak_daily"></span>
-    <button id="btn-settings" class="icon-btn" title="Ajustes">⚙️</button>
+    <!-- The shortcut to Profile, drawn as the user's own avatar (Avatars.paintTopbar
+         in js/avatars.js). .on = the gold ring while Profile, or a screen reached
+         from it, is open (showScreen); .has-dot = a friend request is waiting
+         (Friends.paintCount). Settings moved to the foot of the menu. -->
+    <button id="btn-profile" class="icon-btn" type="button" data-i18n-aria="tab_profile"><span id="btn-profile-pic"></span></button>
   </div>
 </header>
 
@@ -1520,15 +1524,16 @@
        is waiting for my answer. -->
   <button data-screen="students"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/><path d="M15.5 4.8a3.5 3.5 0 0 1 0 6.4M17.5 14.3c2.2.7 3.6 2.8 4 5.7"/></svg><span data-i18n="tab_students"></span></button>
   <!-- The bottom group. The divider's margin-top:auto pins it and everything
-       after it to the foot of the drawer. Limits & storage is not a destination
-       and deliberately NOT a <button>: every '#tabbar button' selector
-       (TAB_ORDER, swipe nav, the .on highlight, the click handler, the tour
-       targets) must keep matching exactly the nine data-screen buttons, so it
-       can sit before Profile without disturbing their order. It opens the
-       Limits & storage sheet (js/app.js openLimitsSheet). -->
+       after it to the foot of the drawer. Limits & storage and Settings are
+       sheets, not destinations, and deliberately NOT <button>s: every
+       '#tabbar button' selector (TAB_ORDER, swipe nav, the .on highlight, the
+       click handler, the tour targets) must keep matching exactly the eight
+       data-screen buttons. They open the Limits & storage sheet and the
+       Settings sheet (js/app.js openLimitsSheet, openSettings). Profile is no
+       longer here: it is #btn-profile in the top bar. -->
   <hr class="drawer-sep">
   <a id="menu-limits" class="sheet-link" role="button" tabindex="0"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5 12 3.5l8.5 4v9l-8.5 4-8.5-4z"/><path d="m3.5 7.5 8.5 4 8.5-4M12 11.5v9"/></svg><span data-i18n="limits_menu"></span></a>
-  <button data-screen="profile"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.8-4 3.8-6.5 7.5-6.5s6.7 2.5 7.5 6.5"/></svg><span data-i18n="tab_profile"></span></button>
+  <a id="menu-settings" class="sheet-link" role="button" tabindex="0"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="settings"></span></a>
 </nav>
 
 <div id="toast" class="hidden"></div>

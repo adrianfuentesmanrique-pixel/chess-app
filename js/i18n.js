@@ -1141,7 +1141,7 @@ const DICT = {
   tour_tap_here: { es: 'Toca aquí', en: 'Tap here' },
   tour_scroll_hint: { es: 'Sigue bajando', en: 'Keep scrolling' },
   tour_replay: { es: 'Repetir el tour guiado', en: 'Replay the guided tour' },
-  tour_skipped_toast: { es: 'Puedes repetirlo cuando quieras desde Ajustes ⚙️', en: 'You can replay it any time from Settings ⚙️' },
+  tour_skipped_toast: { es: 'Puedes repetirlo cuando quieras desde Ajustes, en el menú', en: 'You can replay it any time from Settings, in the menu' },
 
   tour_welcome_t: { es: '¡Vamos allá!', en: "Here we go!" },
   tour_welcome_b: { es: 'Te enseño lo esencial de cada sección en unos minutos. Puedes salir cuando quieras.', en: "I'll show you the essentials of each section in a few minutes. You can stop any time." },
@@ -1205,7 +1205,7 @@ const DICT = {
   tour_read_add_b: { es: 'Añade un PDF desde el teléfono y léelo página a página, con zoom. Y lo mejor: mantén pulsado un diagrama del libro y esa posición se abre en el tablero para que juegues con ella. Los libros se guardan solo en este dispositivo; no se suben a ningún sitio.', en: 'Add a PDF from your phone and read it page by page, with zoom. Best of all: long-press a diagram in the book and that position opens on the board for you to play with. Books are saved on this device only — they are never uploaded anywhere.' },
 
   tour_prof_tab_t: { es: 'Perfil', en: 'Profile' },
-  tour_prof_tab_b: { es: 'Toca Perfil. Aquí se ve tu progreso.', en: 'Tap Profile. Your progress shows up here.' },
+  tour_prof_tab_b: { es: 'Toca tu foto, arriba a la derecha: es tu Perfil. Aquí se ve tu progreso.', en: 'Tap your picture, top right: that is your Profile. Your progress shows up here.' },
   tour_prof_miss_t: { es: 'Misiones diarias', en: 'Daily missions' },
   tour_prof_miss_b: { es: 'Pequeños objetivos cada día. Mantener la racha es lo que de verdad hace mejorar.', en: 'Small targets every day. Keeping your streak alive is what really makes you improve.' },
   tour_prof_lb_t: { es: 'Clasificación', en: 'Leaderboard' },
@@ -1214,7 +1214,7 @@ const DICT = {
   tour_prof_radar_b: { es: 'Estos gráficos muestran dónde eres fuerte y qué conviene trabajar. Vuelve a mirarlos cada pocas semanas.', en: "These charts show where you're strong and what is worth working on. Come back to them every few weeks." },
 
   tour_settings_t: { es: 'Ajustes', en: 'Settings' },
-  tour_settings_b: { es: 'Tema, sonido, idioma y más: deja la aplicación a tu gusto para entrenar cómodo. Desde aquí también puedes repetir este tour.', en: 'Theme, sound, language, and more — set the app up however you train best. You can also replay this tour from here.' },
+  tour_settings_b: { es: 'Al final del menú. Tema, sonido, idioma y más: deja la aplicación a tu gusto para entrenar cómodo. Desde aquí también puedes repetir este tour.', en: 'At the foot of the menu. Theme, sound, language, and more: set the app up however you train best. You can also replay this tour from here.' },
   tour_done_t: { es: '¡Todo listo!', en: "You're all set!" },
   tour_done_b: { es: 'Ya sabes dónde está lo importante. Disfruta el entrenamiento y recuerda: la constancia es lo que marca la diferencia. Estoy siempre en la esquina por si me necesitas.', en: "You now know where to find the important things. Enjoy your training, and remember — consistency is what makes the difference. I'm always down in the corner if you need me." },
 
