@@ -9,6 +9,30 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **KAEL'S BUBBLE STAYS WHERE IT IS (2026-10-13, decision only, docs only, no version bump).**
+  Adrian looked at pictures of three options and chose to LEAVE IT. Do not re-open this
+  unless he asks. Nothing in the app changed; the `hush()` / "hide the bubble first" lines in
+  tools/cdp-verify-blind-calc-next.mjs and tools/cdp-verify-blind-theme.mjs are still needed.
+  MEASURED at 375x667, Spanish, light and dark alike, bubble shown through the real
+  `KaelQuotes.show` / `DailyMissions.remindIfIncomplete`: the bubble is x 123-363, bottom at
+  599, 82 to 136 px tall over the 201 quotes (median 100); the fab while he speaks is
+  x 315-363, y 607-655. It covers 61-68% of `#play-start` (494-543, with the screen scrolled
+  to its end) and `#play-history-btn`, 68% of `#trainer-start` (540-589), 52-68% of
+  `#rush-start` (487-539), 40-68% of `#blind-go` (478-530), with the word on the button under
+  it; 21-27% of `#puzzle-board`, 22-30% of `#blind-board`; on Sealed Moves it covers no
+  control, only the writing area. WHEN HE SPEAKS UNASKED: the gold mission reminder once per
+  opening, 45 s after start, 12 s, on whatever screen is up (not Home); Blindfold's greeting
+  0.9 s after the first puzzle of an opening loads, 5 s, one time in four; praise / first
+  mistake 4.5 s, one in four and never within 90 s of the last bubble; badges, streak tiers
+  and missions done 4-5.5 s after the solve that earned them; the Simul line 15 s. A tap on
+  him: 6 s. THE OPTIONS HE TURNED DOWN: (B) the corner moves to the top of the screen while
+  he speaks (`#kael-corner.speaking { top: 6px; left: 10px; right: 10px; flex-direction:
+  row-reverse }`), which frees every start button and board and covers the menu, the avatar
+  and the first row of mode tabs instead; (C) unasked bubbles dropped while a start panel is
+  up or Blindfold is memorising. SEEN IN PASSING, NOT TOUCHED: the quotes in
+  js/quotes-data.js `QUOTES` are English only (`item.q`), so a Spanish player gets Kael's
+  quotes in English.
+
 - **BLINDFOLD: THE WHOLE SCREEN FITS 375x667 (2026-10-13, v212).** No spec; Adrian chose
   both from pictures of the real app (three options each, "leave it" included).
   - **The row under the board** (`#blind-actions`: Peek, Show solution, share) was 9 px
