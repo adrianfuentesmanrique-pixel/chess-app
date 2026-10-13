@@ -54,6 +54,7 @@ const DICT = {
   coord_result_line: { es: 'Aciertos: {n} · Fallos: {w}', en: 'Right: {n} · Wrong: {w}' },
   coord_result_best: { es: '¡Nueva mejor marca!', en: 'New personal best!' },
   coord_result_best_n: { es: 'Tu mejor marca: {n}', en: 'Your best: {n}' },
+  coord_result_best_at: { es: 'Tu mejor marca en {t}: {n}', en: 'Your best in {t}: {n}' },
   coord_intro_1: { es: 'Los libros, las lecciones y tus amigos hablan del tablero con nombres: e4, f7, a1. Aquí aprendes a verlos al instante.', en: 'Books, lessons and your friends talk about the board in names: e4, f7, a1. Here you learn to see them at once.' },
   coord_intro_2: { es: 'En un ejercicio te doy un nombre y tocas esa casilla. En el otro ilumino una casilla y me dices cómo se llama: primero la letra, luego el número.', en: 'In one exercise I give you a name and you tap that square. In the other I light a square and you tell me its name: the letter first, then the number.' },
   coord_intro_3: { es: 'Las letras y los números del borde no se ven mientras juegas. Un fallo no resta puntos: solo te cuesta tiempo.', en: 'The letters and numbers on the edge are hidden while you play. A miss costs no points: only time.' },

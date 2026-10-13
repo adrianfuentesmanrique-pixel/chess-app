@@ -33,6 +33,10 @@
 // green and a wrong one red, and "name" still lights its square; all of it
 // is back after a reload. The 30-second run that is waited out for real is
 // also the run with every choice untouched: it must behave as before.
+// With a result up, the result's line follows the choices: the slider dragged
+// to another length says that length's best while it moves (a dash where there
+// is none), the other exercise says its own, back on the run's own choices the
+// line is the run's again, and Again stays on the screen through all of it.
 // NOT checked here: sync to Firestore (the tool is signed out).
 import { spawn } from 'node:child_process';
 import http from 'node:http';
@@ -143,14 +147,18 @@ const boot = async () => {
 };
 // The slider, dragged by a finger to `frac` of its travel (0 left, 1 right).
 const THUMB = 16;
-const slide = async frac => {
+// `pace` is the wait between the eight steps of the drag. A drag of the whole
+// track at the usual 25 ms is a flick, and headless Chrome gives no click to the
+// tap that follows a flick (seen on the plain set-up at v214 too: pointerup
+// arrives, click does not): where a tap comes next, the long drag goes slower.
+const slide = async (frac, pace = 25) => {
   const r = await ev(`const e = document.getElementById('coord-seconds'); e.scrollIntoView({ block: 'center' }); const r = e.getBoundingClientRect();
     return { l: r.left, w: r.width, y: r.top + r.height / 2, f: (e.value - e.min) / (e.max - e.min) };`);
   const xAt = f => r.l + THUMB / 2 + f * (r.w - THUMB);
   const touch = (type, x) => send('Input.dispatchTouchEvent', { type, touchPoints: x === undefined ? [] : [{ x: Math.round(x), y: Math.round(r.y), id: 1 }] });
   await touch('touchStart', xAt(r.f));
-  for (let i = 1; i <= 8; i++) { await touch('touchMove', xAt(r.f + (frac - r.f) * i / 8)); await sleep(25); }
-  const moving = await ev(`return { text: document.getElementById('coord-time-timed').textContent, saved: ((await (await import('/js/db.js')).kvGet('coordPrefs', null)) || {}).seconds };`);
+  for (let i = 1; i <= 8; i++) { await touch('touchMove', xAt(r.f + (frac - r.f) * i / 8)); await sleep(pace); }
+  const moving = await ev(`return { text: document.getElementById('coord-time-timed').textContent, line: document.getElementById('coord-result-line').textContent, saved: ((await (await import('/js/db.js')).kvGet('coordPrefs', null)) || {}).seconds };`);
   await touch('touchEnd');
   await sleep(200);
   return moving;
@@ -158,6 +166,16 @@ const slide = async frac => {
 const len = () => ev(`const e = document.getElementById('coord-seconds'); return { value: +e.value, text: document.getElementById('coord-time-timed').textContent, label: document.getElementById('coord-best-label').textContent,
   best: document.getElementById('coord-best').textContent, time: __coord.prefs.time, dim: document.getElementById('coord-len').classList.contains('locked'), saved: ((await (await import('/js/db.js')).kvGet('coordPrefs', null)) || {}) };`);
 const seen = () => ev(`const i = [...document.querySelectorAll('#coord-board img')]; return { all: i.length, seen: i.filter(x => getComputedStyle(x).visibility !== 'hidden').length };`);
+// The result's line, and whether Again is still on the screen under it. The
+// tool's own slide() and tap() bring what they touch to the middle of the
+// screen, so the page is put back at its top first: what is measured is the
+// screen as it is with nothing scrolled.
+const line = () => ev(`document.querySelector('main').scrollTo({ top: 0, behavior: 'instant' }); await new Promise(r => setTimeout(r, 120));
+  const s = document.getElementById('coord-start').getBoundingClientRect(), l = document.getElementById('coord-result-line');
+  return { text: l.textContent, rows: Math.round(l.getBoundingClientRect().height / parseFloat(getComputedStyle(l).lineHeight)), up: !document.getElementById('coord-result').classList.contains('hidden'),
+    card: document.getElementById('coord-best-row').classList.contains('hidden'), again: document.getElementById('coord-start').textContent, bottom: Math.round(s.bottom), inner: innerHeight, top: document.querySelector('main').scrollTop };`);
+const onScreen = x => x.up && x.card && x.rows === 1 && x.bottom <= x.inner && x.top === 0;
+const BEST_AT = { es: 'Tu mejor marca en ', en: 'Your best in ' }, BEST_N = { es: 'Tu mejor marca: ', en: 'Your best: ' }, NEW_BEST = { es: '¡Nueva mejor marca!', en: 'New personal best!' }, AGAIN = { es: 'Otra vez', en: 'Again' };
 const BEST_KEYS = ['Find', 'Name'].flatMap(m => ['', 60, 90, 120, 150, 180].map(s => 'coordBest' + m + s));
 const choose = async (mode, time, side) => {
   await tap(`#coord-mode [data-v="${mode}"]`);
@@ -277,6 +295,22 @@ try {
     check(`[${tag}] a run of 1 does not replace the best, and does not count the day`, low.score === '1' && low.best === '11' && !low.isBest && low.streak === 1 && (await kv('coordBestFind')) === 11, low);
     check(`[${tag}] ... and its line says what the best is`, / 11$/.test(low.line), low.line);
 
+    // ── with the result up, its line follows the choices ──
+    let rm = await slide(0.4), rl = await line();
+    check(`[${tag}] with the result up, the slider dragged to 1:30 says that length's best while it moves: none, a dash`, rm.line.endsWith(BEST_AT[lang] + '1:30: —') && rl.text === rm.line && rl.text.includes(': 1 '), { rm, rl });
+    check(`[${tag}] ... the result stays, the card stays away, the line is one line and "${AGAIN[lang]}" is on the screen, nothing scrolled`, onScreen(rl) && rl.again === AGAIN[lang], rl);
+    await shot(`${tag}-5b-result-slider-130`);
+    await slide(0);
+    rl = await line();
+    check(`[${tag}] dragged back to the run's own length the line is the run's again`, rl.text.endsWith(BEST_N[lang] + '11') && !rl.text.includes('0:30') && onScreen(rl), rl);
+    await tap('#coord-mode [data-v="name"]');
+    rl = await line();
+    check(`[${tag}] the other exercise, really tapped, says its own best at this length: none, a dash`, rl.text.endsWith(BEST_AT[lang] + '0:30: —') && onScreen(rl), rl);
+    await shot(`${tag}-5c-result-other-exercise`);
+    await tap('#coord-mode [data-v="find"]');
+    rl = await line();
+    check(`[${tag}] ... and back on the exercise that was run, the run's line again`, rl.text.endsWith(BEST_N[lang] + '11') && onScreen(rl), rl);
+
     // ── name the square, White below ──
     await choose('name', 'timed', 'w');
     check(`[${tag}] "name" has its own best: none yet`, await ev(`return document.getElementById('coord-best').textContent;`) === '—');
@@ -377,6 +411,31 @@ try {
     check(`[${tag}] ... and ten count the day at this length as at 30 seconds`, r90.streak === 2, r90.streak);
     await shot(`${tag}-10-result-130`);
     check(`[${tag}] Start stayed on the screen with every choice changed`, room.again <= room.inner, room);
+    // The result of the 1:30 run is up, a new best: the line follows from there too.
+    rl = await line();
+    check(`[${tag}] the 1:30 result's own line says it is a new best`, rl.text.endsWith(NEW_BEST[lang]) && rl.bottom <= rl.inner && rl.top === 0, rl);
+    rm = await slide(0);
+    rl = await line();
+    check(`[${tag}] the slider dragged to 0:30 says the 30-second best, 11, while it moves and after`, rm.line.endsWith(BEST_AT[lang] + '0:30: 11') && rl.text === rm.line && rl.text.includes(': 10 '), { rm, rl });
+    check(`[${tag}] ... and "${AGAIN[lang]}" is still on the screen, nothing scrolled`, onScreen(rl), rl);
+    await shot(`${tag}-10b-result-slider-030`);
+    await slide(1, 120);
+    rl = await line();
+    check(`[${tag}] dragged to 3:00, where there is no best, a dash`, rl.text.endsWith(BEST_AT[lang] + '3:00: —') && onScreen(rl), rl);
+    await tap('#coord-mode [data-v="name"]');
+    await slide(0, 120);
+    rl = await line();
+    check(`[${tag}] the other exercise at 0:30 says ITS best, 1, not the 11`, rl.text.endsWith(BEST_AT[lang] + '0:30: 1') && onScreen(rl), rl);
+    await shot(`${tag}-10c-result-other-exercise`);
+    await tap('#coord-mode [data-v="find"]');
+    await slide(0.4);
+    rl = await line();
+    check(`[${tag}] back on 1:30 and the exercise that was run, it is the new best again`, rl.text.endsWith(NEW_BEST[lang]) && rl.bottom <= rl.inner && rl.top === 0 && (await len()).saved.seconds === 90, rl);
+    // CALLED, not tapped: the longest line there can be (three figures everywhere).
+    const wide = await ev(`const c = __coord, keep = { ...c.last }, b = c.best.coordBestFind150; Object.assign(c.last, { score: 188, wrong: 188 }); c.best.coordBestFind150 = 188; c.prefs.seconds = 150; c.paintSetup(); document.querySelector('main').scrollTo({ top: 0, behavior: 'instant' });
+      const s = document.getElementById('coord-start').getBoundingClientRect(), out = { text: document.getElementById('coord-result-line').textContent, bottom: Math.round(s.bottom), inner: innerHeight, top: document.querySelector('main').scrollTop };
+      c.last = keep; c.best.coordBestFind150 = b; c.prefs.seconds = 90; c.paintSetup(); return out;`);
+    check(`[${tag}] with three figures everywhere the line may fold, and "${AGAIN[lang]}" still ends on the screen`, wide.text.includes('2:30: 188') && wide.bottom <= wide.inner && wide.top === 0, wide);
     // "name" on the empty board: the square asked is still lit.
     await tap('#coord-mode [data-v="name"]');
     await tap('#coord-start');

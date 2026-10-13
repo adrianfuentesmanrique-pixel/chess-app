@@ -41,7 +41,7 @@ export const CoordUI = {
   deadline: 0,        // ms, a timed run's end
   timer: null,
   entry: '',          // 'name': the letter already given
-  last: null,         // the run just ended: { reason, score, wrong, isBest, timed, best }
+  last: null,         // the run just ended: { reason, score, wrong, isBest, timed, best, key }
   best: {},           // by coordBestKey(mode, seconds)
   prefs: { mode: 'find', time: 'timed', side: 'random', seconds: COORD_SECONDS, pieces: 'on' },
   read: null,
@@ -214,7 +214,7 @@ export const CoordUI = {
       this.best[key] = run.score;
       db.kvSet(key, run.score);
     }
-    this.last = { reason, score: run.score, wrong: run.wrong, isBest, timed: run.timed, best: run.timed ? this.best[key] : 0 };
+    this.last = { reason, score: run.score, wrong: run.wrong, isBest, timed: run.timed, best: run.timed ? this.best[key] : 0, key };
     this.clear();
     this.paintSetup();
     if (coordCountsForStreak(run)) Streak.recordActivity();
@@ -262,20 +262,24 @@ export const CoordUI = {
     $('coord-seconds').setAttribute('aria-valuetext', length);
     $('coord-len').classList.toggle('locked', this.prefs.time !== 'timed');
     // The best of this exercise at the length the slider is on.
+    const chosen = coordBestKey(this.prefs.mode, this.prefs.seconds), best = this.best[chosen] || '—';
     $('coord-best-label').textContent = t('coord_best').replace('{t}', length);
-    $('coord-best').textContent = this.best[coordBestKey(this.prefs.mode, this.prefs.seconds)] || '—';
+    $('coord-best').textContent = best;
     const last = this.last;
     $('coord-result').classList.toggle('hidden', !last);
     $('coord-explain').classList.toggle('hidden', !!last);
     // With a result on the screen the best is said in the result's own line:
     // the card and the result together do not fit above Start on a short phone.
+    // The line says the run's own best until the exercise or the length chosen
+    // is another one; from then on it says the best of what is chosen.
     $('coord-best-row').classList.toggle('hidden', !!last);
     $('coord-start').textContent = t(last ? 'coord_again' : 'coord_start');
     if (!last) return;
     $('coord-result-title').textContent = t(last.reason === 'time' ? 'coord_result_time' : 'coord_result_stopped');
     $('coord-result-score').textContent = last.score;
     $('coord-result-line').textContent = t('coord_result_line').replace('{n}', last.score).replace('{w}', last.wrong)
-      + (last.isBest ? ' · ' + t('coord_result_best') : last.best ? ' · ' + t('coord_result_best_n').replace('{n}', last.best) : '');
+      + (chosen !== last.key ? ' · ' + t('coord_result_best_at').replace('{t}', length).replace('{n}', best)
+        : last.isBest ? ' · ' + t('coord_result_best') : last.best ? ' · ' + t('coord_result_best_n').replace('{n}', last.best) : '');
     $('coord-result').classList.toggle('best', last.isBest);
   },
 
