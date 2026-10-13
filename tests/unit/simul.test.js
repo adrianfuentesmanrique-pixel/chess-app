@@ -14,7 +14,7 @@ import {
   SIMUL, MAX_SIMUL_BOARDS, clockOffset, buildStart, startClocks, packMove, unpackMove,
   unpackMoves, tryMove, replayOpening, checkStart, colourToMove, roleOf, sideToMove,
   positionOf, settle, timeLeft, inTime, flagged, mayClaimFlag, moveWrite, boardResult,
-  resultOf, resultHolds, mayOfferDraw, waitingBoards, nextBoard, coloursFor, inviteOpen,
+  resultOf, resultHolds, mayOfferDraw, waitingBoards, nextBoard, coloursFor, inviteOpen, shownPosition, voidable,
   mayReplace,
 } from '../../js/simul.js';
 import { clockOffset as pulsoClockOffset } from '../../js/pulso.js';
@@ -755,4 +755,50 @@ test('replace: a game in play only once it started more than 3 hours ago', () =>
   assert.equal(mayReplace(live, T0 + 700_000), false);              // the invitation's 10 minutes do not count
   assert.equal(mayReplace(live, T0 + 10_800_000), false);
   assert.equal(mayReplace(live, T0 + 10_800_001), true);
+});
+
+// ── What a phone shows, and when it voids (conversation 4) ────────────────
+
+test('shown: a playable game is shown whole, with its last move', () => {
+  const v = shownPosition(game({ mv: pack('e2e4', 'e7e5', 'g1f3'), n: 3 }));
+  assert.equal(v.bad, false);
+  assert.equal(v.n, 3);
+  assert.deepEqual(v.last, { from: 'g1', to: 'f3' });
+  assert.equal(v.fen.split(' ')[0], 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R');
+  const start = shownPosition(game());
+  assert.deepEqual([start.bad, start.n, start.last], [false, 0, null]);
+  // The opening is on the board but is not "the last move" of the game.
+  const op = shownPosition(game({ op: pack('e2e4', 'e7e5') }));
+  assert.deepEqual([op.bad, op.n, op.last], [false, 0, null]);
+});
+
+test('shown: an impossible move is not played; the board stands as it was before it', () => {
+  const v = shownPosition(game({ mv: pack('e2e4', 'e7e5', 'e4e6'), n: 3 }));
+  assert.equal(v.bad, true);
+  assert.equal(v.n, 2);
+  assert.deepEqual(v.last, { from: 'e7', to: 'e5' });
+  assert.equal(v.fen.split(' ')[0], 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR');
+  // The very first move, and a string that is not moves at all.
+  assert.deepEqual([shownPosition(game({ mv: 'e2e5-', n: 1 })).bad, shownPosition(game({ mv: 'e2e5-', n: 1 })).n], [true, 0]);
+  assert.deepEqual([shownPosition(game({ mv: 'e2e4', n: 1 })).bad, shownPosition(game({ mv: 'e2e4', n: 1 })).n], [true, 0]);
+  assert.equal(shownPosition(game({ fen: 'nonsense' })), null);
+});
+
+test('shown: a stored mate the board does not show is bad; a true one is not', () => {
+  const mv = pack('f2f3', 'e7e5', 'g2g4', 'd8h4');
+  assert.equal(shownPosition(game({ mv, n: 4, status: 'done', winner: 's', reason: 'mate' })).bad, false);
+  assert.equal(shownPosition(game({ mv, n: 4, status: 'done', winner: 't', reason: 'mate' })).bad, true);
+  const not = pack('e2e4', 'e7e5');
+  assert.equal(shownPosition(game({ mv: not, n: 2, status: 'done', winner: 's', reason: 'mate' })).bad, true);
+  assert.equal(shownPosition(game({ mv: not, n: 2, status: 'done', winner: 'draw', reason: 'stalemate' })).bad, true);
+  // Endings that are a choice are nothing a board can contradict.
+  assert.equal(shownPosition(game({ mv: not, n: 2, status: 'done', winner: 's', reason: 'resign' })).bad, false);
+  assert.equal(shownPosition(game({ mv: not, n: 2, status: 'done', winner: null, reason: 'void', by: 's' })).bad, false);
+});
+
+test('voidable: a game in play, or one a move ended; nothing else', () => {
+  assert.equal(voidable(game()), true);
+  for (const reason of ['mate', 'stalemate', 'repetition', 'fifty', 'material']) assert.equal(voidable(game({ status: 'done', reason })), true, reason);
+  for (const reason of ['resign', 'agreed', 'flag', 'void', 'unfinished']) assert.equal(voidable(game({ status: 'done', reason })), false, reason);
+  for (const status of ['invited', 'joined', 'out']) assert.equal(voidable(game({ status })), false, status);
 });

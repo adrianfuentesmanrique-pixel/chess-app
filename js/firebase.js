@@ -23,7 +23,7 @@ import * as db from './db.js';
 import { PULSO, applySolve, applyMistake, decideResult, unpackIds, clockOffset } from './pulso.js';
 import {
   SIMUL, startClocks, checkStart, positionOf, tryMove, packMove, moveWrite, inTime, flagged,
-  mayClaimFlag, resultOf, mayOfferDraw, inviteOpen, mayReplace,
+  mayClaimFlag, resultOf, mayOfferDraw, inviteOpen, mayReplace, voidable,
 } from './simul.js';
 
 const firebaseConfig = {
@@ -1172,13 +1172,15 @@ export async function claimSimulFlag(id) {
 }
 
 // The other side's move cannot be played, or its "checkmate" is not one: the
-// board stops with no winner, and the record says who stopped it.
+// board stops with no winner, and the record says who stopped it. A game in
+// play is stopped; one that the other side's last move ended (a mate or an
+// automatic draw the board does not show) loses its winner.
 export async function voidSimul(id) {
   const g = simulMine(id);
-  if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
-  return await simulWrite(() => updateDoc(simulRef(id), {
-    status: 'done', reason: 'void', by: g.me,
-  })) || { ok: true };
+  if (!auth.currentUser || !g || !voidable(g)) return simulNo('gone');
+  return await simulWrite(() => updateDoc(simulRef(id), g.status === 'live'
+    ? { status: 'done', reason: 'void', by: g.me }
+    : { reason: 'void', winner: null, by: g.me })) || { ok: true };
 }
 
 // The teacher ends the simul: every board still open is recorded not finished,

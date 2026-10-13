@@ -9,6 +9,66 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 4 OF 8: THE GAME (2026-10-13, v204).** Spec
+  `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 4.
+  **`firestore.rules` changed (one helper): the push waited for Adrian's
+  `npm.cmd run rules:deploy`.** No clock, no resign, no draw offer, nothing saved to
+  History: conversations 5 and 6.
+  - **Adrian's three answers.** (a) The student's board is a MODE of `#screen-simul`
+    (`SimulUI.sOpen` = the board's id), not a screen of its own. (b) The teacher's phone
+    stops listening when they leave the screen and reloads on return, as before;
+    `SimulUI.sel` (the board they were on) survives `closeTeacher()`. (c) Leaving the board
+    asks nothing: leaving is not resigning.
+  - **Where.** `#simul-game` in `index.html` (static: `#simul-strip`, `#simul-status`,
+    `#simul-board`, `#simul-ctl` with `#simul-auto` and `#simul-skip`, `#simul-end`,
+    `#simul-new`); `SimulUI.renderGame / drawBoard / userMove / referee / look` in
+    `js/simul-ui.js`. ONE `Board` for every game. `view()` 'started' now draws the game,
+    and STAYS after the last board ends until the teacher taps "Nueva simultánea"
+    (`close()`, `localStorage` `simulClosed` = that simul's startAt); "End the simul" closes
+    it too. The student gets in by "Ir al tablero" on the banner and the card
+    (`openBoard`). `PulsoUI.busy()` now includes `SimulUI.inGame()`: no banner over a board.
+  - **The honest part (3k).** `shownPosition(g)` and `voidable(g)` in `js/simul.js` (pure,
+    unit-tested): a board is replayed before it is shown; a move that cannot be played is
+    not played (the board stands as it was before it). `SimulUI.referee()` voids, once,
+    and ONLY on the phone that received the move (the side to move), so `by` names who
+    refused it; a student's phone does it on any screen, the teacher's only while its
+    screen is open (its listener is off elsewhere).
+  - **THE RULE THAT WAS MISSING.** A false "checkmate" ends the game in the same write as
+    the move, and void was allowed only on a LIVE board, so 3k's "caught the same way"
+    could not be written. Added `simulFalseEndOk`: a game a move ended (mate, stalemate,
+    repetition, fifty, material) may be voided by the player who did NOT make that move
+    (`who == simulTurn(old)`), writing exactly `reason: 'void', winner: null, by`.
+    `voidSimul()` in `js/firebase.js` sends that shape for a finished board. 5 new rule
+    tests (`test:rules` 535). Open, as section 6 already says: a changed app can void a
+    game it really lost.
+  - **My move.** Shown at once, `simulMove` NOT awaited; if the server will not take it the
+    listener puts the stored game back and the board follows (`drawn` is what the board
+    shows; anything that is not "one move more on the same board" is put there without a
+    slide). A write unconfirmed for 2 s says "Enviando tu jugada…"; with no signal a note
+    says the move will be sent. Firestore keeps its queue in memory only: a move made
+    offline and followed by a RELOAD before the signal returns is lost (the board then
+    shows the truth).
+  - **Auto-jump.** 600 ms after the teacher's move, to `nextBoard()` of the other boards;
+    a switch (`localStorage` `simulAuto`) and ⏭. No pre-moves on these boards.
+  - **NOT built, for conversation 5 to decide:** a student who is away from the board when
+    their game ends is told nothing (the banner just goes; `stateOf` has no state for a
+    finished game). The result is on the board only while they are on it. A latecomer has
+    no tile in the strip. Kael's corner overlaps the right end of the bottom button at
+    375x667 (it does on every screen); nothing is hidden under it.
+  - **Tool.** `node tools/emu-verify-simul.mjs [outDir]`: FOUR phones now (Eva, on
+    127.0.0.3, a student only in round 5). Round 2: a move each way, a move made offline,
+    the teacher ends the simul meanwhile, the refused move comes off the board. Round 3:
+    a seeded impossible move voided by the teacher's phone, a seeded false mate voided by
+    the student's. Round 5, teacher at 375x667: three boards to mate by taps, skip, jump
+    to the longest-waiting, the switch, a reload of both phones, an offline move sent on
+    return, a ten-tile strip measured. About 15 minutes.
+  - **Verified:** `test:tree` 453, `test:rules` 535, `test:precache` 59 files and 142 art,
+    the tool 409 of 409 with no console errors, 124 screenshots (about 15 opened and
+    looked at, across es/en and light/dark; the rest only measured by the tool). At
+    375x667 the strip starts at 119 px and "End the simul" ends at 666 px with nothing
+    scrolled, though the page can still slide about 70 px (the app's bottom padding).
+    NOT checked: a real phone, the live database, sound, more than three real boards.
+
 - **SIMULS, CONVERSATION 3 OF 8: INVITATION AND WAITING ROOM (2026-10-12, v203).** Spec
   `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 3.
   `firestore.rules` untouched. Conversation 2 (`682b795`) was pushed at the start of this

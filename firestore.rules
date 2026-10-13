@@ -1299,6 +1299,18 @@ service cloud.firestore {
                 && d.reason == 'unfinished'));
     }
 
+    // A game that a MOVE ended (mate, or a draw the board decides) on a board
+    // that does not show it. No rule can check "checkmate", so the phone that
+    // did NOT make that move may void the game, and the winner goes with it.
+    // The move count went up with the last move, so the turn names that phone.
+    function simulFalseEndOk(old, d, who, keys) {
+      return old.status == 'done'
+        && old.reason in ['mate', 'stalemate', 'repetition', 'fifty', 'material']
+        && who == simulTurn(old)
+        && keys.hasOnly(['reason', 'winner', 'by'])
+        && d.reason == 'void' && d.winner == null && d.by == who;
+    }
+
     // Before the game: the student's answer and the teacher's Start.
     function simulLobbyOk(old, d, who, keys) {
       return (who == 's'
@@ -1332,6 +1344,7 @@ service cloud.firestore {
            || simulDrawOk(old, d, who, keys)
            || simulReinviteOk(old, d, who, gameId))
         : (simulLobbyOk(old, d, who, keys)
+           || simulFalseEndOk(old, d, who, keys)
            || simulReinviteOk(old, d, who, gameId));
     }
 

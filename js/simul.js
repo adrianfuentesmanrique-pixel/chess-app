@@ -360,6 +360,32 @@ export function resultHolds(g, chess) {
   return g.winner === 'draw';
 }
 
+// Can a board still be voided? A game in play, or one that a MOVE ended (mate,
+// or a draw the board decides): those are the endings no rule can check.
+export function voidable(g) {
+  return g.status === 'live' || (g.status === 'done' && BOARD_REASONS.includes(g.reason));
+}
+
+// What a phone shows of a board: the game as far as it can be played.
+// { chess, fen, last, n, bad }: `n` moves of mv are on the board, `last` is the
+// newest of them ({ from, to }, or null). `bad`: the stored moves stop being
+// playable at move n (the board then stands as it was before that move), or a
+// stored mate or automatic draw is not on the board. Either voids the board
+// (spec 3k). null: the start position itself does not hold.
+export function shownPosition(g) {
+  let p = positionOf(g), bad = false;
+  if (!p.ok) {
+    if (p.where !== 'mv') return null;
+    bad = true;
+    const n = Math.max(0, p.index);
+    p = positionOf({ ...g, mv: n ? g.mv.slice(0, n * SIMUL.MOVE_LEN) : '', n });
+    if (!p.ok) return null;
+  } else if (!resultHolds(g, p.chess)) bad = true;
+  const h = p.chess.history({ verbose: true });
+  const m = p.sans.length ? h[h.length - 1] : null;
+  return { chess: p.chess, fen: p.chess.fen(), last: m && { from: m.from, to: m.to }, n: p.sans.length, bad };
+}
+
 // One offer per player per 10 moves, and never while an offer is standing.
 export function mayOfferDraw(g, who) {
   if (g.status !== 'live' || g.draw != null) return false;

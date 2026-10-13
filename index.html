@@ -1489,7 +1489,9 @@
 
   <!-- ══════════ SIMULTÁNEAS ══════════
        The teacher's side of a simul: pick students and a colour, invite, the
-       waiting room, Start. Drawn by js/simul-ui.js into #simul-body. -->
+       waiting room, Start. Drawn by js/simul-ui.js into #simul-body.
+       #simul-game is the game: the teacher's board with the strip of tiles
+       above it, or a student's own board (no strip, no buttons). -->
   <section id="screen-simul" class="screen hidden">
     <div class="row screen-head">
       <button id="simul-back" class="btn" data-i18n="back"></button>
@@ -1500,6 +1502,17 @@
     </div>
     <p id="simul-note" class="stu-note hidden" aria-live="polite"></p>
     <div id="simul-body"></div>
+    <div id="simul-game" class="hidden">
+      <div id="simul-strip" class="simul-strip"></div>
+      <p id="simul-status" class="simul-status" aria-live="polite"></p>
+      <div id="simul-board" class="board-wrap"></div>
+      <div id="simul-ctl" class="simul-ctl">
+        <label class="simul-auto"><input type="checkbox" id="simul-auto"><span data-i18n="simul_auto"></span></label>
+        <button id="simul-skip" class="btn small" data-i18n="simul_skip"></button>
+      </div>
+      <button id="simul-end" class="btn danger btn-wide" data-i18n="simul_end"></button>
+      <button id="simul-new" class="btn primary btn-wide hidden" data-i18n="simul_new"></button>
+    </div>
   </section>
 
   <!-- ══════════ FRIENDS LEADERBOARD ══════════ -->

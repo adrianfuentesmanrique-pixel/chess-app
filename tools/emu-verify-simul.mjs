@@ -37,6 +37,19 @@
 // Ana meets the invitation as the banner (she is on Home), Luis as the card in
 // Students. Every screenshot is also measured: nothing wider than the phone.
 //
+// THE GAME (conversation 4), in the same four passes:
+//   2. Ana's board: a move each way; with no signal her move is on her board
+//      and not in the database; the teacher ends the simul meanwhile and, back
+//      with a signal, the move the server would not take is off her board.
+//   3. Luis's impossible move, seeded with the rules bypassed, is never played
+//      and the teacher's phone voids the board; a "checkmate" that is not one,
+//      seeded on Ana's board, is voided by her phone.
+//   5. A third student, Eva, on a fourth phone: three boards played to mate
+//      with a finger on the squares, the teacher's phone at 375 x 667. Skip,
+//      the jump to the board waiting longest, the switch that turns it off, a
+//      reload of both phones in the middle, a move made with no signal that is
+//      sent when it comes back.
+//
 // Local emulator only. Nothing here touches the real project.
 import { spawn, spawnSync } from 'node:child_process';
 import http from 'node:http';
@@ -45,6 +58,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
+import { Chess } from '../vendor/chess.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -84,10 +98,10 @@ const WEB = 9900 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-simul-'));
 const OUT = process.env.SIMUL_SHOTS || path.join(os.tmpdir(), 'simul-shots');
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 900000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 2400000).unref();
 
-const TEACH = 'teach_uid', ANA = 'ana_uid', LUIS = 'luis_uid';
-const TA = `${TEACH}_${ANA}`, TL = `${TEACH}_${LUIS}`;
+const TEACH = 'teach_uid', ANA = 'ana_uid', LUIS = 'luis_uid', EVA = 'eva_uid';
+const TA = `${TEACH}_${ANA}`, TL = `${TEACH}_${LUIS}`, TE = `${TEACH}_${EVA}`;
 
 const SDK = '/vendor/firebase-10.14.1/';
 const SHIMS = {
@@ -172,9 +186,9 @@ const serve = (req, res) => {
 // each SITE, and a phone that listens and writes holds 2 of them open: three
 // phones on one address use all 6, and the next write waits (about 45 s, until
 // an idle stream closes). On three addresses each phone has its own 6.
-const HOSTS = ['localhost', '127.0.0.1', '127.0.0.2'];
-const servers = ['127.0.0.1', '127.0.0.2'].map(() => http.createServer(serve));
-await Promise.all(servers.map((s, i) => new Promise(r => s.listen(WEB, ['127.0.0.1', '127.0.0.2'][i], r))));
+const HOSTS = ['localhost', '127.0.0.1', '127.0.0.2', '127.0.0.3'];
+const servers = HOSTS.slice(1).map(() => http.createServer(serve));
+await Promise.all(servers.map((s, i) => new Promise(r => s.listen(WEB, HOSTS[i + 1], r))));
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const req = (url, method = 'GET') => new Promise((res, rej) => {
@@ -208,6 +222,7 @@ async function patch(docPath, set) {
   const r = await fetch(`${DOCS}/${docPath}?${mask}`, { method: 'PATCH', headers: owner, body: JSON.stringify({ fields: set }) });
   if (!r.ok) throw new Error(`seeding ${docPath} failed: ` + await r.text());
 }
+const drop = docPath => fetch(`${DOCS}/${docPath}`, { method: 'DELETE', headers: owner });
 const makeStudent = s => patch(`coaching/${TEACH}_${s}`, {
   teacherUid: { stringValue: TEACH }, studentUid: { stringValue: s },
   status: { stringValue: 'active' }, createdAt: { timestampValue: new Date().toISOString() } });
@@ -331,12 +346,15 @@ async function openPhone(who, host, uid) {
     if (r.exceptionDetails) throw new Error(`${who}: ` + JSON.stringify(r.exceptionDetails).slice(0, 900));
     return r.result.value;
   };
-  await send('Page.enable'); await send('Runtime.enable');
+  await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
   await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   const touch = (type, p) => send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: Math.round(p.x), y: Math.round(p.y), id: 1 }] : [] });
   const tab = {
     who, ev,
+    size: height => send('Emulation.setDeviceMetricsOverride', { width: 375, height, deviceScaleFactor: 2, mobile: true }),
+    // The phone loses its signal, or gets it back.
+    net: off => send('Network.emulateNetworkConditions', { offline: off, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }),
     async load(lang, scheme) {
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
       await send('Page.navigate', { url });
@@ -353,13 +371,18 @@ async function openPhone(who, host, uid) {
         window.__t = { app, S: ui.SimulUI, St: st.Students, fb,
           vis: sel => { const e = document.querySelector(sel); return !!e && !e.closest('.hidden') && e.getClientRects().length > 0; },
           txt: sel => document.querySelector(sel)?.textContent.trim() ?? null,
+          // What the board on screen shows, and the teacher's strip: name, what
+          // the tile says, is it the board on screen, is it marked "your move".
+          fen: () => ui.SimulUI.board ? ui.SimulUI.board.fen.split(' ')[0] : null,
+          tiles: () => [...document.querySelectorAll('#simul-strip .simul-tile')].map(e =>
+            [e.querySelector('.simul-tile-name').textContent, e.lastChild.textContent, e.classList.contains('on'), e.classList.contains('turn')]),
           all: sel => [...document.querySelectorAll(sel)].map(e => e.textContent.trim()) };`);
       await tab.until('signed in', `__t.fb.Auth.user && __t.St.uid === '${uid}'`, 10000);
     },
     async until(what, expr, ms = 8000) {
       for (const t0 = Date.now(); ;) {
         if (await ev(`return !!(${expr});`)) return true;
-        if (Date.now() - t0 > ms) throw new Error(`${who} never saw: ${what} — ` + JSON.stringify(await ev(`return [__t.app.activeScreen, __t.S.sFor, __t.S.tFor, __t.S.sBoards.map(g => g.status), __t.S.tBoards.map(g => g.status), __t.txt('#simul-banner'), __t.txt('#simul-body')]`).catch(e => String(e))));
+        if (Date.now() - t0 > ms) throw new Error(`${who} never saw: ${what} — ` + JSON.stringify(await ev(`return [__t.app.activeScreen, __t.S.sFor, __t.S.tFor, __t.S.sBoards.map(g => g.status), __t.S.tBoards.map(g => g.status), __t.txt('#simul-banner'), __t.txt('#simul-body'), __t.txt('#simul-status'), __t.fen(), __t.tiles()]`).catch(e => String(e))));
         await sleep(60);
       }
     },
@@ -386,6 +409,11 @@ async function openPhone(who, host, uid) {
     },
     // A screenshot, and two of the things a picture is opened to look for,
     // measured: nothing wider than the phone, no text key left untranslated.
+    async shotOnly(name) {
+      await send('Page.bringToFront');
+      const r = await send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(path.join(OUT, name + '.png'), Buffer.from(r.data, 'base64'));
+    },
     async shot(name) {
       await send('Page.bringToFront');
       await sleep(250);
@@ -404,20 +432,28 @@ async function openPhone(who, host, uid) {
 async function screens() {
   const T = {
     es: { entry: '♟ Simultáneas', alt: 'Blancas en el primer tablero, negras en el segundo, y así, en el orden de la lista.', invite: n => `Invitar (${n})`,
-      waiting: '⏳ Esperando', joined: '✓ Se unió', declined: 'Ahora no', noanswer: 'Sin respuesta', playing: 'En juego', out: 'No juega',
-      start: n => `▶ Empezar (${n})`, roomExpired: 'La invitación caducó: pasaron 10 minutos sin empezar.', started: 'La simultánea ha empezado.',
+      waiting: '⏳ Esperando', joined: '✓ Se unió', declined: 'Ahora no', noanswer: 'Sin respuesta',
+      start: n => `▶ Empezar (${n})`, roomExpired: 'La invitación caducó: pasaron 10 minutos sin empezar.',
+      toBoard: 'Ir al tablero', your: 'Te toca', their: 'Esperando su jugada', sending: 'Enviando tu jugada…',
+      offline: 'Sin señal. Lo que juegues se envía cuando vuelva.', mateWon: 'Jaque mate. Ganaste.', mateLost: n => `Jaque mate. Gana ${n}.`,
+      voidRes: 'Anulada: jugada no válida.', unfinished: 'Sin terminar: la simultánea se cerró.',
+      tTurn: 'Te toca', tWon: 'Ganada', tLost: 'Perdida', tVoid: 'Anulada', next: '⏭ Siguiente', auto: 'Saltar al siguiente tablero', again: 'Nueva simultánea',
       inv: 'Tu profesor Marta te invita a una simultánea', black: 'Juegas con negras', white: 'Juegas con blancas', join: 'Unirme', notNow: 'Ahora no', ok: 'Entendido',
       wait: 'Esperando a que Marta empiece', live: 'La simultánea con Marta ha empezado', late: 'La simultánea de Marta empezó sin ti',
       expired: 'La invitación de Marta a la simultánea caducó' },
     en: { entry: '♟ Simuls', alt: 'White on the first board, Black on the second, and so on, in the order of the list.', invite: n => `Invite (${n})`,
-      waiting: '⏳ Waiting', joined: '✓ Joined', declined: 'Not now', noanswer: 'No answer', playing: 'Playing', out: 'Not playing',
-      start: n => `▶ Start (${n})`, roomExpired: 'The invitation ran out: 10 minutes went by without starting.', started: 'The simul has started.',
+      waiting: '⏳ Waiting', joined: '✓ Joined', declined: 'Not now', noanswer: 'No answer',
+      start: n => `▶ Start (${n})`, roomExpired: 'The invitation ran out: 10 minutes went by without starting.',
+      toBoard: 'Go to the board', your: 'Your move', their: 'Waiting for their move', sending: 'Sending your move…',
+      offline: 'No signal. What you play is sent when it comes back.', mateWon: 'Checkmate. You won.', mateLost: n => `Checkmate. ${n} wins.`,
+      voidRes: 'Void: invalid move.', unfinished: 'Not finished: the simul was ended.',
+      tTurn: 'Your move', tWon: 'Won', tLost: 'Lost', tVoid: 'Void', next: '⏭ Next', auto: 'Jump to the next board', again: 'New simul',
       inv: 'Your teacher Marta invites you to a simul', black: 'You play Black', white: 'You play White', join: 'Join', notNow: 'Not now', ok: 'OK',
       wait: 'Waiting for Marta to start', live: 'The simul with Marta has started', late: "Marta's simul started without you",
       expired: "Marta's invitation to the simul ran out" },
   };
   await fetch(`http://${EMU}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
-  for (const [uid, first, user, avatar] of [[TEACH, 'Marta', 'marta_p', 'owl'], [ANA, 'Ana', 'ana_m', 'lion'], [LUIS, 'Luis', 'luis77', 'raven']]) {
+  for (const [uid, first, user, avatar] of [[TEACH, 'Marta', 'marta_p', 'owl'], [ANA, 'Ana', 'ana_m', 'lion'], [LUIS, 'Luis', 'luis77', 'raven'], [EVA, 'Eva', 'eva_r', 'bear']]) {
     await seed(`users/${uid}`, { firstName: first, lastName: 'Test', username: user, profileName: first, avatarId: avatar });
     await seed(`leaderboard/${uid}`, { profileName: first, username: user, usernameLower: user, avatarId: avatar, puzzleElo: 1200 });
   }
@@ -425,7 +461,20 @@ async function screens() {
   const teach = await openPhone('Marta', HOSTS[0], TEACH);
   const ana = await openPhone('Ana', HOSTS[1], ANA);
   const luis = await openPhone('Luis', HOSTS[2], LUIS);
+  // Nobody's student until round 5.
+  const eva = await openPhone('Eva', HOSTS[3], EVA);
   const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  // The pieces after these moves, worked out here and not by the app.
+  const after = (...uci) => { const c = new Chess(); for (const u of uci) c.move({ from: u.slice(0, 2), to: u.slice(2, 4) }); return c.fen().split(' ')[0]; };
+  const fenIs = (...uci) => `__t.fen() === ${JSON.stringify(after(...uci))}`;
+  const sq = name => `#simul-board .sq[data-sq="${name}"]`;
+  // A finger on one square, then on the other.
+  const play = async (p, from, to) => { await p.tap(sq(from)); await p.tap(sq(to)); };
+  const stat = text => `__t.txt('#simul-status') === ${JSON.stringify(text)}`;
+  const onBoard = `__t.app.activeScreen === 'simul' && __t.vis('#simul-board') && !!__t.fen()`;
+  const look = p => p.ev(`return { status: __t.txt('#simul-status'), fen: __t.fen(), live: __t.S.board.interactive, side: __t.S.board.orientation, tiles: __t.tiles(),
+    strip: __t.vis('#simul-strip'), ctl: __t.vis('#simul-ctl'), end: __t.vis('#simul-end'), again: __t.vis('#simul-new'), skipOff: document.getElementById('simul-skip').disabled,
+    banner: __t.vis('#simul-banner'), note: __t.vis('#simul-note') ? __t.txt('#simul-note') : null }`);
   const flat = `.map(x => x.replace(/\\s+/g, ' '))`;
   const chips = () => teach.ev(`return __t.all('#simul-body .fr-row')${flat}`);
   const banner = p => p.ev(`return __t.vis('#simul-banner') ? [__t.txt('#simul-banner-who span'), __t.all('#simul-banner-acts button')] : null`);
@@ -545,13 +594,15 @@ async function screens() {
       t1 - t2 >= 2 && t1 - t2 <= 3 && Math.abs(t2 - (600 - since / 1000)) <= 1.5, { t1, t2, since });
     await teach.shot(`${tag}-09-room`);
     await teach.tap('#simul-start');
-    await teach.until('started', `!!document.getElementById('simul-end')`);
+    await teach.until('the board', `__t.vis('#simul-end') && __t.tiles().length === 1`);
     a = await stored(`simulGames/${TA}`); l = await stored(`simulGames/${TL}`);
     check(`[${tag}] stored: Ana's board live, the latecomer's out`, a.status === 'live' && a.startAt === a.at && l.status === 'out' && l.startAt === null, [a.status, l.status]);
-    r = await teach.ev(`return { lead: __t.txt('.simul-lead'), rows: __t.all('#simul-body .fr-row')${flat} }`);
-    check(`[${tag}] the teacher: "${w.started}", Ana playing, Luis not playing`, r.lead === w.started && r.rows[0].endsWith(w.playing) && r.rows[1].endsWith(w.out), r);
-    await teach.shot(`${tag}-10-started`);
+    r = await look(teach);
+    check(`[${tag}] the teacher: one tile, Ana's, marked "${w.tTurn}"; her board the right way up for White, theirs to move, nothing to skip to; the latecomer has no tile`,
+      same(r.tiles, [['Ana', w.tTurn, true, true]]) && r.status === 'Ana · ' + w.your && r.fen === after() && r.live && r.side === 'w' && r.skipOff && r.ctl && r.end && !r.again, r);
+    await teach.shot(`${tag}-10-teacher-one-board`);
     await ana.until('started', says(w.live));
+    check(`[${tag}] Ana's banner offers the board: "${w.toBoard}"`, same((await banner(ana))[1], [w.toBoard]));
     await ana.shot(`${tag}-11-banner-started`);
     await luis.until('left out', lead(w.late));
     check(`[${tag}] Luis is told: "${w.late}"`, same((await cards(luis))[0][2], [w.ok]));
@@ -563,15 +614,47 @@ async function screens() {
     // Ana opens Students: the card says what the banner said, and the banner goes.
     await ana.ev(`__t.app.showScreen('students')`);
     await ana.until('the card', lead(w.live));
-    check(`[${tag}] in Students the card says it and the banner is gone`, await banner(ana) === null);
+    check(`[${tag}] in Students the card says it, with the same button, and the banner is gone`, await banner(ana) === null && same((await cards(ana))[0][2], [w.toBoard]));
     await ana.shot(`${tag}-13-card-started`);
+    // Ana's board, from the card. A move each way.
+    await ana.tap('#stu-simul-list .btn.primary');
+    await ana.until('her board', onBoard);
+    r = await look(ana);
+    check(`[${tag}] Ana's board: Black at the bottom, not her move yet, no strip, no buttons, no banner over it`,
+      r.status === 'Marta · ' + w.their && r.side === 'b' && !r.live && r.fen === after() && !r.strip && !r.ctl && !r.end && !r.again && !r.banner, r);
+    await play(teach, 'e2', 'e4');
+    await teach.until('the move on the teacher\'s board', fenIs('e2e4'));
+    await ana.until('the move arrives', fenIs('e2e4') + ' && ' + stat('Marta · ' + w.your));
+    r = await look(teach);
+    a = await stored(`simulGames/${TA}`);
+    check(`[${tag}] the teacher taps e2, e4: stored, on Ana's board, and it is her move; the teacher now waits`,
+      a.mv === 'e2e4-' && a.n === 1 && r.status === 'Ana · ' + w.their && !r.live && same(r.tiles, [['Ana', '', true, false]]) && (await look(ana)).live, [a.mv, r.status]);
+    await ana.shot(`${tag}-13b-student-board`);
+    // No signal: the move is on her board at once and nowhere else.
+    await ana.net(true);
+    await ana.until('told there is no signal', `__t.txt('#simul-note') === ${JSON.stringify(w.offline)}`);
+    await play(ana, 'e7', 'e5');
+    await ana.until('her move on her board', fenIs('e2e4', 'e7e5'));
+    await ana.until('said to be on its way', stat('Marta · ' + w.sending), 6000);
+    a = await stored(`simulGames/${TA}`);
+    check(`[${tag}] with no signal Ana's move is on her board at once, said to be on its way, and not in the database`,
+      a.n === 1 && a.mv === 'e2e4-' && (await teach.ev(`return __t.fen()`)) === after('e2e4'), [a.n, a.mv]);
+    await ana.shot(`${tag}-13c-student-no-signal`);
+    // Meanwhile the teacher ends the simul.
     await end();
     await teach.shot(`${tag}-14-end-confirm`);
     await teach.tap('.modal-box .btn.danger');
     await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
     a = await stored(`simulGames/${TA}`);
-    check(`[${tag}] the teacher ends the simul: Ana's board not finished, no winner; her card goes`,
-      same(result(a), ['done', null, 'unfinished', null]) && (await ana.until('the card gone', `!__t.vis('#stu-simul')`)), result(a));
+    check(`[${tag}] the teacher ends the simul: Ana's board not finished, no winner, and the picker is back`,
+      same(result(a), ['done', null, 'unfinished', null]) && a.n === 1, result(a));
+    await ana.net(false);
+    await ana.until('the move the server would not take is off her board', fenIs('e2e4') + ' && ' + stat('Marta · ' + w.unfinished), 40000);
+    a = await stored(`simulGames/${TA}`);
+    r = await look(ana);
+    check(`[${tag}] back with a signal: the move that never happened is off Ana's board, which says how the game ended`,
+      a.n === 1 && a.mv === 'e2e4-' && !r.live && r.note === null && r.status === 'Marta · ' + w.unfinished, [a.n, r.status]);
+    await ana.shot(`${tag}-14b-student-unfinished`);
 
     console.log('  3. Both join; Start');
     await ana.ev(`__t.app.showScreen('home')`);
@@ -588,24 +671,66 @@ async function screens() {
     await luis.shot(`${tag}-15-card-waiting`);
     await teach.until('both joined', `__t.txt('#simul-start') === ${JSON.stringify(w.start(2))} && !document.getElementById('simul-start').disabled`);
     await teach.tap('#simul-start');
-    await teach.until('started', `!!document.getElementById('simul-end')`);
+    await teach.until('the boards', `__t.vis('#simul-end') && __t.tiles().length === 2`);
     a = await stored(`simulGames/${TA}`); l = await stored(`simulGames/${TL}`);
     check(`[${tag}] invite, both join, Start: two boards live at the same server instant, the teacher Black on both`,
       a.status === 'live' && l.status === 'live' && a.startAt === l.startAt && a.tc === 'b' && l.tc === 'b', [a.status, l.status]);
     await ana.until('started', says(w.live));
     await luis.until('started', lead(w.live));
-    r = await chips();
-    check(`[${tag}] all three phones say the simul has started`, r.length === 2 && r.every(x => x.endsWith(w.playing)), r);
+    r = await look(teach);
+    check(`[${tag}] the teacher: two tiles, neither waiting for them (Black on both); Ana's board on screen, turned for Black, not theirs to move`,
+      same(r.tiles, [['Ana', '', true, false], ['Luis', '', false, false]]) && r.status === 'Ana · ' + w.their && r.side === 'b' && !r.live && r.skipOff, r);
     await teach.shot(`${tag}-16-started-both`);
-    // The teacher leaves the screen and comes back.
+    // A tile opens its board. Then the teacher leaves the screen and comes back.
+    await teach.tap('#simul-strip .simul-tile:nth-child(2)');
+    await teach.until('Luis\'s board', stat('Luis · ' + w.their));
     await teach.tap('#simul-back');
     await teach.until('Students, listener off', `__t.app.activeScreen === 'students' && __t.S.tStop === null`);
     await teach.tap('#stu-simul-open');
-    await teach.until('started, again', `!!document.getElementById('simul-end')`);
-    check(`[${tag}] Back stops the teacher's listener; coming back finds the simul as it was`, true);
-    await end();
-    await teach.tap('.modal-box .btn.danger');
+    await teach.until('the boards, again', `__t.vis('#simul-end') && __t.tiles().length === 2`);
+    r = await look(teach);
+    check(`[${tag}] a tile opens its board; Back stops the teacher's listener; coming back finds the simul and the board they were on`,
+      r.status === 'Luis · ' + w.their && same(r.tiles.map(x => x[2]), [false, true]), r);
+    // An impossible move, as a changed app would send it: straight into the
+    // database, the rules bypassed. Luis is on his board.
+    await luis.tap('#stu-simul-list .btn.primary');
+    await luis.until('his board', onBoard + ' && ' + stat('Marta · ' + w.your));
+    await seed(`simulGames/${TL}`, { mv: 'e2e5-', n: 1 });
+    await teach.until('the tile says void', `__t.tiles()[1][1] === ${JSON.stringify(w.tVoid)}`);
+    l = await stored(`simulGames/${TL}`);
+    r = await look(teach);
+    check(`[${tag}] an impossible move (e2-e5) seeded on Luis's board: the teacher's phone voids the board, nobody wins, the record names who refused it`,
+      same(result(l), ['done', null, 'void', 't']), result(l));
+    check(`[${tag}] …it is never played on the teacher's board, which says "${w.voidRes}"`,
+      r.fen === after() && r.status === 'Luis · ' + w.voidRes && !r.live && same(r.tiles[1], ['Luis', w.tVoid, true, false]), r);
+    await teach.shot(`${tag}-16b-teacher-void`);
+    await luis.until('void, on his phone', stat('Marta · ' + w.voidRes));
+    r = await look(luis);
+    check(`[${tag}] …nor on Luis's, which says the same and can no longer be played on`, r.fen === after() && !r.live, r);
+    await luis.shot(`${tag}-16c-student-void`);
+    // A "checkmate" that is not one. Ana plays e4 for real; the reply and the
+    // mate are seeded.
+    await ana.tap('#simul-banner-acts .btn.primary');
+    await ana.until('her board', onBoard + ' && ' + stat('Marta · ' + w.your));
+    await play(ana, 'e2', 'e4');
+    await teach.until('Ana has moved', `__t.tiles()[0][3] && __t.tiles()[0][1] === ${JSON.stringify(w.tTurn)}`);
+    await seed(`simulGames/${TA}`, { mv: 'e2e4-e7e5-', n: 2, status: 'done', winner: 't', reason: 'mate' });
+    await ana.until('void, on her phone', stat('Marta · ' + w.voidRes));
+    // Her phone says so at once; the write follows.
+    for (const t0 = Date.now(); (a = await stored(`simulGames/${TA}`)).reason !== 'void' && Date.now() - t0 < 10000;) await sleep(100);
+    r = await look(ana);
+    check(`[${tag}] a mate that is not one, seeded on Ana's board: her phone voids the game and the winner goes with it`,
+      same(result(a), ['done', null, 'void', 's']) && r.fen === after('e2e4', 'e7e5') && !r.live, result(a));
+    await teach.until('every board over', `__t.vis('#simul-new') && __t.tiles()[0][1] === ${JSON.stringify(w.tVoid)}`);
+    r = await look(teach);
+    check(`[${tag}] both boards over: the tiles say so, End and skip are gone, "${w.again}" is offered`,
+      same(r.tiles.map(x => x[1]), [w.tVoid, w.tVoid]) && !r.end && !r.ctl && r.again && await teach.ev(`return __t.txt('#simul-new')`) === w.again, r);
+    await teach.shot(`${tag}-16d-teacher-all-void`);
+    await teach.tap('#simul-new');
     await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+    check(`[${tag}] "${w.again}" closes the finished simul: the picker is back`, await teach.ev(`return !__t.vis('#simul-game')`));
+    await luis.ev(`__t.app.showScreen('students')`);
+    await ana.ev(`__t.app.showScreen('home')`);
 
     console.log('  4. "Not now"');
     await teach.tap('#simul-invite');
@@ -619,10 +744,213 @@ async function screens() {
     check(`[${tag}] Luis says not now: his card goes, nothing more is said to him, and the teacher sees it`,
       r[1].endsWith(w.declined) && r[0].endsWith(w.waiting) && (await stored(`simulGames/${TL}`)).status === 'out' && await cards(luis) === null, r);
     await teach.shot(`${tag}-17-room-declined`);
-    // Leave nothing waiting for the next language.
+    // Leave nothing waiting for the next round.
     await age();
     await teach.until('ran out', `!!document.getElementById('simul-again')`);
     await teach.ev(`__t.app.showScreen('home')`);
+
+    console.log('  5. The game: three boards played to mate, the teacher at 375 x 667');
+    const TILE = n => `#simul-strip .simul-tile:nth-child(${n})`;
+    const on = name => `(__t.txt('#simul-status') || '').startsWith(${JSON.stringify(name + ' · ')})`;
+    const all = [teach, ana, luis, eva];
+    await teach.size(667);
+    await makeStudent(EVA);
+    await Promise.all(all.map(p => p.load(lang, scheme)));
+    // Eva has a teacher now: her phone learns it when she opens Students.
+    await eva.ev(`__t.app.showScreen('students')`);
+    await eva.until('her teacher', `__t.S.sFor === '${EVA}'`, 15000);
+    await eva.ev(`__t.app.showScreen('home')`);
+    await luis.ev(`__t.app.showScreen('students')`);
+    await teach.ev(`__t.app.showScreen('students')`);
+    await teach.until('the Simultáneas entry', `__t.vis('#stu-simul-open')`);
+    await teach.tap('#stu-simul-open');
+    await teach.until('the screen', `__t.app.activeScreen === 'simul' && (document.getElementById('simul-again') || document.getElementById('simul-invite'))`);
+    if (await teach.ev(`return !!document.getElementById('simul-again')`)) await teach.tap('#simul-again');
+    await teach.until('the picker, three students', `document.querySelectorAll('#simul-pick input').length === 3`, 15000);
+    for (const n of [1, 2, 3]) {
+      if (!await teach.ev(`return document.querySelector('#simul-pick label:nth-child(${n}) input').checked`)) await teach.tap(`#simul-pick label:nth-child(${n}) input`);
+    }
+    await teach.tap('#simul-colour button[data-v="alt"]');
+    r = await teach.ev(`return { names: [...document.querySelectorAll('#simul-pick .fr-name')].map(e => e.firstChild.textContent), invite: __t.txt('#simul-invite') }`);
+    check(`[${tag}] three students ticked, alternating`, same(r.names, ['Ana', 'Eva', 'Luis']) && r.invite === w.invite(3), r);
+    await teach.tap('#simul-invite');
+    await teach.until('the waiting room', `document.getElementById('simul-start') && __t.S.tBoards.filter(g => g.status === 'invited' && !g.pending).length === 3`);
+    await ana.until('the banner', `__t.vis('#simul-banner-acts .btn.primary')`);
+    await eva.until('the banner', `__t.vis('#simul-banner-acts .btn.primary')`);
+    await luis.until('the card', `document.querySelectorAll('#stu-simul-list button').length === 2`);
+    await ana.tap('#simul-banner-acts .btn.primary');
+    await eva.tap('#simul-banner-acts .btn.primary');
+    await luis.tap('#stu-simul-list .btn.primary');
+    await teach.until('all three joined', `__t.txt('#simul-start') === ${JSON.stringify(w.start(3))} && !document.getElementById('simul-start').disabled`);
+    await teach.tap('#simul-start');
+    await teach.until('the boards', `__t.vis('#simul-end') && __t.tiles().length === 3`);
+    a = await stored(`simulGames/${TA}`); l = await stored(`simulGames/${TL}`);
+    let e = await stored(`simulGames/${TE}`);
+    check(`[${tag}] stored: three boards live at one instant; the teacher White against Ana and Luis, Black against Eva`,
+      [a, e, l].every(g => g.status === 'live' && g.startAt === a.startAt) && a.tc === 'w' && e.tc === 'b' && l.tc === 'w', [a.tc, e.tc, l.tc]);
+    r = await look(teach);
+    check(`[${tag}] the strip: Ana, Eva, Luis; gold on the two boards where it is the teacher's move; Ana's on screen`,
+      same(r.tiles, [['Ana', w.tTurn, true, true], ['Eva', '', false, false], ['Luis', w.tTurn, false, true]]) && r.status === 'Ana · ' + w.your && r.live && !r.skipOff, r);
+    r = await teach.ev(`
+      const m = document.querySelector('main'), b = id => document.getElementById(id).getBoundingClientRect();
+      return { h: innerHeight, top: m.scrollTop, strip: b('simul-strip').top, board: b('simul-board').width, ctl: b('simul-ctl').bottom, end: b('simul-end').bottom,
+        skip: __t.txt('#simul-skip'), auto: __t.txt('.simul-auto'), checked: document.getElementById('simul-auto').checked }`);
+    check(`[${tag}] 375 x 667: the strip, the board, the switch, skip and End are all on screen with nothing scrolled`,
+      r.h === 667 && r.top === 0 && r.strip > 0 && r.board >= 300 && r.ctl < r.end && r.end <= 667 && r.skip === w.next && r.auto === w.auto && r.checked, r);
+    await teach.shot(`${tag}-20-teacher-three-boards`);
+    // Ten tiles do not fit: the strip scrolls sideways and the page does not.
+    r = await teach.ev(`
+      clearInterval(__t.S.timer); __t.S.timer = null;
+      const s = document.getElementById('simul-strip');
+      for (let i = 0; i < 7; i++) s.appendChild(s.children[i % 3].cloneNode(true));
+      s.scrollLeft = 9999;
+      return { n: s.children.length, strip: [s.scrollWidth, s.clientWidth, s.scrollLeft], page: document.documentElement.scrollWidth, end: document.getElementById('simul-end').getBoundingClientRect().bottom }`);
+    check(`[${tag}] ten tiles: the strip scrolls sideways, the page stays 375 wide and as tall`, r.n === 10 && r.strip[0] > r.strip[1] && r.strip[2] > 0 && r.page <= 375 && r.end <= 667, r);
+    await teach.shotOnly(`${tag}-20b-ten-tiles`);
+    await teach.ev(`__t.S.stripKey = ''; __t.S.sync(); document.getElementById('simul-strip').scrollLeft = 0;`);
+
+    // The three students open their boards.
+    await ana.until('started', says(w.live));
+    await ana.tap('#simul-banner-acts .btn.primary');
+    await eva.until('started', says(w.live));
+    await eva.tap('#simul-banner-acts .btn.primary');
+    await luis.until('started', lead(w.live));
+    await luis.tap('#stu-simul-list .btn.primary');
+    await Promise.all([ana, eva, luis].map(p => p.until('the board', onBoard)));
+    r = await look(eva);
+    check(`[${tag}] Eva has White: her board the right way up and hers to move; Ana and Luis have Black and wait`,
+      r.side === 'w' && r.live && r.status === 'Marta · ' + w.your && (await look(ana)).side === 'b' && !(await look(luis)).live, r);
+    await eva.shot(`${tag}-21-student-board-white`);
+
+    // Skip.
+    await teach.tap('#simul-skip');
+    await teach.until('Luis\'s board', on('Luis'));
+    r = await look(teach);
+    await teach.tap('#simul-skip');
+    await teach.until('Ana\'s board', on('Ana'));
+    check(`[${tag}] skip goes to the next board waiting for the teacher, and round again; it never stops on Eva's, where the teacher is not to move`,
+      r.status === 'Luis · ' + w.your && same(r.tiles.map(x => x[2]), [false, false, true]) && (await look(teach)).status === 'Ana · ' + w.your, r);
+
+    // The jump.
+    await play(teach, 'e2', 'e4');
+    await teach.until('the jump to Luis\'s board', on('Luis'));
+    r = await look(teach);
+    check(`[${tag}] the teacher moves on Ana's board and the screen jumps to the other board waiting: Luis's`,
+      r.status === 'Luis · ' + w.your && same(r.tiles, [['Ana', '', false, false], ['Eva', '', false, false], ['Luis', w.tTurn, true, true]]), r);
+    await ana.until('e4 on Ana\'s board', fenIs('e2e4') + ' && ' + stat('Marta · ' + w.your));
+    await play(teach, 'f2', 'f3');
+    await luis.until('f3 on Luis\'s board', fenIs('f2f3'));
+    await sleep(1300);
+    r = await look(teach);
+    check(`[${tag}] no board is waiting: the screen stays where it is, and there is nothing to skip to`,
+      r.status === 'Luis · ' + w.their && r.skipOff && r.fen === after('f2f3'), r);
+    // Eva moves first, then Ana: Eva has been waiting longer.
+    await play(eva, 'f2', 'f3');
+    await teach.until('Eva has moved', `__t.tiles()[1][3]`);
+    await sleep(300);
+    await play(ana, 'e7', 'e5');
+    await teach.until('Ana has moved', `__t.tiles()[0][3]`);
+    r = await look(teach);
+    check(`[${tag}] students move on other boards: their tiles turn gold and the teacher is not pulled off the board on screen`,
+      r.status === 'Luis · ' + w.their && same(r.tiles.map(x => x[3]), [true, true, false]) && !r.skipOff, r);
+    await play(luis, 'e7', 'e5');
+    await teach.until('Luis has moved', fenIs('f2f3', 'e7e5') + ' && ' + stat('Luis · ' + w.your));
+    await play(teach, 'g2', 'g4');
+    await teach.until('the jump', `!${on('Luis')}`);
+    r = await look(teach);
+    check(`[${tag}] after the teacher's move the screen jumps to the board waiting LONGEST: Eva's, not Ana's; turned for Black`,
+      r.status === 'Eva · ' + w.your && r.side === 'b' && r.fen === after('f2f3') && r.live, r);
+    await teach.shot(`${tag}-22-teacher-black-board`);
+    await play(teach, 'e7', 'e5');
+    await teach.until('the jump to Ana\'s board', on('Ana'));
+    check(`[${tag}] …and from there to the next one waiting: Ana's`, (await look(teach)).fen === after('e2e4', 'e7e5'));
+
+    // A reload in the middle of the games, on both sides.
+    await Promise.all([ana.load(lang, scheme), teach.load(lang, scheme)]);
+    await ana.until('the banner', says(w.live));
+    await ana.tap('#simul-banner-acts .btn.primary');
+    await ana.until('her board', onBoard);
+    await teach.ev(`__t.app.showScreen('students')`);
+    await teach.until('the Simultáneas entry', `__t.vis('#stu-simul-open')`);
+    await teach.tap('#stu-simul-open');
+    await teach.until('the boards', `__t.vis('#simul-end') && __t.tiles().length === 3`);
+    r = await look(teach);
+    const r2 = await look(ana);
+    check(`[${tag}] a reload in the middle, on both phones: the same position comes back, and the teacher is on the board waiting for them`,
+      r.fen === after('e2e4', 'e7e5') && r.status === 'Ana · ' + w.your && r.live && same(r.tiles.map(x => x[3]), [true, false, false])
+      && r2.fen === after('e2e4', 'e7e5') && r2.status === 'Marta · ' + w.their && !r2.live && r2.side === 'b', [r, r2]);
+    await play(teach, 'f1', 'c4');
+    await ana.until('Bc4 on Ana\'s board', fenIs('e2e4', 'e7e5', 'f1c4'));
+
+    // Luis mates.
+    await play(luis, 'd8', 'h4');
+    await luis.until('mate', stat('Marta · ' + w.mateWon));
+    l = await stored(`simulGames/${TL}`);
+    await teach.until('Luis\'s tile', `__t.tiles()[2][1] === ${JSON.stringify(w.tLost)}`);
+    check(`[${tag}] board 1 to mate: Luis mates the teacher (f3, e5, g4, Qh4). Stored in the same write as the move; his phone and the teacher's tile say it`,
+      same(result(l), ['done', 's', 'mate', null]) && l.n === 4 && !(await look(luis)).live, result(l));
+    await luis.shot(`${tag}-23-student-mate-won`);
+
+    // A move made with no signal is sent when it comes back.
+    await play(eva, 'g2', 'g4');
+    await teach.until('Eva has moved', `__t.tiles()[1][3]`);
+    await ana.net(true);
+    await ana.until('told there is no signal', `__t.txt('#simul-note') === ${JSON.stringify(w.offline)}`);
+    await play(ana, 'b8', 'c6');
+    await ana.until('her move on her board', fenIs('e2e4', 'e7e5', 'f1c4', 'b8c6'));
+    await sleep(800);
+    a = await stored(`simulGames/${TA}`);
+    const held = a.n === 3 && (await look(teach)).tiles[0][3] === false;
+    await ana.net(false);
+    for (const t0 = Date.now(); (a = await stored(`simulGames/${TA}`)).n !== 4 && Date.now() - t0 < 40000;) await sleep(200);
+    await teach.until('Ana\'s move arrives', `__t.tiles()[0][3]`, 15000);
+    await ana.until('confirmed', stat('Marta · ' + w.their) + ` && !__t.vis('#simul-note')`);
+    check(`[${tag}] a move made with no signal waits in the phone and is sent when the signal is back`, held && a.n === 4 && a.mv.endsWith('b8c6-'), [held, a.n]);
+
+    // The switch off: no jump. Skip still works.
+    await teach.until('on Ana\'s board, to move', stat('Ana · ' + w.your));
+    await teach.tap('#simul-auto');
+    await play(teach, 'd1', 'h5');
+    await ana.until('Qh5 on Ana\'s board', fenIs('e2e4', 'e7e5', 'f1c4', 'b8c6', 'd1h5'));
+    await sleep(1300);
+    r = await look(teach);
+    const off = await teach.ev(`return !document.getElementById('simul-auto').checked && localStorage.getItem('simulAuto') === '0'`);
+    await teach.tap('#simul-skip');
+    await teach.until('Eva\'s board', on('Eva'));
+    await teach.tap('#simul-auto');
+    check(`[${tag}] with the switch off the screen stays after a move (Eva's board is waiting); skip still goes there`,
+      off && r.status === 'Ana · ' + w.their && r.tiles[1][3] && !r.skipOff && await teach.ev(`return __t.S.auto`), r);
+
+    // The teacher mates Eva as Black.
+    await play(teach, 'd8', 'h4');
+    await eva.until('mate', stat('Marta · ' + w.mateLost('Marta')));
+    e = await stored(`simulGames/${TE}`);
+    r = await look(teach);
+    check(`[${tag}] board 2 to mate: the teacher mates Eva as Black. Her phone says who won; the teacher's says "${w.mateWon}" and stays on the mate`,
+      same(result(e), ['done', 't', 'mate', null]) && r.status === 'Eva · ' + w.mateWon && r.tiles[1][1] === w.tWon && !r.live && !(await look(eva)).live, result(e));
+    await eva.shot(`${tag}-24-student-mate-lost`);
+
+    // And Ana, by the tile.
+    await play(ana, 'g8', 'f6');
+    await teach.until('Ana has moved', `__t.tiles()[0][3]`);
+    await teach.tap(TILE(1));
+    await teach.until('Ana\'s board', stat('Ana · ' + w.your));
+    await play(teach, 'h5', 'f7');
+    await teach.until('every board over', `__t.vis('#simul-new')`);
+    a = await stored(`simulGames/${TA}`);
+    r = await look(teach);
+    check(`[${tag}] board 3 to mate: the teacher mates Ana (Qxf7). Three boards over: won, won, lost on the tiles; "${w.again}" in place of End`,
+      same(result(a), ['done', 't', 'mate', null]) && a.n === 7 && same(r.tiles.map(x => x[1]), [w.tWon, w.tWon, w.tLost]) && r.status === 'Ana · ' + w.mateWon
+      && r.fen === after('e2e4', 'e7e5', 'f1c4', 'b8c6', 'd1h5', 'g8f6', 'h5f7') && !r.end && !r.ctl && r.again, [result(a), r]);
+    await teach.shot(`${tag}-25-teacher-all-over`);
+    await ana.until('mate', stat('Marta · ' + w.mateLost('Marta')));
+    await ana.shot(`${tag}-26-student-mated`);
+    await teach.tap('#simul-new');
+    await teach.until('back to the picker', `!!document.getElementById('simul-invite')`);
+    // Eva is nobody's student again.
+    await drop(`coaching/${TEACH}_${EVA}`); await drop(`simulGames/${TE}`);
+    await teach.ev(`__t.app.showScreen('home')`);
+    await teach.size(812);
   }
   console.log(`\nScreenshots: ${OUT}`);
 }

@@ -933,6 +933,54 @@ describe('/simulGames — voiding a board', () => {
   });
 });
 
+// A game that a move ended, on a board that does not show it (spec 3k: "a false
+// checkmate is caught the same way").
+describe('/simulGames — voiding a game a move ended', () => {
+  const unmate = (by) => ({ reason: 'void', winner: null, by });
+  // The teacher, White, "mated" with the first move: the student is the one
+  // who did not make it.
+  const mated = (over = {}) => afterOne({ status: 'done', winner: 't', reason: 'mate', ...over });
+
+  it('the player who did NOT make the last move; the winner goes, who did it is recorded', async () => {
+    await seed(G, mated());
+    await assertSucceeds(write(asAna(), unmate('s')));
+    const d = await read(G);
+    assert.deepEqual([d.status, d.winner, d.reason, d.by, d.mv], ['done', null, 'void', 's', 'e2e4-']);
+  });
+
+  it('the automatic draws too', async () => {
+    for (const reason of ['stalemate', 'repetition', 'fifty', 'material']) {
+      await seed(G, mated({ winner: 'draw', reason }));
+      await assertSucceeds(write(asAna(), unmate('s')));
+    }
+  });
+
+  it('not the player who made the move, and not a classmate', async () => {
+    await seed(G, mated());
+    await assertFails(write(asTeach(), unmate('t')));
+    await assertFails(write(asLuis(), unmate('s')));
+  });
+
+  it('nobody gains a win from it, and nothing else changes', async () => {
+    await seed(G, mated());
+    await assertFails(write(asAna(), { reason: 'void', by: 's' }));
+    await assertFails(write(asAna(), { reason: 'void', winner: 's', by: 's' }));
+    await assertFails(write(asAna(), { reason: 'void', winner: 'draw', by: 's' }));
+    await assertFails(write(asAna(), unmate('t')));
+    await assertFails(write(asAna(), unmate(null)));
+    await assertFails(write(asAna(), { ...unmate('s'), mv: '' }));
+    await assertFails(write(asAna(), { ...unmate('s'), status: 'live' }));
+    await assertFails(write(asAna(), { reason: 'resign', winner: null, by: 's' }));
+  });
+
+  it('only an ending a move made: not a resignation, a draw agreed, a flag, a void or "not finished"', async () => {
+    for (const [reason, winner] of [['resign', 't'], ['agreed', 'draw'], ['flag', 't'], ['void', null], ['unfinished', null]]) {
+      await seed(G, mated({ winner, reason }));
+      await assertFails(write(asAna(), unmate('s')));
+    }
+  });
+});
+
 // ═══════════════════════ 10. End simul ═══════════════════════
 
 describe('/simulGames — the teacher ends the simul', () => {

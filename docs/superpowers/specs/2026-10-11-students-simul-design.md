@@ -1,11 +1,18 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **conversations 1, 2 and 3 of 8 are built
-(2026-10-12). 2 is the database: the Simul block in `firestore.rules`,
-`tests/rules/simul.test.js` (88 tests), the Simul section of `js/firebase.js`
+Date: 2026-10-11. Status: **conversations 1, 2, 3 and 4 of 8 are built
+(2026-10-13). 2 is the database: the Simul block in `firestore.rules`,
+`tests/rules/simul.test.js`, the Simul section of `js/firebase.js`
 and `tools/emu-verify-simul.mjs`. 3 is the invitation and the waiting room,
 `js/simul-ui.js` (v203): the Simultáneas screen for the teacher, a banner and
-a card for the student, colour only. No board yet.** The clock of 3d IS exact in
+a card for the student, colour only. 4 is the game (v204): the student's board
+and the teacher's board with the strip, on that same screen; no clock, no
+resigning, nothing saved yet. Adrian's three answers for 4: the student's board
+is a mode of the same screen; the teacher's phone stops listening when they
+leave the screen and reloads on return; leaving the board asks nothing. One
+rule was added in 4: a game that a move ended (mate, an automatic draw) can be
+voided by the phone that did not make that move, which is what 3k's "a false
+checkmate is caught the same way" needs.** The clock of 3d IS exact in
 rules, to the millisecond; the fallback of section 6 is not needed. Measured
 cost of ten 40-move boards: about 840 writes and 1,690 reads (a move is 1 write
 and 2 reads; invite, join and start are 3 writes and 6 reads a board, plus one

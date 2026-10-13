@@ -29,6 +29,7 @@ import {
 import { PulsoMatch } from './pulso-match.js';
 import { Friends } from './friends.js';
 import { Masterclass } from './masterclass.js';
+import { SimulUI } from './simul-ui.js';
 import { $, esc, toast, modal, showScreen, activeScreen, Rush, Play } from './app.js';
 
 // The host's phone calls a challenge run out a moment after the server would,
@@ -501,12 +502,13 @@ export const PulsoUI = {
   // ── the incoming banner ────────────────────────────────────────────────
 
   // A challenge never interrupts a Pulso match, a Rush run, a game against the
-  // engine or a live Masterclass. There the banner waits as a gold dot on ☰ and on the
+  // engine, a live Masterclass or a simul board. There the banner waits as a gold dot on ☰ and on the
   // Puzzles entry, and comes back when they finish.
   busy() {
     return Rush.running || PulsoMatch.holds()
       || (activeScreen === 'play' && !!Play.chess && !Play.over && Play.chess.history().length > 0)
-      || (activeScreen === 'masterclass' && !!(Masterclass.live || Masterclass.liveState));
+      || (activeScreen === 'masterclass' && !!(Masterclass.live || Masterclass.liveState))
+      || SimulUI.inGame();
   },
 
   paintBanner() {
