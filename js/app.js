@@ -5063,7 +5063,11 @@ export const Puzzles = {
     $('puzzle-theme-btn').onclick = () => this.openThemePicker();
     $('puzzle-hw-exit').onclick = () => this.exitHomework();
     $('puzzle-options').onclick = () => this.openOptions();
-    $('puzzle-next').onclick = () => this.nextPuzzle();
+    // One handler on the bar, not one on the button and one on the bar: a tap
+    // on the button bubbles here, and two nextPuzzle()s must never run.
+    $('puzzle-status').onclick = e => {
+      if (e.target.closest('#puzzle-next') || e.currentTarget.classList.contains('done')) this.nextPuzzle();
+    };
     $('puzzle-hint').onclick = () => this.hint();
     $('puzzle-solution').onclick = () => this.showSolution();
     $('puzzle-share').onclick = () => this.shareProblem();
@@ -5497,6 +5501,7 @@ export const Puzzles = {
 
   loadPuzzle(puzzle) {
     $('puzzle-analyze').classList.add('hidden');
+    this.setDone(false);
     this.board.clearPremove();
     this.current = puzzle;
     // Anything still waiting to move a piece — a reply, a solution being
@@ -5539,7 +5544,10 @@ export const Puzzles = {
     try { return this.chess.move(uciToMove(u)); } catch { return null; }
   },
 
-  setStatus(msg) { $('puzzle-status').textContent = msg; },
+  setStatus(msg) { $('puzzle-status-text').textContent = msg; },
+  // The puzzle is over (solved, or the solution was shown): the status bar
+  // turns gold and all of it is the Next button. loadPuzzle() takes it back.
+  setDone(on) { $('puzzle-status').classList.toggle('done', on); },
 
   async userMove(mv) {
     if (!this.current || this.moveIdx >= this.current.moves.length) return;
@@ -5580,6 +5588,7 @@ export const Puzzles = {
         if (hwHit) Students.hwSolved(this.current.id);
         this.updateProgress();
         $('puzzle-analyze').classList.remove('hidden');
+        this.setDone(true);
         this.setLiveInteractive(false);
         this.board.clearPremove();
         // Long enough to see the final move land and hear the sound, short
@@ -5661,6 +5670,7 @@ export const Puzzles = {
     }
     this.setStatus(t('solved'));
     $('puzzle-analyze').classList.remove('hidden');
+    this.setDone(true);
     this.setLiveInteractive(true);
   },
 

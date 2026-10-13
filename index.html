@@ -822,9 +822,14 @@
       <button id="puzzle-solution" class="btn ico" data-i18n-aria="show_solution">💡</button>
       <button id="puzzle-share" class="btn ico" data-i18n-aria="share">📤</button>
       <button id="puzzle-analyze" class="btn ico hidden" data-i18n-aria="analyze_short">📈</button>
-      <button id="puzzle-next" class="btn primary ico" data-i18n-aria="next_puzzle">➡</button>
     </div>
-    <div id="puzzle-status" class="status-bar"></div>
+    <!-- The status line and Next share one bar, so the button costs the board
+         no height. Navy while the puzzle is in play (it skips), and once the
+         puzzle is over the whole bar turns gold and is the button (.done). -->
+    <div id="puzzle-status" class="status-bar">
+      <span id="puzzle-status-text"></span>
+      <button id="puzzle-next" class="btn primary"><span data-i18n="next_puzzle"></span> ➡</button>
+    </div>
     <div id="puzzle-board" class="board-wrap"></div>
     <div id="puzzle-nav" class="toolbar">
       <button id="puzzle-nav-first" class="tool-btn">⏮</button>

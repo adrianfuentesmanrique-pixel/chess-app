@@ -272,6 +272,23 @@ main { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; touch-action: pan-y
   display: inline-flex; align-items: center; justify-content: center;
 }
 
+/* The status line with Next at its right end. The bar's own padding is given
+   up so the button can be 44px tall without the bar growing: at 375x667 the
+   board ends a pixel or two above the bottom of the screen, so this row may
+   not cost any height. .done (Puzzles.setDone) is the puzzle being over: the
+   whole bar goes gold and is the tap target, the button melting into it. */
+#puzzle-status {
+  justify-content: space-between; align-items: stretch; gap: 8px;
+  padding: 0 0 0 14px; min-height: 44px; margin: 6px 0;
+}
+#puzzle-status-text { flex: 1 1 auto; min-width: 0; align-self: center; padding: 6px 0; }
+#puzzle-next {
+  flex: 0 0 auto; min-height: 44px; padding: 0 14px;
+  font-size: 15px; white-space: nowrap;
+}
+#puzzle-status.done { background: var(--gold); color: #0b1526; font-weight: 700; cursor: pointer; }
+#puzzle-status.done #puzzle-next { background: none; color: inherit; }
+
 /* ── puzzle session log ────────────────── */
 /* One dot per puzzle attempted this session, newest last. Tapping one opens a
    read-only review of that puzzle, so browsing back never disturbs the puzzle

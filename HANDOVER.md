@@ -9,6 +9,35 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **PUZZLE TAB: THE NEXT BUTTON (2026-10-13, v208).** No spec; Adrian chose from four
+  measured mock-ups. The small arrow at the end of `#puzzle-actions` is gone. `#puzzle-next`
+  now lives INSIDE `#puzzle-status` (index.html), at its right end, beside a new
+  `#puzzle-status-text` span that `Puzzles.setStatus` writes to. While a puzzle is in play it
+  is a navy `.btn.primary` reading "Siguiente ➡" / "Next ➡" (it skips). Once the puzzle is
+  over (solved, or the solution shown) `Puzzles.setDone(true)` puts `.done` on the bar: the
+  whole bar turns gold and all of it is the tap target; `loadPuzzle()` takes it back.
+  - **Adrian's four answers.** (a) Option D, the status bar, not a button under the board.
+    (b) The word is "Siguiente" / "Next", so the existing `next_puzzle` key is reused and
+    `js/i18n.js` is untouched. (c) Blindfold and Calculation: LATER, their own task.
+    (d) Skip stays a button, in the same place as Next, navy until the puzzle is over.
+  - **Why not under the board (measured, 375 x 667, Spanish).** After a solve the board ended
+    at 666 of 667 px, so a button under it sat at 674-722, off the screen; and on a taller
+    phone Kael's praise bubble covers half of it. The top row with words cost 9 px and pushed
+    the board 8 px off. The bar costs nothing: it gave up its own padding and 2 px of margin
+    (`#puzzle-status` in css/style.css), and the board now ends at 646 while solving and 665
+    after a solve.
+  - **One click handler, on the bar** (`Puzzles.init`): a tap on the button bubbles to it, so
+    two `nextPuzzle()`s can never run. Do not add an onclick to `#puzzle-next` itself.
+  - **Verified.** `node tools/cdp-verify-puzzle-next.mjs <outDir>` (new; ports 9100s and
+    8700s, clear of the simul tool): 50 of 50 in ES and EN, light and dark: words, 44 px,
+    button and whole board on screen before and after a real solve, colours, a real tap loads
+    exactly one puzzle; a wrong move, the solution shown, auto-next, a theme, the daily puzzle,
+    a band homework and a hand-picked list. test:tree 453 and test:precache 59 pass.
+  - **Not done, on purpose.** `#blind-next` and `#calc-next` are unchanged (later task).
+    `tools/cdp-verify-premove.mjs` was not re-run (it finds `#puzzle-next` by id, which is
+    kept). Reported, not fixed: in Spanish the "+84" rating badge wraps `#puzzle-progress`'s
+    row onto a second line after a solve and moves the board down 27 px; and in homework mode
+    the `#puzzle-hw` bar already puts the bottom of the board below a 667 px screen.
 - **SIMULS, CONVERSATION 7 OF 8: OPENING AND HANDICAP (2026-10-13, v207).** Spec
   `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 7.
   `firestore.rules` and `js/firebase.js` untouched (`sendSimulInvite` already took a
