@@ -1,14 +1,22 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **conversation 1 of 8 is built (2026-10-12):
-`js/simul.js`, the pure rules, with `tests/unit/simul.test.js`. No screen, no
-database yet.** The stored field names are now fixed, in the comment block at
+Date: 2026-10-11. Status: **conversations 1 and 2 of 8 are built
+(2026-10-12). 2 is the database: the Simul block in `firestore.rules`,
+`tests/rules/simul.test.js` (88 tests), the Simul section of `js/firebase.js`
+and `tools/emu-verify-simul.mjs`. No screen yet.** The clock of 3d IS exact in
+rules, to the millisecond; the fallback of section 6 is not needed. Measured
+cost of ten 40-move boards: about 840 writes and 1,690 reads (a move is 1 write
+and 2 reads; invite, join and start are 3 writes and 6 reads a board, plus one
+rule lookup). The details are in HANDOVER.md.
+
+Conversation 1 was `js/simul.js`, the pure rules, with
+`tests/unit/simul.test.js`. The stored field names are now fixed, in the comment block at
 the top of `js/simul.js`: `t`, `s`, `cls`, `status`, `invitedAt`, `startAt`,
 `at`, `prevAt`, `fen`, `op`, `tc`, `base`, `inc`, `tMs`, `sMs`, `mv`, `n`,
 `draw`, `tDr`, `sDr`, `winner`, `reason`, `by`. A move is five characters,
 `[a-h][1-8][a-h][1-8][qrbn-]`. The clock of 3d is exact in arithmetic
 (`settle()`, and `refereeMove()` in the test file is the rule to write);
-whether `firestore.rules` can express it is conversation 2's to prove. Three
+conversation 2 proved that `firestore.rules` can express it. Three
 readings of mine that Adrian has not been asked about: the draw-offer limit
 counts 10 moves by each side (20 single moves); a move at the exact instant the
 time runs out is too late; a flag is a loss whatever the other side has left.

@@ -21,6 +21,10 @@ import {
 import { initializeAppCheck, ReCaptchaV3Provider } from '../vendor/firebase-10.14.1/firebase-app-check.js';
 import * as db from './db.js';
 import { PULSO, applySolve, applyMistake, decideResult, unpackIds, clockOffset } from './pulso.js';
+import {
+  SIMUL, startClocks, checkStart, positionOf, tryMove, packMove, moveWrite, inTime, flagged,
+  mayClaimFlag, resultOf, mayOfferDraw, inviteOpen, mayReplace,
+} from './simul.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBaJJ3kBUkAupKiqysQCSJ20qXpSUurAxU',
@@ -886,6 +890,306 @@ export async function finishPulso(pairId, { left = false } = {}) {
     throw e;
   }
   return true;
+}
+
+// ── Simul ─────────────────────────────────────────────────────────────────
+// A teacher plays several students at once. ONE document per teacher–student
+// pair, simulGames/{teacherUid}_{studentUid}, reused for every simul; the rules
+// (the Simul block in firestore.rules, tested in tests/rules/simul.test.js) are
+// the referee, so every write below is shaped to be exactly what one clause of
+// that block accepts. Spec: docs/superpowers/specs/2026-10-11-students-simul-design.md,
+// section 3k. The chess and the arithmetic are js/simul.js; this section only
+// reads and writes.
+//
+// Three listeners, one per query the read rule allows: the teacher's boards,
+// the student's own boards, and the boards of a simul I was invited to. They
+// are also this section's memory, as watchPulso() is Pulso's: every function
+// that writes works from the copy the teacher's or the student's listener
+// keeps, so none of them reads a document and none works until it runs.
+//
+// Every function that writes resolves to { ok: true, … } or to
+// { ok: false, reason }, which a screen can show. 'refused' is the rules
+// saying no (too late, mostly, or the other phone got there first); the next
+// snapshot puts the server's copy back.
+
+const simulRef = id => doc(firestore, 'simulGames', id);
+const simulSeen = { t: new Map(), s: new Map(), cls: new Map() };
+const simulStops = { t: null, s: null, cls: null };
+// id -> `at` exactly as the server holds it. A move must write it back as
+// prevAt, and the rule compares the two stamps whole, finer than the
+// millisecond a board is given.
+const simulStamps = new Map();
+const simulNo = (reason, more) => ({ ok: false, reason, ...more });
+const simulOther = who => (who === 't' ? 's' : 't');
+
+// CUT to whole milliseconds, not Timestamp.toMillis(): that one returns a
+// fraction for a stamp finer than a millisecond, and the rule's toMillis()
+// does not. A clock settled from fractions is a number the rule never takes
+// (tests/rules/simul.test.js, "stamps finer than a millisecond").
+function simulMs(v) {
+  return v && typeof v.seconds === 'number' ? v.seconds * 1000 + Math.floor(v.nanoseconds / 1e6) : null;
+}
+
+// A board as the screens and js/simul.js get it: the stored fields, with
+//   id        teacherUid_studentUid — what the functions below take
+//   me        't', 's', or null on a classmate's board I am only watching
+//   invitedAt, startAt, at, prevAt   milliseconds of SERVER time, or null
+//   pending   true while a write of mine has not reached the server. A stamp I
+//             have just written is this phone's guess until then.
+function simulView(d, uid) {
+  const x = d.data({ serverTimestamps: 'estimate' });
+  return {
+    ...x, id: d.id, me: x.t === uid ? 't' : x.s === uid ? 's' : null,
+    invitedAt: simulMs(x.invitedAt), startAt: simulMs(x.startAt), at: simulMs(x.at), prevAt: simulMs(x.prevAt),
+    pending: d.metadata.hasPendingWrites,
+  };
+}
+
+function watchSimul(kind, constraint, max, cb) {
+  const user = auth.currentUser;
+  if (simulStops[kind]) simulStops[kind]();
+  if (!user) return () => {};
+  const stop = onSnapshot(
+    query(collection(firestore, 'simulGames'), constraint(user.uid), limit(max)),
+    { includeMetadataChanges: true },
+    snap => {
+      const next = new Map();
+      snap.forEach(d => {
+        const g = simulView(d, user.uid);
+        next.set(d.id, g);
+        if (!g.pending) simulStamps.set(d.id, d.get('at'));
+      });
+      simulSeen[kind] = next;
+      cb([...next.values()], { fromCache: snap.metadata.fromCache });
+    },
+    err => { console.error('simul watch failed', kind, err); simulSeen[kind] = new Map(); cb([], { fromCache: true }); });
+  simulStops[kind] = () => { stop(); simulStops[kind] = null; simulSeen[kind] = new Map(); };
+  return simulStops[kind];
+}
+
+// cb(boards, { fromCache }); each returns its unsubscribe function, and calling
+// one again stops the listener before. A single-field filter needs no index.
+// A document that changes is billed as one read to each listener holding it.
+//
+// The teacher's boards: one per student they have ever played.
+export function watchSimulTeacher(cb) {
+  return watchSimul('t', uid => where('t', '==', uid), MAX_STUDENTS, cb);
+}
+// The student's: one per teacher, so at most 3. This is the one that delivers
+// an invitation.
+export function watchSimulStudent(cb) {
+  return watchSimul('s', uid => where('s', '==', uid), MAX_TEACHERS, cb);
+}
+// Every board of a simul I was invited to, my own included ("Otros tableros").
+// Open it only while that list is on screen: it is billed for every move on
+// every board it holds.
+export function watchSimulClass(cb) {
+  return watchSimul('cls', uid => where('cls', 'array-contains', uid), 100, cb);
+}
+
+// One phone has one clock, so the offset Duel measured is the offset here: the
+// same stamped write to my own users/{uid}, at most once a session. Call
+// syncSimulClock() when an invitation or a game is on screen, and count every
+// clock against simulServerNow(), never Date.now(). Rounded: the offset is a
+// midpoint, so half a millisecond, and a board's times are whole ones.
+export const syncSimulClock = syncPulsoClock;
+export const simulServerNow = () => Math.round(pulsoServerNow());
+
+const simulMine = id => simulSeen.t.get(id) || simulSeen.s.get(id) || null;
+// The listener's copy, patched straight away so a second tap made before the
+// first write is echoed starts from the right place.
+function simulPatch(id, patch) {
+  for (const k of ['t', 's']) {
+    const g = simulSeen[k].get(id);
+    if (g) simulSeen[k].set(id, { ...g, ...patch, pending: true });
+  }
+}
+async function simulWrite(write) {
+  try {
+    await write();
+    return null;
+  } catch (e) {
+    if (e && e.code === 'permission-denied') return simulNo('refused');
+    throw e;
+  }
+}
+
+// The teacher's boards that share the newest invitation stamp: one batch, one
+// server time, so that is exactly "this simul".
+function simulCurrent() {
+  const all = [...simulSeen.t.values()];
+  const last = Math.max(0, ...all.map(g => g.invitedAt || 0));
+  return all.filter(g => g.invitedAt === last);
+}
+
+// Invite: one board per student, all in ONE batch, so every board carries the
+// same invitation stamp and either all of them exist or none does.
+//   boards   [{ s, tc, fen, op }] — the student, the teacher's colour there
+//            (coloursFor), the start position (buildStart) and the packed
+//            opening (replayOpening), at most 10
+//   clock    one of SIMUL.CLOCKS, or SIMUL.NO_CLOCK
+//   extraS   the teacher's extra seconds on every board
+// A set() of all 23 fields is right for a first board and for one over an old
+// game alike. Refused by the rules when a student's link is not active, or a
+// board of theirs is still waiting or in play. reason 'start' (with `s`): that
+// board's position or opening does not hold; 'busy' (with `s`): this phone
+// already knows the board cannot be replaced yet.
+export async function sendSimulInvite(boards, clock = SIMUL.NO_CLOCK, extraS = 0) {
+  const user = auth.currentUser;
+  if (!user) return simulNo('signed-out');
+  const cls = Array.isArray(boards) ? boards.map(b => b && b.s) : [];
+  if (!cls.length || cls.length > SIMUL.MAX_BOARDS || new Set(cls).size !== cls.length) return simulNo('count');
+  const now = simulServerNow();
+  for (const b of boards) {
+    if (!b.s || b.s === user.uid || (b.tc !== 'w' && b.tc !== 'b') || !checkStart(b.fen, b.op || '').ok) {
+      return simulNo('start', { s: b.s });
+    }
+    if (!mayReplace(simulSeen.t.get(coachingIdOf(user.uid, b.s)), now)) return simulNo('busy', { s: b.s });
+  }
+  const batch = writeBatch(firestore);
+  const ids = cls.map(s => coachingIdOf(user.uid, s));
+  boards.forEach((b, i) => batch.set(simulRef(ids[i]), {
+    t: user.uid, s: b.s, cls, status: 'invited',
+    invitedAt: serverTimestamp(), startAt: null, at: null, prevAt: null,
+    fen: b.fen, op: b.op || '', tc: b.tc,
+    ...startClocks(clock, extraS),
+    mv: '', n: 0, draw: null, tDr: -1, sDr: -1, winner: null, reason: null, by: null,
+  }));
+  return await simulWrite(() => batch.commit()) || { ok: true, ids };
+}
+
+// The student's answer. Join checks the position first: the database cannot
+// judge what the teacher's phone sent (spec section 6), so this phone does.
+export async function joinSimul(id) {
+  const g = simulSeen.s.get(id);
+  if (!auth.currentUser || !g || g.status !== 'invited') return simulNo('gone');
+  if (!inviteOpen(g, simulServerNow())) return simulNo('expired');
+  if (!checkStart(g.fen, g.op).ok) return simulNo('start');
+  return await simulWrite(() => updateDoc(simulRef(id), { status: 'joined' })) || { ok: true };
+}
+export async function declineSimul(id) {
+  const g = simulSeen.s.get(id);
+  if (!auth.currentUser || !g || g.status !== 'invited') return simulNo('gone');
+  if (!inviteOpen(g, simulServerNow())) return simulNo('expired');
+  return await simulWrite(() => updateDoc(simulRef(id), { status: 'out' })) || { ok: true };
+}
+
+// Start: every board of this simul in ONE batch, so they all begin at the same
+// server instant. A student who joined goes live; one who did not is left out.
+// 'nobody': no one has joined. 'refused' also when a student joined in the
+// instant between this phone's copy and the write: press again.
+export async function startSimul() {
+  if (!auth.currentUser) return simulNo('signed-out');
+  const now = simulServerNow();
+  const boards = simulCurrent().filter(g => inviteOpen(g, now));
+  if (boards.some(g => g.pending)) return simulNo('pending');
+  const joined = boards.filter(g => g.status === 'joined');
+  if (!joined.length) return simulNo('nobody');
+  const batch = writeBatch(firestore);
+  for (const g of boards) {
+    batch.update(simulRef(g.id), g.status === 'joined'
+      ? { status: 'live', startAt: serverTimestamp(), at: serverTimestamp(), prevAt: serverTimestamp() }
+      : { status: 'out' });
+  }
+  return await simulWrite(() => batch.commit())
+    || { ok: true, started: joined.length, left: boards.length - joined.length };
+}
+
+// One move, mine: `move` is chess.js's { from, to, promotion } or five packed
+// characters. Checked here as the rules cannot check it (legal on the board as
+// it stands) and as they will (my turn, in time). When the move ends the game
+// (mate, or a draw the board itself decides) the result goes in the same write.
+//
+// The numbers come from moveWrite() over the listener's copy; prevAt is the
+// server's own stamp, handed back untouched.
+//
+// DO NOT await this before showing the move: it settles only when the server
+// answers, and Firestore queues the write for a phone with no signal.
+// reason: 'gone' (no live game of mine), 'pending' (my last write is not
+// confirmed), 'turn', 'illegal', 'position' (the stored game cannot be
+// replayed: void it), 'time' (my flag is down).
+export async function simulMove(id, move) {
+  const g = simulMine(id);
+  if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
+  if (g.pending || !simulStamps.get(id)) return simulNo('pending');
+  const packed = typeof move === 'string' ? move : packMove(move);
+  if (!packed) return simulNo('illegal');
+  const w = moveWrite(g, g.me, packed);
+  if (!w) return simulNo('turn');
+  const pos = positionOf(g);
+  if (!pos.ok) return simulNo('position');
+  const played = tryMove(pos.chess, packed);
+  if (!played.ok) return simulNo('illegal');
+  if (!inTime(g, g.me, simulServerNow())) return simulNo('time');
+  const end = resultOf(g, pos.chess);
+  const result = end ? { status: 'done', winner: end.winner, reason: end.reason } : {};
+  const prevAt = simulStamps.get(id);
+  simulPatch(id, { ...w, ...result, at: simulServerNow() });
+  return await simulWrite(() => updateDoc(simulRef(id), { ...w, ...result, prevAt, at: serverTimestamp() }))
+    || { ok: true, san: played.san, result: end };
+}
+
+// 'limit': an offer is standing, or mine was less than 10 moves by each side ago.
+export async function offerSimulDraw(id) {
+  const g = simulMine(id);
+  if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
+  if (!mayOfferDraw(g, g.me)) return simulNo('limit');
+  const patch = { draw: g.me, [g.me + 'Dr']: g.n };
+  simulPatch(id, patch);
+  return await simulWrite(() => updateDoc(simulRef(id), patch)) || { ok: true };
+}
+
+// Yes or no to the OTHER side's offer. 'none': there is not one.
+export async function answerSimulDraw(id, accept) {
+  const g = simulMine(id);
+  if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
+  if (!g.draw || g.draw === g.me) return simulNo('none');
+  const patch = accept ? { status: 'done', winner: 'draw', reason: 'agreed' } : { draw: null };
+  simulPatch(id, patch);
+  return await simulWrite(() => updateDoc(simulRef(id), patch)) || { ok: true };
+}
+
+// My own board only: the other one wins.
+export async function resignSimul(id) {
+  const g = simulMine(id);
+  if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
+  return await simulWrite(() => updateDoc(simulRef(id), {
+    status: 'done', winner: simulOther(g.me), reason: 'resign',
+  })) || { ok: true };
+}
+
+// The side to move is out of time by server time. Either phone may send it,
+// the loser's included, and both will: the second is quietly refused. 'early':
+// by this phone's reckoning there is time left, and nothing is written.
+export async function claimSimulFlag(id) {
+  const g = simulMine(id);
+  if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
+  const now = simulServerNow();
+  if (!mayClaimFlag(g, g.me, now)) return simulNo('early');
+  return await simulWrite(() => updateDoc(simulRef(id), {
+    status: 'done', winner: simulOther(flagged(g, now)), reason: 'flag',
+  })) || { ok: true };
+}
+
+// The other side's move cannot be played, or its "checkmate" is not one: the
+// board stops with no winner, and the record says who stopped it.
+export async function voidSimul(id) {
+  const g = simulMine(id);
+  if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
+  return await simulWrite(() => updateDoc(simulRef(id), {
+    status: 'done', reason: 'void', by: g.me,
+  })) || { ok: true };
+}
+
+// The teacher ends the simul: every board still open is recorded not finished,
+// with no winner; finished boards keep their result. One write a board, not a
+// batch: a board that ends by itself in the same instant must not undo the rest.
+export async function endSimul() {
+  if (!auth.currentUser) return simulNo('signed-out');
+  const open = [...simulSeen.t.values()].filter(g => g.status === 'live');
+  const done = await Promise.all(open.map(g =>
+    simulWrite(() => updateDoc(simulRef(g.id), { status: 'done', reason: 'unfinished' }))));
+  return { ok: true, ended: done.filter(x => !x).length };
 }
 
 // ── Masterclass ──────────────────────────────────────────────────────────

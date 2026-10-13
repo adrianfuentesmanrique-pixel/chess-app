@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v201';
+const CACHE = 'chess-training-center-v202';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -99,6 +99,7 @@ const ASSETS = [
   'js/pulso.js',
   'js/pulso-ui.js',
   'js/pulso-match.js',
+  'js/simul.js',
   'js/calc.js',
   'js/elo.js',
   'js/calc-ui.js',

@@ -9,6 +9,67 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 2 OF 8: THE DATABASE, NO SCREEN (2026-10-12, v202).** Spec
+  `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 2. **The
+  rules changed: the push waited for Adrian's `npm.cmd run rules:deploy`.** The emulator
+  proves the rules, not the live project.
+  - **`firestore.rules`, the Simul block** (`match /simulGames/{gameId}`, the last block in
+    the file): one helper per row of the spec's table 3k — `simulInviteOk`,
+    `simulCanReplace`, `simulLinkOk`, `simulTurn`, `simulClockOk`, `simulMoveOk`,
+    `simulDrawOk`, `simulEndOk`, `simulLobbyOk`, `simulReinviteOk`, and `simulUpdateOk`,
+    which works out the changed keys ONCE and picks the branch by status.
+    `tests/rules/simul.test.js`: 88 tests (`test:rules` is now 530).
+  - **THE CLOCK IS EXACT IN RULES. The fallback of spec section 6 is not needed.**
+    `request.time.toMillis() - resource.data.at.toMillis()` and the settle equation are
+    accepted and exact: a writer who is 1 ms generous or mean with either clock is refused;
+    a move 1 ms inside the time is taken and none at or past the limit ever is (the test
+    aims writes at the limit and reads the server's stamp back); the tool's 80-move game
+    ends with the stored clocks equal to a plain clock to the millisecond.
+  - **Three things the emulator taught, all handled, none in the spec:**
+    1. **A string slice that ends at 0 is an ERROR in rules, not `''`** (`mv[0:0]`), so
+       the first move of every game was refused. `simulMoveOk` has
+       `old.mv.size() == 0 || …`. Only the five new characters are matched against the
+       move pattern: the cost of a move does not grow with the game (tested on a
+       1,000-character `mv`).
+    2. **The SDK's `Timestamp.toMillis()` returns a FRACTION** for a stamp finer than a
+       millisecond (9623.998…); the rules' `toMillis()` is a whole number. A clock settled
+       from fractions is a number the rule never accepts. `simulMs()` in `js/firebase.js`
+       CUTS (`seconds * 1000 + floor(nanoseconds / 1e6)`); never use `toMillis()` on a
+       simul stamp. `prevAt` is written back as the server's own Timestamp
+       (`simulStamps`), not rebuilt from milliseconds: the rule compares it whole.
+    3. **A request may evaluate 1,000 expressions**, the emulator enforces it, and a diff
+       of 23 fields per branch went over it on refused writes. Hence the one diff in
+       `simulUpdateOk`. Add a branch there, not a second `diff()`.
+  - **`js/firebase.js`, the Simul section** (after Pulso): `watchSimulTeacher`,
+    `watchSimulStudent`, `watchSimulClass`; `sendSimulInvite(boards, clock, extraS)` (one
+    batch: all boards or none, one stamp), `joinSimul`, `declineSimul`, `startSimul` (one
+    batch: "this simul" is the teacher's boards that share the newest `invitedAt`),
+    `simulMove`, `offerSimulDraw`, `answerSimulDraw`, `resignSimul`, `claimSimulFlag`,
+    `voidSimul`, `endSimul`; `syncSimulClock` / `simulServerNow` (Duel's measurement: one
+    phone, one clock). Every writer resolves to `{ ok: true, … }` or `{ ok: false, reason }`
+    (`'refused'` = the rules said no); none touches the DOM. A board from a listener has
+    `id`, `me` (`'t'`, `'s'`, null when only watching), stamps in whole ms, `pending`.
+  - **`tools/emu-verify-simul.mjs`** (`node tools/emu-verify-simul.mjs`, about 20 s, 61
+    checks): a teacher and two students, three simuls, the real `js/firebase.js` in
+    headless Chrome against the emulator. **Each phone MUST be on its own address
+    (`localhost`, `127.0.0.1`, `127.0.0.2`):** on one address three phones that listen and
+    write use all 6 of Chrome's connections to the emulator and the next write waits 45 s.
+    That is a limit of the tool, not of the app.
+  - **MEASURED COST** (counted in the tool: accepted writes, documents the server
+    delivered to a listener): a move is **1 write and 2 reads**, exactly as counted.
+    Invite + join + start is **3 writes and 6 reads a board, plus 1 rule lookup** (the
+    spec had 3 reads: each write is echoed to both phones). Ten boards of 40 moves:
+    **about 840 writes and 1,690 reads** (spec: 840 and 1,700). A classmate watching adds
+    1 read a move a board. `watchSimulClass` is billed for every board it holds on every
+    move: conversation 8 should open it for the list only.
+  - **Decided here, for Adrian to overrule:** Start is refused once the invitation is
+    older than 10 minutes, joined students included (the teacher invites again). A
+    student cannot un-join. An offer of a draw cannot be taken back by the one who made
+    it. With no clock the teacher gets no extra time (`tMs` 0).
+  - **Not built, and nothing calls for it yet:** a function that deletes a board (the rule
+    allows it when no game is in play; ending a coaching link or deleting an account
+    leaves the board behind).
+
 - **SIMULS, CONVERSATION 1 OF 8: THE RULES OF A BOARD, NO SCREEN (2026-10-12, no version
   bump).** Spec `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan
   item 1. `js/simul.js` (pure: imports `vendor/chess.js`, `js/tree.js`, `js/pulso.js`) and

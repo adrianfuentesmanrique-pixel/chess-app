@@ -1118,5 +1118,254 @@ service cloud.firestore {
                 && (!existsAfter(coachingPath(resource.data.teacherUid + '_' + me()))
                     || getAfter(coachingPath(resource.data.teacherUid + '_' + me())).data.status != 'active')));
     }
+
+    // ═════════════════════════ Simul ═════════════════════════
+    // A teacher plays several students at once: the app's first game of chess
+    // between two people. ONE document per teacher–student pair,
+    // simulGames/{teacherUid}_{studentUid} (the coaching link's own id), reused
+    // for every simul. The field names are the contract at the top of
+    // js/simul.js.
+    //
+    // There is no Cloud Function: these rules ARE the referee, as in Pulso.
+    // They check who is writing, whose turn it is, that moves are only added,
+    // the clock to the millisecond, and every time. They CANNOT check that a
+    // move is legal chess or that "checkmate" is true: each phone checks the
+    // other side's move and voids the board when it cannot be played.
+    //
+    // The clock, all in server time: tMs and sMs are settled one move behind.
+    // A move leaves the mover's own time alone and settles the OTHER side's
+    // last move from the two stamps already stored (at, prevAt). So no number
+    // a phone writes comes from a phone's clock, and each has exactly one
+    // value the rule will take. js/simul.js settle() is the same arithmetic,
+    // and refereeMove() in tests/unit/simul.test.js is simulMoveOk() below.
+    //
+    // Every time check sits BEHIND its status check in the same &&: startAt,
+    // at and prevAt are null until Start.
+    //
+    // The coaching link is looked up when a board is created or re-invited
+    // ONLY, never on a move: a lookup is billed as a read.
+    //
+    // Spec: docs/superpowers/specs/2026-10-11-students-simul-design.md, 3k.
+    // Every clause here is covered by a test in tests/rules/simul.test.js.
+
+    // Packed moves, five characters each, nothing between them.
+    function simulMovesOk(v, max) {
+      return v is string && v.size() <= max
+        && v.matches('([a-h][1-8][a-h][1-8][qrbn-])*');
+    }
+
+    // An invitation as it must look when it is sent: the first one and every
+    // later one. The id fixes the student, so a re-invite cannot change who
+    // the board belongs to. fen and op cannot be judged here; the student's
+    // phone does that before it offers Join.
+    function simulInviteOk(d, gameId) {
+      return d.keys().hasOnly(['t', 's', 'cls', 'status', 'invitedAt', 'startAt', 'at', 'prevAt',
+                               'fen', 'op', 'tc', 'base', 'inc', 'tMs', 'sMs', 'mv', 'n',
+                               'draw', 'tDr', 'sDr', 'winner', 'reason', 'by'])
+        && d.keys().hasAll(['t', 's', 'cls', 'status', 'invitedAt', 'startAt', 'at', 'prevAt',
+                            'fen', 'op', 'tc', 'base', 'inc', 'tMs', 'sMs', 'mv', 'n',
+                            'draw', 'tDr', 'sDr', 'winner', 'reason', 'by'])
+        && d.t == me()
+        && d.s is string && d.s.size() > 0 && d.s.size() <= 128 && d.s != me()
+        && gameId == me() + '_' + d.s
+        && d.cls is list && d.cls.size() <= 10 && d.s in d.cls
+        && d.status == 'invited'
+        // serverTimestamp() on the client. The 10 minutes run from this.
+        && d.invitedAt == request.time
+        && d.startAt == null && d.at == null && d.prevAt == null
+        && d.fen is string && d.fen.size() >= 20 && d.fen.size() <= 100
+        // At most 20 moves by each side.
+        && simulMovesOk(d.op, 200)
+        && d.tc in ['w', 'b']
+        // One of the four controls, or no clock. `is int`: a time is compared
+        // and added to as whole milliseconds.
+        && d.base is int && d.inc is int
+        && ((d.base == 0 && d.inc == 0 && d.tMs == 0)
+            || (d.base == 600 && d.inc == 5) || (d.base == 900 && d.inc == 10)
+            || (d.base == 1800 && d.inc == 20) || (d.base == 3600 && d.inc == 30))
+        && d.sMs == d.base * 1000
+        // The teacher's extra time: none to an hour.
+        && d.tMs is int && d.tMs >= d.sMs && d.tMs <= d.sMs + 3600000
+        && d.mv == '' && d.n == 0
+        && d.draw == null && d.tDr == -1 && d.sDr == -1
+        && d.winner == null && d.reason == null && d.by == null;
+    }
+
+    // May a new invitation replace what is stored? Over a finished game, an
+    // invitation older than 10 minutes, or a simul started more than 3 hours
+    // ago. Not over an invitation still waiting or a game in play.
+    function simulCanReplace(old) {
+      return old.status in ['done', 'out']
+        || (old.status in ['invited', 'joined']
+            && request.time > old.invitedAt + duration.value(10, 'm'))
+        || (old.status == 'live'
+            && request.time > old.startAt + duration.value(3, 'h'));
+    }
+
+    // The link exists, is active, and is this pair's. get(), one billed read.
+    function simulLinkOk(t, s) {
+      let link = get(coachingPath(t + '_' + s));
+      return link != null
+        && link.data.status == 'active'
+        && link.data.teacherUid == t
+        && link.data.studentUid == s;
+    }
+
+    // Whose turn, 't' or 's'. fen always has White to move, so White is to
+    // move when the opening and the game together hold an even number of moves.
+    function simulTurn(old) {
+      return ((old.op.size() / 5 + old.n) % 2 == 0) == (old.tc == 'w') ? 't' : 's';
+    }
+
+    // The two clocks on a move. `mine` and `theirs` are the field names.
+    function simulClockOk(old, d, mine, theirs) {
+      return d[mine] == old[mine]
+        && (old.base == 0
+            ? d[theirs] == old[theirs]
+            // In time: LESS than what the mover has. At the exact instant it
+            // runs out the flag is down.
+            : (request.time.toMillis() - old.at.toMillis() < old[mine]
+               // The first move of a game settles nothing.
+               && d[theirs] == (old.n == 0
+                    ? old[theirs]
+                    : old[theirs] - (old.at.toMillis() - old.prevAt.toMillis()) + old.inc * 1000)));
+    }
+
+    // One move by the side to move. mv starts as '' and every move adds five
+    // well-formed characters after the old ones, so the whole string stays
+    // well-formed without being matched again: the cost of a move does not
+    // grow with the game.
+    function simulMoveOk(old, d, who, keys) {
+      return old.status == 'live'
+        && who == simulTurn(old)
+        && keys.hasOnly(['mv', 'n', 'at', 'prevAt', 'tMs', 'sMs', 'draw', 'status', 'winner', 'reason'])
+        && d.n == old.n + 1
+        && d.mv is string
+        && d.mv.size() == old.mv.size() + 5
+        // A slice that ends at 0 is an error, not '': hence the first half.
+        && (old.mv.size() == 0 || d.mv[0:old.mv.size()] == old.mv)
+        && d.mv[old.mv.size():d.mv.size()].matches('[a-h][1-8][a-h][1-8][qrbn-]')
+        && d.at == request.time
+        && d.prevAt == old.at
+        && simulClockOk(old, d, who == 't' ? 'tMs' : 'sMs', who == 't' ? 'sMs' : 'tMs')
+        // An offer stands until the OTHER side moves.
+        && d.draw == (old.draw == who ? who : null)
+        // The mover may end the game with this move, as its winner or as a
+        // draw, and touch the result in no other way.
+        && ((d.status == 'live' && d.winner == null && d.reason == null)
+            || (d.status == 'done'
+                && ((d.reason == 'mate' && d.winner == who)
+                    || (d.reason in ['stalemate', 'repetition', 'fifty', 'material']
+                        && d.winner == 'draw'))));
+    }
+
+    // A draw offer (one per player per 10 moves by each side, never while one
+    // is standing) and the other side's no. The yes is in simulEndOk.
+    function simulDrawOk(old, d, who, keys) {
+      return old.status == 'live'
+        && ((old.draw == null
+             && keys.hasOnly(['draw', who + 'Dr'])
+             && d.draw == who
+             && d[who + 'Dr'] == old.n
+             && (old[who + 'Dr'] < 0 || old.n - old[who + 'Dr'] >= 20))
+            || (old.draw != null && old.draw != who
+                && keys.hasOnly(['draw'])
+                && d.draw == null));
+    }
+
+    // Every ending that is not a move. Each is checked against what is ALREADY
+    // stored; the diff lets no move, clock or stamp change with it.
+    function simulEndOk(old, d, who, keys) {
+      return old.status == 'live'
+        && d.status == 'done'
+        && ((keys.hasOnly(['status', 'winner', 'reason'])
+             // You can only resign yourself: the winner is the OTHER one.
+             && ((d.reason == 'resign' && d.winner == (who == 't' ? 's' : 't'))
+                 // Accepting the other side's offer, never your own.
+                 || (d.reason == 'agreed' && d.winner == 'draw'
+                     && old.draw != null && old.draw != who)
+                 // The flag: the side to move is out of time by server time.
+                 // Either player may claim it, the loser included.
+                 || (d.reason == 'flag' && old.base > 0
+                     && request.time.toMillis() - old.at.toMillis()
+                          >= old[simulTurn(old) == 't' ? 'tMs' : 'sMs']
+                     && d.winner == (simulTurn(old) == 't' ? 's' : 't'))))
+            // Void: no winner, and who did it is on the record.
+            || (keys.hasOnly(['status', 'reason', 'by'])
+                && d.reason == 'void' && d.by == who)
+            // The teacher ends the simul: not finished, no winner.
+            || (who == 't'
+                && keys.hasOnly(['status', 'reason'])
+                && d.reason == 'unfinished'));
+    }
+
+    // Before the game: the student's answer and the teacher's Start.
+    function simulLobbyOk(old, d, who, keys) {
+      return (who == 's'
+              && old.status == 'invited'
+              && request.time <= old.invitedAt + duration.value(10, 'm')
+              && keys.hasOnly(['status'])
+              && d.status in ['joined', 'out'])
+        // Start, for a student who joined: the server stamps all three, so
+        // nobody can start a clock in the past.
+        || (who == 't'
+            && old.status == 'joined'
+            && request.time <= old.invitedAt + duration.value(10, 'm')
+            && keys.hasOnly(['status', 'startAt', 'at', 'prevAt'])
+            && d.status == 'live'
+            && d.startAt == request.time && d.at == request.time && d.prevAt == request.time)
+        // Start, for a student who did not: left out.
+        || (who == 't'
+            && old.status == 'invited'
+            && keys.hasOnly(['status'])
+            && d.status == 'out');
+    }
+
+    // Every update. The changed keys are worked out ONCE and handed down: a
+    // request may evaluate 1,000 expressions and a diff of 23 fields is a
+    // large part of that. The status picks the one branch that can apply.
+    function simulUpdateOk(old, d, who, gameId) {
+      let keys = d.diff(old).affectedKeys();
+      return old.status == 'live'
+        ? (simulMoveOk(old, d, who, keys)
+           || simulEndOk(old, d, who, keys)
+           || simulDrawOk(old, d, who, keys)
+           || simulReinviteOk(old, d, who, gameId))
+        : (simulLobbyOk(old, d, who, keys)
+           || simulReinviteOk(old, d, who, gameId));
+    }
+
+    function simulReinviteOk(old, d, who, gameId) {
+      return who == 't'
+        && simulCanReplace(old)
+        && simulInviteOk(d, gameId)
+        && simulLinkOk(me(), d.s);
+    }
+
+    match /simulGames/{gameId} {
+      // The teacher, the student, and everyone invited to the same simul.
+      // .get(field, default) so each of the app's three queries passes on the
+      // one field it constrains: where('t','==',me), where('s','==',me),
+      // where('cls','array-contains',me).
+      allow read: if signedIn()
+        && (resource.data.get('t', '') == me()
+            || resource.data.get('s', '') == me()
+            || me() in resource.data.get('cls', []));
+
+      allow create: if signedIn()
+        && simulInviteOk(after(), gameId)
+        && simulLinkOk(me(), after().s);
+
+      // The move is tried first: it is the write made most often. The lookup
+      // of the re-invite is behind everything else, so a move never pays it.
+      allow update: if signedIn()
+        && (resource.data.t == me() || resource.data.s == me())
+        && simulUpdateOk(resource.data, after(), resource.data.t == me() ? 't' : 's', gameId);
+
+      // Either of the two, never while a game is in play.
+      allow delete: if signedIn()
+        && (resource.data.t == me() || resource.data.s == me())
+        && resource.data.status != 'live';
+    }
   }
 }
