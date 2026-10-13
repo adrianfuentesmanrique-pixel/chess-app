@@ -313,6 +313,15 @@
       </div>
       <div id="daily-missions-list" class="daily-missions-list"></div>
     </div>
+    <!-- "Continuar" (up to three rows: a homework still open, the book last
+         opened, the last game against the engine) or, for someone who has
+         never practised and has nothing half-way, "Empieza por aquí". Drawn
+         after the page by Home.drawNext(); which block and which rows is
+         homeBlock() in js/home.js. Hidden when there is neither. -->
+    <div id="home-next" class="home-next hidden">
+      <h3 id="home-next-head" class="home-sec"></h3>
+      <div id="home-next-list" class="list home-list"></div>
+    </div>
     <!-- "Descubre": one endgame or one opening, picked at random once each time
          the app is opened (Home.drawDiscover; the pick is js/home.js). -->
     <div id="home-discover" class="profile-card home-discover">

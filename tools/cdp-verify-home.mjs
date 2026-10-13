@@ -1,9 +1,18 @@
 // Home ("Inicio"): the screen exists, the app opens on it, it shows Kael's line
-// and the "Hoy" card (conversation 1), and its two boards: the puzzle of the
-// day and "Descubre" (conversation 2). Dev tool, not shipped. Headless Chrome
-// over CDP, signed out, no service worker.
+// and the "Hoy" card (conversation 1), its two boards: the puzzle of the day
+// and "Descubre" (conversation 2), and the block between them, "Continuar" /
+// "Empieza por aquí", with Home drawn again when the account or the day
+// changes (conversation 3). Dev tool, not shipped. Headless Chrome over CDP,
+// signed out, no service worker.
 //
-//   node tools/cdp-verify-home.mjs <outDir>     about five minutes
+//   node tools/cdp-verify-home.mjs <outDir>     about ten minutes
+//
+// Conversation 3's part SEEDS what there is to continue (said again where it
+// is done): a game through History.buildRecord + saveGame, a book through
+// Read.importFile (a 6-page PDF this tool writes itself: makePdf), a homework
+// by setting Students.homework by hand. A sign-out is Auth._notify() with
+// nobody signed in; a new day is the page's Date moved one day on, then the
+// app's own visibilitychange listener.
 //
 // The tool's own server can HOLD the puzzle files (the request arrives, the
 // answer waits) and REFUSE them (404, as with no connection and no stored copy).
@@ -34,7 +43,7 @@ const PORT = 9300 + Math.floor(Math.random() * 600);
 const WEB = 9900 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-home-'));
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 900000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 1800000).unref();
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm',
@@ -139,6 +148,45 @@ const discover = () => ev(`
     btn: q('#home-discover-btn').textContent, pieces: q('#home-discover-board').querySelectorAll('img').length, boardW: Math.round(b.width), boardH: Math.round(b.height),
     cardIn: card.left >= 0 && card.right <= innerWidth && btn.right <= card.right && btn.width > 60, sideScroll: document.documentElement.scrollWidth - innerWidth,
     below: card.top >= q('#home-today').getBoundingClientRect().bottom, pick: JSON.stringify(__app.Home.pick) };`);
+// The block between "Hoy" and "Descubre" ("Continuar" / "Empieza por aquí") as
+// it is on the page. discoverTop/Bottom: where "Descubre" sits with the page
+// at its top, in screen pixels (the screen is 667 high).
+const nextBlock = () => ev(`
+  const q = s => document.querySelector(s), box = q('#home-next'), b = box.getBoundingClientRect(), d = q('#home-discover').getBoundingClientRect(), today = q('#home-today').getBoundingClientRect();
+  const rows = [...box.querySelectorAll('.home-row')], up = q('main').scrollTop;
+  return { shown: !box.classList.contains('hidden'), kind: box.dataset.kind || '', head: q('#home-next-head').textContent,
+    types: rows.map(r => r.dataset.type).join(), titles: rows.map(r => r.querySelector('b').textContent), subs: rows.map(r => r.querySelector('.sub').textContent),
+    pills: rows.map(r => r.querySelector('.hw-new')?.textContent || ''), icons: rows.every(r => r.querySelector('.home-row-ico svg')),
+    between: box.classList.contains('hidden') || (b.top >= today.bottom && b.bottom <= d.top),
+    rowsIn: rows.every(r => { const x = r.getBoundingClientRect(); return x.left >= 0 && x.right <= innerWidth && x.height >= 44; }),
+    gap: Math.round(d.top - today.bottom), discoverTop: Math.round(d.top + up), discoverBottom: Math.round(d.bottom + up), h: innerHeight,
+    sideScroll: document.documentElement.scrollWidth - innerWidth };`);
+const tapRow = async type => {
+  await ev(`document.querySelector('#home-next .home-row[data-type="${type}"]').scrollIntoView({ block: 'center' });`);
+  await sleep(150);
+  await tap(`#home-next .home-row[data-type="${type}"]`);
+};
+// A plain PDF of n pages ("Page 1" ... "Page n"), as base64: the book for the
+// "Continuar" row. Six pages, because a two-page book cannot be scrolled far
+// enough on this screen for its second page to be the page being read.
+const makePdf = n => {
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${Array.from({ length: n }, (_, i) => `${4 + 2 * i} 0 R`).join(' ')}] /Count ${n} >>`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  for (let i = 0; i < n; i++) {
+    const text = `BT /F1 48 Tf 60 400 Td (Page ${i + 1}) Tj ET`;
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 595] /Contents ${5 + 2 * i} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`,
+      `<< /Length ${text.length} >>\nstream\n${text}\nendstream`);
+  }
+  let out = '%PDF-1.4\n';
+  const at = objs.map((o, i) => { const pos = out.length; out += `${i + 1} 0 obj\n${o}\nendobj\n`; return pos; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + at.map(p => String(p).padStart(10, '0') + ' 00000 n \n').join('');
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, 'latin1').toString('base64');
+};
+// Leave Home and come back, the way a tab change does.
+const awayAndBack = async () => { await ev(`__app.showScreen('analysis'); __app.showScreen('home'); document.querySelector('main').scrollTop = 0;`); await sleep(500); };
 const force = (kind, index) => ev(`__app.Home.pick = { kind: '${kind}', index: ${index} }; __app.Home.drawDiscover(); document.querySelector('main').scrollTop = 99999;`);
 // The puzzle now on the Puzzles screen, once its opening move has been played.
 const onPuzzles = async () => {
@@ -147,9 +195,13 @@ const onPuzzles = async () => {
 };
 const TEXT = {
   es: { title: 'Inicio', welcome: 'Bienvenido.', solve: 'Resolver', solved: 'Resuelto ✓', pending: 'Tu racha de 12 días te espera', alldone: 'Las tres misiones', greet: /^Buen[oa]s (días|tardes|noches), Adrián\./,
-    toMove: { w: 'Juegan blancas', b: 'Juegan negras' }, discover: 'Descubre', endgame: 'Final', opening: 'Apertura', egQ: '¿Conoces este final?', opQ: '¿La juegas contra el motor?', learn: 'Aprenderlo', play: 'Jugarla' },
+    toMove: { w: 'Juegan blancas', b: 'Juegan negras' }, discover: 'Descubre', endgame: 'Final', opening: 'Apertura', egQ: '¿Conoces este final?', opQ: '¿La juegas contra el motor?', learn: 'Aprenderlo', play: 'Jugarla',
+    cont: 'Continuar', start: 'Empieza por aquí', lesson: 'Tu primera lección', lessonSub: 'Aprender · Reglas', playK: 'Juega contra Kael', playSub: 'Nivel 1 · Principiante', tour: 'Tour guiado', rules: 'Reglas',
+    pill: 'nuevo', hwTitle: '10 problemas de clavada', hwSub: 'Deberes · De Marta · 2 abiertos', bookSub: 'Leer · Pág. 4 de 6', gameTitle: 'Tú – Bot Club · 1-0', gameSub: /^Jaque mate · 4 jugadas · Hoy \d\d:\d\d$/ },
   en: { title: 'Home', welcome: 'Welcome.', solve: 'Solve', solved: 'Solved ✓', pending: 'Your 12-day streak is waiting', alldone: 'All three', greet: /^Good (morning|afternoon|evening), Adrián\./,
-    toMove: { w: 'White to move', b: 'Black to move' }, discover: 'Discover', endgame: 'Endgame', opening: 'Opening', egQ: 'Do you know this endgame?', opQ: 'Play it against the engine?', learn: 'Learn it', play: 'Play it' },
+    toMove: { w: 'White to move', b: 'Black to move' }, discover: 'Discover', endgame: 'Endgame', opening: 'Opening', egQ: 'Do you know this endgame?', opQ: 'Play it against the engine?', learn: 'Learn it', play: 'Play it',
+    cont: 'Continue', start: 'Start here', lesson: 'Your first lesson', lessonSub: 'Learn · Rules', playK: 'Play against Kael', playSub: 'Level 1 · Beginner', tour: 'Guided tour', rules: 'Rules',
+    pill: 'new', hwTitle: '10 pin puzzles', hwSub: 'Homework · From Marta · 2 open', bookSub: 'Read · Page 4 of 6', gameTitle: 'You – Club bot · 1-0', gameSub: /^Checkmate · 4 moves · Today \d\d:\d\d$/ },
 };
 
 let failed = false;
@@ -240,6 +292,36 @@ try {
     h = await home();
     check(`[${tag}] Home: Kael's corner is not visible, cannot be tapped, and no quote is said on opening`, h.cornerOpacity === 0 && h.fabLeft >= h.w && !h.bubble && !h.saying && h.line.startsWith(T.welcome) && (await corner()).tappable === 'none', { opacity: h.cornerOpacity, fabLeft: h.fabLeft, bubble: h.bubble, line: h.line });
     await shot(`home-${tag}-new`);
+
+    // ── "Empieza por aquí": never practised, nothing half-way ──
+    let nb = await nextBlock();
+    check(`[${tag}] new player: "${T.start}" between "Hoy" and "${T.discover}", three rows: "${T.lesson}", "${T.playK}", "${T.tour}"`,
+      nb.shown && nb.kind === 'start' && nb.head === T.start && nb.types === 'lesson,play,tour' && nb.titles.join('|') === [T.lesson, T.playK, T.tour].join('|')
+      && nb.subs[0] === T.lessonSub && nb.subs[1] === T.playSub && nb.subs[2].length > 8 && nb.icons && nb.between && nb.rowsIn && nb.sideScroll === 0, nb);
+    let reqN = requested.length;
+    await ev(`__app.Home.nextHtml = null; await __app.Home.drawNext();`);
+    check(`[${tag}] drawing "${T.start}" again from nothing asks the network for nothing`, requested.length === reqN, requested.slice(reqN));
+    await tapRow('lesson'); await sleep(500);
+    const les = await ev(`return { screen: __app.activeScreen, list: !document.getElementById('learn-lesson-list-view').classList.contains('hidden'), title: document.getElementById('learn-cat-title').textContent, n: document.getElementById('learn-lesson-list').children.length };`);
+    check(`[${tag}] "${T.lesson}", tapped, opens Learn on the first lesson list: "${T.rules}", ${les.n} lessons`, les.screen === 'endgame' && les.list && les.title === T.rules && les.n > 3, les);
+    await shot(`learn-${tag}-first-lesson`);
+    await ev(`history.back();`); await sleep(600);
+    const lvWas = await ev(`return document.querySelector('#play-level button.on')?.dataset.v;`);
+    await tapRow('play'); await sleep(500);
+    const pl = await ev(`return { screen: __app.activeScreen, level: document.querySelector('#play-level button.on')?.dataset.v, ons: document.querySelectorAll('#play-level button.on').length,
+      setup: !document.getElementById('play-setup').classList.contains('hidden'), game: !document.getElementById('play-game').classList.contains('hidden') };`);
+    check(`[${tag}] "${T.playK}", tapped, opens Play with the lowest level chosen (it was ${lvWas}) and no game started`, pl.screen === 'play' && pl.level === '0' && pl.ons === 1 && pl.setup && !pl.game, pl);
+    await shot(`play-${tag}-lowest-level`);
+    await ev(`history.back();`); await sleep(600);
+    check(`[${tag}] Back from Play returns to Home, the block as it was`, await screen() === 'home' && (await nextBlock()).types === 'lesson,play,tour');
+    await tapRow('tour');
+    const touring = await until(`document.getElementById('tour-root')`, 5000);
+    await sleep(400);
+    await shot(`tour-${tag}-from-home`);
+    const tr = await ev(`const m = (await import('/js/tour.js')).default; const r = { running: m.running, idx: m.idx, screen: __app.activeScreen }; m.stop('skipped'); return r;`);
+    check(`[${tag}] "${T.tour}", tapped, starts the tour at its first step, on Home`, touring && tr.running && tr.idx === 0 && tr.screen === 'home', tr);
+    await sleep(3500);   // the tour's own "skipped" toast goes
+    await ev(`await __db.kvSet('tourDone', 'completed'); document.querySelector('main').scrollTop = 0;`);
 
     // ── "Descubre" ──
     const first = await discover(), firstPick = JSON.parse(first.pick);
@@ -396,6 +478,129 @@ try {
     check(`[${tag}] ...and still appears on Analysis`, await ev(`const b = document.getElementById('kael-bubble'); return b.classList.contains('show') && b.classList.contains('actionable');`));
     await ev(`__app.KaelQuotes.hide();`);
     await shot(`analysis-${tag}`);
+
+    // ── "Continuar" ──
+    // SEEDED, and how: the game by History.buildRecord + saveGame (what Play
+    // calls when a game ends; the moves are not played on the board here); the
+    // book by Read.importFile (the app's own import, minus the file picker) and
+    // then its page set to 4 in the database by hand; the homework by setting
+    // Students.homework by hand and calling Students.paintDot(), because the
+    // tool is signed out and there is no real teacher.
+    await ev(`__app.showScreen('home'); document.querySelector('main').scrollTop = 0;`); await sleep(500);
+    nb = await nextBlock();
+    check(`[${tag}] practised (best streak 12), nothing half-way: no middle block and no heading; "${T.discover}" sits right under "Hoy"`,
+      !nb.shown && nb.kind === 'none' && nb.types === '' && nb.gap >= 0 && nb.gap <= 16, { shown: nb.shown, kind: nb.kind, gap: nb.gap });
+    await shot(`home-${tag}-no-middle`);
+    const pickWas = (await discover()).pick;
+    const gid = await ev(`const H = await import('/js/history.js'), { Chess } = await import('/vendor/chess.js'), { START_FEN } = await import('/js/tree.js'); const c = new Chess();
+      for (const s of ['e4', 'e5', 'Qh5', 'Nc6', 'Bc4', 'Nf6', 'Qxf7#']) c.move(s);
+      await H.saveGame(H.buildRecord({ chess: c, startFen: START_FEN, playerColor: 'w', level: 3, levelElo: 1500, playedAt: Date.now() - 300000, pgn: c.pgn() }));
+      return (await __db.pageHistory({ count: 1 })).items[0].id;`);
+    // The app comes back to the front: its own listener redraws Home.
+    await ev(`document.dispatchEvent(new Event('visibilitychange'));`);
+    await until(`document.querySelector('#home-next .home-row[data-type="game"]')`, 5000); await sleep(200);
+    nb = await nextBlock();
+    check(`[${tag}] with only a game (and the app brought back to the front): "${T.cont}" and that one row, "${T.gameTitle}"`,
+      nb.shown && nb.kind === 'continue' && nb.head === T.cont && nb.types === 'game' && nb.titles[0] === T.gameTitle && T.gameSub.test(nb.subs[0]) && nb.between && nb.rowsIn, nb);
+    await shot(`home-${tag}-continue-game`);
+    const bid = await ev(`const R = await import('/js/read.js'); const bytes = Uint8Array.from(atob(${JSON.stringify(makePdf(6))}), c => c.charCodeAt(0));
+      await R.importFile(new File([bytes], 'Mi sistema.pdf', { type: 'application/pdf' }));
+      const b = (await __db.listBookSummaries())[0]; if (b) await __db.updateBookMeta(b.id, { page: 4 }); return b ? b.id : null;`);
+    await sleep(300);
+    await ev(`const S = (await import('/js/students.js')).Students, now = Date.now();
+      S.people.t1 = { profileName: 'Marta' };
+      S.homework = [
+        { id: 'hwOld', status: 'open', kind: 'text', title: 'Repasar', teacherUid: 't1', createdAt: now - 9e6, done: 0 },
+        { id: 'hwNew', status: 'open', kind: 'puzzles', title: ${JSON.stringify(T.hwTitle)}, teacherUid: 't1', createdAt: { seconds: Math.round((now - 1e6) / 1000), nanoseconds: 0 }, params: { count: 10, themes: ['pin'], minRating: 1200, maxRating: 1500 }, done: 0 },
+        { id: 'hwDone', status: 'done', kind: 'text', title: 'x', teacherUid: 't1', createdAt: now, completedAt: now },
+      ];
+      S.hwSeen = ['hwOld']; S.paintDot();`);
+    await until(`document.querySelector('#home-next .home-row[data-type="homework"]')`, 5000); await sleep(200);
+    await ev(`document.querySelector('main').scrollTop = 0;`);
+    nb = await nextBlock();
+    check(`[${tag}] a homework arrives with Home open (no reload): three rows in order, homework, book, game`, nb.kind === 'continue' && nb.head === T.cont && nb.types === 'homework,book,game' && nb.between && nb.rowsIn && nb.icons && nb.sideScroll === 0, nb);
+    check(`[${tag}] the homework row: the newest one not seen yet, "${T.hwTitle}", "${T.hwSub}", a gold "${T.pill}" pill`, nb.titles[0] === T.hwTitle && nb.subs[0] === T.hwSub && nb.pills[0] === T.pill, { title: nb.titles[0], sub: nb.subs[0], pill: nb.pills[0] });
+    check(`[${tag}] the book row: "Mi sistema", "${T.bookSub}"; the game row: "${T.gameTitle}"`, bid != null && nb.titles[1] === 'Mi sistema' && nb.subs[1] === T.bookSub && nb.titles[2] === T.gameTitle && nb.pills[1] === '' && nb.pills[2] === '', nb.subs);
+    console.log(`  NOTE [${tag}] with three rows, "${T.discover}" starts at y=${nb.discoverTop} and ends at y=${nb.discoverBottom}; the screen is ${nb.h} high`);
+    await shot(`home-${tag}-continue`);
+    await ev(`document.querySelector('main').scrollTop = 99999;`); await sleep(200);
+    await shot(`home-${tag}-continue-scrolled`);
+    await ev(`document.querySelector('main').scrollTop = 0;`);
+    reqN = requested.length;
+    await ev(`__app.Home.nextHtml = null; await __app.Home.drawNext();`);
+    check(`[${tag}] drawing the three rows again from nothing asks the network for nothing`, requested.length === reqN, requested.slice(reqN));
+    await ev(`window.__row = document.querySelector('#home-next .home-row');`);
+    await awayAndBack();
+    check(`[${tag}] leaving Home and coming back with nothing changed leaves the rows as they are (not drawn again), and "${T.discover}" unchanged`,
+      await ev(`return window.__row.isConnected;`) && (await discover()).pick === pickWas && (await nextBlock()).types === 'homework,book,game');
+    // Each row, tapped.
+    await tapRow('game');
+    await until(`__app.activeScreen === 'analysis' && __app.Analysis.ctx.historyId === ${JSON.stringify(gid)}`, 8000); await sleep(400);
+    const an = await ev(`const A = __app.Analysis; return { screen: __app.activeScreen, historyId: A.ctx.historyId, pgn: A.tree.toPgn().replace(/\\s+/g, ' '), fen: A.tree.fen() };`);
+    check(`[${tag}] the game row, tapped, opens that exact game in Analysis, as Play's history does (History.openGame): its 7 moves, on the last one`,
+      an.screen === 'analysis' && an.historyId === gid && /1\. e4 e5 2\. Qh5 Nc6 3\. Bc4 Nf6 4\. Qxf7#/.test(an.pgn) && an.fen.startsWith('r1bqkb1r/pppp1Qpp'), an);
+    await shot(`analysis-${tag}-from-home-game`);
+    await ev(`history.back();`); await sleep(600);
+    check(`[${tag}] Back from the game returns to Home`, await screen() === 'home');
+    await tapRow('book');
+    const reading = await until(`__app.activeScreen === 'read' && !document.getElementById('read-reader').classList.contains('hidden') && /^4/.test(document.getElementById('read-page-ind').textContent)`, 25000);
+    await sleep(500);
+    const rd = await ev(`return { screen: __app.activeScreen, title: document.getElementById('read-book-title').textContent, page: document.getElementById('read-page-ind').textContent, shelf: !document.getElementById('read-shelf').classList.contains('hidden') };`);
+    check(`[${tag}] the book row, tapped, opens Read with that exact book open at its saved page (4 of 6)`, reading && rd.screen === 'read' && rd.title === 'Mi sistema' && /^4/.test(rd.page) && !rd.shelf, rd);
+    await shot(`read-${tag}-from-home-book`);
+    await ev(`history.back();`); await sleep(700);
+    nb = await nextBlock();
+    check(`[${tag}] Back from the book returns to Home; the row still says "${T.bookSub}"`, await screen() === 'home' && nb.subs[1] === T.bookSub, nb.subs);
+    await tapRow('homework'); await sleep(500);
+    check(`[${tag}] the homework row, tapped, opens the Students screen`, await screen() === 'students', await screen());
+    await shot(`students-${tag}-from-home`);
+    await ev(`history.back();`); await sleep(600);
+    // Seen (set by hand: signed out, the Students screen lists no homework).
+    await ev(`const S = (await import('/js/students.js')).Students; S.hwSeen = ['hwOld', 'hwNew']; S.paintDot();`); await sleep(400);
+    nb = await nextBlock();
+    check(`[${tag}] once seen, the same homework row stays, without the pill`, await screen() === 'home' && nb.types === 'homework,book,game' && nb.titles[0] === T.hwTitle && nb.pills[0] === '', { title: nb.titles[0], pill: nb.pills[0] });
+    // The account goes: the listeners Firebase calls on a sign-out are called
+    // (Auth._notify(), with nobody signed in), after telling Students that the
+    // lists in memory belonged to somebody.
+    const errSignOut = errors.length;
+    await ev(`const S = (await import('/js/students.js')).Students, { Auth } = await import('/js/firebase.js'); S.uid = 'somebody'; Auth._notify();`);
+    const gone = await until(`!document.querySelector('#home-next .home-row[data-type="homework"]')`, 6000); await sleep(600);
+    nb = await nextBlock();
+    check(`[${tag}] a sign-out removes the homework row without a reload; book and game stay; nothing threw`,
+      gone && nb.types === 'book,game' && await screen() === 'home' && (await discover()).pick === pickWas && !errors.slice(errSignOut).some(e => e.startsWith('EXC')), { types: nb.types, errors: errors.slice(errSignOut) });
+    await shot(`home-${tag}-signed-out-two-rows`);
+    // The book is deleted (what the shelf's own Delete does after its question).
+    await ev(`await __db.deleteBook(${JSON.stringify(bid)});`);
+    await awayAndBack();
+    nb = await nextBlock();
+    check(`[${tag}] deleting the book removes its row: only the game and the heading are left`, nb.shown && nb.head === T.cont && nb.types === 'game', nb.types);
+
+    // ── the day changes with the app open ──
+    // The page's clock is moved one day on and the app's own "back to the
+    // front" listener is fired; nothing of Home is called by hand.
+    await until(`!document.getElementById('home-puzzle-board').classList.contains('hidden')`, 15000);
+    await ev(`__app.DailyMissions.done = { puzzle: true, play: true, opening: false }; await __db.kvSet('dailyMissionsDone', __app.DailyMissions.done); __app.DailyMissions.render();`);
+    await sleep(300);
+    const d0 = { h: await home(), d: await discover(), pid: await ev(`return __app.Home.puzzle.id;`), date: await ev(`return await __db.kvGet('dailyMissionsDate', null);`) };
+    await ev(`const Real = Date; window.__RealDate = Real;
+      window.Date = class extends Real { constructor(...a) { if (a.length) super(...a); else super(Real.now() + 86400000); } static now() { return Real.now() + 86400000; } };
+      document.dispatchEvent(new Event('visibilitychange'));`);
+    const turned = await until(`document.getElementById('home-today-chip').textContent === '0 / 3' && __app.Home.puzzle && __app.Home.puzzle.id !== ${JSON.stringify(d0.pid)}`, 10000);
+    await sleep(500);
+    const d1 = { h: await home(), d: await discover(), pid: await ev(`return __app.Home.puzzle && __app.Home.puzzle.id;`), date: await ev(`return await __db.kvGet('dailyMissionsDate', null);`), nb: await nextBlock() };
+    check(`[${tag}] before midnight: 2 / 3 and "${T.solved}"`, d0.h.chip === '2 / 3' && d0.h.btn === T.solved && d0.h.btnDone, { chip: d0.h.chip, btn: d0.h.btn });
+    check(`[${tag}] the day changes with Home open: the chip returns to 0 / 3, the button to a gold "${T.solve}", both mission rows open, the new date saved`,
+      turned && d1.h.chip === '0 / 3' && d1.h.btn === T.solve && !d1.h.btnDone && d1.h.rows.join() === 'false,false' && d1.date > d0.date, { chip: d1.h.chip, btn: d1.h.btn, was: d0.date, now: d1.date });
+    check(`[${tag}] ...the board shows the new day's puzzle (${d0.pid} -> ${d1.pid}), and Kael's line is drawn again`, d1.h.board && d1.pid && d1.pid !== d0.pid && d1.h.line.length > 10 && d1.h.line !== d0.h.line, { was: d0.h.line, now: d1.h.line });
+    check(`[${tag}] ..."${T.discover}" is unchanged, and so is "${T.cont}"`, d1.d.pick === d0.d.pick && d1.d.name === d0.d.name && d1.nb.types === 'game');
+    await shot(`home-${tag}-next-day`);
+    // The real clock back, the test game gone, and the regular player's keys again.
+    await ev(`window.Date = window.__RealDate; document.dispatchEvent(new Event('visibilitychange'));`); await sleep(900);
+    await ev(`await __db.clearHistory();`);
+    await save('active');
+    await ev(`await __app.Streak.init(); await __app.DailyMissions.init();`);
+    await awayAndBack();
+    check(`[${tag}] the game gone too: the middle block is gone again`, !(await nextBlock()).shown);
 
     // ── a clean start for the gestures: swipe, the menu, Back ──
     await send('Page.reload', {}); await sleep(300); await booted(); await sleep(700); await hook();

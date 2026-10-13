@@ -872,6 +872,11 @@ export function closeBook(remember = false) {
   if (shelf) shelf.classList.remove('hidden');
 }
 
+// "Open this book on entering": Home's "Continuar" row names the book, then
+// shows the Read tab, and onEnter() below opens it at its saved page. Call it
+// right before showScreen('read'): showing any other screen forgets it.
+export function openOnEnter(id) { lastBookId = id; }
+
 // Called whenever the Read tab is shown. If the user was reading a book when they
 // left (e.g. long-pressed a diagram → Setup), reopen it at its page instead of
 // dropping them on the shelf; the reader's Back button (closeBook(false)) is how

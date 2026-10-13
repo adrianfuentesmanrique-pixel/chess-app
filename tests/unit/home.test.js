@@ -1,7 +1,7 @@
 // Unit tests for js/home.js. Run with: npm.cmd run test:tree
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MISSION_KEYS, missionsDone, kaelRule, dayPart, greetName, kaelLine, HOME_OPENINGS, discoverPick } from '../../js/home.js';
+import { MISSION_KEYS, missionsDone, kaelRule, dayPart, greetName, kaelLine, HOME_OPENINGS, discoverPick, homeBlock } from '../../js/home.js';
 import { Chess } from '../../vendor/chess.js';
 import { ENDGAMES } from '../../js/endgames-data.js';
 import { OPENING_LIBRARY } from '../../js/opening-library.js';
@@ -131,4 +131,81 @@ test('HOME_OPENINGS: every line is legal chess, so Home can draw its position', 
 
 test('every endgame has what the card shows: a name in both languages and a position', () => {
   for (const e of ENDGAMES) assert.ok(e.name?.es && e.name?.en && e.fen && e.category, e.id);
+});
+
+// ── the block between "Hoy" and "Descubre" ──
+const BOOK = { id: 7, name: 'Mi sistema', page: 84, pageCount: 320 };
+const GAME = { id: 3, outcome: 'win', level: 3 };
+const hw = (id, status, createdAt) => ({ id, status, createdAt, title: 'T' + id });
+const types = b => b.rows.map(r => r.type).join();
+
+test('homeBlock: a brand-new, signed-out user gets "Empieza por aquí": lesson, play, tour', () => {
+  const b = homeBlock({ homework: [], seen: [], book: null, game: null, bestStreak: 0 });
+  assert.equal(b.kind, 'start');
+  assert.equal(types(b), 'lesson,play,tour');
+  assert.deepEqual(homeBlock(), b);
+});
+
+test('homeBlock: practised, nothing half-way: no block at all', () => {
+  assert.deepEqual(homeBlock({ bestStreak: 3 }), { kind: 'none', rows: [] });
+  assert.deepEqual(homeBlock({ homework: [hw('a', 'done', 5)], bestStreak: 1 }), { kind: 'none', rows: [] });
+});
+
+test('homeBlock: only homework that is done does not count as something to continue', () => {
+  assert.equal(homeBlock({ homework: [hw('a', 'done', 5)], bestStreak: 0 }).kind, 'start');
+});
+
+test('homeBlock: all three rows, always homework, book, game', () => {
+  const b = homeBlock({ homework: [hw('a', 'open', 5)], seen: [], book: BOOK, game: GAME, bestStreak: 12 });
+  assert.equal(b.kind, 'continue');
+  assert.equal(types(b), 'homework,book,game');
+  assert.equal(b.rows[1].item, BOOK);
+  assert.equal(b.rows[2].item, GAME);
+});
+
+test('homeBlock: only the rows that exist, one at a time and in pairs', () => {
+  assert.equal(types(homeBlock({ game: GAME })), 'game');
+  assert.equal(types(homeBlock({ book: BOOK })), 'book');
+  assert.equal(types(homeBlock({ homework: [hw('a', 'open', 1)] })), 'homework');
+  assert.equal(types(homeBlock({ book: BOOK, game: GAME })), 'book,game');
+  assert.equal(types(homeBlock({ homework: [hw('a', 'open', 1)], game: GAME })), 'homework,game');
+});
+
+test('homeBlock: something to continue wins over "Empieza por aquí", whatever the streak', () => {
+  assert.equal(homeBlock({ game: GAME, bestStreak: 0 }).kind, 'continue');
+  assert.equal(homeBlock({ book: BOOK, bestStreak: 0 }).kind, 'continue');
+});
+
+test('homeBlock: signed out there is no homework row (the list is empty), the rest stands', () => {
+  const b = homeBlock({ homework: [], seen: [], book: BOOK, game: GAME, bestStreak: 2 });
+  assert.equal(types(b), 'book,game');
+});
+
+test('homeBlock: one open homework not seen yet is new; seen, it is not', () => {
+  let r = homeBlock({ homework: [hw('a', 'open', 5)], seen: [] }).rows[0];
+  assert.deepEqual([r.item.id, r.isNew, r.count], ['a', true, 1]);
+  r = homeBlock({ homework: [hw('a', 'open', 5)], seen: ['a'] }).rows[0];
+  assert.deepEqual([r.item.id, r.isNew, r.count], ['a', false, 1]);
+});
+
+test('homeBlock: several open: the newest one not seen yet, and how many are open', () => {
+  const list = [hw('old', 'open', 10), hw('seen', 'open', 40), hw('mid', 'open', 20), hw('new', 'open', 30), hw('done', 'done', 99)];
+  const r = homeBlock({ homework: list, seen: ['seen'] }).rows[0];
+  assert.deepEqual([r.item.id, r.isNew, r.count], ['new', true, 4]);
+});
+
+test('homeBlock: several open and all seen: the newest open one, not new', () => {
+  const list = [hw('a', 'open', 10), hw('b', 'open', 40), hw('c', 'open', 20)];
+  const r = homeBlock({ homework: list, seen: ['a', 'b', 'c'] }).rows[0];
+  assert.deepEqual([r.item.id, r.isNew, r.count], ['b', false, 3]);
+});
+
+test('homeBlock: a server time kept as { seconds } is read as a date too', () => {
+  const list = [hw('a', 'open', { seconds: 100, nanoseconds: 0 }), hw('b', 'open', { seconds: 200, nanoseconds: 0 }), hw('c', 'open', undefined)];
+  assert.equal(homeBlock({ homework: list }).rows[0].item.id, 'b');
+});
+
+test('homeBlock survives junk', () => {
+  assert.equal(homeBlock({ homework: null, seen: null, bestStreak: undefined }).kind, 'start');
+  assert.equal(homeBlock({ homework: [null, hw('a', 'open', 1)], seen: null }).rows[0].item.id, 'a');
 });

@@ -173,7 +173,7 @@ export function namesFor(rec) {
   return rec.playerColor === 'w' ? { white: me, black: bot } : { white: bot, black: me };
 }
 
-function displayResult(rec) {
+export function displayResult(rec) {
   return rec.result === '1/2-1/2' ? '½-½' : rec.result;
 }
 

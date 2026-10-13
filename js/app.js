@@ -46,7 +46,7 @@ import { Notifications } from './notifications.js';
 import { shouldInvite, MAX_ASKS } from './remind-invite.js';
 import { hourLabel } from './remind-time.js';
 import Tour from './tour.js';
-import { kaelLine, missionsDone, greetName, HOME_OPENINGS, discoverPick } from './home.js';
+import { kaelLine, missionsDone, greetName, HOME_OPENINGS, discoverPick, homeBlock } from './home.js';
 import { numbered } from './opening-lib.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
@@ -973,7 +973,11 @@ export const Streak = {
   async checkDay() {
     if (!this.paintedFor || this.paintedFor === todayStr()) return;
     await this.init();
+    // A new day also empties the three missions ("0 / 3") and brings a new
+    // puzzle of the day: Home shows both, so it is drawn again.
+    await DailyMissions.init();
     if (activeScreen === 'profile') Profile.renderStreakLadder();
+    if (activeScreen === 'home') Home.refresh();
   },
 
   // midGame: the day was credited by a move on a live board, not by finishing
@@ -1294,6 +1298,12 @@ export const Home = {
     $('home-discover-btn').onclick = () => this.goDiscover();
     $('home-discover-board').onclick = () => this.goDiscover();
     $('profile-missions-row').onclick = () => showScreen('home');
+    $('home-next-list').onclick = e => {
+      const row = e.target.closest('.home-row');
+      if (row) this.goNext(this.nextRows[+row.dataset.i]);
+    };
+    // A homework arrives, is seen, or goes with the account (Students.paintDot).
+    Students.onHomework = () => { if (activeScreen === 'home') this.drawNext(); };
     // His bubble takes a tap only while it holds a message that goes somewhere.
     $('home-kael-line').onclick = () => {
       const act = this.onTap;
@@ -1352,6 +1362,97 @@ export const Home = {
       ? tn('home_line_' + line.rule, line.n) : t('home_line_' + line.rule);
     // Not over something he is saying (say() above); endSay() redraws.
     if (!this.saying) $('home-kael-line').innerHTML = greet + esc(text);
+  },
+
+  // All of Home again: on entering it, when the account or the day changes
+  // under it, and when the app comes back to the front. "Descubre" keeps its
+  // pick through every one of these (drawDiscover only throws when it has none).
+  refresh() {
+    this.render();
+    this.drawNext();
+    this.drawBoards();
+  },
+
+  // ── "Continuar" / "Empieza por aquí" ──
+  // A step after render(): two small reads of the phone's own database (the
+  // books, the last game) and what Students already holds. No server, no
+  // engine. Which block and which rows is homeBlock() in js/home.js. The block
+  // is replaced only when what it shows has changed, so coming back to Home
+  // moves nothing under a finger.
+  nextRows: [],
+  nextHtml: null,
+  nextRun: 0,
+  async drawNext() {
+    const run = ++this.nextRun;
+    const [books, last, bestStreak] = await Promise.all([
+      db.listBookSummaries().catch(() => []),
+      db.pageHistory({ count: 1 }).catch(() => ({ items: [] })),
+      db.kvGet('bestStreak', 0),
+    ]);
+    if (run !== this.nextRun) return;   // a later call is on its way
+    const block = homeBlock({
+      homework: Students.homework, seen: Students.hwSeen,
+      book: books[0] || null, game: last.items[0] || null, bestStreak: +bestStreak || 0,
+    });
+    this.nextRows = block.rows;
+    const head = block.kind === 'none' ? '' : t('home_' + block.kind);
+    const rows = block.rows.map((row, i) => this.nextRowHtml(row, i)).join('');
+    if (head + rows === this.nextHtml) return;
+    this.nextHtml = head + rows;
+    $('home-next').classList.toggle('hidden', block.kind === 'none');
+    $('home-next').dataset.kind = block.kind;
+    $('home-next-head').textContent = head;
+    $('home-next-list').innerHTML = rows;
+  },
+
+  // One row: the icon of the screen it opens (the menu's own drawing), a title
+  // and one grey line, in the words that screen itself uses.
+  nextRowHtml(row, i) {
+    const lang = getLang(), it = row.item;
+    let ico, title, sub, pill = '';
+    if (row.type === 'homework') {
+      const who = Students.who(it.teacherUid);
+      ico = 'students'; title = it.title;
+      sub = [t('hw_title'), Students.hwSub(it, who.profileName === '?' ? null : who),
+        row.count > 1 ? t('home_hw_open').replace('{n}', row.count) : ''].filter(Boolean).join(' · ');
+      if (row.isNew) pill = `<span class="hw-new">${esc(t('hw_card_new'))}</span>`;
+    } else if (row.type === 'book') {
+      ico = 'read'; title = it.name;
+      sub = t('tab_read') + ' · ' + t('read_page_of').replace('{p}', it.page || 1).replace('{n}', it.pageCount || '?');
+    } else if (row.type === 'game') {
+      const { white, black } = History.namesFor(it);
+      ico = 'play'; title = `${white} – ${black} · ${History.displayResult(it)}`;
+      sub = [t('history_end_' + it.endReason), `${it.moveCount} ${tn('history_moves', it.moveCount)}`, History.formatWhen(it.playedAt)].join(' · ');
+    } else if (row.type === 'lesson') {
+      ico = 'endgame'; title = t('home_start_lesson');
+      sub = t('tab_endgame') + ' · ' + LEARNING_CATEGORIES[0].title[lang];
+    } else if (row.type === 'play') {
+      ico = 'play'; title = t('home_start_play');
+      sub = t('level_n').replace('{n}', 1) + ' · ' + t('level_names')[0];
+    } else {
+      ico = 'home'; title = t('home_start_tour'); sub = t('home_start_tour_sub');
+    }
+    const svg = document.querySelector(`#tabbar button[data-screen="${ico}"] svg`)?.outerHTML || '';
+    return `<button class="list-item home-row" type="button" data-i="${i}" data-type="${row.type}"><span class="home-row-ico">${svg}</span>` +
+      `<span class="home-row-text"><b>${esc(title)}</b><span class="sub">${esc(sub)}</span></span>${pill}<span class="home-row-arrow">›</span></button>`;
+  },
+
+  goNext(row) {
+    if (!row) return;
+    if (row.type === 'homework') showScreen('students');
+    // That book, at its saved page: Read opens the one named on entering.
+    else if (row.type === 'book') { Read.openOnEnter(row.item.id); showScreen('read'); }
+    // As Play's history opens a game: its moves, in Analysis.
+    else if (row.type === 'game') History.openGame(row.item);
+    else if (row.type === 'lesson') { showScreen('endgame'); Endgame.Lessons.openCategory(LEARNING_CATEGORIES[0]); }
+    else if (row.type === 'play') {
+      showScreen('play');
+      // The lowest level chosen on Play's own setup page; starting the game is
+      // left to the user. A game already on the board is not touched.
+      if (!$('play-game').classList.contains('hidden')) return;
+      if (!$('play-history').classList.contains('hidden')) History.close();
+      $('play-level').querySelector('button[data-v="0"]')?.click();
+    } else Tour.start(tourCtx());
   },
 
   // ── the two boards ──
@@ -1498,8 +1599,11 @@ export function showScreen(name) {
   // page (Home.say). A corner bubble still open is closed on the way in; a
   // message on Home ends on the way out.
   document.body.classList.toggle('on-home', name === 'home');
-  if (name === 'home') { if ($('kael-bubble').classList.contains('show')) KaelQuotes.hide(); Home.render(); Home.drawBoards(); }
+  if (name === 'home') { if ($('kael-bubble').classList.contains('show')) KaelQuotes.hide(); Home.refresh(); }
   else Home.endSay();
+  // Every screen scrolls in the same <main>. Home is the long one, and its rows
+  // and "Descubre" are tapped from far down it: what they open starts at its top.
+  if (prev === 'home' && name !== 'home') document.querySelector('main').scrollTop = 0;
   if (name !== 'analysis') Analysis.pauseEngine();
   if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
   if (name === 'base') Base.refresh();
@@ -7725,6 +7829,7 @@ function relabel() {
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
   DailyMissions.render();   // Home's card and Kael's line, in the new language
+  Home.drawNext();
   Home.drawBoards();
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.refreshLists();
@@ -8401,16 +8506,25 @@ async function main() {
   await Notifications.init();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      Streak.checkDay();
+      // Back at the front: the day may have moved, and a book or a game may
+      // have been left half-way meanwhile. Home is drawn again either way.
+      Streak.checkDay().then(() => { if (activeScreen === 'home') Home.refresh(); });
       Notifications.refresh().catch(() => {});
     }
   });
+  // Midnight with the app open and nobody touching it: one string compare a
+  // minute, and checkDay() does the rest only when the day really moved.
+  setInterval(() => Streak.checkDay(), 60000);
   Home.init();
   await DailyMissions.init();
   setTimeout(() => DailyMissions.remindIfIncomplete(), 45000);
   Auth.onChange(async () => {
     // remote data may have just replaced local kv values (sign-in) — refresh live views
     await Streak.init();
+    // Home: the line, the chip, the puzzle board (the rating may have moved to
+    // another band) and "Continuar". Its homework row has its own signal too
+    // (Students.onHomework), because Students reads its saved lists after this.
+    if (activeScreen === 'home') Home.refresh();
     Notifications.on = !!(await db.kvGet('remindOn', false));
     Notifications.profileRow();
     Notifications.refresh().catch(() => {});

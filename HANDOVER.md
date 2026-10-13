@@ -9,6 +9,63 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **HOME TAB, CONVERSATION 3 OF 3: "CONTINUAR", "EMPIEZA POR AQUÍ", AND HOME DRAWN AGAIN
+  (2026-10-12, v200).** Spec `docs/superpowers/specs/2026-10-12-home-tab-design.md`, build
+  plan item 3. The spec's plan is finished with this.
+  - **The block:** `#home-next` (heading `#home-next-head`, rows `#home-next-list`) between
+    `#home-today` and `#home-discover`; `data-kind` is `continue`, `start` or `none` (hidden).
+    Rows are `.list-item.home-row` with `data-type`.
+  - **The rule:** `homeBlock({ homework, seen, book, game, bestStreak })` in `js/home.js`,
+    unit-tested. "Continuar": homework still open (the newest not seen yet, else the newest
+    open; `count` = how many are open), the book last opened, the last game, in that order,
+    only those that exist. Nothing to continue AND `bestStreak` 0: "Empieza por aquí"
+    (lesson, play, tour). Practised and nothing half-way: no block, no heading.
+  - **Drawing:** `Home.drawNext()`, a step after `Home.render()`: `db.listBookSummaries()`,
+    `db.pageHistory({ count: 1 })`, `bestStreak`, and `Students.homework` / `hwSeen` as they
+    are in memory. No server read. The block is replaced only when its text changed
+    (`Home.nextHtml`), so coming back to Home moves nothing.
+  - **Words:** the rows use each screen's own. Homework: its title, then "Deberes · De
+    {teacher} · para el {date} · {n} abiertos" (`Students.hwSub`), pill `hw_card_new`
+    ("nuevo", the pill the Students screen already has; the prompt said "Nueva"). Book: its
+    name, "Leer · Pág. 84 de 320" (`read_page_of`). Game: "Tú – Bot Club · 1-0", then end
+    reason, moves, when (`History.namesFor`, `displayResult` now exported, `formatWhen`).
+    Icons are the menu's own drawings, read from `#tabbar`.
+  - **Where each row goes** (`Home.goNext`): homework -> Students. Book ->
+    `Read.openOnEnter(id)` (new, one line: it names the book `Read.onEnter()` opens) then
+    `showScreen('read')`. Game -> `History.openGame(rec)`, which is Analysis with the moves
+    loaded: what Play's history does. Lesson -> Learn with
+    `Endgame.Lessons.openCategory(LEARNING_CATEGORIES[0])` ("Reglas"). Play -> Play's setup
+    page with level 1 pressed, no game started; a game already on the board is left alone.
+    Tour -> `Tour.start(tourCtx())`.
+  - **Home drawn again:** `Home.refresh()` = `render()` + `drawNext()` + `drawBoards()`.
+    Called from `showScreen('home')`, from `Auth.onChange` in `main()`, from the
+    `visibilitychange` listener in `main()`, and from `Streak.checkDay()` when the day really
+    moved. `checkDay()` now also runs `DailyMissions.init()` (the missions used to stay on
+    yesterday's "n / 3" until one was completed) and is called once a minute, so midnight
+    with Home open and untouched turns the page too. Homework has its own signal:
+    `Students.paintDot()` ends with `this.onHomework?.()`, set in `Home.init()`, because
+    Students reads its saved lists after `main()`'s own account listener has run.
+    "Descubre" keeps its pick through all of these.
+  - **Found and fixed on the way:** every screen scrolls in the same `<main>` and
+    `showScreen()` never reset it (only a swipe did). Home is now long, so a row or
+    "Descubre" tapped far down it opened the next screen already scrolled, its Back button
+    off the top. `showScreen()` now puts `<main>` at its top when Home is left. Other
+    screens keep the old behaviour.
+  - **Checked:** `node tools/cdp-verify-home.mjs <outDir>` 314 of 314 (the 210 of before
+    plus this conversation's), 375 x 667, ES and EN, light and dark, no console errors,
+    screenshots looked at. It takes about 15 minutes now: start it detached and read its
+    log. `test:tree` 356, `test:precache` OK. SEEDED there, not created by
+    using the app: the game (`History.buildRecord` + `saveGame`), the book (`Read.importFile`
+    with a fixture PDF, page set by hand), the homework (`Students.homework` set by hand).
+    A sign-out is `Auth._notify()` with nobody signed in; a new day is the page's `Date`
+    moved one day on and the app's own listener fired. NOT checked: a real account, a real
+    homework from a real teacher, a real sign-in bringing a homework, a real phone.
+  - **ASK ADRIAN:** with three "Continuar" rows on a 375 x 667 screen, "Descubre" starts
+    at y=657 of 667: only its top edge shows, the card is below the first screenful (the
+    spec's first risk). With "Empieza por aquí" it is the same. Moving it above "Continuar" is his
+    call. "Once each time the app is opened" for "Descubre" is still unanswered.
+  - **Known, not fixed:** the three items under conversation 2 below, unchanged.
+
 - **HOME TAB, CONVERSATION 2 OF 3: THE TWO BOARDS (2026-10-12, v199).**
   Spec `docs/superpowers/specs/2026-10-12-home-tab-design.md`, build plan item 2.
   - **One small board for all three places:** `miniBoardHtml(placement, { flipped, last })`

@@ -442,6 +442,9 @@ export const Students = {
       || this.newDone().length > 0;
     document.querySelector('#tabbar button[data-screen="students"]')?.classList.toggle('has-dot', on);
     $('tabmenu-btn')?.classList.toggle('has-dot', on);
+    // Every change to my homework or to what I have seen ends here, so Home's
+    // "Continuar" row is told from here too (Home.init in js/app.js sets it).
+    this.onHomework?.();
   },
 
   // Students with homework finished since I last opened their page.

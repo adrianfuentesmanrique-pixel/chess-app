@@ -95,6 +95,42 @@ export function discoverPick(r, endgames, openings = HOME_OPENINGS.length) {
   return { kind: endgame ? 'endgame' : 'opening', index: Math.min(n - 1, Math.floor((x % 1) * n)) };
 }
 
+// When a homework was given, in ms: a number, or a server time kept on the
+// phone as { seconds }. 0 when it carries none.
+function givenAt(h) {
+  const v = h && h.createdAt;
+  return typeof v === 'number' ? v : (v && typeof v.seconds === 'number') ? v.seconds * 1000 : 0;
+}
+
+// The block between the "Hoy" card and "Descubre", from plain values:
+//   homework    the homework given to me (Students.homework; [] signed out)
+//   seen        ids of the open ones I have already seen (Students.hwSeen)
+//   book        the book last opened, or null
+//   game        the last game against the engine, or null
+//   bestStreak  the longest streak ever: 0 = never finished a day of practice
+// Returns { kind, rows }:
+//   'continue'  one to three rows, always in this order: homework, book, game.
+//               The homework row is { type, item, isNew, count }: the newest
+//               one not seen yet, else the newest open one; `count` is how
+//               many are open.
+//   'start'     nothing to continue and never practised: lesson, play, tour.
+//   'none'      practised, nothing half-way: no block and no heading.
+export function homeBlock({ homework = [], seen = [], book = null, game = null, bestStreak = 0 } = {}) {
+  const rows = [];
+  const open = (Array.isArray(homework) ? homework : []).filter(h => h && h.status === 'open');
+  if (open.length) {
+    const known = new Set(seen || []);
+    const newest = list => list.reduce((a, b) => (givenAt(b) > givenAt(a) ? b : a));
+    const fresh = open.filter(h => !known.has(h.id));
+    rows.push({ type: 'homework', item: newest(fresh.length ? fresh : open), isNew: fresh.length > 0, count: open.length });
+  }
+  if (book) rows.push({ type: 'book', item: book });
+  if (game) rows.push({ type: 'game', item: game });
+  if (rows.length) return { kind: 'continue', rows };
+  if (!(bestStreak > 0)) return { kind: 'start', rows: [{ type: 'lesson' }, { type: 'play' }, { type: 'tour' }] };
+  return { kind: 'none', rows: [] };
+}
+
 // Everything the line needs: the rule, the streak's number, and the greeting
 // (null when there is no name to greet: signed out).
 export function kaelLine({ streak = 0, pending = false, bestStreak = 0, done = 0, everMission = false, name = '', hour = 12 } = {}) {
