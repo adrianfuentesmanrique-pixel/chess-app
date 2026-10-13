@@ -9,6 +9,46 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **COORDINATES: A RUN FROM 30 SECONDS TO 3 MINUTES, AND AN EMPTY BOARD (2026-10-13, v214).**
+  Two things Adrian could not do in the coordinates trainer (Learn tab), both now choices on
+  its set-up screen and both remembered on the device (kv `coordPrefs`: `seconds`, `pieces`).
+  THE LENGTH: a slider under the two Time buttons, 0:30 to 3:00 in steps of 30 s (six stops),
+  in the look of Blindfold's (`.blind-time`, gold). The first button reads "Reloj: 1:30" and
+  changes as the slider moves; it is saved when the finger lets go. "Sin reloj" STAYS; with it
+  chosen the slider is dimmed, and moving the slider chooses the clock again.
+  THE PIECES: "Con piezas / Sin piezas" (EN "With pieces / Empty board"), `Board.setPiecesHidden`.
+  The right / wrong flashes and the lit square of "name" are on the squares, so they still work.
+  THE RULES stay in js/coord.js: `COORD_SECONDS` 30 (shortest and default), `COORD_SECONDS_MAX`
+  180, `COORD_SECONDS_STEP` 30, `COORD_LENGTHS`, `coordSeconds(v)` (anything else becomes the
+  nearest stop, junk becomes 30), `coordNewRun({ seconds })` puts the length in the run
+  (`run.seconds`, 0 with no clock), `coordBar(run, msLeft)` is the bar. The deadline and the
+  bar both read `run.seconds`.
+  ADRIAN'S FOUR DECISIONS (asked with pictures, 2026-10-13): steps of 30 s; "no clock" stays;
+  ONE BEST PER LENGTH; the streak still asks for 10 right answers whatever the length.
+  THE BESTS: `coordBestKey(mode, seconds)`. The 30-second keys are the old ones
+  (`coordBestFind`, `coordBestName`), so nobody lost a best; ten new ones,
+  `coordBestFind60` ... `coordBestName180`, each listed by name in SYNCED_KEYS (js/firebase.js).
+  NO RULES CHANGE: /users/{uid} has no field allowlist (firestore.rules says why). The card
+  reads "Tu mejor marca en 1:30" and follows the slider.
+  ONE THING DONE TO MAKE IT FIT 375x667, NOT ASKED FOR BY NAME: with a result on the screen
+  the best card is hidden and the result's line says it instead ("... · Tu mejor marca: 11",
+  or "¡Nueva mejor marca!"). Without that "Otra vez" was 58 px below the screen. The groups on
+  this screen also sit 6 px closer (`#coord-setup .option-group`). Measured: Start ends at
+  640 of 667 on first open (550 before), "Otra vez" at 649 (638 before).
+  VERIFIED: 469 unit tests (462 on main at v213 + 7 new in tests/unit/coord.test.js, now 23), precache 59
+  files, tools/cdp-verify-coord.mjs 239 of 239 (143 before, all still there, + 24 new x 4):
+  the slider really dragged to both ends and to 1:30, the real 30 seconds waited out once
+  with every choice untouched, the 1:30 run checked by the DEADLINE THAT WAS SET and by the bar
+  at half with 45 s left, the empty board, both flashes, the reload. ES/EN, light/dark, 375 px,
+  pictures opened and looked at.
+  THE TOOL moved to ports 9100-9189 / 8700-8789 (it shared emu-verify-simul's ranges), and it
+  now switches off Kael's missions reminder (`DailyMissions.reminded = true`): that bubble
+  comes once, 45 s after the page loads, over the lower choices, and swallowed a tap.
+  SEEN, NOT CHANGED: after a run, the best of ANOTHER length is not on the screen until the
+  section is opened again (the result stays up while the choices are changed, as before).
+  One run of the tool logged a report-only "Framing 'https://www.google.com/'" CSP line: it is
+  the App Check widget on localhost, not this code.
+
 - **ANALYSIS: A GAME TAPPED IN THE SEARCH RESULTS OPENS ON THE SEARCHED POSITION (2026-10-13, v213).**
   Before, it opened on its last move like every other game. Now the board shows the same
   position before and after the tap, inside that game. Both lists: my own base and the Internet.
