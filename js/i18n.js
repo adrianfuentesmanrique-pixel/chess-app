@@ -1,6 +1,7 @@
 // Simple two-language dictionary. t('key') returns the string in the active language.
 const DICT = {
   // Tabs
+  tab_home: { es: 'Inicio', en: 'Home' },
   tab_analysis: { es: 'Análisis', en: 'Analysis' },
   tab_base: { es: 'Bases', en: 'Bases' },
   tab_play: { es: 'Jugar', en: 'Play' },
@@ -1096,7 +1097,24 @@ const DICT = {
   streak_how_lesson: { es: 'Aprender — completa la práctica de una lección', en: 'Learn — finish the practice in one lesson' },
   streak_how_day: { es: 'El día termina a medianoche en tu hora local. Si te saltas un día entero, la racha vuelve a cero, pero tu mejor racha se conserva.', en: "The day ends at midnight where you are. Miss a whole day and the flame goes back to zero, but your best streak is kept." },
   streak_how_missions: { es: 'Las misiones diarias se cuentan aparte y no afectan la racha.', en: "Daily missions are counted separately and don't change the flame." },
-  daily_missions_title: { es: 'Misiones diarias', en: 'Daily missions' },
+  // Home ("Inicio"). Kael's line: one of five sentences, chosen in js/home.js.
+  // The streak and the missions are counted separately: no sentence names both.
+  home_today: { es: 'Hoy', en: 'Today' },
+  home_puzzle_title: { es: 'Puzzle del día', en: 'Puzzle of the day' },
+  home_solve: { es: 'Resolver', en: 'Solve' },
+  home_solved: { es: 'Resuelto ✓', en: 'Solved ✓' },
+  missions_today: { es: 'Misiones de hoy:', en: "Today's missions:" },
+  home_greet_morning: { es: 'Buenos días, {name}.', en: 'Good morning, {name}.' },
+  home_greet_afternoon: { es: 'Buenas tardes, {name}.', en: 'Good afternoon, {name}.' },
+  home_greet_evening: { es: 'Buenas noches, {name}.', en: 'Good evening, {name}.' },
+  home_welcome: { es: 'Bienvenido.', en: 'Welcome.' },
+  home_line_welcome: { es: 'Soy Kael. Empieza por el puzzle de hoy: es un minuto.', en: "I am Kael. Start with today's puzzle: it takes a minute." },
+  home_line_alldone: { es: 'Las tres misiones de hoy están hechas. ¡Buen trabajo!', en: "All three of today's missions are done. Well played!" },
+  home_line_pending: { es: 'Tu racha de {n} días te espera: hoy todavía no cuenta.', en: 'Your {n}-day streak is waiting: today does not count yet.' },
+  home_line_pending_one: { es: 'Tu racha de {n} día te espera: hoy todavía no cuenta.', en: 'Your {n}-day streak is waiting: today does not count yet.' },
+  home_line_counted: { es: 'Llevas {n} días seguidos y hoy ya cuenta.', en: '{n} days in a row, and today already counts.' },
+  home_line_counted_one: { es: 'Llevas {n} día de racha y hoy ya cuenta.', en: '{n} day on your streak, and today already counts.' },
+  home_line_start: { es: 'Hoy puede ser el primer día de tu racha.', en: 'Today can be the first day of your streak.' },
   daily_missions_complete: { es: '¡Misiones del día completadas!', en: 'Daily missions complete!' },
   mission_puzzle: { es: 'Resolver el puzzle del día', en: 'Solve the puzzle of the day' },
   mission_play: { es: 'Jugar una partida contra el motor', en: 'Play a game against the engine' },
@@ -1145,6 +1163,8 @@ const DICT = {
 
   tour_welcome_t: { es: '¡Vamos allá!', en: "Here we go!" },
   tour_welcome_b: { es: 'Te enseño lo esencial de cada sección en unos minutos. Puedes salir cuando quieras.', en: "I'll show you the essentials of each section in a few minutes. You can stop any time." },
+  tour_home_today_t: { es: 'Tu día', en: 'Your day' },
+  tour_home_today_b: { es: 'Aquí empieza cada visita. Este es tu día: un puzzle, una partida y una apertura. Pequeños objetivos, todos los días.', en: 'Every visit starts here. This is your day: one puzzle, one game and one opening. Small targets, every day.' },
   tour_board_t: { es: 'El tablero', en: 'The board' },
   tour_board_b: { es: 'Este es tu tablero de análisis. Mueve las piezas con total libertad: aquí no se guarda nada sin que tú lo pidas.', en: 'This is Analysis. Move the pieces freely — nothing here is ever saved unless you ask for it.' },
   tour_engine_t: { es: 'El motor', en: 'The engine' },
@@ -1206,8 +1226,6 @@ const DICT = {
 
   tour_prof_tab_t: { es: 'Perfil', en: 'Profile' },
   tour_prof_tab_b: { es: 'Toca tu foto, arriba a la derecha: es tu Perfil. Aquí se ve tu progreso.', en: 'Tap your picture, top right: that is your Profile. Your progress shows up here.' },
-  tour_prof_miss_t: { es: 'Misiones diarias', en: 'Daily missions' },
-  tour_prof_miss_b: { es: 'Pequeños objetivos cada día. Mantener la racha es lo que de verdad hace mejorar.', en: 'Small targets every day. Keeping your streak alive is what really makes you improve.' },
   tour_prof_lb_t: { es: 'Clasificación', en: 'Leaderboard' },
   tour_prof_lb_b: { es: 'Si te motiva competir, aquí te comparas con el resto de jugadores.', en: 'If competing motivates you, this is where you measure up against other players.' },
   tour_prof_radar_t: { es: 'Tus gráficos', en: 'Your charts' },

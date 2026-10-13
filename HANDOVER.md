@@ -9,7 +9,49 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
-- **HOME TAB: DESIGN ONLY, NOTHING BUILT (2026-10-12, no version bump).** The spec is
+- **HOME TAB, CONVERSATION 1 OF 3: THE SCREEN, AND THE APP OPENS ON IT (2026-10-12, v197).**
+  Spec `docs/superpowers/specs/2026-10-12-home-tab-design.md`, build plan item 1.
+  - **Screen:** `#screen-home` in `index.html` (first `<section>` in `<main>`): Kael's line
+    (`.home-kael`, `#home-kael-line`) and the "Hoy" card (`#home-today`: `#home-today-chip`,
+    `#home-puzzle-btn`, and `#daily-missions-list`, which MOVED here from Profile). No board,
+    no "Continuar", no "Descubre": conversations 2 and 3.
+  - **`js/home.js` (new, pure, 11 unit tests in `tests/unit/home.test.js`):** `kaelRule` (the
+    five rules, first that fits: welcome / alldone / pending / counted / start), `kaelLine`,
+    `missionsDone`, `dayPart`, `greetName`. No sentence names both the streak and the missions.
+    "Never used the app" = streak 0, `bestStreak` 0, nothing done today, `bestDailyMissionStreak` 0.
+  - **`js/app.js`:** `Home` (`init`, `render`), beside `DailyMissions`; both are now exported
+    (the verify tool calls them). `'home'` in `SCREENS` and `MENU_AREA`; `HOME_SCREEN = 'home'`;
+    `activeScreen` STARTS as `'home'` so the `showScreen('home')` ending `main()` adds no history
+    entry. `showScreen` sets `body.on-home` and calls `Home.render()`. `DailyMissions.render()`
+    draws only the play and opening rows, fills `#profile-missions-count`, and calls
+    `Home.render()`; `Streak.render()` and `relabel()` redraw Home too.
+    `remindIfIncomplete()` returns at once on Home (and stays unspent).
+  - **Menu:** `<button data-screen="home">` is the first of NINE `#tabbar button`s (house icon,
+    `tab_home`: Inicio / Home). Title, swipe order and Back all follow from that and
+    `HOME_SCREEN`; no other navigation code changed.
+  - **Profile:** the missions card is one row, `#profile-missions-row` ("Misiones de hoy: n / 3",
+    `#daily-missions-streak` still on it), which opens Home.
+  - **Kael's corner:** `body.on-home #kael-corner:not(.speaking)` is slid off the edge, opacity 0,
+    not tappable. `.speaking` still brings him in on Home. **Adrian still to confirm that second
+    half** (screenshot shown to him at the end of the session).
+  - **Open, asked of Adrian, NOT changed:** Kael's random quote 0.9 s after opening
+    (`KaelQuotes.showRandom()` at the end of `main()`) still runs, and the app now opens on Home,
+    so he slides into the corner of Home for about six seconds at every launch. If Adrian wants
+    that gone, it is one line there: skip it while `activeScreen === 'home'`.
+  - **Tour (`js/tour.js`):** `STEPS` is exported; `welcome` is on Home, new step `homeToday`
+    rings `#home-today`, `profMiss` is gone (33 steps), `finish()` ends on Home. Not changed:
+    the last step still says Kael is "always down in the corner", which is not true on Home.
+  - **`js/pulso-ui.js` `follow()`:** "still on the opening screen" is now `'home'`, was `'analysis'`.
+  - **A Lichess return** only shows a toast, so it now lands on Home (was Analysis, the default).
+  - **Checked** with `node tools/cdp-verify-home.mjs <outDir>` (new; 125 checks, about three
+    minutes): 375px, ES and EN, light and dark, pictures opened. Fresh profile opens on Home;
+    the tour really tapped through all 33 steps; menu, swipe both ways, Back three tabs deep;
+    a shared PGN lands on Databases, a `?duel=` link on Duel. `test:tree` 338 pass, `test:precache` OK.
+  - **Called, not done by hand, in that tool:** `DailyMissions.complete()` from the mission's own
+    screen, `remindIfIncomplete()` (not the real 45-second wait), `KaelQuotes.show()`, and
+    `Auth.user` set by hand for the greeting by name. Nothing signed in and no real phone.
+
+- **HOME TAB: DESIGN ONLY (2026-10-12, no version bump). Conversation 1 is built: entry above.** The spec is
   `docs/superpowers/specs/2026-10-12-home-tab-design.md`; beside it the mock-up page
   (`2026-10-12-home-tab-mockup.html`) and two pictures of the chosen design. Three designs
   were drawn and photographed at 375px; **Adrian chose A ("Hoy")** and replaced its row of

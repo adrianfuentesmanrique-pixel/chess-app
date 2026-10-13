@@ -182,7 +182,7 @@ export const PulsoUI = {
   //    slip of the finger must not start a match. A link that leads nowhere
   //    says why in the lobby.
   //  - Started with my own challenge still out (Android closed the app while
-  //    I was telling my friend): back to the waiting screen, not Analysis.
+  //    I was telling my friend): back to the waiting screen, not Home.
   // Signed out, the link waits on the Duel screen's "sign in" and is followed
   // after that.
   follow() {
@@ -200,7 +200,8 @@ export const PulsoUI = {
     this.fresh = false;
     const mine = this.matches.some(m => m.host === this.uid && this.inviteOpen(m, HOST_MARGIN_MS));
     if (!link) {
-      if (fresh && mine && activeScreen === 'analysis') showScreen('pulso');
+      // 'home' = still on the screen the app opened on.
+      if (fresh && mine && activeScreen === 'home') showScreen('pulso');
       return;
     }
     if (activeScreen !== 'pulso') showScreen('pulso');

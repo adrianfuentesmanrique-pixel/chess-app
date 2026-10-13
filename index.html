@@ -283,6 +283,29 @@
 </div>
 
 <main>
+  <!-- ══════════ HOME ("Inicio") ══════════
+       The screen the app opens on, drawn by `Home` in js/app.js; which
+       sentence Kael says is chosen in js/home.js. The two rows inside
+       #daily-missions-list are DailyMissions.render()'s; the puzzle of the day
+       is the first mission and has its own row above them. -->
+  <section id="screen-home" class="screen hidden">
+    <div class="home-kael">
+      <img class="home-kael-pic" src="icons/kael/kael-bust.png" alt="Kael">
+      <p id="home-kael-line" class="home-kael-bubble"></p>
+    </div>
+    <div id="home-today" class="profile-card home-today">
+      <div class="home-today-head">
+        <h3 data-i18n="home_today"></h3>
+        <span id="home-today-chip" class="home-chip"></span>
+      </div>
+      <div class="home-puzzle">
+        <b data-i18n="home_puzzle_title"></b>
+        <button id="home-puzzle-btn" class="btn home-solve" type="button"></button>
+      </div>
+      <div id="daily-missions-list" class="daily-missions-list"></div>
+    </div>
+  </section>
+
   <!-- ══════════ ANALYSIS ══════════ -->
   <section id="screen-analysis" class="screen">
     <div id="ana-gr-nav" class="row hidden" style="margin:0 0 6px;">
@@ -1160,13 +1183,13 @@
       </div>
     </div>
 
-    <div class="profile-card">
-      <div class="row" style="justify-content:space-between; margin:0 0 8px; align-items:center;">
-        <h3 style="margin:0" data-i18n="daily_missions_title"></h3>
-        <span id="daily-missions-streak" class="hint"></span>
-      </div>
-      <div id="daily-missions-list" class="daily-missions-list"></div>
-    </div>
+    <!-- The missions live on Home; this row says how many are done and opens
+         it. #daily-missions-streak is the missions' own counter (🔥 n). -->
+    <button id="profile-missions-row" class="profile-card profile-missions-row" type="button">
+      <span class="profile-missions-text"><span data-i18n="missions_today"></span> <b id="profile-missions-count"></b></span>
+      <span id="daily-missions-streak" class="hint"></span>
+      <span class="daily-mission-arrow" aria-hidden="true">›</span>
+    </button>
 
     <div class="profile-card">
       <div class="row" style="justify-content:space-between; margin:0 0 8px; align-items:center;">
@@ -1506,13 +1529,14 @@
 <div id="tabsheet-backdrop"></div>
 
 <!-- Destinations drawer, opened by #tabmenu-btn in the top bar and sliding in
-     from the left. The eight destination buttons keep their data-screen and
-     their order, with Profile the last <button> — that is what keeps TAB_ORDER,
+     from the left. The nine destination buttons (Home first) keep their
+     data-screen and their order — that is what keeps TAB_ORDER,
      swipe nav, the .on highlight, the click handlers and the guided-tour
      targets all working. The icons are monochrome currentColor strokes, so the
      copy updateTabMenu() puts in the top bar takes the title's ink in either
      colour mode (an emoji can't). -->
 <nav id="tabbar" data-i18n-aria="nav_destinations">
+  <button data-screen="home"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11 12 3.5l8.5 7.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-6h4v6"/></svg><span data-i18n="tab_home"></span></button>
   <button data-screen="analysis"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg><span data-i18n="tab_analysis"></span></button>
   <button data-screen="endgame"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11.2v4.3c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.3"/><path d="M21.5 9v5.5"/></svg><span data-i18n="tab_endgame"></span></button>
   <button data-screen="base"><svg class="tab-ico" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4.5" height="16" rx="1"/><rect x="9.5" y="4" width="4.5" height="16" rx="1"/><path d="m15.8 5.3 3.9-1 2.8 14.7-3.9 1z"/></svg><span data-i18n="tab_base"></span></button>
@@ -1527,8 +1551,8 @@
        after it to the foot of the drawer. Limits & storage and Settings are
        sheets, not destinations, and deliberately NOT <button>s: every
        '#tabbar button' selector (TAB_ORDER, swipe nav, the .on highlight, the
-       click handler, the tour targets) must keep matching exactly the eight
-       data-screen buttons. They open the Limits & storage sheet and the
+       click handler, the tour targets) must keep matching exactly the nine
+       data-screen buttons (Home is the ninth, and the first in the list). They open the Limits & storage sheet and the
        Settings sheet (js/app.js openLimitsSheet, openSettings). Profile is no
        longer here: it is #btn-profile in the top bar. -->
   <hr class="drawer-sep">

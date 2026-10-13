@@ -46,6 +46,7 @@ import { Notifications } from './notifications.js';
 import { shouldInvite, MAX_ASKS } from './remind-invite.js';
 import { hourLabel } from './remind-time.js';
 import Tour from './tour.js';
+import { kaelLine, missionsDone, greetName } from './home.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
 // constants so they're easy to loosen for supporting users once that
@@ -1021,6 +1022,9 @@ export const Streak = {
     el.classList.toggle('pending', this.isPending());
     el.classList.toggle('tier-up', tierUp);
     el.classList.toggle('lit', lit && !tierUp);
+    // Kael's line on Home speaks of the streak: a sign-in or a new day that
+    // changes it while Home is in view redraws the line.
+    if (activeScreen === 'home') Home.render();
   },
 };
 
@@ -1141,7 +1145,7 @@ async function puzzleOfDay(playerElo) {
   return sorted[seed % sorted.length];
 }
 
-const DailyMissions = {
+export const DailyMissions = {
   date: null,
   done: { puzzle: false, play: false, opening: false },
   streak: 0,
@@ -1202,6 +1206,8 @@ const DailyMissions = {
   },
 
   remindIfIncomplete() {
+    // Home already shows the missions: the reminder would only repeat them.
+    if (activeScreen === 'home') return;
     if (this.reminded) return;
     this.reminded = true;
     const rows = this.rows();
@@ -1222,12 +1228,18 @@ const DailyMissions = {
     }, 12000);
   },
 
+  // The missions are on Home: the puzzle of the day has its own row there
+  // (Home.render), the other two are drawn here as rows. Profile keeps one
+  // line, "n / 3", and the missions' own counter.
   render() {
     const el = $('daily-missions-list');
     if (!el) return;
     const streakEl = $('daily-missions-streak');
     if (streakEl) streakEl.textContent = this.streak > 0 ? `🔥 ${this.streak}` : '';
-    const rows = this.rows();
+    const count = $('profile-missions-count');
+    if (count) count.textContent = `${missionsDone(this.done)} / 3`;
+    Home.render();
+    const rows = this.rows().filter(r => r.key !== 'puzzle');
     el.innerHTML = '';
     for (const row of rows) {
       const done = !!this.done[row.key];
@@ -1247,6 +1259,42 @@ const DailyMissions = {
     if (!daily) { toast(t('puzzles_unavailable')); return; }
     Puzzles.loadPuzzle(daily);
     Puzzles.isDailyPuzzle = true;
+  },
+};
+
+// ═════════════════════ HOME ("Inicio") ═════════════════════
+// The screen the app opens on (#screen-home): Kael's one line and the "Hoy"
+// card. It is drawn only from what is already on the phone, so it never waits.
+// Which sentence Kael says is decided in js/home.js; the two mission rows in
+// the card are DailyMissions.render()'s.
+export const Home = {
+  init() {
+    $('home-puzzle-btn').onclick = () => DailyMissions.goPuzzle();
+    $('profile-missions-row').onclick = () => showScreen('home');
+  },
+
+  async render() {
+    const done = missionsDone(DailyMissions.done);
+    $('home-today-chip').textContent = `${done} / 3`;
+    const btn = $('home-puzzle-btn');
+    const solved = !!DailyMissions.done.puzzle;
+    btn.textContent = t(solved ? 'home_solved' : 'home_solve');
+    btn.classList.toggle('done', solved);
+    const [bestStreak, bestMissions, profileName] = await Promise.all([
+      db.kvGet('bestStreak', 0), db.kvGet('bestDailyMissionStreak', 0), db.kvGet('profileName', ''),
+    ]);
+    const line = kaelLine({
+      streak: Streak.count, pending: Streak.isPending(), bestStreak: +bestStreak || 0,
+      done, everMission: +bestMissions > 0,
+      name: Auth.user ? greetName(profileName, Auth.user.displayName) : '',
+      hour: new Date().getHours(),
+    });
+    const greet = line.greet
+      ? `<b>${esc(t('home_greet_' + line.greet.part).replace('{name}', line.greet.name))}</b> `
+      : line.rule === 'welcome' ? `<b>${esc(t('home_welcome'))}</b> ` : '';
+    const text = line.rule === 'pending' || line.rule === 'counted'
+      ? tn('home_line_' + line.rule, line.n) : t('home_line_' + line.rule);
+    $('home-kael-line').innerHTML = greet + esc(text);
   },
 };
 
@@ -1282,8 +1330,10 @@ export async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students'];
-export let activeScreen = 'analysis';
+const SCREENS = ['home', 'analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students'];
+// Starts as Home (HOME_SCREEN below), the base of the Back stack, so the
+// showScreen('home') that ends main() adds no history entry of its own.
+export let activeScreen = 'home';
 
 export function showScreen(name) {
   const prev = activeScreen;
@@ -1303,6 +1353,11 @@ export function showScreen(name) {
   // Profile is not in the drawer: its light is the ring on the top bar's
   // avatar, on for Profile and every screen reached from it.
   $('btn-profile')?.classList.toggle('on', MENU_AREA[name] === 'profile');
+  // Kael is already at the top of Home, so his idle sliver in the corner is
+  // hidden there (css: body.on-home #kael-corner). When he speaks he still
+  // slides in.
+  document.body.classList.toggle('on-home', name === 'home');
+  if (name === 'home') Home.render();
   if (name !== 'analysis') Analysis.pauseEngine();
   if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
   if (name === 'base') Base.refresh();
@@ -1332,13 +1387,13 @@ export function showScreen(name) {
 }
 
 // ── tab history & swipe navigation ─────────────────────────────────────────
-// Analysis is home. Every move to a different screen also pushes an entry into
+// Home ("Inicio") is home. Every move to a different screen also pushes an entry into
 // the browser history, so the Android back gesture arrives here as a popstate
 // and walks back through the screens the user actually visited instead of
-// closing the app on the first swipe. Once the stack is back down to Analysis
+// closing the app on the first swipe. Once the stack is back down to Home
 // none of our entries are left, so the next system back exits — the behaviour
 // Android users expect from a home screen.
-const HOME_SCREEN = 'analysis';
+const HOME_SCREEN = 'home';
 const tabStack = [HOME_SCREEN];
 let poppingTab = false;
 
@@ -1371,7 +1426,7 @@ function goBackTab() {
 }
 
 // ── menu drawer ─────────────────────────────────────────────────────────────
-// The eight destinations live in #tabbar, a drawer that slides in from the left
+// The nine destinations (Home first) live in #tabbar, a drawer that slides in from the left
 // when #tabmenu-btn (☰, top-left) is tapped; the top bar's title names the
 // screen you're on (updateTabMenu). Opening the menu
 // pushes a history entry so the Android back gesture closes the menu — and only
@@ -1387,10 +1442,11 @@ let menuPushed = false;
 let closingMenu = false;
 let pendingNav = null;
 
-// Every screen resolves to one of the eight tabs, so the title always reads as
+// Every screen resolves to one of the nine tabs, so the title always reads as
 // a real destination even on a sub-screen (a friend's profile, Rush, a
 // leaderboard). Mirrors the tab the app lights via .on for those screens.
 const MENU_AREA = {
+  home: 'home',
   analysis: 'analysis', setup: 'analysis',
   endgame: 'endgame',
   base: 'base', masterclass: 'base',
@@ -7526,6 +7582,7 @@ function relabel() {
   buildLevelSeg($('play-level'), +(segValue($('play-level')) ?? 2), true);
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
+  DailyMissions.render();   // Home's card and Kael's line, in the new language
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.refreshLists();
   if (activeScreen === 'read') Read.refresh();
@@ -8205,6 +8262,7 @@ async function main() {
       Notifications.refresh().catch(() => {});
     }
   });
+  Home.init();
   await DailyMissions.init();
   setTimeout(() => DailyMissions.remindIfIncomplete(), 45000);
   Auth.onChange(async () => {
@@ -8241,7 +8299,9 @@ async function main() {
     if (Auth.user && Auth.needsProfileCompletion) openCompleteProfileModal();
   });
   Avatars.paintTopbar();
-  showScreen('analysis');
+  // The app always opens on Home. What opens it for a reason runs after this
+  // and wins: a shared file (handleIncomingFiles), a Pulso link (PulsoUI.boot).
+  showScreen('home');
   PulsoUI.boot();
   // make sure at least one base exists so saving is one tap
   const bases = await db.listBases();

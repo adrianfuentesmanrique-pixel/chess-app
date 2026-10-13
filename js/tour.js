@@ -28,8 +28,10 @@ const $ = id => document.getElementById(id);
 //   action    'next' = read and continue, 'tap' = the user must really tap it
 //   waitFor   for tap steps: advance once this selector becomes visible
 //   enter     puts a screen's sub-views back where the step expects them
-const STEPS = [
-  { key: 'welcome', screen: 'analysis', t: 'tour_welcome_t', b: 'tour_welcome_b', target: null },
+export const STEPS = [
+  // ── Home ──────────────────────────────────────────────────────────────
+  { key: 'welcome', screen: 'home', t: 'tour_welcome_t', b: 'tour_welcome_b', target: null },
+  { key: 'homeToday', screen: 'home', t: 'tour_home_today_t', b: 'tour_home_today_b', target: '#home-today' },
 
   // ── Analysis ──────────────────────────────────────────────────────────
   { key: 'board', screen: 'analysis', t: 'tour_board_t', b: 'tour_board_b', target: '#ana-board' },
@@ -121,7 +123,6 @@ const STEPS = [
     // Not in the drawer: the avatar in the top bar.
     target: '#btn-profile', action: 'tap', waitFor: '#screen-profile',
   },
-  { key: 'profMiss', screen: 'profile', t: 'tour_prof_miss_t', b: 'tour_prof_miss_b', target: '#daily-missions-list', wrap: '.profile-card' },
   { key: 'profLb', screen: 'profile', t: 'tour_prof_lb_t', b: 'tour_prof_lb_b', target: '#profile-leaderboard-btn' },
   // The only step below the fold on a phone — the scroll hint earns its keep here.
   { key: 'profRadar', screen: 'profile', t: 'tour_prof_radar_t', b: 'tour_prof_radar_b', target: '#chart-overall', wrap: '.profile-card' },
@@ -231,7 +232,7 @@ const Tour = {
 
   async finish(ctx, status, congratulate) {
     await ctx.db.kvSet('tourDone', status);
-    ctx.showScreen('analysis');
+    ctx.showScreen('home');
     if (!congratulate) ctx.toast(t('tour_skipped_toast'), 3200);
   },
 
