@@ -9,6 +9,75 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 6 OF 8: THE CLOCK (2026-10-13, v206).** Spec
+  `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 6.
+  `firestore.rules`, `js/simul.js` and `js/firebase.js` untouched: the clock was already
+  in the rules and the functions; this is the screens (`js/simul-ui.js`), their words
+  and the tool. No opening, no handicap: 7. No "Otros tableros", no link: 8.
+  - **Adrian's four answers.** (a) Where the clocks go: "Opponent clock on top, teacher
+    clock under" (his own words, neither of my two proposals). So `#simul-clock-them` is
+    at the end of the line above the board (`#simul-top` wraps `#simul-status`) and
+    `#simul-clock-me` is the first thing in the row under it (`#simul-ctl`). The same on
+    a student's board. (b) A tile shows the clock RUNNING on its board: the teacher's own
+    in gold while it is their move there, the student's in grey otherwise, "½ " in front
+    while a draw is offered. (c) Under a minute of the teacher's own time on a board that
+    is not on screen: the tile turns red (`.low`) and scrolls into view, and one toast
+    per move says "Te queda menos de 1 minuto en el tablero de Luis." No sound, no jump.
+    (d) The extra minutes start at the suggestion and follow the ticks until the teacher
+    touches − or +: 2 minutes a board to the nearest 5 (1 board 0, 2-3 → 5, 4-6 → 10,
+    7-8 → 15, 9-10 → 20).
+  - **What it cost at 375x667: nothing.** With a clock the status line is 31 px high
+    whatever it says (a long sentence takes two 13 px lines in the same box), and the
+    switch's words shorten to "Auto" (`.simul-ctl.timed`) to make room for the clock in
+    the row. Measured by the tool: strip from 119 px, End ends at 666 px, nothing
+    scrolled. With no clock the screen is exactly as it was.
+  - **Setup** (`renderSetup`): under the colour, "Sin reloj" and 10+5, 15+10, 30+20, 60+30
+    (`#simul-tc`, from `SIMUL.CLOCKS`), a line saying what the control means, and, with a
+    clock, "Tu tiempo extra": − / "+5 min" / + (`SimulUI.clock`, `SimulUI.extra`; null
+    means "the suggestion"). No clock is the choice until the teacher makes one. The
+    invitation's banner and card say "Reloj 15+10 (tu profesor: 5 min más)" or "Sin reloj"
+    after the colour (`clockLine`).
+  - **The clocks** are painted every second OUTSIDE the keyed block of `renderGame` (text
+    and three classes: `run`, `low` under 20 s as in Play, `unsure`), from `timeLeft()`
+    against `simulServerNow()`. `sync()` now asks for the server clock while any timed
+    game is live. A phone that has not measured yet shows the clock faded and claims
+    nothing.
+  - **The flag** (`claimFlags`, from `sync()`): either phone claims 300 ms after it thinks
+    the flag fell (an early claim is refused by the rules) and tries again after 3 s if
+    the game is still live; the second phone's refusal is silent. Result line "Ana se
+    quedó sin tiempo. Ganaste." / "Se te acabó el tiempo. Gana Ana."; tile "⏱ Ganada" /
+    "⏱ Perdida"; the loser's clock reads 0:00. A move the phone knows is late, or one the
+    rules refuse on a clock while the time is gone (the phone waits a second for the
+    listener's copy before deciding), is said as "Se te acabó el tiempo antes de que
+    llegara esa jugada." and comes off the board.
+  - **History**: a timed game carries `timeControl` and the PGN `[TimeControl "600+5"]`,
+    and the card shows "Simultánea · 10+5". A game lost on time is kept as ending when the
+    flag fell (the last move's stamp plus what the loser had left), not at the last move.
+  - **Readings of mine Adrian has still not been asked about** (the rules enforce all
+    three): a move at the exact instant the time runs out is too late; a flag is a loss
+    whatever the other side has left; the draw-offer limit is 10 moves by each side.
+  - **Limits, said plainly.** The teacher's phone claims a student's flag only while the
+    Simultáneas screen is open; if the teacher is elsewhere and the student's app is
+    closed, a fallen flag waits until one of them comes back. Light mode: the running
+    clock is gold on pale gold, as Play's is. **A defect found and NOT fixed here** (not
+    asked for; offered as a separate task): Kael's "next mission" reminder comes 45 s
+    after the app opens and can cover the corner of a live simul board and its buttons
+    for 12 s; `KaelQuotes.show()` is silent over Rush and Duel but not over a simul. The
+    tool switches the reminder off for itself (`app.DailyMissions.reminded = true`).
+  - **Tool.** Round 7 of every pass: the setup, three invitations at 15+10 / 30+20 / 60+30
+    with +5 / +15 / no extra minutes and one with no clock (stored base, inc, tMs, sMs),
+    a simul at 10+5: both clocks on both phones against `timeLeft()`, a move settled to
+    the millisecond, Luis's phone 7 s fast and reloaded, the low-time warning, a flag on
+    each side waited out for real (the stored time seeded low, then 5-6 s waited), a move
+    made with no signal that arrives after time, what each phone kept. A stopped tap now
+    leaves a picture (`STOPPED-<who>.png`). About 32 minutes.
+  - **Verified:** `test:tree` 453, `test:rules` 535, `test:precache` 59 files and 142 art,
+    the tool 713 of 713 (573 before, 35 new in each pass) with no console errors, 244
+    screenshots (about 14 opened and looked at: the setup, both boards, the low tile, the
+    flags, the card, History; es/en, light/dark). NOT checked: a real phone, the live
+    database, more than three real boards, a clock over 100 minutes on the teacher's row
+    (60+30 with 60 extra: measured only in a mock-up, 74 px wide), sound.
+
 - **SIMULS, CONVERSATION 5 OF 8: ENDINGS AND KEEPING THE GAMES (2026-10-13, v205).** Spec
   `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 5.
   `firestore.rules` untouched (every ending was already in the rules). Conversation 4

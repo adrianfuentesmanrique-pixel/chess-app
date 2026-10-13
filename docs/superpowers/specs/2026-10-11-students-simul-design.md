@@ -1,7 +1,14 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **conversations 1, 2, 3, 4 and 5 of 8 are built
-(2026-10-13). 5 is endings and keeping the games (v205): resign, the draw
+Date: 2026-10-11. Status: **conversations 1, 2, 3, 4, 5 and 6 of 8 are built
+(2026-10-13). 6 is the clock (v206): "no clock" or one of the four controls
+and the teacher's extra minutes in the setup, both clocks on both screens, the
+running clock on every tile, the flag claimed by either phone, a move that
+arrives after time taken off the board, the control kept with the saved game.
+Adrian's four answers for 6 (where the clocks go, the tiles, the warning, the
+suggestion pre-filled) are in HANDOVER.md; no rule changed. Still open: 7
+(opening and handicap) and 8 (watching, the link, the first-time explanation).
+5 is endings and keeping the games (v205): resign, the draw
 offer, the student told when away, every finished game saved once to each
 phone's History; Adrian's answers are in HANDOVER.md. 2 is the database: the Simul block in `firestore.rules`,
 `tests/rules/simul.test.js`, the Simul section of `js/firebase.js`
@@ -191,6 +198,15 @@ for him to overrule when he reads this.
   without scrolling.
 - Navy and gold, the existing Students cards and chips, Kael for the
   explanations. No new visual style.
+- **AS BUILT (conversation 6, Adrian's answer: "opponent clock on top, teacher
+  clock under"):** the clock line of the drawing does not fit. The student's
+  clock is at the end of the line above the board that says whose move it is;
+  the teacher's own is at the start of the button row under the board, where
+  the switch's words shorten to "Auto". It costs no height: End still ends at
+  666 px of 667. A tile shows the clock that is RUNNING on its board (the
+  teacher's own, in gold, when it is their move there; the student's
+  otherwise), red with a red frame when the teacher has under a minute there,
+  and the teacher is told once in words.
 
 ### d. Clock and the move rule — AGREED as recommended
 

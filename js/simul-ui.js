@@ -12,7 +12,12 @@
 // And how a game ends and is kept (conversation 5; sections 3h and 3i): resign
 // and the draw offer on the row under the board, the student told when a game
 // ended while they were elsewhere, and every finished game saved ONCE to this
-// phone's own History (keep). No clock yet: conversation 6.
+// phone's own History (keep).
+// And the clock (conversation 6; section 3d): the control and the teacher's
+// extra minutes in the setup, the other player's clock on the line above the
+// board and my own under it, the running clock on every tile, and the flag,
+// which either phone claims (claimFlags). Every clock is the SERVER's
+// (simulServerNow), and one this phone has not measured yet is shown faded.
 //
 // The database cannot tell legal chess (spec 3k, "The honest part"), so this
 // file does: a board is replayed before it is shown (shownPosition), a move
@@ -34,13 +39,14 @@ import { Sound } from './sound.js';
 import * as db from './db.js';
 import { GameTree, START_FEN } from './tree.js';
 import { buildRecord, saveGame } from './history.js';
+import { formatClock, controlLabel, LOW_MS } from './play-clock.js';
 import {
   SIMUL, coloursFor, buildStart, inviteOpen, sideToMove, packMove, tryMove, shownPosition, voidable,
-  nextBoard, mayOfferDraw, positionOf,
+  nextBoard, mayOfferDraw, positionOf, timeLeft, flagged,
 } from './simul.js';
 import {
   watchSimulTeacher, watchSimulStudent, sendSimulInvite, joinSimul, declineSimul,
-  startSimul, endSimul, simulMove, voidSimul, resignSimul, offerSimulDraw, answerSimulDraw, syncSimulClock, simulServerNow, pulsoClockOffset,
+  startSimul, endSimul, simulMove, voidSimul, resignSimul, offerSimulDraw, answerSimulDraw, syncSimulClock, simulServerNow, pulsoClockOffset, claimSimulFlag,
 } from './firebase.js';
 import { $, esc, toast, askConfirm, showScreen, activeScreen, paintCapCounter } from './app.js';
 import { Students } from './students.js';
@@ -70,10 +76,23 @@ const END = { mate: 'checkmate', stalemate: 'stalemate', repetition: 'repetition
 const JUMP_MS = 600;
 // A move of mine still unconfirmed after this long is said to be on its way.
 const SLOW_MS = 2000;
+// The teacher is told once when their own clock on a board that is not on
+// screen has less than this, and that tile turns red.
+const WARN_MS = 60_000;
+// A flag is claimed this long after this phone thinks it fell (its measure of
+// the server's clock is a few tenths out, and an early claim is refused), and
+// a claim that was refused is tried again after CLAIM_RETRY_MS.
+const CLAIM_AFTER_MS = 300;
+const CLAIM_RETRY_MS = 3000;
 // The banner shows one board: the one that asks for something first.
 const ORDER = ['invited', 'live', 'joined', 'over', 'late', 'expired'];
 
 const named = (key, name) => t(key).replace('{n}', name);
+const otherSide = who => (who === 't' ? 's' : 't');
+// The teacher's extra seconds the app suggests for `n` boards: 2 minutes a
+// board, to the nearest step.
+const suggestExtra = n => Math.min(SIMUL.EXTRA_MAX_S,
+  Math.round(n * SIMUL.EXTRA_PER_BOARD_S / SIMUL.EXTRA_STEP_S) * SIMUL.EXTRA_STEP_S);
 const fmtLeft = ms => {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -89,6 +108,8 @@ export const SimulUI = {
   tLoaded: false,     // the teacher's listener has heard from the server
   pick: new Set(),    // students ticked in the setup
   mode: 'white',      // 'white' | 'black' | 'alt': the teacher's colour
+  clock: -1,          // the control in the setup: an index into SIMUL.CLOCKS, -1 for no clock
+  extra: null,        // the teacher's extra seconds; null: whatever the app suggests
   again: 0,           // invitedAt of the expired invitation "Invite again" left behind
   busy: false,        // a write of mine is on its way
   timer: null,
@@ -109,6 +130,8 @@ export const SimulUI = {
   saved: null,        // SAVED_KEY, read once
   keeping: new Set(), // games on their way into History
   ended: null,        // ENDED_KEY, read once
+  claims: new Map(),  // flags this phone has claimed: 'id|startAt|n' -> when (this phone's time)
+  warned: new Set(),  // boards the teacher has been told are low on time: 'id|startAt|n'
 
   init() {
     $('simul-back').onclick = () => showScreen('students');
@@ -252,10 +275,12 @@ export const SimulUI = {
     const shown = this.shown();
     const onScreen = activeScreen === 'simul' && (!!this.tFor || !!this.sOpen);
     this.referee();
+    this.claimFlags();
     this.keep();
     const counting = shown.some(x => x.state === 'invited' || x.state === 'joined')
-      || (onScreen && this.view() === 'room');
-    // Ten minutes are the SERVER's ten minutes: measured once a session.
+      || (onScreen && this.view() === 'room')
+      || [...this.sBoards, ...this.tBoards].some(g => g.status === 'live' && g.base);
+    // Ten minutes, and a clock, are the SERVER's: measured once a session.
     if (counting && navigator.onLine && pulsoClockOffset() === null && Date.now() - this.clockAt >= CLOCK_RETRY_MS) {
       this.clockAt = Date.now();
       syncSimulClock().then(ok => { if (ok) this.sync(); });
@@ -281,6 +306,12 @@ export const SimulUI = {
   },
   // The student plays the colour the teacher does not.
   colourLine(g) { return t(g.tc === 'w' ? 'simul_you_black' : 'simul_you_white'); },
+  // The clock of an invitation, and what the teacher gave themselves over it.
+  clockLine(g) {
+    if (!g.base) return t('simul_no_clock');
+    const extra = Math.round((g.tMs - g.sMs) / 60000);
+    return t(extra > 0 ? 'simul_clock_extra' : 'simul_clock_is').replace('{n}', controlLabel(g)).replace('{m}', extra);
+  },
 
   // [{ key, cls, on }] for a state.
   actions(x) {
@@ -317,7 +348,7 @@ export const SimulUI = {
     this.bannerKey = key;
     $('simul-banner').classList.toggle('hidden', !x);
     if (!x) return;
-    const sub = x.state === 'invited' ? `<small>${esc(this.colourLine(x.g))}</small>` : '';
+    const sub = x.state === 'invited' ? `<small>${esc(this.colourLine(x.g))} · ${esc(this.clockLine(x.g))}</small>` : '';
     $('simul-banner-who').innerHTML = avatarHtml(p.avatarId, 32) + `<span>${esc(this.line(x))}${sub}</span>`;
     this.buttons($('simul-banner-acts'), this.actions(x));
   },
@@ -336,7 +367,7 @@ export const SimulUI = {
       const card = document.createElement('div');
       card.className = 'stu-invite';
       const more = x.state === 'invited'
-        ? `<p class="stu-invite-end">${esc(this.colourLine(x.g))} · ${esc(t('simul_left'))} <span data-simul-left="${x.g.invitedAt}"></span></p>`
+        ? `<p class="stu-invite-end">${esc(this.colourLine(x.g))} · ${esc(this.clockLine(x.g))} · ${esc(t('simul_left'))} <span data-simul-left="${x.g.invitedAt}"></span></p>`
         : '';
       card.innerHTML = `<div class="stu-invite-head">${Students.nameHtml(Students.who(x.g.t))}</div>` +
         `<p class="stu-invite-lead">${esc(this.line(x))}</p>${more}<div class="fr-actions"></div>`;
@@ -489,10 +520,38 @@ export const SimulUI = {
     }
   },
 
+  // Spec 3d: when the side to move has no time left, either phone claims it
+  // and the rules check the claim against the stored stamp. Both phones will;
+  // the second is refused and nothing is said. A student's phone does it on any
+  // screen, the teacher's while its screen is open. Not before this phone has
+  // measured the server's clock.
+  claimFlags() {
+    if (pulsoClockOffset() === null || !navigator.onLine) return;
+    const now = simulServerNow();
+    for (const g of [...this.sBoards, ...this.tBoards]) {
+      if (!g.me || g.pending || !flagged(g, now - CLAIM_AFTER_MS)) continue;
+      const key = `${g.id}|${g.startAt}|${g.n}`;
+      if (Date.now() - (this.claims.get(key) || 0) < CLAIM_RETRY_MS) continue;
+      this.claims.set(key, Date.now());
+      claimSimulFlag(g.id).catch(e => console.error('Claiming a simul flag failed', e));
+    }
+  },
+
+  // The teacher's own clock is nearly gone on a board that is not on screen:
+  // said once for that move, and the tile is brought into view.
+  warn(g, tile, name) {
+    const key = `${g.id}|${g.startAt}|${g.n}`;
+    if (this.warned.has(key)) return;
+    this.warned.add(key);
+    tile.scrollIntoView({ block: 'nearest', inline: 'center' });
+    toast(named('simul_low_time', name), 4000);
+  },
+
   // How a game ended, in words. `name` is the other player.
   resultLine(g, name) {
     if (g.reason === 'mate') return g.winner === g.me ? t('simul_res_mate_won') : named('simul_res_mate_lost', name);
     if (g.reason === 'resign') return named(g.winner === g.me ? 'simul_res_resign_won' : 'simul_res_resign_lost', name);
+    if (g.reason === 'flag') return named(g.winner === g.me ? 'simul_res_flag_won' : 'simul_res_flag_lost', name);
     const key = { agreed: 'simul_res_agreed', stalemate: 'simul_res_stalemate', repetition: 'simul_res_repetition', fifty: 'simul_res_fifty',
       material: 'simul_res_material', void: 'simul_res_void', unfinished: 'simul_res_unfinished' }[g.reason];
     return t(key || 'simul_res_over');
@@ -500,6 +559,7 @@ export const SimulUI = {
   // The same on a tile, where there is room for one word.
   tileResult(g) {
     if (g.reason === 'resign') return t(g.winner === 't' ? 'simul_tile_resigned' : 'simul_tile_i_resigned');
+    if (g.reason === 'flag') return t(g.winner === 't' ? 'simul_tile_flag_won' : 'simul_tile_flag_lost');
     return t(g.winner === 't' ? 'simul_tile_won' : g.winner === 's' ? 'simul_tile_lost' : g.winner === 'draw' ? 'simul_tile_draw'
       : g.reason === 'void' ? 'simul_tile_void' : 'simul_tile_open');
   },
@@ -532,6 +592,7 @@ export const SimulUI = {
     const slow = !!this.slow && Date.now() - this.slow.at >= SLOW_MS;
     const anyLive = boards.some(x => x.status === 'live');
     const next = teacher && anyLive ? nextBoard(boards, g.s) : null;
+    const now = simulServerNow(), sure = pulsoClockOffset() !== null;
 
     // The strip: built when the boards or the people change and only marked
     // after that, so a tile is never replaced under a finger.
@@ -550,7 +611,15 @@ export const SimulUI = {
         const x = boards[i], turn = x.status === 'live' && sideToMove(x) === 't';
         const on = x.id === g.id;
         const asks = x.status === 'live' && x.draw === 's';
-        const text = x.status === 'done' ? this.tileResult(x) : asks ? t('simul_tile_offer') : turn ? t('simul_tile_turn') : '';
+        // With a clock a tile shows the one that is running on its board: mine
+        // while the gold dot says it is my move there, the student's otherwise.
+        const left = x.status === 'live' && x.base ? timeLeft(x, turn ? 't' : 's', now) : null;
+        const text = x.status === 'done' ? this.tileResult(x) : left !== null ? (asks ? '½ ' : '') + formatClock(left)
+          : asks ? t('simul_tile_offer') : turn ? t('simul_tile_turn') : '';
+        const low = left !== null && sure && left < (turn ? WARN_MS : LOW_MS);
+        el.classList.toggle('low', low);
+        el.classList.toggle('unsure', left !== null && !sure);
+        if (low && turn && !on) this.warn(x, el, people[i].profileName);
         el.classList.toggle('offer', asks);
         if (on && !el.classList.contains('on')) el.scrollIntoView({ block: 'nearest', inline: 'center' });
         el.classList.toggle('on', on);
@@ -560,8 +629,24 @@ export const SimulUI = {
       });
     }
 
+    // The two clocks, outside the keyed block: text and marks only. The other
+    // player's is on the line above the board, mine under it.
+    const timed = !!g.base && !!g.startAt && !isVoid;
+    const run = live && timed ? sideToMove(g) : null;
+    for (const [id, who] of [['simul-clock-them', otherSide(g.me)], ['simul-clock-me', g.me]]) {
+      const el = $(id);
+      el.classList.toggle('hidden', !timed);
+      if (!timed) continue;
+      const left = timeLeft(g, who, now), text = formatClock(left);
+      if (el.textContent !== text) el.textContent = text;
+      el.classList.toggle('run', run === who);
+      el.classList.toggle('low', left < LOW_MS && (run === who || !live));
+      el.classList.toggle('unsure', live && !sure);
+    }
+    $('simul-top').classList.toggle('timed', timed);
+
     const key = JSON.stringify([getLang(), teacher, this.busy, g.id, g.status, g.reason, g.winner, myMove, isVoid, slow,
-      them.profileName, anyLive, !!next, g.draw, mayOffer]);
+      them.profileName, anyLive, !!next, g.draw, mayOffer, timed]);
     if (key !== this.gameKey) {
       this.gameKey = key;
       const turn = t(myMove ? 'simul_your_move' : 'simul_their_move');
@@ -569,21 +654,24 @@ export const SimulUI = {
         : slow ? t('simul_sending') : offer ? t('simul_draw_theirs')
         : g.draw === g.me ? `${t('simul_draw_mine')} · ${turn}` : turn;
       const st = $('simul-status');
-      st.innerHTML = `<b>${esc(them.profileName)}</b> · ${esc(text)}`;
+      st.innerHTML = `<span><b>${esc(them.profileName)}</b> · ${esc(text)}</span>`;
       st.classList.toggle('mine', myMove);
       const ctl = $('simul-ctl');
-      ctl.classList.toggle('hidden', teacher ? !anyLive : !canAct);
+      // A game with a clock keeps the row for as long as it is on screen: my
+      // clock is in it.
+      ctl.classList.toggle('hidden', (teacher ? !anyLive : !canAct) && !timed);
+      ctl.classList.toggle('timed', timed);
       // A student's row holds two buttons and has room for their words.
       ctl.classList.toggle('solo', !teacher);
       const hide = (id, off) => { $(id).classList.toggle('hidden', off); $(id).disabled = this.busy; };
-      ctl.querySelector('.simul-auto').classList.toggle('hidden', !teacher || offer);
+      ctl.querySelector('.simul-auto').classList.toggle('hidden', !teacher || offer || !anyLive);
       hide('simul-draw', !canAct || offer);
       hide('simul-resign', !canAct || offer);
       hide('simul-accept', !offer);
       hide('simul-decline', !offer);
       // Not `disabled`: a tap on it says why.
       $('simul-draw').classList.toggle('off', !mayOffer);
-      $('simul-skip').classList.toggle('hidden', !teacher);
+      $('simul-skip').classList.toggle('hidden', !teacher || !anyLive);
       $('simul-skip').disabled = !next;
       $('simul-end').classList.toggle('hidden', !teacher || !anyLive);
       $('simul-end').disabled = this.busy;
@@ -627,7 +715,19 @@ export const SimulUI = {
     const g = this.onBoard(), v = g && this.look(g);
     if (!g || g.status !== 'live' || !v || v.bad || sideToMove(g) !== g.me) return;
     const packed = packMove(mv);
-    const failed = () => { toast(t('simul_move_failed'), 3500); this.sync(); };
+    // Out of time is said for what it is: the flag is claimed by the next sync.
+    // A refusal by the rules on a clock may BE the clock (a move that waited
+    // for a signal and arrived late): the listener's next copy says, so it is
+    // given a moment to arrive.
+    const failed = async r => {
+      if (r && r.reason === 'refused' && g.base) await new Promise(done => setTimeout(done, 1000));
+      const b = this.onBoard();
+      const now = simulServerNow();
+      const late = (r && r.reason === 'time') || flagged(g, now) === g.me
+        || (!!b && b.id === g.id && (flagged(b, now) === b.me || (b.reason === 'flag' && b.winner !== b.me)));
+      toast(t(late ? 'simul_move_late' : 'simul_move_failed'), 3500);
+      this.sync();
+    };
     // My write before this one (Start, mostly) has not been answered yet.
     if (!packed || g.pending) { failed(); return; }
     if (!tryMove(v.chess, packed).ok) return;
@@ -636,7 +736,7 @@ export const SimulUI = {
     this.board.setPosition(fen, { from: mv.from, to: mv.to });
     this.board.interactive = false;
     this.drawn = { id: g.id, startAt: g.startAt, n: v.n + 1, fen };
-    simulMove(g.id, packed).then(r => { if (!r.ok) failed(); },
+    simulMove(g.id, packed).then(r => { if (!r.ok) failed(r); },
       e => { console.error('A simul move failed', e); failed(); });
     if (g.me === 't' && this.auto) {
       this.stopJump();
@@ -663,6 +763,16 @@ export const SimulUI = {
       `<div id="simul-colour" class="seg simul-colour">` + modes.map(([v, k]) =>
         `<button data-v="${v}"${v === this.mode ? ' class="on"' : ''}>${esc(t(k))}</button>`).join('') + `</div>` +
       `<p id="simul-colour-hint" class="hint"></p>` +
+      `<h3 class="group-head">${esc(t('simul_clock_head'))}</h3>` +
+      `<div id="simul-tc" class="seg simul-tc">` + [-1, ...SIMUL.CLOCKS.keys()].map(i =>
+        `<button data-v="${i}"${i === this.clock ? ' class="on"' : ''}>${esc(i < 0 ? t('simul_no_clock') : controlLabel(SIMUL.CLOCKS[i]))}</button>`).join('') + `</div>` +
+      `<p id="simul-tc-hint" class="hint"></p>` +
+      `<div id="simul-extra">` +
+        `<h3 class="group-head">${esc(t('simul_extra_head'))}</h3>` +
+        `<div class="simul-extra-row"><button id="simul-extra-less" class="btn small" aria-label="${esc(t('simul_extra_less'))}">−</button>` +
+        `<b id="simul-extra-val" aria-live="polite"></b>` +
+        `<button id="simul-extra-more" class="btn small" aria-label="${esc(t('simul_extra_more'))}">+</button></div>` +
+        `<p id="simul-extra-hint" class="hint"></p></div>` +
       `<button id="simul-invite" class="btn primary btn-wide"></button>`;
     const boxes = [...body.querySelectorAll('#simul-pick input')];
     const paint = () => {
@@ -675,6 +785,18 @@ export const SimulUI = {
       $('simul-invite').textContent = t('simul_invite_btn').replace('{n}', n);
       $('simul-invite').disabled = !n || this.busy;
       $('simul-colour-hint').textContent = t('simul_colour_' + this.mode);
+      const c = this.clock < 0 ? null : SIMUL.CLOCKS[this.clock];
+      $('simul-tc-hint').textContent = c
+        ? t('simul_clock_hint').replace('{m}', c.base / 60).replace('{s}', c.inc) : t('simul_clock_none');
+      $('simul-extra').classList.toggle('hidden', !c);
+      if (!c) return;
+      // The suggestion follows the ticks until the teacher sets it themselves.
+      const sug = suggestExtra(n), extra = this.extra ?? sug;
+      $('simul-extra-val').textContent = t('simul_extra_val').replace('{n}', extra / 60);
+      $('simul-extra-less').disabled = extra <= 0;
+      $('simul-extra-more').disabled = extra >= SIMUL.EXTRA_MAX_S;
+      $('simul-extra-hint').textContent = t('simul_extra_hint').replace('{m}', (c.base + extra) / 60)
+        .replace('{b}', c.base / 60).replace('{g}', sug / 60);
     };
     for (const b of boxes) {
       b.onchange = () => {
@@ -690,6 +812,20 @@ export const SimulUI = {
       $('simul-colour').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
       paint();
     };
+    $('simul-tc').onclick = e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      this.clock = +b.dataset.v;
+      $('simul-tc').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      paint();
+    };
+    const step = by => {
+      const now = this.extra ?? suggestExtra(this.pick.size);
+      this.extra = Math.max(0, Math.min(SIMUL.EXTRA_MAX_S, now + by * SIMUL.EXTRA_STEP_S));
+      paint();
+    };
+    $('simul-extra-less').onclick = () => step(-1);
+    $('simul-extra-more').onclick = () => step(1);
     $('simul-invite').onclick = () => this.invite(roster);
     paint();
   },
@@ -713,7 +849,9 @@ export const SimulUI = {
     const students = roster.map(p => p.uid).filter(u => this.pick.has(u));
     const cols = coloursFor(this.mode, students);
     const boards = students.map((s, i) => ({ s, tc: cols[i], fen: buildStart(cols[i]).fen, op: '' }));
-    const r = await this.write(() => sendSimulInvite(boards, SIMUL.NO_CLOCK, 0));
+    const clock = this.clock < 0 ? SIMUL.NO_CLOCK : SIMUL.CLOCKS[this.clock];
+    const extra = clock.base ? this.extra ?? suggestExtra(students.length) : 0;
+    const r = await this.write(() => sendSimulInvite(boards, clock, extra));
     if (!r || r.ok) return;
     toast(r.reason === 'busy' ? named('simul_busy', Students.who(r.s).profileName)
       : t(r.reason === 'refused' ? 'simul_invite_refused' : 'stu_try_again'), 4000);
@@ -795,9 +933,12 @@ export const SimulUI = {
     for (const san of [...p.opening, ...p.sans]) tree.play(san);
     const won = g.winner === 't' ? g.tc : g.winner === 's' ? (g.tc === 'w' ? 'b' : 'w') : g.winner;
     const d = new Date(g.startAt), two = n => String(n).padStart(2, '0');
+    // No stamp is stored for an ending. A game lost on time ended when the
+    // flag fell: the last move's stamp and what the loser had left then.
+    const fell = g.reason === 'flag' && g.winner && g.winner !== 'draw' ? g[otherSide(g.winner) + 'Ms'] : 0;
     const rec = buildRecord({
-      chess: p.chess, startFen: g.fen, playerColor: mine, playedAt: g.startAt, endedAt: Math.max(g.at || 0, g.startAt), pgn: '',
-      source: 'simul', opponent: them,
+      chess: p.chess, startFen: g.fen, playerColor: mine, playedAt: g.startAt, endedAt: Math.max(g.at || 0, g.startAt) + fell, pgn: '',
+      source: 'simul', opponent: them, timeControl: g.base ? { base: g.base, inc: g.inc } : null,
       ended: {
         result: won === 'w' ? '1-0' : won === 'b' ? '0-1' : won === 'draw' ? '1/2-1/2' : '*',
         outcome: !g.winner ? 'unfinished' : g.winner === 'draw' ? 'draw' : g.winner === g.me ? 'win' : 'loss',
@@ -808,6 +949,7 @@ export const SimulUI = {
     tree.setHeader('Black', mine === 'b' ? me : them);
     tree.setHeader('Date', `${d.getFullYear()}.${two(d.getMonth() + 1)}.${two(d.getDate())}`);
     tree.setHeader('Event', t('history_simul'));
+    if (g.base) tree.setHeader('TimeControl', `${g.base}+${g.inc}`);
     tree.setHeader('Result', rec.result);
     rec.pgn = tree.toPgn();
     await saveGame(rec);

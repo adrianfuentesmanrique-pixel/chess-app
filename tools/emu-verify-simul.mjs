@@ -60,6 +60,15 @@
 //   6b. A threefold repetition played with a finger (the other automatic draws
 //       are seeded on it); the teacher ends the simul with two boards open.
 //   6c. The start is made 3 hours old (seeded): the teacher invites over it.
+// THE CLOCK (conversation 6), round 7 of the same passes, the teacher's phone
+// at 375 x 667: an invitation with each of the three longer controls and with
+// none (stored base / inc / tMs / sMs, the teacher's extra minutes on tMs
+// only), then a simul at 10 min + 5 s: both clocks on both phones against
+// timeLeft(), a move settled in the database, Luis's phone running 7 seconds
+// fast, the teacher's own clock low on a board that is not on screen, a flag
+// on each side really waited out (the stored time seeded low, rules bypassed,
+// then the seconds waited), a move sent after time refused and taken off the
+// board, and what each phone kept in History.
 // SIMUL_PASS=es-light (or es-dark, en-light, en-dark) runs one pass only.
 //
 // Local emulator only. Nothing here touches the real project.
@@ -363,7 +372,7 @@ async function openPhone(who, host, uid) {
   await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   const touch = (type, p) => send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: Math.round(p.x), y: Math.round(p.y), id: 1 }] : [] });
   const tab = {
-    who, ev,
+    who, ev, send,
     size: height => send('Emulation.setDeviceMetricsOverride', { width: 375, height, deviceScaleFactor: 2, mobile: true }),
     // The phone loses its signal, or gets it back.
     net: off => send('Network.emulateNetworkConditions', { offline: off, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }),
@@ -380,6 +389,11 @@ async function openPhone(who, host, uid) {
         document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());
         const app = await import('/js/app.js'), ui = await import('/js/simul-ui.js'), fb = await import('/js/firebase.js');
         const st = await import('/js/students.js');
+        // Kael's reminder of the day's missions comes 45 s after the app opens,
+        // in the corner, over whatever is there, and a tap on it asks a
+        // question: it has stopped a finger on the board's first rank. Not
+        // what this tool tests. (The app still shows it over a simul game.)
+        app.DailyMissions.reminded = true;
         window.__t = { app, S: ui.SimulUI, St: st.Students, fb,
           vis: sel => { const e = document.querySelector(sel); return !!e && !e.closest('.hidden') && e.getClientRects().length > 0; },
           txt: sel => document.querySelector(sel)?.textContent.trim() ?? null,
@@ -415,7 +429,11 @@ async function openPhone(who, host, uid) {
         await sleep(200);
       }
       if (!pt) throw new Error(`${who}: no element ${sel}`);
-      if (!pt.hit) throw new Error(`${who}: ${sel} is covered by ${pt.by}`);
+      if (!pt.hit) {
+        // What was in the way is worth a picture.
+        await tab.shotOnly(`STOPPED-${who}`).catch(() => {});
+        throw new Error(`${who}: ${sel} is covered by ${pt.by} — ` + JSON.stringify(await ev(`return document.querySelector('.modal-box')?.innerText ?? null`).catch(() => null)));
+      }
       await touch('touchStart', pt); await sleep(40); await touch('touchEnd');
       await sleep(150);
     },
@@ -456,6 +474,11 @@ async function screens() {
       over: 'Tu partida con Marta terminó', seeBoard: 'Ver el tablero', tOffer: '¿Tablas?', tResigned: 'Se rindió', tIResigned: 'Me rendí', tDraw: 'Tablas',
       repetition: 'Tablas: la posición se repitió tres veces.', stalemate: 'Tablas: rey ahogado.', fifty: 'Tablas: 50 jugadas sin capturas ni peones.',
       material: 'Tablas: no quedan piezas para dar mate.', histSimul: 'Simultánea',
+      noClock: 'Sin reloj', clockIs: n => `Reloj ${n}`, clockExtra: (n, m) => `Reloj ${n} (tu profesor: ${m} min más)`, clockNone: 'Sin reloj: nadie pierde por tiempo.',
+      clockHint: (m, x) => `${m} minutos para cada jugador en cada tablero, más ${x} segundos por jugada. Quien se queda sin tiempo pierde.`,
+      extraHint: (m, b, g) => `Tu reloj corre en todos los tableros a la vez. Así tendrás ${m} minutos en cada tablero y cada alumno ${b}. Sugerido: ${g} (2 minutos por tablero).`,
+      flagWon: n => `${n} se quedó sin tiempo. Ganaste.`, flagLost: n => `Se te acabó el tiempo. Gana ${n}.`, tFlagWon: '⏱ Ganada', tFlagLost: '⏱ Perdida',
+      moveLate: 'Se te acabó el tiempo antes de que llegara esa jugada.', lowTime: n => `Te queda menos de 1 minuto en el tablero de ${n}.`, autoShort: 'Auto',
       inv: 'Tu profesor Marta te invita a una simultánea', black: 'Juegas con negras', white: 'Juegas con blancas', join: 'Unirme', notNow: 'Ahora no', ok: 'Entendido',
       wait: 'Esperando a que Marta empiece', live: 'La simultánea con Marta ha empezado', late: 'La simultánea de Marta empezó sin ti',
       expired: 'La invitación de Marta a la simultánea caducó' },
@@ -472,6 +495,11 @@ async function screens() {
       over: 'Your game with Marta is over', seeBoard: 'See the board', tOffer: 'Draw?', tResigned: 'Resigned', tIResigned: 'I resigned', tDraw: 'Draw',
       repetition: 'Draw: the position came up three times.', stalemate: 'Draw: stalemate.', fifty: 'Draw: 50 moves with no capture or pawn move.',
       material: 'Draw: not enough pieces left to mate.', histSimul: 'Simul',
+      noClock: 'No clock', clockIs: n => `Clock ${n}`, clockExtra: (n, m) => `Clock ${n} (your teacher: ${m} min more)`, clockNone: 'No clock: nobody loses on time.',
+      clockHint: (m, x) => `${m} minutes for each player on every board, plus ${x} seconds a move. Whoever runs out of time loses.`,
+      extraHint: (m, b, g) => `Your clock runs on every board at once. This gives you ${m} minutes on each board and each student ${b}. Suggested: ${g} (2 minutes a board).`,
+      flagWon: n => `${n} ran out of time. You won.`, flagLost: n => `You ran out of time. ${n} wins.`, tFlagWon: '⏱ Won', tFlagLost: '⏱ Lost',
+      moveLate: 'Your time ran out before that move arrived.', lowTime: n => `You have less than 1 minute left on ${n}’s board.`, autoShort: 'Auto',
       inv: 'Your teacher Marta invites you to a simul', black: 'You play Black', white: 'You play White', join: 'Join', notNow: 'Not now', ok: 'OK',
       wait: 'Waiting for Marta to start', live: 'The simul with Marta has started', late: "Marta's simul started without you",
       expired: "Marta's invitation to the simul ran out" },
@@ -569,7 +597,7 @@ async function screens() {
     await ana.until('the banner', `__t.vis('#simul-banner')`);
     r = await banner(ana);
     check(`[${tag}] Ana, on Home: the banner — "${w.inv}", ${w.black}, Not now and Join`,
-      r[0] === w.inv + w.black && same(r[1], [w.notNow, w.join]), r);
+      r[0] === w.inv + w.black + ' · ' + w.noClock && same(r[1], [w.notNow, w.join]), r);
     await ana.shot(`${tag}-03-banner-invited`);
     await luis.until('the card', `__t.vis('#stu-simul')`);
     r = await cards(luis);
@@ -689,7 +717,7 @@ async function screens() {
     await luis.until('the card', `document.querySelectorAll('#stu-simul-list button').length === 2`);
     r = await cards(luis);
     check(`[${tag}] Black on every board: Luis is told he plays White, and Ana too`,
-      r[0][1].startsWith(w.white) && (await ana.until('the banner', `__t.vis('#simul-banner')`)) && (await banner(ana))[0] === w.inv + w.white, r);
+      r[0][1].startsWith(w.white) && (await ana.until('the banner', `__t.vis('#simul-banner')`)) && (await banner(ana))[0] === w.inv + w.white + ' · ' + w.noClock, r);
     await luis.tap('#stu-simul-list .btn.primary');
     await ana.tap('#simul-banner-acts .btn.primary');
     await luis.until('waiting, on the card', lead(w.wait));
@@ -819,7 +847,7 @@ async function screens() {
     r = await teach.ev(`
       const m = document.querySelector('main'), b = id => document.getElementById(id).getBoundingClientRect();
       return { h: innerHeight, top: m.scrollTop, strip: b('simul-strip').top, board: b('simul-board').width, ctl: b('simul-ctl').bottom, end: b('simul-end').bottom,
-        skip: __t.txt('#simul-skip'), auto: __t.txt('.simul-auto'), checked: document.getElementById('simul-auto').checked }`);
+        skip: __t.txt('#simul-skip'), auto: document.querySelector('.simul-auto').innerText.trim(), checked: document.getElementById('simul-auto').checked }`);
     check(`[${tag}] 375 x 667: the strip, the board, the switch, skip and End are all on screen with nothing scrolled`,
       r.h === 667 && r.top === 0 && r.strip > 0 && r.board >= 300 && r.ctl < r.end && r.end <= 667 && r.skip === w.next && r.auto === w.auto && r.checked, r);
     await teach.shot(`${tag}-20-teacher-three-boards`);
@@ -1267,6 +1295,278 @@ async function screens() {
       same(r[0], [['Ana', 'w', '1/2-1/2', 'draw', 'repetition', 4, 'start'], ['Eva', 'b', '*', 'unfinished', 'abandoned', 1, 'start'], ['Luis', 'w', '*', 'unfinished', 'abandoned', 1, 'start']])
       && same(r[1], [['Marta', 'b', '1/2-1/2', 'draw', 'repetition', 4, 'start']]) && same(r[2], [['Marta', 'w', '*', 'unfinished', 'abandoned', 1, 'start']])
       && same(r[3], [['Marta', 'b', '*', 'unfinished', 'abandoned', 1, 'start']]), r);
+
+    // ── 7. The clock ──
+    console.log('  7. The clock');
+    {
+      const ids = [TA, TE, TL];
+      const SKEW = 7000;   // how fast Luis's phone runs, as in Duel's tool
+      const secs = text => { const m = /^(\d+):(\d\d)$/.exec(text || ''); return m ? +m[1] * 60 + +m[2] : NaN; };
+      // What a phone shows of the board on screen, beside what timeLeft() says
+      // there at that instant (rounded up to the second, as a clock is written).
+      const clocks = p => p.ev(`
+        const sim = await import('/js/simul.js');
+        const g = __t.S.onBoard(), now = __t.fb.simulServerNow();
+        const box = id => { const e = document.getElementById(id), r = e.getBoundingClientRect(); return { text: e.textContent, shown: __t.vis('#' + id), run: e.classList.contains('run'), low: e.classList.contains('low'), unsure: e.classList.contains('unsure'), l: Math.round(r.left), r: Math.round(r.right), t: Math.round(r.top), b: Math.round(r.bottom) }; };
+        const other = g.me === 't' ? 's' : 't';
+        return { me: box('simul-clock-me'), them: box('simul-clock-them'), offset: __t.fb.pulsoClockOffset(),
+          truth: { me: Math.ceil(sim.timeLeft(g, g.me, now) / 1000), them: Math.ceil(sim.timeLeft(g, other, now) / 1000) } }`);
+      const agree = c => c.me.shown && c.them.shown && Math.abs(secs(c.me.text) - c.truth.me) <= 1 && Math.abs(secs(c.them.text) - c.truth.them) <= 1;
+      // What the SERVER would say is left for a side, from the stored board, now.
+      const left = (g, who, run) => Math.ceil((g[who + 'Ms'] - (run ? Date.now() - g.at : 0)) / 1000);
+      const tc = sel => teach.tap(`#simul-tc button[data-v="${sel}"]`);
+      const setup = () => teach.ev(`return { tc: __t.all('#simul-tc button'), on: [...document.querySelectorAll('#simul-tc button.on')].map(b => b.dataset.v), hint: __t.txt('#simul-tc-hint'),
+        extra: __t.vis('#simul-extra'), val: __t.txt('#simul-extra-val'), extraHint: __t.txt('#simul-extra-hint'), less: document.getElementById('simul-extra-less').disabled }`);
+      const ageAll = async () => { for (const id of ids) await patch(`simulGames/${id}`, { invitedAt: { timestampValue: new Date(Date.now() - 660000).toISOString() } }); };
+      const tick3 = async () => {
+        await teach.until('the picker, three students', `document.querySelectorAll('#simul-pick input').length === 3`, 15000);
+        for (const n of [1, 2, 3]) {
+          if (!await teach.ev(`return document.querySelector('#simul-pick label:nth-child(${n}) input').checked`)) await teach.tap(`#simul-pick label:nth-child(${n}) input`);
+        }
+      };
+      const keptTc = p => p.ev(`
+        const db = await import('/js/db.js');
+        const { items } = await db.pageHistory({ count: 500 });
+        const out = [];
+        for (const x of items.filter(x => x.source === 'simul')) {
+          // The list leaves the PGN out: the whole record has it.
+          const pgn = (await db.getHistoryGame(x.id))?.pgn || '';
+          out.push({ id: x.id, vs: x.opponent, res: x.result, out: x.outcome, end: x.endReason, moves: x.moveCount,
+            tc: x.timeControl ? x.timeControl.base + '+' + x.timeControl.inc : null, took: x.endedAt - x.playedAt, pgn: /\\[TimeControl "([^"]*)"\\]/.exec(pgn)?.[1] ?? null });
+        }
+        return out;`);
+      const oldTc = Object.fromEntries(await Promise.all(all.map(async p => [p.who, new Set((await keptTc(p)).map(x => x.id))])));
+
+      // 7a. The setup: no clock, the four controls, the teacher's extra minutes.
+      for (const p of students) await p.ev(`__t.app.showScreen('home')`);
+      await luis.ev(`__t.app.showScreen('students')`);
+      await tick3();
+      r = await setup();
+      check(`[${tag}] the setup: "${w.noClock}" and the four controls under the colour; no clock is the choice until the teacher makes one, and it asks for no extra time`,
+        same(r.tc, [w.noClock, '10+5', '15+10', '30+20', '60+30']) && same(r.on, ['-1']) && r.hint === w.clockNone && !r.extra, r);
+      await tc(1);
+      r = await setup();
+      check(`[${tag}] 15+10 chosen, three students ticked: the extra time appears with the suggestion filled in (+5 min, 2 minutes a board to the nearest 5) and says what each side gets`,
+        same(r.on, ['1']) && r.hint === w.clockHint(15, 10) && r.extra && r.val === '+5 min' && r.extraHint === w.extraHint(20, 15, 5) && !r.less, r);
+      await teach.shot(`${tag}-50-setup-clock`);
+      // [control, taps on + (or - when negative) before inviting, extra minutes expected]
+      const stored4 = [];
+      for (const [i, taps, extra] of [[1, 0, 5], [2, 2, 15], [3, -3, 0]]) {
+        await tc(i);
+        for (let k = 0; k < Math.abs(taps); k++) await teach.tap(taps > 0 ? '#simul-extra-more' : '#simul-extra-less');
+        r = await setup();
+        await teach.tap('#simul-invite');
+        a = await waitStored(TA, g => g.status === 'invited' && g.base === [600, 900, 1800, 3600][i], 'the invitation with a clock');
+        e = await stored(`simulGames/${TE}`); l = await stored(`simulGames/${TL}`);
+        stored4.push([r.val, ...[a, e, l].map(g => [g.base, g.inc, g.tMs, g.sMs].join(' '))]);
+        if (i === 1) {
+          await ana.until('her banner', `${invited} && __t.txt('#simul-banner-who small').endsWith(${JSON.stringify(w.clockExtra('15+10', 5))})`);
+          await luis.until('his card', lead(w.inv));
+          r = [await banner(ana), await cards(luis)];
+          check(`[${tag}] the invitation tells the student the clock before they join: Ana's banner and Luis's card say "${w.clockExtra('15+10', 5)}"`,
+            r[0][0] === w.inv + w.black + ' · ' + w.clockExtra('15+10', 5) && r[1][0][1].startsWith(w.black + ' · ' + w.clockExtra('15+10', 5) + ' · ') && /\d:\d\d$/.test(r[1][0][1]), r);
+          await ana.shot(`${tag}-51-banner-clock`);
+          await luis.shot(`${tag}-52-card-clock`);
+        }
+        if (i === 3) {
+          await ana.until('her banner', `${invited} && __t.txt('#simul-banner-who small').endsWith(${JSON.stringify(w.clockIs('60+30'))})`);
+          check(`[${tag}] with no extra time the invitation says only "${w.clockIs('60+30')}"`, (await banner(ana))[0] === w.inv + w.black + ' · ' + w.clockIs('60+30'));
+        }
+        await ageAll();
+        await teach.until('ran out', `!!document.getElementById('simul-again')`);
+        await teach.tap('#simul-again');
+        await tick3();
+      }
+      const want = (base, inc, extraMin) => [base, inc, (base + extraMin * 60) * 1000, base * 1000].join(' ');
+      check(`[${tag}] invited at 15+10, 30+20 and 60+30 with +5, +15 and no extra minutes: base, inc and both clocks are stored on all three boards, the extra minutes on the teacher's clock only`,
+        same(stored4, [['+5 min', ...Array(3).fill(want(900, 10, 5))], ['+15 min', ...Array(3).fill(want(1800, 20, 15))], ['+0 min', ...Array(3).fill(want(3600, 30, 0))]]), stored4);
+      await tc(-1);
+      await teach.tap('#simul-invite');
+      a = await waitStored(TA, g => g.status === 'invited' && g.base === 0, 'the invitation with no clock');
+      e = await stored(`simulGames/${TE}`); l = await stored(`simulGames/${TL}`);
+      check(`[${tag}] invited with no clock: base, inc and both clocks are stored as 0`, [a, e, l].every(g => g.base === 0 && g.inc === 0 && g.tMs === 0 && g.sMs === 0), [a, e, l].map(g => [g.base, g.inc, g.tMs, g.sMs]));
+      await ageAll();
+      await teach.until('ran out', `!!document.getElementById('simul-again')`);
+      await teach.tap('#simul-again');
+      await tick3();
+
+      // 7b. A simul at 10 min + 5 s, the teacher with 5 minutes more.
+      await tc(0);
+      await teach.tap('#simul-extra-more');
+      await three();
+      a = await waitStored(TA, g => g.status === 'live', 'the start');
+      e = await stored(`simulGames/${TE}`); l = await stored(`simulGames/${TL}`);
+      check(`[${tag}] started at 10+5 with +5 min: every board is stored with base 600, inc 5, 15 minutes for the teacher and 10 for the student`,
+        [a, e, l].every(g => g.status === 'live' && g.base === 600 && g.inc === 5 && g.tMs === 900000 && g.sMs === 600000), [a, e, l].map(g => [g.base, g.inc, g.tMs, g.sMs]));
+      await teach.tap(TILE(1));
+      await teach.until('Ana\'s board', stat('Ana · ' + w.your));
+      if (await teach.ev(`return __t.S.auto`)) await teach.tap('#simul-auto');
+      for (const p of [teach, ana, eva, luis]) await p.until('its clock measured', `__t.fb.pulsoClockOffset() !== null && !document.querySelector('#simul-game .unsure')`, 20000);
+      let ct = await clocks(teach), ca = await clocks(ana);
+      check(`[${tag}] both clocks on both phones, within a second of timeLeft(): the teacher's is running (it is their move on Ana's board), marked on both, the student's stands at 10:00`,
+        agree(ct) && agree(ca) && ct.me.run && !ct.them.run && ca.them.run && !ca.me.run && ct.them.text === '10:00' && ca.me.text === '10:00'
+        && Math.abs(secs(ct.me.text) - secs(ca.them.text)) <= 1 && Math.abs(secs(ct.me.text) - left(a, 't', true)) <= 1, [ct, ca, left(a, 't', true)]);
+      // A tap brings what it taps to the middle of the screen: back to the top,
+      // where the page opens.
+      await teach.ev(`document.querySelector('main').scrollTop = 0`);
+      r = await teach.ev(`
+        const box = sel => { const e = document.querySelector(sel); if (!e || e.closest('.hidden') || !e.getClientRects().length) return null; const r = e.getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right), t: Math.round(r.top), b: Math.round(r.bottom), text: e.innerText.replace(/\\s+/g, ' ').trim() }; };
+        return { h: innerHeight, top: document.querySelector('main').scrollTop, strip: box('#simul-strip'), status: box('#simul-status'), them: box('#simul-clock-them'), board: box('#simul-board'),
+          ctl: box('#simul-ctl'), me: box('#simul-clock-me'), auto: box('.simul-auto'), draw: box('#simul-draw'), resign: box('#simul-resign'), skip: box('#simul-skip'), end: box('#simul-end'), tiles: __t.tiles() }`);
+      check(`[${tag}] 375 x 667, the teacher, with a clock: the student's clock is on the line above the board, the teacher's in the row under it with the switch ("${w.autoShort}"), draw, resign and skip; the strip, the board, that row and End are on screen with nothing scrolled`,
+        r.h === 667 && r.top === 0 && r.strip.t > 0 && r.them.t >= r.status.t - 1 && r.them.b <= r.status.b + 1 && r.status.r <= r.them.l && r.them.r <= 375 && r.status.b <= r.board.t
+        && r.board.r - r.board.l >= 350 && r.board.b <= r.ctl.t && inRow(r, 'me', 'auto', 'draw', 'resign', 'skip') && r.auto.text === w.autoShort && r.ctl.b <= r.end.t && r.end.b <= 667, r);
+      check(`[${tag}] every tile shows the clock that is running on its board: the teacher's own on Ana's and Luis's (their move there, the gold dot), Eva's on hers`,
+        r.tiles.every(x => /^\d+:\d\d$/.test(x[1])) && r.tiles[0][3] && !r.tiles[1][3] && r.tiles[2][3] && secs(r.tiles[0][1]) > 840 && secs(r.tiles[1][1]) <= 600 && secs(r.tiles[1][1]) > 540, r.tiles);
+      await teach.shot(`${tag}-53-teacher-clocks`);
+      await ana.shot(`${tag}-54-student-clocks`);
+
+      // A move each way: the second settles the first, from the server's stamps.
+      await play(teach, 'e2', 'e4');
+      const a1 = await waitStored(TA, g => g.n === 1, 'e4');
+      await ana.until('e4', fenIs('e2e4') + ' && ' + stat('Marta · ' + w.your));
+      ca = await clocks(ana);
+      await play(ana, 'e7', 'e5');
+      const a2 = await waitStored(TA, g => g.n === 2, 'e5');
+      await teach.until('e5', fenIs('e2e4', 'e7e5') + ' && ' + stat('Ana · ' + w.your));
+      check(`[${tag}] the first move settles nothing; the second settles the first to the millisecond from the two stored stamps, plus 5 seconds, and leaves the mover's own clock alone`,
+        a1.tMs === 900000 && a1.sMs === 600000 && a1.prevAt === a.at && a2.tMs === 900000 - (a1.at - a1.prevAt) + 5000 && a2.sMs === 600000 && a2.prevAt === a1.at, [a1, a2]);
+      ct = await clocks(teach);
+      const cb = await clocks(ana);
+      check(`[${tag}] after them both phones still agree with timeLeft() and with each other; while it was Ana's move her clock was the one running`,
+        agree(ct) && agree(cb) && agree(ca) && ca.me.run && !ca.them.run && ct.me.run && Math.abs(secs(ct.them.text) - secs(cb.me.text)) <= 1 && Math.abs(secs(ct.me.text) - secs(cb.them.text)) <= 1, [ca, ct, cb]);
+
+      // Luis's phone runs 7 seconds fast from here on.
+      const skew = await luis.send('Page.addScriptToEvaluateOnNewDocument', { source: `{ const now = Date.now.bind(Date); Date.now = () => now() + ${SKEW}; }` });
+      await luis.load(lang, scheme);
+      await luis.until('his banner', says(w.live));
+      await luis.tap('#simul-banner-acts .btn.primary');
+      await luis.until('the board', onBoard);
+      await luis.until('its clock measured', `__t.fb.pulsoClockOffset() !== null && !document.querySelector('#simul-game .unsure')`, 20000);
+      l = await stored(`simulGames/${TL}`);
+      let cl = await clocks(luis);
+      check(`[${tag}] Luis's phone runs ${SKEW / 1000} s fast and was reloaded: it measured the server's clock (${Math.round(cl.offset)} ms) and shows the teacher's running clock as the server has it, not 7 seconds short`,
+        Math.abs(cl.offset + SKEW) < 700 && cl.them.run && Math.abs(secs(cl.them.text) - left(l, 't', true)) <= 1 && cl.me.text === '10:00', [cl, left(l, 't', true)]);
+
+      // 7c. The teacher's own clock runs low on a board that is not on screen.
+      await teach.tap(TILE(3));
+      await teach.until('Luis\'s board', stat('Luis · ' + w.your));
+      await play(teach, 'd2', 'd4');
+      await luis.until('d4', fenIs('d2d4') + ' && ' + stat('Marta · ' + w.your));
+      await play(luis, 'd7', 'd5');
+      await teach.until('d5', fenIs('d2d4', 'd7d5'));
+      await teach.tap(TILE(1));
+      await teach.until('Ana\'s board', stat('Ana · ' + w.your));
+      l = await waitStored(TL, g => g.n === 2, 'd5');
+      // Rules bypassed: the teacher has 40 seconds left on Luis's board.
+      await seed(`simulGames/${TL}`, { tMs: Date.now() - l.at + 40000 });
+      await teach.until('told', toastIs(w.lowTime('Luis')));
+      r = await teach.ev(`const e = document.querySelector('#simul-strip .simul-tile:nth-child(3)'); return { cls: e.className, text: e.lastChild.textContent, colour: getComputedStyle(e.lastChild).color, danger: getComputedStyle(document.body).getPropertyValue('--danger').trim(), on: __t.tiles()[0][2] }`);
+      check(`[${tag}] 40 seconds left on Luis's board while Ana's is on screen: the teacher is told once ("${w.lowTime('Luis')}"), Luis's tile is marked low with its clock, and the screen stays on Ana's board`,
+        /\blow\b/.test(r.cls) && /\bturn\b/.test(r.cls) && secs(r.text) <= 40 && secs(r.text) > 30 && r.on, r);
+      await teach.shot(`${tag}-55-teacher-low-tile`);
+
+      // The teacher's flag, really waited out: 6 seconds left, and nobody moves.
+      l = await stored(`simulGames/${TL}`);
+      let due = Date.now() + 6000;
+      await seed(`simulGames/${TL}`, { tMs: due - l.at });
+      l = await waitStored(TL, g => g.status === 'done', 'the teacher\'s flag');
+      let took = Date.now() - due;
+      await luis.until('said on his phone', stat('Marta · ' + w.flagWon('Marta')));
+      await teach.until('on the tile', `__t.tiles()[2][1] === ${JSON.stringify(w.tFlagLost)}`);
+      await teach.tap(TILE(3));
+      await teach.until('said on the teacher\'s', stat('Luis · ' + w.flagLost('Luis')));
+      ct = await clocks(teach); cl = await clocks(luis);
+      check(`[${tag}] the teacher's time on Luis's board ran out while they were on another: the flag is claimed only once it has fallen (${took} ms after), stored as Luis's win on time with the moves untouched; Luis reads "${w.flagWon('Marta')}", the teacher "${w.flagLost('Luis')}", the tile "${w.tFlagLost}", the clock 0:00 on both phones`,
+        same(result(l), ['done', 's', 'flag', null]) && l.n === 2 && took >= 0 && took < 4000 && ct.me.text === '0:00' && cl.them.text === '0:00' && !ct.me.run && !cl.them.run, [result(l), took, ct, cl]);
+      await teach.shot(`${tag}-56-teacher-flag-lost`);
+      await luis.shot(`${tag}-57-student-flag-won`);
+
+      // A student's flag: Ana, 5 seconds left, on her own move.
+      await teach.tap(TILE(1));
+      await teach.until('Ana\'s board', stat('Ana · ' + w.your));
+      await play(teach, 'g1', 'f3');
+      a = await waitStored(TA, g => g.n === 3, 'Nf3');
+      await ana.until('Nf3', stat('Marta · ' + w.your));
+      due = Date.now() + 5000;
+      await seed(`simulGames/${TA}`, { sMs: due - a.at });
+      await ana.until('her clock in red', `document.getElementById('simul-clock-me').classList.contains('low')`);
+      await ana.shot(`${tag}-58-student-low`);
+      a = await waitStored(TA, g => g.status === 'done', 'Ana\'s flag');
+      took = Date.now() - due;
+      await ana.until('said on her phone', stat('Marta · ' + w.flagLost('Marta')));
+      await teach.until('said on the teacher\'s', stat('Ana · ' + w.flagWon('Ana')));
+      ca = await clocks(ana);
+      r = await look(teach);
+      check(`[${tag}] Ana let her last 5 seconds go: claimed once the flag had fallen (${took} ms after) and stored as the teacher's win on time; she reads "${w.flagLost('Marta')}", the teacher "${w.flagWon('Ana')}" and "${w.tFlagWon}" on the tile; her board can no longer be played`,
+        same(result(a), ['done', 't', 'flag', null]) && a.n === 3 && took >= 0 && took < 4000 && ca.me.text === '0:00' && r.tiles[0][1] === w.tFlagWon && !(await look(ana)).live, [result(a), took, ca, r.tiles]);
+      await teach.shot(`${tag}-59-teacher-flag-won`);
+      await ana.shot(`${tag}-60-student-flag-lost`);
+
+      // A move sent after time. Eva and the teacher play a move each; then the
+      // teacher leaves the screen (their phone stops listening and claims
+      // nothing), Eva loses her signal, moves, and her time runs out before
+      // the signal is back.
+      await play(eva, 'e2', 'e4');
+      await teach.tap(TILE(2));
+      await teach.until('Eva\'s board', stat('Eva · ' + w.your));
+      await play(teach, 'e7', 'e5');
+      await eva.until('e5', fenIs('e2e4', 'e7e5') + ' && ' + stat('Marta · ' + w.your));
+      e = await waitStored(TE, g => g.n === 2, 'e5 on Eva\'s board');
+      await teach.ev(`__t.app.showScreen('home')`);
+      await eva.net(true);
+      await eva.until('no signal', `!navigator.onLine`);
+      await play(eva, 'g1', 'f3');
+      await eva.until('her move on her board', fenIs('e2e4', 'e7e5', 'g1f3'));
+      due = Date.now() + 2500;
+      await seed(`simulGames/${TE}`, { sMs: due - e.at });
+      await sleep(3500);
+      const mid = await stored(`simulGames/${TE}`);
+      await eva.net(false);
+      await eva.until('told', toastIs(w.moveLate), 15000);
+      e = await waitStored(TE, g => g.status === 'done', 'Eva\'s flag');
+      await eva.until('said on her phone', stat('Marta · ' + w.flagLost('Marta')));
+      r = await look(eva);
+      check(`[${tag}] Eva moved with no signal and her time ran out before it came back: the rules refuse the move that arrives late (still 2 moves stored), her phone says "${w.moveLate}", takes the move off the board and claims her own flag; she reads "${w.flagLost('Marta')}"`,
+        mid.status === 'live' && mid.n === 2 && same(result(e), ['done', 't', 'flag', null]) && e.n === 2 && e.mv === 'e2e4-e7e5-' && r.fen === after('e2e4', 'e7e5') && !r.live, [result(mid), result(e), e.mv, r.fen]);
+      await eva.shot(`${tag}-61-student-late-move`);
+
+      // What each phone kept: the control, and when the flag fell.
+      await teach.ev(`__t.app.showScreen('simul')`);
+      await teach.until('the finished simul', `__t.vis('#simul-new')`, 15000);
+      const got = {};
+      for (const p of all) {
+        for (const t0 = Date.now(); ;) {
+          got[p.who] = (await keptTc(p)).filter(x => !oldTc[p.who].has(x.id)).sort((x, y) => (x.vs < y.vs ? -1 : 1));
+          if (got[p.who].length >= (p === teach ? 3 : 1) || Date.now() - t0 > 8000) break;
+          await sleep(150);
+        }
+      }
+      const flat7 = x => [x.vs, x.res, x.out, x.end, x.moves, x.tc, x.pgn];
+      check(`[${tag}] the three games lost on time are kept once on each phone with their control (600+5, in the record and in the PGN) and "timeout" as the ending`,
+        same(got.Marta.map(flat7), [['Ana', '1-0', 'win', 'timeout', 2, '600+5', '600+5'], ['Eva', '0-1', 'win', 'timeout', 1, '600+5', '600+5'], ['Luis', '0-1', 'loss', 'timeout', 1, '600+5', '600+5']])
+        && same(got.Ana.map(flat7), [['Marta', '1-0', 'loss', 'timeout', 2, '600+5', '600+5']]) && same(got.Eva.map(flat7), [['Marta', '0-1', 'loss', 'timeout', 1, '600+5', '600+5']])
+        && same(got.Luis.map(flat7), [['Marta', '0-1', 'win', 'timeout', 1, '600+5', '600+5']]), got);
+      check(`[${tag}] a game lost on time is kept as ending when the flag fell (the last move's stamp plus what the loser had left), not at the last move`,
+        got.Ana[0].took === a.at + a.sMs - a.startAt && got.Marta[0].took === got.Ana[0].took && got.Luis[0].took === l.at + l.tMs - l.startAt, [got.Ana[0].took, a.at + a.sMs - a.startAt, got.Luis[0].took, l.at + l.tMs - l.startAt]);
+      await ana.ev(`__t.app.showScreen('play'); (await import('/js/history.js')).open();`);
+      await ana.until('her games', `!!document.querySelector('#hist-list .hist-item')`);
+      r = await ana.ev(`const c = document.querySelector('#hist-list .hist-item'); return { lines: [...c.querySelectorAll('.hist-players .ellipsis, .hist-result, .hist-line2, .hist-meta')].map(x => x.textContent), wide: document.documentElement.scrollWidth }`);
+      check(`[${tag}] History shows the control on the card as it does for Play: "${w.histSimul} · 10+5"`, r.lines.some(x => x.startsWith(w.histSimul + ' · 10+5 · ')) && r.wide <= 375, r);
+      await ana.shot(`${tag}-62-history-control`);
+
+      // As it was: the picker with no clock, the switch on, Luis's phone on time.
+      r = await look(teach);
+      await teach.shot(`${tag}-63-teacher-all-over`);
+      await teach.tap('#simul-new');
+      await tick3();
+      await tc(-1);
+      await teach.ev(`if (!__t.S.auto) document.getElementById('simul-auto').click(); __t.S.extra = null;`);
+      await luis.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: skew.identifier });
+      await luis.load(lang, scheme);
+      check(`[${tag}] with every game of a timed simul over the teacher's row keeps their clock and "New simul" is under it; the picker comes back with no clock chosen again`,
+        r.ctl && r.again && !r.end && (await setup()).on[0] === '-1', r);
+    }
 
     // ── 6c. A simul nobody closed: 3 hours ──
     old = await keptAll();
