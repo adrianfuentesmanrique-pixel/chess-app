@@ -281,6 +281,11 @@
     <button id="pulso-accept" class="btn small primary" data-i18n="pulso_accept"></button>
   </span>
 </div>
+<!-- A simul my teacher invited me to, the same way (js/simul-ui.js). -->
+<div id="simul-banner" class="pulso-banner simul-banner hidden" role="status">
+  <span id="simul-banner-who" class="pulso-banner-who"></span>
+  <span id="simul-banner-acts" class="pulso-banner-acts"></span>
+</div>
 
 <main>
   <!-- ══════════ HOME ("Inicio") ══════════
@@ -1448,6 +1453,12 @@
         <h3 class="group-head" data-i18n="stu_my_teachers"></h3>
         <div id="stu-teacher-list" class="list"></div>
       </div>
+      <!-- A simul a teacher invited me to: Join / Not now, waiting, started
+           (js/simul-ui.js). The banner says the same on every other screen. -->
+      <div id="stu-simul" class="mc-section hidden">
+        <h3 class="group-head" data-i18n="simul_title"></h3>
+        <div id="stu-simul-list" class="list"></div>
+      </div>
       <!-- Homework my teachers gave me (Students stage 4): open cards with
            Start / Mark done, finished ones folded underneath. -->
       <div id="stu-hw" class="mc-section hidden">
@@ -1466,12 +1477,29 @@
         <div class="stu-buttons">
           <button id="stu-invite" class="btn primary" data-i18n="stu_invite_btn_main"></button>
           <button id="stu-mc" class="btn" data-i18n="stu_my_mc"></button>
+          <!-- Only for a teacher with at least one student who accepted. -->
+          <button id="stu-simul-open" class="btn hidden" data-i18n="simul_entry"></button>
         </div>
         <div id="stu-list" class="list"></div>
         <p id="stu-empty" class="hint empty-note hidden" data-i18n="stu_no_students"></p>
       </div>
       <p id="stu-foot" class="hint hidden" data-i18n="stu_foot"></p>
     </div>
+  </section>
+
+  <!-- ══════════ SIMULTÁNEAS ══════════
+       The teacher's side of a simul: pick students and a colour, invite, the
+       waiting room, Start. Drawn by js/simul-ui.js into #simul-body. -->
+  <section id="screen-simul" class="screen hidden">
+    <div class="row screen-head">
+      <button id="simul-back" class="btn" data-i18n="back"></button>
+      <div class="head-with-count">
+        <h2 data-i18n="simul_title"></h2>
+        <span id="simul-count" class="cap-counter" aria-live="polite"></span>
+      </div>
+    </div>
+    <p id="simul-note" class="stu-note hidden" aria-live="polite"></p>
+    <div id="simul-body"></div>
   </section>
 
   <!-- ══════════ FRIENDS LEADERBOARD ══════════ -->

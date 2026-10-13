@@ -9,6 +9,49 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS, CONVERSATION 3 OF 8: INVITATION AND WAITING ROOM (2026-10-12, v203).** Spec
+  `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 3.
+  `firestore.rules` untouched. Conversation 2 (`682b795`) was pushed at the start of this
+  one, after Adrian said the rules were deployed. No board yet: that is conversation 4.
+  - **Where.** `js/simul-ui.js` (new, `SimulUI`, in `sw.js`). Three places on screen: the
+    Simultáneas screen (`#screen-simul`, the TEACHER's: picker, colour, invite, waiting
+    room, Start, "has started", End), a banner on every screen for the STUDENT
+    (`#simul-banner`, Duel's banner styles) and the same thing as a card in Students
+    (`#stu-simul`, where the banner is not shown). Entry: `#stu-simul-open` in Students,
+    only for `Students.hasStudents()`. All writes are the functions of conversation 2.
+  - **What it costs.** The student's listener runs only when `Students.hasTeacher()` is
+    true, which is read from the lists Students already keeps on the phone (`studentsCache`):
+    no read to find out, and nobody without a teacher listens. `Students.paintDot()` calls
+    `SimulUI.links()` on every change of those lists. The teacher's listener runs only while
+    the Simultáneas screen is open (`SimulUI.onScreen()`, called by `showScreen`). A student
+    who accepted a teacher on ANOTHER phone gets invitations here only after Students'
+    own boot check has run (at most 6 hours) or they open Students once.
+  - **States a student sees** (`SimulUI.stateOf`): invited (Join / Not now, the colour, the
+    time left), joined ("Esperando a que Ana empiece"), live ("ha empezado"), late (it
+    started without me), expired. The last two are said for one hour after the invitation,
+    until OK is tapped; "not now" and OK are remembered on the phone (`localStorage`
+    `simulSeen`, id to invitedAt). The database cannot tell "declined" from "left out": the
+    phone that declined remembers, so a decline made on another phone reads as "started
+    without you" there.
+  - **BUILT WITHOUT BEING ASKED, two things, both for Adrian to keep or drop:** (1) "End
+    the simul" on the teacher's started view (`endSimul()`, with a question first). Without
+    it, pressing Start today would leave every joined student in a game nobody can play or
+    close for 3 hours, and the teacher unable to invite them again. (2) The line "the
+    boards are not in this version of the app yet" (`simul_board_soon`) on both phones
+    after Start. Conversation 4 replaces it with the board.
+  - **Not built, and a real gap:** the teacher cannot take an invitation back. If nobody
+    joins they wait out the 10 minutes ("Invite again" appears then). No function for it
+    exists in `js/firebase.js`.
+  - **Tool.** `node tools/emu-verify-simul.mjs [outDir]`: the 61 checks of conversation 2,
+    then the whole app on three phones (`openPhone`, `screens`), four rounds in each of
+    es/en x light/dark at 375 px: expiry (invitedAt seeded 11 minutes old), a latecomer,
+    both join and Start, "not now". 241 checks, 68 screenshots, about 5 minutes. Chrome now
+    runs with background-timer throttling off: without it the two phones not in front
+    miss their once-a-second tick.
+  - **Verified:** `test:tree` 449, `test:rules` 530, `test:precache` 59 files and 142 art,
+    the tool 241 of 241, no console errors; all 68 screenshots looked at. NOT checked: a
+    real phone, the live database (nobody has run a simul against it), 375x667.
+
 - **SIMULS, CONVERSATION 2 OF 8: THE DATABASE, NO SCREEN (2026-10-12, v202).** Spec
   `docs/superpowers/specs/2026-10-11-students-simul-design.md`, build plan item 2. **The
   rules changed: the push waited for Adrian's `npm.cmd run rules:deploy`.** The emulator

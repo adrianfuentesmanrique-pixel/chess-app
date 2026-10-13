@@ -1,9 +1,11 @@
 # Simultáneas / Simuls — a teacher plays several students at once (design)
 
-Date: 2026-10-11. Status: **conversations 1 and 2 of 8 are built
+Date: 2026-10-11. Status: **conversations 1, 2 and 3 of 8 are built
 (2026-10-12). 2 is the database: the Simul block in `firestore.rules`,
 `tests/rules/simul.test.js` (88 tests), the Simul section of `js/firebase.js`
-and `tools/emu-verify-simul.mjs`. No screen yet.** The clock of 3d IS exact in
+and `tools/emu-verify-simul.mjs`. 3 is the invitation and the waiting room,
+`js/simul-ui.js` (v203): the Simultáneas screen for the teacher, a banner and
+a card for the student, colour only. No board yet.** The clock of 3d IS exact in
 rules, to the millisecond; the fallback of section 6 is not needed. Measured
 cost of ten 40-move boards: about 840 writes and 1,690 reads (a move is 1 write
 and 2 reads; invite, join and start are 3 writes and 6 reads a board, plus one

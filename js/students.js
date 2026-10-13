@@ -42,6 +42,10 @@ import { Friends } from './friends.js';
 // cycle (masterclass.js imports this file for the "reached the end" call) is
 // safe for the same reason as app.js: both sides touch it inside functions.
 import { Masterclass } from './masterclass.js';
+// Simul: the cards under "My teachers" and the entry under "My students" are
+// drawn there; this file only says when the lists changed. A cycle, safe for
+// the same reason.
+import { SimulUI } from './simul-ui.js';
 
 // Local kv key. Holds the last lists fetched, so the screen can draw offline,
 // and doubles as the "has a teacher / has students" flag: a user with no
@@ -445,6 +449,9 @@ export const Students = {
     // Every change to my homework or to what I have seen ends here, so Home's
     // "Continuar" row is told from here too (Home.init in js/app.js sets it).
     this.onHomework?.();
+    // And every change to who my teachers are: the simul invitation listener
+    // runs only for somebody who has one.
+    SimulUI.links();
   },
 
   // Students with homework finished since I last opened their page.
@@ -485,6 +492,7 @@ export const Students = {
     this.renderTeachers();
     this.renderHomework();
     this.renderStudents();
+    SimulUI.paintCards();
   },
 
   // ── Finished homework (stage 6, I am the teacher) ──
@@ -750,6 +758,7 @@ export const Students = {
       el.appendChild(this.row(this.who(l.studentUid), null, [], t('stu_declined_note')));
     }
     $('stu-empty').classList.toggle('hidden', !this.loaded || this.asTeacher.length > 0);
+    $('stu-simul-open').classList.toggle('hidden', !this.hasStudents());
   },
 
   // Ratings, minutes this week; homework joins in stage 4. Tapping the card

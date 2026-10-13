@@ -42,6 +42,7 @@ import { OpeningLib } from './opening-lib-ui.js';
 import { eloAfter } from './elo.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
+import { SimulUI } from './simul-ui.js';
 import { Activity } from './activity.js';
 import { Notifications } from './notifications.js';
 import { shouldInvite, MAX_ASKS } from './remind-invite.js';
@@ -1572,7 +1573,7 @@ export async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['home', 'analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students'];
+const SCREENS = ['home', 'analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students', 'simul'];
 // Starts as Home (HOME_SCREEN below), the base of the Back stack, so the
 // showScreen('home') that ends main() adds no history entry of its own.
 export let activeScreen = 'home';
@@ -1617,6 +1618,8 @@ export function showScreen(name) {
   if (name === 'endgame') Endgame.ensureLoaded();
   if (name === 'profile') Profile.refresh();
   if (name === 'students') Students.onEnter();
+  // Starts the teacher's simul listener on its screen and stops it off it.
+  SimulUI.onScreen(name);
   if (name !== 'blind') Blind.cleanup();
   if (name !== 'puzzles') { Puzzles.disarmCheckin(); Puzzles.board?.clearPremove(); }
   // Leaving the Rush screen ends the run. Without this the clock kept ticking
@@ -1703,7 +1706,7 @@ const MENU_AREA = {
   puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles', pulso: 'puzzles', calc: 'puzzles',
   play: 'play',
   read: 'read',
-  students: 'students',
+  students: 'students', simul: 'students',
   profile: 'profile', leaderboard: 'profile', 'public-profile': 'profile',
   friends: 'profile', 'friends-leaderboard': 'profile', 'friends-blocked': 'profile',
 };
@@ -7848,6 +7851,7 @@ function relabel() {
   CoordUI.render();
   if (activeScreen === 'read') Read.refresh();
   if (activeScreen === 'students') Students.render();
+  SimulUI.sync();
   if (activeScreen === 'calc') CalcUI.render();
   OpeningLib.refresh();
 }
@@ -8513,6 +8517,7 @@ async function main() {
   CoordUI.init();
   Masterclass.init();
   Students.init();
+  SimulUI.init();
   Activity.init(() => activeScreen);
   Setup.init();
   await Themes.init();

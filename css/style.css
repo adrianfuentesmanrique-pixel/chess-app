@@ -2432,6 +2432,19 @@ body.read-spread #read-reader {
 .pulso-banner-who { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 180px; }
 .pulso-banner-acts { display: flex; gap: 8px; margin-left: auto; }
 .pulso-banner .btn { margin-top: 0; }
+/* Simul (js/simul-ui.js): the Students tokens again. The picker is the
+   Masterclass one in the page instead of a modal, so three columns; a chip is
+   .mc-role, greyed when nothing is happening on that board. */
+.simul-pick { grid-template-columns: auto auto 1fr; }
+.seg.simul-colour { display: grid; grid-template-columns: repeat(3, 1fr); }
+.seg.simul-colour button { min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; }
+#screen-simul .group-head { margin-top: 14px; }
+.simul-lead { margin: 10px 0 4px; font-weight: 600; }
+.simul-left { color: var(--gold); font-variant-numeric: tabular-nums; }
+.simul-chip { white-space: nowrap; font-size: 12px; padding: 2px 8px; color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--gold); }
+.simul-chip.off { background: var(--panel2); color: var(--muted); font-weight: 400; box-shadow: none; }
+#screen-simul button:disabled { opacity: .45; cursor: default; }
+.simul-banner small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
 #tabbar button.pulso-dot, #tabmenu-btn.pulso-dot { position: relative; }
 #tabbar button.pulso-dot::after, #tabmenu-btn.pulso-dot::after {
   content: ''; width: 9px; height: 9px; border-radius: 50%;
