@@ -26,12 +26,14 @@ import {
   deleteHomework, saveHomeworkProgress,
   fetchFinishedHomework, packResult, unpackResult, MAX_HW_RESULTS, MAX_HW_RESULTS_CHARS,
   MAX_LIST_PUZZLES, packPuzzle, unpackPuzzle, ensureViewer, fetchMyMasterclasses, fetchChapters,
-  MAX_MEMBERS as MAX_MEMBERS_MC,
+  MAX_MEMBERS as MAX_MEMBERS_MC, MAX_HW_GAME_CHARS,
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen,
-  paintCapCounter, openAuthModal, openEloHistoryModal, segInit, Puzzles, PuzzleLog, Endgame,
+  paintCapCounter, openAuthModal, openEloHistoryModal, segInit, segValue, buildLevelSeg,
+  Puzzles, PuzzleLog, Endgame, Play, Setup,
 } from './app.js';
+import { miniBoardHtml } from './board.js';
 // An endgame homework names ONE study of the Learn tab by its id.
 import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { TRACKED_THEMES } from './puzzles.js';
@@ -87,6 +89,9 @@ const FIN_FIRST_DAYS = 14;
 // Assign sheet: the student's weakest themes shown first, the rest behind
 // "More themes".
 const HW_THEMES_SHOWN = 12;
+// How a 'position' game can end (no clock, so no timeout): js/history.js's
+// endReasonOf names, and the same list as the homework rule's.
+const POSITION_ENDS = ['checkmate', 'resign', 'stalemate', 'repetition', 'insufficient', 'fiftyMove', 'draw'];
 
 // Firestore Timestamps do not survive IndexedDB with their methods, and the
 // screen only needs milliseconds. JSON turns them into {seconds, nanoseconds}.
@@ -126,6 +131,9 @@ export const Students = {
   // kept on this phone until I send them as ONE list homework (Adrian's
   // choice: collect, then send). studentUid → [packed puzzle strings].
   hwDraft: {},
+  // uid → the position (FEN) I set up for that student's next 'position'
+  // homework. This visit only: the sheet shows it until it is sent.
+  hwPos: {},
   hwGone: new Set(),  // chapter homework whose class/chapter is gone (plan 3.6)
   // Stage 6, teacher side: homework students finished that I have not opened
   // yet — [{id, studentUid, title, kind, doneMs, seen}], the strip on top of
@@ -171,7 +179,7 @@ export const Students = {
     this.uid = uid;
     this.asTeacher = []; this.asStudent = []; this.reports = {}; this.people = {};
     this.homework = []; this.hwSeen = []; this.doneSeen = {}; this.hwGiven = {};
-    this.hwDraft = {}; this.hwGone = new Set();
+    this.hwDraft = {}; this.hwPos = {}; this.hwGone = new Set();
     this.finNew = []; this.finSeenAt = 0; this.finCheckAt = 0;
     if (this.hwRun) this.hwDrop();
     this.loaded = false; this.failed = false; this.cachedAt = 0; this.practiceS = 0;
@@ -629,7 +637,15 @@ export const Students = {
       head.className = 'fr-row stack hw-card';
       head.innerHTML = this.hwRowHtml(h, null, true);
       box.appendChild(head);
-      if (!rs.length) {
+      const game = this.hwGame(h);
+      if (game && game.moves) {
+        // A position: its result is on the card above; the game opens on a board.
+        const open = document.createElement('button');
+        open.className = 'btn btn-wide hw-game';
+        open.textContent = t('hw_pos_open_game');
+        open.onclick = () => { if (this.hwOpenGame(h, p)) close(null); else toast(t('stu_try_again')); };
+        box.appendChild(open);
+      } else if (!rs.length) {
         const none = document.createElement('p');
         none.className = 'hint empty-note';
         none.textContent = t(hasDetail ? 'hwr_none' : 'hwr_no_puzzles');
@@ -828,7 +844,9 @@ export const Students = {
   // One scrolling modal: ratings (each opens the Profile chart with the
   // student's history), practice time (14-day bars + 30-day areas), puzzle
   // themes weakest first. `self` = the student looking at their own summary.
-  openPage(p, r, { self = false } = {}) {
+  // `assign` opens the assign sheet on that kind at once (back from the board
+  // editor with a position, hwPositionBack).
+  openPage(p, r, { self = false, assign = null } = {}) {
     const num = v => (typeof v === 'number' ? String(Math.round(v)) : '—');
     return modal((box, close) => {
       box.classList.add('stu-page');
@@ -870,7 +888,7 @@ export const Students = {
       // Teacher only: what I gave this student, and Assign. Opening the page
       // also clears the "finished since last time" dot for this student.
       if (!self) {
-        box.append(this.pageHead('hw_title', 'hw_title_hint'), this.teacherHwBlock(p, r, close));
+        box.append(this.pageHead('hw_title', 'hw_title_hint'), this.teacherHwBlock(p, r, close, assign));
         if ((r.hwDone || 0) !== (this.doneSeen[p.uid] || 0)) {
           this.doneSeen[p.uid] = r.hwDone || 0;
           this.writeCache();
@@ -917,6 +935,11 @@ export const Students = {
       const name = pos.name[getLang()] + (pos.subtitle ? ' · ' + pos.subtitle[getLang()] : '');
       return t(forTeacher ? 'hw_what_endgame_t' : 'hw_what_endgame').replace('{n}', name);
     }
+    if (h.kind === 'position' && this.hwPosition(h)) {
+      const pos = this.hwPosition(h);
+      return t(forTeacher ? 'hw_what_position_t' : 'hw_what_position')
+        .replace('{c}', t('hw_pos_' + pos.color)).replace('{l}', t('level_names')[pos.level]);
+    }
     if (h.kind !== 'puzzles') return t(forTeacher ? 'hw_what_text_t' : 'hw_what_text');
     const p = h.params || {};
     const themes = Array.isArray(p.themes) && p.themes.length
@@ -934,14 +957,56 @@ export const Students = {
   },
 
   // Bar + "3/10 · ⏱ 12 min". A text task shows Open/Done instead of 0/1.
-  hwProgressHtml(h) {
+  hwProgressHtml(h, forTeacher = false) {
     const target = this.hwTarget(h);
     const done = Math.min(target, h.done || 0);
     const pct = h.status === 'done' ? 100 : Math.round(done / target * 100);
     const left = h.kind === 'puzzles' || h.kind === 'list' ? t('hw_progress').replace('{d}', done).replace('{n}', target)
       : t(h.status === 'done' ? 'hw_status_done' : 'hw_status_open');
     return `<div class="hw-prog"><i><b style="width:${pct}%"></b></i>` +
-      `<em>${esc(left + this.hwEndgameDetail(h))} · ${esc(t('hw_time').replace('{m}', this.fmtMin(h.seconds)))}</em></div>`;
+      `<em>${esc(left + this.hwEndgameDetail(h) + (forTeacher ? this.hwPositionDetail(h) : ''))} · ${esc(t('hw_time').replace('{m}', this.fmtMin(h.seconds)))}</em></div>`;
+  },
+
+  // A 'position' homework's game, or null unless it is exactly what the app
+  // stores ({ fen, color, level }): everything on a homework came off the
+  // network, and the card must never start a game from anything else.
+  hwPosition(h) {
+    const p = h.params;
+    if (h.kind !== 'position' || !p || typeof p.fen !== 'string') return null;
+    if ((p.color !== 'w' && p.color !== 'b') || !Number.isInteger(p.level) || p.level < 0 || p.level > 7) return null;
+    return { fen: p.fen, color: p.color, level: p.level };
+  },
+
+  // How a 'position' game ended, as the student's phone reported it:
+  // { outcome, end, moves } or null. `moves` is UCI, one space between.
+  hwGame(h) {
+    const g = h.kind === 'position' && h.status === 'done' ? h.game : null;
+    if (!g || !['win', 'loss', 'draw'].includes(g.outcome) || !POSITION_ENDS.includes(g.end)) return null;
+    const moves = typeof g.moves === 'string' && /^([a-h][1-8][a-h][1-8][qrbn]?( |$))*$/.test(g.moves) ? g.moves : '';
+    return { outcome: g.outcome, end: g.end, moves };
+  },
+
+  // " · Won · Checkmate · 34 moves", for the teacher. A draw's reason already
+  // says it is one ("Draw by stalemate").
+  hwPositionDetail(h) {
+    const g = this.hwGame(h);
+    if (!g) return '';
+    const n = Math.ceil(g.moves.split(' ').filter(Boolean).length / 2);
+    return ' · ' + (g.outcome === 'draw' ? '' : t('hw_pos_' + g.outcome) + ' · ') + t('history_end_' + g.end) +
+      ' · ' + t(n === 1 ? 'hw_pos_move' : 'hw_pos_moves').replace('{n}', n);
+  },
+
+  // "Open game": the student's game on the Analysis board, under both names.
+  hwOpenGame(h, p) {
+    const pos = this.hwPosition(h), g = this.hwGame(h);
+    if (!pos || !g || !g.moves) return false;
+    const bot = `Stockfish (${t('level_names')[pos.level]})`;
+    const won = g.outcome === 'win' ? pos.color : pos.color === 'w' ? 'b' : 'w';
+    return Play.openHomeworkGame({
+      fen: pos.fen, moves: g.moves,
+      white: pos.color === 'w' ? p.profileName : bot, black: pos.color === 'b' ? p.profileName : bot,
+      result: g.outcome === 'draw' ? '1/2-1/2' : won === 'w' ? '1-0' : '0-1',
+    });
   },
 
   // The endgame a homework points at, or null when the app no longer has it
@@ -973,12 +1038,12 @@ export const Students = {
   },
 
   hwRowHtml(h, who, forTeacher) {
-    const ico = { puzzles: '🧩', list: '🎯', chapter: '📖', endgame: '♟' }[h.kind] || '📝';
+    const ico = { puzzles: '🧩', list: '🎯', chapter: '📖', endgame: '♟', position: '🤖' }[h.kind] || '📝';
     return `<span class="hw-ico" aria-hidden="true">${ico}</span>` +
       `<span class="fr-name">${esc(h.title)}<span class="fr-sub">${esc(this.hwSub(h, who))}</span></span>` +
       `<p class="hw-what">${esc(this.hwWhat(h, forTeacher))}</p>` +
       (h.note ? `<p class="hw-note">${esc(h.note)}</p>` : '') +
-      this.hwProgressHtml(h);
+      this.hwProgressHtml(h, forTeacher);
   },
 
   // ── homework: the student's side ────────
@@ -1036,6 +1101,9 @@ export const Students = {
     } else if (h.kind === 'endgame' && this.hwEndgame(h)) {
       btn.textContent = t('hw_open_chapter');
       btn.onclick = () => this.hwOpenEndgame(h);
+    } else if (this.hwPosition(h)) {
+      btn.textContent = t('hw_pos_play');
+      btn.onclick = () => this.hwOpenPosition(h);
     } else {
       // A text task, or a chapter or an endgame that is no longer there (plan
       // 3.6): the student ticks it off, and the confirm says nobody can check it.
@@ -1077,6 +1145,7 @@ export const Students = {
     if (!this.hwRun) {
       this.hwRun = { id: h.id, kind: h.kind, addDone: 0, addSec: 0, addIds: [], counted: new Set(),
         addTries: 0, mistakes: null,              // an endgame's detail
+        game: null,                               // a position's finished game
         addResults: [], pzId: null, pzSec: 0,     // stage 6: per-puzzle results + this puzzle's seconds
         timer: setInterval(() => this.hwTick(), 1000) };
     }
@@ -1092,6 +1161,7 @@ export const Students = {
   // Is the player on the task right now? Puzzles in homework mode, the
   // homework's chapter on the Analysis board, or its endgame open in Learn.
   hwOnTask(run) {
+    if (run.kind === 'position') return activeScreen === 'play' && Play.hwId === run.id && !Play.over;
     if (run.kind === 'endgame') {
       return activeScreen === 'endgame' && !!Endgame.current && Endgame.current.id === run.endgameId
         && !$('endgame-viewer-view').classList.contains('hidden');
@@ -1182,7 +1252,7 @@ export const Students = {
     const h = this.homework.find(x => x.id === run.id);
     if (h) h.seconds = Math.min(360000, (h.seconds || 0) + addSeconds);
     if (!addDone && !addSeconds && !finish && !addResults.length && !addTries) return;
-    saveHomeworkProgress(run.id, { addDone, addSeconds, finish, addIds, addResults, addTries, mistakes: run.mistakes })
+    saveHomeworkProgress(run.id, { addDone, addSeconds, finish, addIds, addResults, addTries, mistakes: run.mistakes, game: run.game })
       .catch(e => console.error('Saving homework progress failed', e));
     this.writeCache();
   },
@@ -1307,6 +1377,43 @@ export const Students = {
     }
   },
 
+  // ── position homework ──
+  // Play = that position against the computer, on the teacher's side and level
+  // (Play.startHomework): no clock, no taking back. Done when the game ENDS —
+  // mate, draw or resignation, whatever the result (Play.finish, the only
+  // place that knows). A game left in the middle does not count: the card
+  // starts it again from the position.
+  hwOpenPosition(h) {
+    const pos = this.hwPosition(h);
+    if (!pos) { this.render(); return; }
+    this.hwBegin(h);
+    Play.startHomework({ id: h.id, ...pos });
+  },
+
+  // Play.finish() calls this. The rules take the game once, on the write that
+  // finishes the homework; past their bound the moves stay behind and the
+  // result still goes.
+  hwPositionDone(id, { outcome, end, moves }) {
+    const h = this.homework.find(x => x.id === id);
+    if (!h || h.status !== 'open' || h.kind !== 'position') return;
+    const run = this.hwBegin(h);
+    h.done = 1;
+    run.addDone = 1;
+    h.game = run.game = { outcome, end, moves: moves.length <= MAX_HW_GAME_CHARS ? moves : '' };
+    this.hwFinish(h);
+  },
+
+  // The board editor's two exits in homework mode (Setup.done / Cancel): back
+  // to that student's page with the assign sheet open on Position. `fen` is
+  // the position chosen, or null when the editor was cancelled.
+  hwPositionBack(uid, fen) {
+    if (fen) this.hwPos[uid] = fen;
+    showScreen('students');
+    const r = this.reports[uid];
+    const link = this.asTeacher.find(l => l.studentUid === uid && l.status === 'active');
+    if (r && link) this.openPage(this.who(uid), r, { assign: 'position' });
+  },
+
   // A text task has no proof — the student ticks it, and the confirm says so.
   async markTextDone(h, btn) {
     if (!this.online()) return;
@@ -1330,7 +1437,7 @@ export const Students = {
   // Fetched when the page opens (≤ 1 read per homework), not with the roster.
   // The last list fetched is kept (kv cache), so offline shows it instead of
   // nothing.
-  teacherHwBlock(p, r, closePage) {
+  teacherHwBlock(p, r, closePage, assign = null) {
     const wrap = document.createElement('div');
     wrap.className = 'hw-teacher';
     const add = document.createElement('button');
@@ -1365,11 +1472,19 @@ export const Students = {
         // Results (stage 6): how each puzzle went. Puzzle kinds only — a
         // task or a chapter has nothing to list.
         const detail = h.kind === 'puzzles' || h.kind === 'list';
+        // A finished position: the game itself, on the Analysis board.
+        const game = this.hwGame(h);
         row.innerHTML = this.hwRowHtml(h, null, true) +
           `<span class="fr-actions">` +
           (detail ? `<button class="btn small hw-results">${esc(t('hwr_open'))}</button>` : '') +
+          (game && game.moves ? `<button class="btn small hw-game">${esc(t('hw_pos_open_game'))}</button>` : '') +
           `<button class="btn small danger">${esc(t('hw_delete'))}</button></span>`;
         if (detail) row.querySelector('.hw-results').onclick = () => this.resultsSheet(h, p);
+        if (game && game.moves) {
+          row.querySelector('.hw-game').onclick = () => {
+            if (this.hwOpenGame(h, p)) closePage(null); else toast(t('stu_try_again'));
+          };
+        }
         row.querySelector('.fr-actions .btn.danger').onclick = () => this.deleteHw(h, refresh);
         list.appendChild(row);
       }
@@ -1399,6 +1514,9 @@ export const Students = {
       if (!spec) return;
       // "Chosen by me" with nothing chosen: off to the Puzzles tab to pick.
       if (spec.go) { closePage(null); showScreen(spec.go); return; }
+      // Position: off to the board editor, which comes back here with it
+      // (Setup.done → hwPositionBack).
+      if (spec.setup) { closePage(null); Setup.open(this.hwPos[p.uid] || undefined, p.uid); return; }
       const { memberCount, ...task } = spec;
       try {
         if (task.kind === 'chapter') {
@@ -1414,6 +1532,7 @@ export const Students = {
           this.writeCache();
           paintSend();
         }
+        if (task.kind === 'position') delete this.hwPos[p.uid];
         toast(t('hw_sent'));
       } catch (e) {
         console.error('Assigning homework failed', e);
@@ -1425,6 +1544,7 @@ export const Students = {
     send.onclick = () => give('list');
     draw();
     refresh();
+    if (assign) setTimeout(() => give(assign), 0);   // once the page is up
     return wrap;
   },
 
@@ -1451,9 +1571,9 @@ export const Students = {
     const themes = TRACKED_THEMES.filter(x => t('theme_' + x) !== 'theme_' + x);
     const weak = themes.filter(x => typeof rated[x] === 'number').sort((a, b) => rated[a] - rated[b]);
     const ordered = [...weak, ...themes.filter(x => !weak.includes(x))];
-    // Three buttons on top; Puzzles holds both "by theme and level" and "chosen
+    // Four buttons on top; Puzzles holds both "by theme and level" and "chosen
     // by me". The stored kinds do not change: the second one is still 'list'.
-    if (!['chapter', 'list', 'endgame'].includes(kind0)) kind0 = 'puzzles';
+    if (!['chapter', 'list', 'endgame', 'position'].includes(kind0)) kind0 = 'puzzles';
     const top0 = kind0 === 'list' ? 'puzzles' : kind0;
     const lang = getLang();
     let mode = kind0 === 'list' ? 'list' : 'puzzles';
@@ -1462,7 +1582,7 @@ export const Students = {
       box.innerHTML =
         `<h3>${esc(t('hw_assign_to').replace('{n}', p.profileName))}</h3>` +
         `<div class="seg hw-kind">` +
-        ['puzzles', 'chapter', 'endgame'].map(k =>
+        ['puzzles', 'chapter', 'endgame', 'position'].map(k =>
           `<button data-v="${k}"${k === top0 ? ' class="on"' : ''}>${esc(t('hw_kind_' + k))}</button>`).join('') +
         `</div>` +
         `<div class="seg hw-mode">` +
@@ -1478,6 +1598,18 @@ export const Students = {
         `<label class="hw-label">${esc(t('hw_f_eg_cat'))}<select class="input hw-egc"></select></label>` +
         `<label class="hw-label">${esc(t('hw_f_eg'))}<select class="input hw-egs"></select></label>` +
         `</div>` +
+        `<div class="hw-ps hidden">` +
+        `<span class="mini-board hw-ps-board"></span>` +
+        `<p class="hint hw-ps-hint">${esc(t('hw_pos_hint'))}</p>` +
+        `<button type="button" class="btn btn-wide hw-ps-set"></button>` +
+        `<div class="hw-ps-opts">` +
+        `<div class="hw-label">${esc(t('hw_f_pos_color'))}<div class="seg hw-ps-color">` +
+        ['w', 'b'].map(c => `<button type="button" data-v="${c}">${esc(t(c === 'w' ? 'white' : 'black'))}</button>`).join('') +
+        `</div></div>` +
+        `<label class="hw-label">${esc(t('hw_f_pos_level'))}<select class="input hw-ps-lv">` +
+        t('level_names').map((n, i) => `<option value="${i}"${i === 2 ? ' selected' : ''}>${i + 1} · ${esc(n)}</option>`).join('') +
+        `</select></label>` +
+        `</div></div>` +
         `<div class="hw-ls hidden"><div class="hw-label hw-ls-head"></div><div class="hw-ls-rows"></div></div>` +
         `<div class="hw-pz">` +
         `<label class="hw-label">${esc(t('hw_f_count'))}<input class="input hw-count" type="number" inputmode="numeric" min="1" max="100" value="10"></label>` +
@@ -1502,11 +1634,31 @@ export const Students = {
         $$('.hw-ch').classList.toggle('hidden', v !== 'chapter');
         $$('.hw-eg').classList.toggle('hidden', v !== 'endgame');
         $$('.hw-ls').classList.toggle('hidden', v !== 'list');
+        $$('.hw-ps').classList.toggle('hidden', v !== 'position');
         if (v === 'chapter') loadClasses();
         if (v === 'list') drawList();
       };
       segInit($$('.hw-kind'), v => showKind(v === 'puzzles' ? mode : v));
       segInit($$('.hw-mode'), showKind);
+
+      // ── Position: set up in the board editor (another screen: the sheet
+      // closes with { setup } and hwPositionBack reopens it), then the
+      // student's side — the side to move unless I say otherwise — and the
+      // computer's level. Until there is a position, only the way to the editor.
+      const posFen = this.hwPos[p.uid] || '';
+      $$('.hw-ps-board').classList.toggle('hidden', !posFen);
+      $$('.hw-ps-hint').classList.toggle('hidden', !!posFen);
+      $$('.hw-ps-opts').classList.toggle('hidden', !posFen);
+      $$('.hw-ps-set').textContent = t(posFen ? 'hw_pos_change' : 'hw_pos_set');
+      $$('.hw-ps-set').onclick = () => close({ setup: true });
+      segInit($$('.hw-ps-color'), v => {
+        $$('.hw-ps-board').innerHTML = miniBoardHtml(posFen.split(' ')[0], { flipped: v === 'b' });
+      });
+      if (posFen) {
+        const turn = posFen.split(' ')[1] === 'b' ? 'b' : 'w';
+        $$(`.hw-ps-color [data-v="${turn}"]`).classList.add('on');
+        $$('.hw-ps-board').innerHTML = miniBoardHtml(posFen.split(' ')[0], { flipped: turn === 'b' });
+      }
 
       // ── Endgame: a category of the Learn tab, then ONE of its studies, by
       // name and subtitle as the Learn tab lists them. All of it is in the app.
@@ -1646,6 +1798,13 @@ export const Students = {
           if (!pos) return;
           close({ kind, title: (title || pos.name[lang]).slice(0, 80), note, dueDate,
             params: { endgameId: pos.id } });
+          return;
+        }
+        if (kind === 'position') {
+          const color = segValue($$('.hw-ps-color')), level = Number($$('.hw-ps-lv').value);
+          if (!posFen || !color) { toast(t('hw_pos_none')); return; }
+          close({ kind, title: title || t('hw_auto_title_position'), note, dueDate,
+            params: { fen: posFen, color, level } });
           return;
         }
         if (kind === 'list') {

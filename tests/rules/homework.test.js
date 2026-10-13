@@ -839,6 +839,231 @@ describe('/homework — an endgame of the Learn tab (v217)', () => {
   });
 });
 
+// ═══════════════════════ a position against the computer (v218) ═══════════════════════
+// The teacher sets up a position, the student's side and the computer's level;
+// done when the game ends, whatever the result. `game` is how it ended, written
+// once by the student's phone on the write that finishes it.
+
+const positionTask = (extra = {}, params = {}) => ({
+  teacherUid: TEACH, studentUid: STU, kind: 'position',
+  title: 'Position vs the computer',
+  params: { fen: FEN, color: 'w', level: 3, ...params },
+  status: 'open', done: 0, seconds: 0, createdAt: serverTimestamp(),
+  ...extra,
+});
+const game = (extra = {}) => ({ outcome: 'win', end: 'checkmate', moves: 'e2e4 e7e5 d1h5 b8c6 f1c4 g8f6 h5f7', ...extra });
+const finGame = (g = game()) => ({ done: increment(1), status: 'done', completedAt: serverTimestamp(), game: g });
+
+describe('/homework — a position against the computer (v218)', () => {
+  it('CAN assign a position, either side, any of the eight levels, with or without a note and a date', async () => {
+    await active();
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/a'), positionTask()));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/b'),
+      positionTask({ note: 'Do not hurry', dueDate: '2026-10-20' }, { color: 'b', level: 0 })));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/c'), positionTask({}, { level: 7 })));
+    // What the board editor builds: no castling, no en passant, move 1.
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/d'), positionTask({}, { fen: '6k1/8/6K1/8/8/8/8/Q7 w - - 0 1' })));
+  });
+
+  it('CANNOT assign a position without an active link', async () => {
+    await assertFails(setDoc(doc(asTeacher(), `homework/${HW}`), positionTask()));
+    await seed(`coaching/${LINK}`, storedLink(TEACH, STU, 'pending'));
+    await assertFails(setDoc(doc(asTeacher(), `homework/${HW}`), positionTask()));
+  });
+
+  it('position params are exactly {fen, color, level}: a FEN, w or b, 0–7', async () => {
+    await active();
+    const no = (id, task) => assertFails(setDoc(doc(asTeacher(), `homework/${id}`), task));
+    await no('a', positionTask({ params: {} }));
+    await no('b', positionTask({ params: { fen: FEN, color: 'w' } }));
+    await no('c', positionTask({ params: { fen: FEN, level: 3 } }));
+    await no('d', positionTask({ params: { color: 'w', level: 3 } }));
+    await no('e', positionTask({}, { extra: 1 }));
+    await no('f', positionTask({}, { fen: 7 }));
+    await no('g', positionTask({}, { fen: '' }));
+    await no('h', positionTask({}, { fen: 'not a position' }));
+    await no('i', positionTask({}, { fen: FEN + ' <script>' }));
+    await no('j', positionTask({}, { fen: 'x'.repeat(5000) }));
+    await no('k', positionTask({}, { color: 'r' }));
+    await no('l', positionTask({}, { color: 'white' }));
+    await no('m', positionTask({}, { color: 1 }));
+    await no('n', positionTask({}, { level: -1 }));
+    await no('o', positionTask({}, { level: 8 }));
+    await no('p', positionTask({}, { level: 2.5 }));
+    await no('q', positionTask({}, { level: '3' }));
+    await no('r', positionTask({ params: FEN }));
+    // Another kind's params do not pass as a position's, nor the other way.
+    await no('s', positionTask({ params: { endgameId: 'r12' } }));
+    await no('t', endgameTask({ params: { fen: FEN, color: 'w', level: 3 } }));
+    await no('u', textTask({ params: { fen: FEN, color: 'w', level: 3 } }));
+  });
+
+  it('a new position task cannot start with a game', async () => {
+    await active();
+    await assertFails(setDoc(doc(asTeacher(), 'homework/a'), positionTask({ game: game() })));
+  });
+
+  it('progress is bounded to 1, and done needs it reached', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(positionTask()));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { done: 2 }));
+    await assertFails(updateDoc(ref, { done: 2, status: 'done', completedAt: serverTimestamp(), game: game() }));
+    await assertFails(updateDoc(ref, { status: 'done', completedAt: serverTimestamp(), game: game() }));
+  });
+
+  it('a game left in the middle: its seconds, still open', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(positionTask()));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`), { seconds: increment(40) }));
+    const snap = await getDoc(doc(asStudent(), `homework/${HW}`));
+    if (snap.data().status !== 'open' || 'game' in snap.data()) throw new Error('should still be open, with no game');
+  });
+
+  it('the student finishes it, won, lost or drawn: done 1 and the game in ONE write', async () => {
+    await active();
+    for (const [id, g] of [
+      ['w', game()],
+      ['l', game({ outcome: 'loss', end: 'resign', moves: 'e2e4 e7e5' })],
+      ['d', game({ outcome: 'draw', end: 'stalemate', moves: 'f1f7' })],
+      ['r', game({ outcome: 'draw', end: 'repetition' })],
+      ['i', game({ outcome: 'draw', end: 'insufficient' })],
+      ['f', game({ outcome: 'draw', end: 'fiftyMove' })],
+      ['x', game({ outcome: 'draw', end: 'draw' })],
+      ['p', game({ moves: 'e7e8q' })],                                   // a promotion
+      ['n', game({ outcome: 'loss', end: 'resign', moves: '' })],        // resigned before any move
+    ]) {
+      await seed(`homework/${id}`, stored(positionTask()));
+      await assertSucceeds(updateDoc(doc(asStudent(), `homework/${id}`), { ...finGame(g), seconds: increment(95) }));
+    }
+  });
+
+  it('a position CANNOT be finished without its game (no ticking it off)', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(positionTask()));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: increment(1), status: 'done', completedAt: serverTimestamp() }));
+  });
+
+  it('the game is exactly {outcome, end, moves}, each from its own list', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(positionTask()));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    const no = g => assertFails(updateDoc(ref, finGame(g)));
+    await no('won');
+    await no({});
+    await no({ outcome: 'win', end: 'checkmate' });
+    await no({ outcome: 'win', moves: 'e2e4' });
+    await no({ end: 'checkmate', moves: 'e2e4' });
+    await no(game({ extra: 1 }));
+    await no(game({ outcome: 'unfinished' }));
+    await no(game({ outcome: 1 }));
+    await no(game({ end: 'abandoned' }));
+    await no(game({ end: 'timeout' }));
+    await no(game({ end: 'agreed' }));
+    await no(game({ moves: 7 }));
+    await no(game({ moves: ['e2e4'] }));
+    await no(game({ moves: 'e4 e5' }));               // SAN is not what is stored
+    await no(game({ moves: 'e2e4  e7e5' }));          // one space between
+    await no(game({ moves: 'e2e4 ' }));
+    await no(game({ moves: ' e2e4' }));
+    await no(game({ moves: 'e2e9' }));
+    await no(game({ moves: 'e7e8k' }));
+    await no(game({ moves: 'e2e4 <b>' }));
+  });
+
+  it('a long game: 800 plies pass, 801 do not', async () => {
+    await active();
+    await seed('homework/a', stored(positionTask()));
+    await seed('homework/b', stored(positionTask()));
+    const plies = n => Array.from({ length: n }, (_, i) => (i % 2 ? 'g8f6' : 'g1f3')).join(' ');
+    const promos = Array.from({ length: 800 }, () => 'e7e8q').join(' ');   // the longest it can be: 4,799
+    await assertFails(updateDoc(doc(asStudent(), 'homework/a'), finGame(game({ moves: plies(801) }))));
+    await assertSucceeds(updateDoc(doc(asStudent(), 'homework/a'), finGame(game({ moves: plies(800) }))));
+    await assertSucceeds(updateDoc(doc(asStudent(), 'homework/b'), finGame(game({ moves: promos }))));
+  });
+
+  it('the game is written once: not while open, not again, not removed, and no reopening', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(positionTask()));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { game: game() }));                           // still open
+    await assertFails(updateDoc(ref, { seconds: increment(5), game: game() }));
+    await assertSucceeds(updateDoc(ref, finGame(game({ outcome: 'loss', end: 'resign', moves: 'e2e4 e7e5' }))));
+    await assertFails(updateDoc(ref, { game: game() }));                           // a loss stays a loss
+    await assertFails(updateDoc(ref, { 'game.outcome': 'win' }));
+    await assertFails(updateDoc(ref, { game: deleteField() }));
+    await assertFails(updateDoc(ref, { status: 'open' }));
+    // …but a second phone's late seconds are still taken.
+    await assertSucceeds(updateDoc(ref, { seconds: increment(10) }));
+    const snap = await getDoc(ref);
+    if (snap.data().game.outcome !== 'loss') throw new Error('the game changed');
+  });
+
+  it('the other five kinds may not carry a game', async () => {
+    await active();
+    await seedClass();
+    await seed('homework/t', stored(textTask()));
+    await seed('homework/c', stored(chapterTask()));
+    await seed('homework/p', stored({ ...puzzlesTask(), done: 9 }));
+    await seed('homework/l', stored({ ...listTask(1) }));
+    await seed('homework/e', stored(endgameTask()));
+    for (const id of ['t', 'c', 'p', 'l', 'e']) {
+      await assertFails(updateDoc(doc(asStudent(), `homework/${id}`), { game: game() }));
+      await assertFails(updateDoc(doc(asStudent(), `homework/${id}`), finGame()));
+    }
+  });
+
+  it('a position task may not carry doneIds, results, tries or mistakes, nor be edited', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(positionTask()));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { doneIds: ['x'] }));
+    await assertFails(updateDoc(ref, { results: [`${pz(1)}|1|12`] }));
+    await assertFails(updateDoc(ref, { tries: 1 }));
+    await assertFails(updateDoc(ref, { ...finGame(), mistakes: 0 }));
+    await assertFails(updateDoc(ref, { 'params.level': 0 }));
+    await assertFails(updateDoc(ref, { 'params.color': 'b' }));
+    await assertFails(updateDoc(ref, { 'params.fen': '6k1/8/6K1/8/8/8/8/Q7 w - - 0 1' }));
+    await assertFails(updateDoc(ref, { kind: 'text' }));
+    await assertFails(updateDoc(ref, { title: 'Easier' }));
+  });
+
+  it('the teacher and a stranger CANNOT write its progress or its game', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(positionTask()));
+    const fin = { done: 1, status: 'done', completedAt: serverTimestamp(), game: game() };
+    await assertFails(updateDoc(doc(asTeacher(), `homework/${HW}`), fin));
+    await assertFails(updateDoc(doc(asTeacher(), `homework/${HW}`), { game: game() }));
+    await assertFails(updateDoc(doc(asOther(), `homework/${HW}`), fin));
+    await assertFails(updateDoc(doc(asNobody(), `homework/${HW}`), fin));
+  });
+
+  it('the teacher reads the game; a stranger does not', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...positionTask(), status: 'done', done: 1, game: game() }));
+    const snap = await assertSucceeds(getDoc(doc(asTeacher(), `homework/${HW}`)));
+    if (snap.data().game.moves !== game().moves) throw new Error('the teacher should read the moves');
+    await assertFails(getDoc(doc(asOther(), `homework/${HW}`)));
+  });
+
+  it('the five older kinds still assign and finish as before', async () => {
+    await active();
+    await seedClass();
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/p'), puzzlesTask({}, { count: 1 })));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/t'), textTask()));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/c'), chapterTask()));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/l'), listTask(1)));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/e'), endgameTask()));
+    const fin = { done: increment(1), status: 'done', completedAt: serverTimestamp() };
+    for (const id of ['p', 't', 'c']) {
+      await assertSucceeds(updateDoc(doc(asStudent(), `homework/${id}`), fin));
+    }
+    await assertSucceeds(updateDoc(doc(asStudent(), 'homework/l'), { ...fin, doneIds: arrayUnion('p0') }));
+    await assertSucceeds(updateDoc(doc(asStudent(), 'homework/e'), { ...fin, tries: increment(1), mistakes: 0 }));
+  });
+});
+
 // ═══════════════════════ read ═══════════════════════
 
 describe('/homework — reading', () => {

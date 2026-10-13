@@ -890,6 +890,9 @@ service cloud.firestore {
     // stored whole so the student never has to find them) since stage 5.
     // 'endgame' (ONE study of the Learn tab, by its id in js/endgames-data.js;
     // done when the student's practice of it ends in success) since v217.
+    // 'position' (a position the teacher set up, played against the computer on
+    // a given side and level; done when the game ends, whatever the result)
+    // since v218.
     //
     // Progress is reported by the student's own phone (plan Part 1, point 2):
     // these clauses reject impossible values, they cannot prove the puzzles
@@ -929,7 +932,31 @@ service cloud.firestore {
         || (d.kind == 'endgame' && d.params is map
             && d.params.keys().hasOnly(['endgameId'])
             && d.params.endgameId is string
-            && d.params.endgameId.matches('[A-Za-z0-9_-]{1,40}'));
+            && d.params.endgameId.matches('[A-Za-z0-9_-]{1,40}'))
+        // The FEN pattern is hwPzOk's. `color` is the student's side, `level`
+        // an index into the app's eight engine levels.
+        || (d.kind == 'position' && d.params is map
+            && d.params.keys().hasOnly(['fen', 'color', 'level'])
+            && d.params.keys().hasAll(['fen', 'color', 'level'])
+            && d.params.fen is string
+            && d.params.fen.matches('[1-8pnbrqkPNBRQK/]{15,71} [wb] [-KQkq]{1,4} [-a-h1-8]{1,2} [0-9]{1,3} [0-9]{1,4}')
+            && d.params.color in ['w', 'b']
+            && d.params.level is int && d.params.level >= 0 && d.params.level <= 7);
+    }
+
+    // How a 'position' game ended, written by the student's phone: the result
+    // from the student's side, why it stopped (the app's own names; there is
+    // no clock, so no timeout) and the moves in UCI, ≤ 800 plies — ONE regex
+    // whatever the length (the 1,000-expression limit, see hwPzOk). An empty
+    // string is a game with no move (resigned at once) or one too long to keep.
+    function hwGameOk(g) {
+      return g is map
+        && g.keys().hasOnly(['outcome', 'end', 'moves'])
+        && g.keys().hasAll(['outcome', 'end', 'moves'])
+        && g.outcome in ['win', 'loss', 'draw']
+        && g.end in ['checkmate', 'resign', 'stalemate', 'repetition', 'insufficient', 'fiftyMove', 'draw']
+        && g.moves is string && g.moves.size() <= 4800
+        && g.moves.matches('([a-h][1-8][a-h][1-8][qrbn]?( [a-h][1-8][a-h][1-8][qrbn]?){0,799})?');
     }
 
     // ≤ 20 packed puzzles (hwPzOk below), walked with fixed indexes because
@@ -1022,18 +1049,18 @@ service cloud.firestore {
     }
 
     // What `done` counts up to: the puzzle count, the length of a list, or 1
-    // for a text task, a chapter or an endgame.
+    // for a text task, a chapter, an endgame or a position.
     function hwTargetOk(d, n) {
       return (d.kind == 'puzzles' && n <= d.params.count)
         || (d.kind == 'list' && n <= d.params.puzzles.size())
-        || (d.kind in ['text', 'chapter', 'endgame'] && n <= 1);
+        || (d.kind in ['text', 'chapter', 'endgame', 'position'] && n <= 1);
     }
     // …and 'done' only once it is reached exactly (the rules auditor's
     // finding: without this a text task could be 'done' with done == 0).
     function hwTargetReached(d, n) {
       return (d.kind == 'puzzles' && n == d.params.count)
         || (d.kind == 'list' && n == d.params.puzzles.size())
-        || (d.kind in ['text', 'chapter', 'endgame'] && n == 1);
+        || (d.kind in ['text', 'chapter', 'endgame', 'position'] && n == 1);
     }
 
     match /homework/{hwId} {
@@ -1060,7 +1087,7 @@ service cloud.firestore {
         && after().studentUid.size() > 0 && after().studentUid.size() <= 128
         && after().studentUid != me()
         && get(coachingPath(me() + '_' + after().studentUid)).data.status == 'active'
-        && after().kind in ['puzzles', 'text', 'chapter', 'list', 'endgame']
+        && after().kind in ['puzzles', 'text', 'chapter', 'list', 'endgame', 'position']
         && after().title is string && after().title.size() >= 1 && after().title.size() <= 80
         && (!('note' in after()) || (after().note is string && after().note.size() <= 500))
         && (!('dueDate' in after())
@@ -1091,7 +1118,18 @@ service cloud.firestore {
       // nothing either way (plan Part 1, point 2).
       allow update: if signedIn()
         && resource.data.studentUid == me()
-        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt', 'doneIds', 'results', 'tries', 'mistakes'])
+        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt', 'doneIds', 'results', 'tries', 'mistakes', 'game'])
+        // A 'position' only: `game` is how its game ended (hwGameOk), written
+        // once, by the write that finishes the homework — and a position can
+        // be finished ONLY with it, so it is never 'done' without a result
+        // (an app too old to know the kind would otherwise just tick it off).
+        && (!('game' in after().diff(resource.data).affectedKeys())
+            || (resource.data.kind == 'position'
+                && after().status != resource.data.status
+                && hwGameOk(after().game)))
+        && (resource.data.kind != 'position'
+            || after().status == resource.data.status
+            || 'game' in after().diff(resource.data).affectedKeys())
         // An 'endgame' only: `tries` is how many practices of it were started
         // (only grows, the app sends increment()), `mistakes` the wrong moves
         // of the practice that solved it, written once, by the write that

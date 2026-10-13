@@ -213,11 +213,11 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 const P2 = { en: 'The Pawn Is on the Sixth Rank', es: 'El peón está en la sexta fila' };
 const W = {
-  en: { kinds: ['🧩 Puzzles', '📖 Chapter', '♟ Endgame'], labels: ['Endgame type', 'Endgame'], cats: ['Pawn', 'Rook'],
+  en: { kinds: ['🧩 Puzzles', '📖 Chapter', '♟ Endgame', '🤖 Position'], labels: ['Endgame type', 'Endgame'], cats: ['Pawn', 'Rook'],
     what: `Endgame: ${P2.en} — solve it in Practice`, whatT: 'Endgame: Rook vs. Pawn — done when they solve it in Practice',
     gone: 'This endgame is no longer available. You can mark it done.', goneT: 'This endgame is no longer in the app. The student can mark it done.',
     open: 'Open', mark: 'Mark done', detail: '3 tries · 1 mistake', one: '1 try', results: 'Results' },
-  es: { kinds: ['🧩 Problemas', '📖 Capítulo', '♟ Final'], labels: ['Tipo de final', 'Final'], cats: ['Peones', 'Torres'],
+  es: { kinds: ['🧩 Problemas', '📖 Capítulo', '♟ Final', '🤖 Posición'], labels: ['Tipo de final', 'Final'], cats: ['Peones', 'Torres'],
     what: `Final: ${P2.es} — resuélvelo en Practicar`, whatT: 'Final: Torre contra peón — hecho cuando lo resuelve en Practicar',
     gone: 'Este final ya no está disponible. Puedes marcarlo como hecho.', goneT: 'Este final ya no está en la app. El alumno puede marcarlo como hecho.',
     open: 'Abrir', mark: 'Marcar hecha', detail: '3 intentos · 1 error', one: '1 intento', results: 'Resultados' },
@@ -276,8 +276,9 @@ try {
       // The sheet.
       await openSheet();
       let s = await sheetState();
-      check(`${tag}: the sheet has three buttons: Puzzles, Chapter, Endgame`, same(s.kinds.map(b => b.text), w.kinds) && same(s.kinds.map(b => b.v), ['puzzles', 'chapter', 'endgame']), s.kinds);
-      check(`${tag}: the three fit on one line, nothing cut, nothing wider than the sheet`, s.kinds.every(b => !b.cut && b.h < 48 && b.h === s.kinds[0].h) && !s.wide, s.kinds);
+      // Four since v218 (🤖 Position), two by two: was "three buttons" on "one line".
+      check(`${tag}: the sheet has four buttons: Puzzles, Chapter, Endgame, Position`, same(s.kinds.map(b => b.text), w.kinds) && same(s.kinds.map(b => b.v), ['puzzles', 'chapter', 'endgame', 'position']), s.kinds);
+      check(`${tag}: the four are the same height, nothing cut, nothing wider than the sheet`, s.kinds.every(b => !b.cut && b.h < 48 && b.h === s.kinds[0].h) && !s.wide, s.kinds);
       check(`${tag}: it still opens on Puzzles, by theme and level`, s.kinds[0].on && s.mode && s.pz && !s.eg && !s.ch && !s.ls, s);
       await shot(`${tag}-4-sheet`);
       await tapX(`document.querySelector('.hw-kind button[data-v="endgame"]')`);

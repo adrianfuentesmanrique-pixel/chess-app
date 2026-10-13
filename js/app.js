@@ -3731,6 +3731,9 @@ export const Play = {
   clock: null,       // the running clock; dropped when the game is left
   flag: null,        // 'w' or 'b' once that side has run out of time
   clockTimer: null,
+  // The id of the 'position' homework this game is (js/students.js), or null.
+  // Such a game has no clock and no taking back, and its end is reported.
+  hwId: null,
 
   init() {
     buildLevelSeg($('play-level'), 2, true);
@@ -3763,6 +3766,8 @@ export const Play = {
       engine.stop();
       this.closeOpening();
       if (!this.over) this.saveToHistory({ abandoned: true });
+      // A homework game that was left does not count: the card starts it again.
+      this.hwId = null;
       // A game that was left has no clock any more: nothing may flag it later.
       clearInterval(this.clockTimer);
       this.clock = null;
@@ -3775,8 +3780,9 @@ export const Play = {
   },
 
   undo() {
-    // No taking back on the clock; the button is hidden too (showClocks).
-    if (this.clock) return;
+    // No taking back on the clock or in a homework game; the button is hidden
+    // too (showClocks).
+    if (this.clock || this.hwId) return;
     if (this.thinking) return;
     if (this.chess.turn() !== this.playerColor) return;
     if (this.chess.history().length < 2) return;
@@ -3797,7 +3803,19 @@ export const Play = {
     this.begin(turn, fen, controlById(segValue($('play-tc')))); // you play the side to move
   },
 
-  begin(color, fen, timeControl = null) {
+  // A 'position' homework (js/students.js hwOpenPosition): the teacher's
+  // position, side and level, nothing to choose. A game still on the board is
+  // put away as unfinished first, as Back does.
+  startHomework({ id, fen, color, level }) {
+    showScreen('play');
+    engine.stop();
+    if (this.chess && !this.over) this.saveToHistory({ abandoned: true });
+    this.level = level;
+    this.begin(color, fen, null, id);
+  },
+
+  begin(color, fen, timeControl = null, hwId = null) {
+    this.hwId = hwId;
     this.playerColor = color;
     this.startFen = fen;
     this.chess = new Chess(fen);
@@ -3836,7 +3854,7 @@ export const Play = {
     clearInterval(this.clockTimer);
     this.clockTimer = null;
     $('play-clocks').classList.toggle('hidden', !this.clock);
-    $('play-undo').classList.toggle('hidden', !!this.clock);
+    $('play-undo').classList.toggle('hidden', !!this.clock || !!this.hwId);
     if (!this.clock) return;
     this.renderClocks();
     this.clockTimer = setInterval(() => this.tickClock(), 200);
@@ -4048,7 +4066,37 @@ export const Play = {
         outcome,
       });
     }
-    this.saveToHistory({ resigned: msg === t('you_resigned') });
+    const resigned = msg === t('you_resigned');
+    // A homework game is done when it ends, whatever the result: how it ended
+    // and its moves (UCI, as a puzzle's are stored) go to the teacher.
+    if (this.hwId) {
+      const id = this.hwId;
+      this.hwId = null;
+      Students.hwPositionDone(id, {
+        outcome: History.resultOf(this.chess, this.playerColor, { resigned }).outcome,
+        end: History.endReasonOf(this.chess, { resigned }),
+        moves: this.chess.history({ verbose: true }).map(m => m.from + m.to + (m.promotion || '')).join(' '),
+      });
+    }
+    this.saveToHistory({ resigned });
+  },
+
+  // The teacher's "Open game" on a finished 'position' homework: the moves the
+  // student's phone sent, replayed from the position onto the Analysis board.
+  // False when they do not replay (nothing is opened then).
+  openHomeworkGame({ fen, moves, white, black, result }) {
+    const chess = new Chess(fen);
+    try {
+      for (const m of moves.split(' ').filter(Boolean)) {
+        if (!chess.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] })) return false;
+      }
+    } catch (e) { return false; }
+    const tree = treeFromHistory(fen, chess.history());
+    tree.setHeader('White', white);
+    tree.setHeader('Black', black);
+    if (result) tree.setHeader('Result', result);
+    Analysis.loadTree(tree, { baseId: null, gameId: null });
+    return true;
   },
 
   // Saves the finished game to history. `resigned` and `abandoned` are the two
@@ -4060,26 +4108,26 @@ export const Play = {
     const hist = this.chess.history();
     if (hist.length < History.HISTORY_MIN_PLIES) return;
     this.saved = true;
-    // Read now: the awaits below give the player time to start another game.
+    // Read now: the awaits below give the player time to start another game
+    // (a homework game starts in the same breath, see startHomework).
     const flag = this.flag, timeControl = this.timeControl;
+    const chess = this.chess, startFen = this.startFen, playerColor = this.playerColor;
+    const level = this.level, playedAt = this.playedAt;
     try {
       const profileName = await db.kvGet('profileName', '');
       const me = profileName || t('history_you');
-      const bot = t('history_bot_name').replace('{lvl}', t('level_names')[this.level]);
-      const tree = treeFromHistory(this.startFen, hist);
-      tree.setHeader('White', this.playerColor === 'w' ? me : bot);
-      tree.setHeader('Black', this.playerColor === 'b' ? me : bot);
+      const bot = t('history_bot_name').replace('{lvl}', t('level_names')[level]);
+      const tree = treeFromHistory(startFen, hist);
+      tree.setHeader('White', playerColor === 'w' ? me : bot);
+      tree.setHeader('Black', playerColor === 'b' ? me : bot);
       tree.setHeader('Date', todayStr().replace(/-/g, '.'));
       tree.setHeader('Event', t('history_event'));
       // The PGN standard's own form: seconds, then the seconds added per move.
       if (timeControl) tree.setHeader('TimeControl', `${timeControl.base}+${timeControl.inc}`);
       const rec = History.buildRecord({
-        chess: this.chess,
-        startFen: this.startFen,
-        playerColor: this.playerColor,
-        level: this.level,
-        levelElo: LEVELS[this.level].elo,
-        playedAt: this.playedAt,
+        chess, startFen, playerColor, level,
+        levelElo: LEVELS[level].elo,
+        playedAt,
         pgn: '',
         resigned, abandoned, flag, timeControl,
       });
@@ -7590,9 +7638,13 @@ export const Setup = {
     $('setup-start').onclick = () => this.load(START_FEN);
     $('setup-flip').onclick = () => this.flip();
     $('setup-clear').onclick = () => { this.grid = {}; this.sync(); };
-    $('setup-cancel').onclick = () => showScreen('analysis');
+    $('setup-cancel').onclick = () => {
+      if (this.forHw) Students.hwPositionBack(this.forHw, null);
+      else showScreen('analysis');
+    };
     $('setup-analyze').onclick = () => this.done('analyze');
     $('setup-play').onclick = () => this.done('play');
+    $('setup-homework').onclick = () => this.done('homework');
   },
 
   buildPalette() {
@@ -7618,7 +7670,14 @@ export const Setup = {
     this.palettePiece = piece;
   },
 
-  open(fen = START_FEN) {
+  // `forHw` is the student (uid) a teacher is setting a 'position' homework up
+  // for (js/students.js): the editor then has one exit, back to that sheet.
+  forHw: null,
+  open(fen = START_FEN, forHw = null) {
+    this.forHw = forHw;
+    $('setup-homework').classList.toggle('hidden', !forHw);
+    $('setup-analyze').classList.toggle('hidden', !!forHw);
+    $('setup-play').classList.toggle('hidden', !!forHw);
     this.load(fen);
     showScreen('setup');
   },
@@ -7714,7 +7773,13 @@ export const Setup = {
       if (!go) return;
     }
 
-    if (mode === 'analyze') Analysis.loadTree(new GameTree(fen));
+    if (mode === 'homework') {
+      // A game has to be possible from it: not already mate or a dead draw.
+      let over = true;
+      try { over = new Chess(fen).isGameOver(); } catch (e) { /* not a position chess.js takes */ }
+      if (over) { toast(t('hw_pos_over')); return; }
+      Students.hwPositionBack(this.forHw, fen);
+    } else if (mode === 'analyze') Analysis.loadTree(new GameTree(fen));
     else Play.startFromFen(fen);
   },
 };

@@ -2096,7 +2096,9 @@ export async function deleteHomework(hwId) {
 // second phone adds its own puzzles instead of overwriting (the rules only let
 // the counters go up). `finish` stamps status 'done' + completedAt from the
 // server; the rules accept that only once the target is reached.
-export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false, addIds = [], addResults = [], addTries = 0, mistakes = null } = {}) {
+export const MAX_HW_GAME_CHARS = 4800;   // a 'position' game's moves: 800 plies of UCI
+
+export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false, addIds = [], addResults = [], addTries = 0, mistakes = null, game = null } = {}) {
   if (!auth.currentUser || !hwId) return false;
   const patch = {};
   if (addDone > 0) patch.done = increment(Math.round(addDone));
@@ -2110,6 +2112,9 @@ export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, 
   // that solved it (the rules take `mistakes` only on the finishing write).
   if (addTries > 0) patch.tries = increment(Math.round(addTries));
   if (finish && Number.isInteger(mistakes)) patch.mistakes = Math.max(0, Math.min(999, mistakes));
+  // A 'position' homework's game: how it ended and its moves. Not optional
+  // detail: the rules finish a position only WITH it, so it is never dropped.
+  if (finish && game) patch.game = { outcome: game.outcome, end: game.end, moves: String(game.moves).length <= MAX_HW_GAME_CHARS ? String(game.moves) : '' };
   if (!Object.keys(patch).length) return false;
   const ref = doc(firestore, 'homework', hwId);
   try {

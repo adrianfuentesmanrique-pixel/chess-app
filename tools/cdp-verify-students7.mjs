@@ -195,9 +195,9 @@ const SOLVE = `const P = __app.Puzzles, sl = ms => new Promise(r => setTimeout(r
   return p.id;`;
 
 const W = {
-  en: { kinds: ['🧩 Puzzles', '📖 Chapter', '♟ Endgame'], modes: ['By theme and level', 'Chosen by me'], go: '🧩 Go to Puzzles',
+  en: { kinds: ['🧩 Puzzles', '📖 Chapter', '♟ Endgame', '🤖 Position'], modes: ['By theme and level', 'Chosen by me'], go: '🧩 Go to Puzzles',
     hint: 'You have not chosen any yet', task: 'Task', list: '🎯 List', mark: 'Mark done', ready: '🎯 Send puzzle list (2)' },
-  es: { kinds: ['🧩 Problemas', '📖 Capítulo', '♟ Final'], modes: ['Por tema y nivel', 'Elegidos por mí'], go: '🧩 Ir a Problemas',
+  es: { kinds: ['🧩 Problemas', '📖 Capítulo', '♟ Final', '🤖 Posición'], modes: ['Por tema y nivel', 'Elegidos por mí'], go: '🧩 Ir a Problemas',
     hint: 'Todavía no has elegido ninguno', task: 'Tarea', list: '🎯 Lista', mark: 'Marcar hecha', ready: '🎯 Enviar lista (2)' },
 };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -230,7 +230,7 @@ try {
 
       await openSheet();
       let s = await sheetState();
-      check(`${tag}: the sheet has three buttons, Puzzles, Chapter and Endgame`, same(s.kinds.map(b => b.text), w.kinds) && same(s.kinds.map(b => b.v), ['puzzles', 'chapter', 'endgame']), s.kinds);
+      check(`${tag}: the sheet has four buttons, Puzzles, Chapter, Endgame and Position`, same(s.kinds.map(b => b.text), w.kinds) && same(s.kinds.map(b => b.v), ['puzzles', 'chapter', 'endgame', 'position']), s.kinds);
       check(`${tag}: no Task and no List button anywhere on the sheet`, !s.words.includes(w.task) && !s.words.includes(w.list) && !s.words.includes('📝'), s.words);
       check(`${tag}: the switch reads "${w.modes.join('" / "')}"`, same(s.modes.map(b => b.text), w.modes), s.modes);
       check(`${tag}: it opens on Puzzles, by theme and level`, s.kinds[0].on && s.modes[0].on && !s.modes[1].on && s.mode && s.pz && !s.ls && !s.ch, s);
