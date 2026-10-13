@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parsePgn } from '../../js/tree.js';
 import { Chess } from '../../vendor/chess.js';
-import { fenKey, pgnPositions, PositionIndex } from '../../js/explore-index.js';
+import { fenKey, nodeAt, pgnPositions, PositionIndex } from '../../js/explore-index.js';
 
 const PGN = {
   1: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *',                 // Ruy Lopez
@@ -271,6 +271,50 @@ test('21. patch then a full sync agree — the walk stays a valid fallback', asy
   }
   const full = await stored([1, 3, 4], a.disk, reopen(a.disk));
   assert.deepEqual(full.calls, []);
+});
+
+// nodeAt(): where a game opened from the results lands — on the searched position.
+const sanLine = n => { const out = []; for (; n.parent; n = n.parent) out.unshift(n.san); return out.join(' '); };
+
+test('22. nodeAt: the start position is the root, a position on the main line is its move', () => {
+  const tr = parsePgn(PGN[1]);
+  assert.equal(nodeAt(tr, fenAfter('')), tr.root);
+  const n = nodeAt(tr, fenAfter('1. e4 e5 2. Nf3 Nc6'));
+  assert.equal(sanLine(n), 'e4 e5 Nf3 Nc6');
+  assert.equal(n.children[0].san, 'Bb5');   // one step forward is the GAME's next move
+});
+
+test('23. nodeAt: found by position, not by move number — another move order, other counters', () => {
+  const tr = parsePgn(PGN[4]);
+  assert.equal(sanLine(nodeAt(tr, fenAfter('1. e4 e5 2. Nf3 Nc6 3. Bb5'))), 'Nf3 Nc6 e4 e5 Bb5');
+  const late = parsePgn('1. Nf3 Nf6 2. Ng1 Ng8 3. e4 e5 *');
+  assert.equal(sanLine(nodeAt(late, fenAfter('1. e4 e5'))), 'Nf3 Nf6 Ng1 Ng8 e4 e5');
+});
+
+test('24. nodeAt: a position that comes back is taken the FIRST time, on the main line', () => {
+  const tr = parsePgn('1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. d4 *');
+  assert.equal(nodeAt(tr, fenAfter('')), tr.root);
+  assert.equal(sanLine(nodeAt(tr, fenAfter('1. Nf3 Nf6'))), 'Nf3 Nf6');
+});
+
+test('25. nodeAt: the main line wins over a variation; a variation-only position is that node', () => {
+  const both = parsePgn('1. e4 e5 (1... Nc6 2. Nf3 e5) 2. Nf3 Nc6 3. Bb5 *');
+  const n = nodeAt(both, fenAfter('1. e4 e5 2. Nf3 Nc6'));
+  assert.equal(sanLine(n), 'e4 e5 Nf3 Nc6');
+  assert.ok(both.mainlinePath().includes(n));
+  const slav = parsePgn(PGN[3]);
+  const v = nodeAt(slav, fenAfter('1. d4 d5 2. c4 c6'));
+  assert.equal(sanLine(v), 'd4 d5 c4 c6');
+  assert.ok(!slav.mainlinePath().includes(v));
+  assert.equal(v.children[0].san, 'Nf3');
+});
+
+test('26. nodeAt: a position the game never reaches is null; every indexed position is found', () => {
+  assert.equal(nodeAt(parsePgn(PGN[1]), fenAfter('1. d4 d5')), null);
+  for (const id of [1, 2, 3, 4]) {
+    const tr = parsePgn(PGN[id]);
+    for (const fen of pgnPositions(PGN[id])) assert.equal(fenKey(nodeAt(tr, fen).fen), fenKey(fen), `${id}: ${fen}`);
+  }
 });
 
 test('11. the move counters do not matter, the side to move does', () => {

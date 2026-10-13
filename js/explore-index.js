@@ -19,6 +19,22 @@ const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 // Board, side to move, castling, en passant — not the two move counters.
 export function fenKey(fen) { return fen.split(' ').slice(0, 4).join(' '); }
 
+// The node of an opened game (a GameTree) that stands on this position: the
+// first one on the main line, else the first inside a side variation; null when
+// the game never reaches it. By position, never by move number — the game may
+// have got there by another move order, and find() matches variations too.
+export function nodeAt(tree, fen) {
+  const key = fenKey(fen);
+  for (let n = tree.root; n; n = n.children[0]) if (fenKey(n.fen) === key) return n;
+  const todo = [tree.root];
+  while (todo.length) {
+    const n = todo.pop();
+    if (fenKey(n.fen) === key) return n;
+    for (let i = n.children.length - 1; i >= 0; i--) todo.push(n.children[i]);
+  }
+  return null;
+}
+
 // cyrb53 (public domain): two 32-bit hashes folded into one 53-bit integer,
 // which a JS number — and a Float64Array slot — holds exactly.
 function hash53(str) {

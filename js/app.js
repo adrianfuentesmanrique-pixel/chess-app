@@ -28,7 +28,7 @@ import { TIME_CONTROLS, controlById, controlLabel, createClock, startClock, stop
          timeLeft, flagged, formatClock, thinkTime, flagOutcome, LOW_MS } from './play-clock.js';
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
-import { fenKey, PositionIndex } from './explore-index.js';
+import { fenKey, nodeAt, PositionIndex } from './explore-index.js';
 import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { BadgeCard } from './badge-card.js';
@@ -2246,7 +2246,7 @@ export const Analysis = {
     this.refresh();
   },
 
-  loadTree(tree, ctx = { baseId: null, gameId: null }) {
+  loadTree(tree, ctx = { baseId: null, gameId: null }, at = null) {
     this.tree = tree;
     this.ctx = ctx;
     this.undoStack = [];
@@ -2256,6 +2256,11 @@ export const Analysis = {
     this.showMovesTab();
     this.tree.toStart();
     this.tree.toEnd();
+    // A game tapped in the search results passes `at`, the position that was on
+    // the board: it opens there, not on its last move. Everything else opens
+    // on the last move, and so does a game that never reaches the position.
+    const found = at && nodeAt(tree, at);
+    if (found) this.tree.goto(found);
     this.refresh();
     showScreen('analysis');
     this.updateBaseNav();
@@ -2699,8 +2704,9 @@ export const Analysis = {
   },
 
   async openMasterGame(id) {
+    const at = this.tree.fen();   // the board at the tap, before anything is awaited
     try {
-      this.loadTree(parsePgn(await this.fetchMasterPgn(id)));
+      this.loadTree(parsePgn(await this.fetchMasterPgn(id)), undefined, at);
     } catch (e) {
       if (e.message === '401') { Lichess.clear(); this.offerLichess(t('lichess_expired')); }
       else toast(t(e.message === '429' ? 'lichess_rate_limited' : 'explore_lichess_unavailable'), 4000);
@@ -2738,9 +2744,10 @@ export const Analysis = {
         btn.innerHTML = `<b>${esc(item.white)} — ${esc(item.black)}</b><span class="sub">${esc(item.event || '')} ${esc(item.date || '')} · ${esc(item.result)}</span>`;
         // The index keeps no PGN, so the game is fetched when it is opened.
         btn.onclick = async () => {
+          const at = this.tree.fen();   // the board at the tap, before anything is awaited
           try {
             const full = await db.getGame(item.id);
-            this.loadTree(parsePgn(full.pgn), { baseId: full.baseId, gameId: full.id });
+            this.loadTree(parsePgn(full.pgn), { baseId: full.baseId, gameId: full.id }, at);
           } catch { toast(t('import_failed')); }
         };
       } else {

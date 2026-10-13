@@ -54,6 +54,10 @@ async function shot(name) {
   const r = await send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(path.join(OUT, name + '.png'), Buffer.from(r.data, 'base64'));
 }
+// After every (re)load: no tour or dialog in the way, and the Analysis tab — the
+// app starts on Home.
+const CLEAN = `document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());
+  (await import('/js/app.js')).showScreen('analysis');`;
 async function load(lang, scheme) {
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
   await send('Page.navigate', { url: APP_URL });
@@ -61,7 +65,7 @@ async function load(lang, scheme) {
   await evalP(`localStorage.setItem('lang', '${lang}'); localStorage.setItem('tourDone', '1');`);
   await send('Page.reload', {});
   await sleep(3500);
-  await evalP(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());`);
+  await evalP(CLEAN);
 }
 
 for (let i = 0; i < 40; i++) {
@@ -78,13 +82,31 @@ ws.on('message', m => {
   if (msg.id && pending.has(msg.id)) {
     const p = pending.get(msg.id); pending.delete(msg.id);
     msg.error ? p.rej(new Error(msg.error.message)) : p.res(msg.result);
+  } else if (msg.method === 'Fetch.requestPaused') {
+    fakeLichess(msg.params);
   } else if (msg.method === 'Runtime.exceptionThrown') {
     errors.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text);
   } else if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error') {
     errors.push(msg.params.args.map(a => a.value ?? a.description).join(' '));
   }
 });
+// NOTHING here reaches Lichess (as in cdp-verify-lichess.mjs): every request to
+// it is answered by this script, with one made-up game. Only check 5d links an
+// account (a made-up token), so everywhere else the Internet search is unlinked.
+const MASTER_PGN = '[White "Test, White"]\n[Black "Test, Black"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 1-0\n';
+function fakeLichess(p) {
+  const u = new URL(p.request.url);
+  const reply = (code, body = '', type = 'application/json') => send('Fetch.fulfillRequest', { requestId: p.requestId, responseCode: code,
+    responseHeaders: [{ name: 'Access-Control-Allow-Origin', value: '*' }, { name: 'Access-Control-Allow-Headers', value: 'Authorization, Content-Type' },
+      { name: 'Access-Control-Allow-Methods', value: 'GET, POST, DELETE, OPTIONS' }, { name: 'Content-Type', value: type }],
+    body: Buffer.from(body).toString('base64') }).catch(() => {});
+  if (p.request.method === 'OPTIONS') return reply(204);
+  if (u.pathname.startsWith('/masters/pgn/')) return reply(200, MASTER_PGN, 'application/x-chess-pgn');
+  if (u.pathname === '/masters') return reply(200, JSON.stringify({ topGames: [{ id: 'aAbBcCdD', winner: 'white', white: { name: 'Test, White' }, black: { name: 'Test, Black' }, year: 1999 }] }));
+  return reply(404);
+}
 await send('Page.enable'); await send('Runtime.enable'); await send('Network.enable');
+await send('Fetch.enable', { patterns: [{ urlPattern: '*://lichess.org/*' }, { urlPattern: '*://explorer.lichess.org/*' }] });
 await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
 
 // ── real mouse input ──
@@ -140,6 +162,7 @@ const SEED = `const db = await import('/js/db.js'); const { parsePgn } = await i
 const SPY = `const { Analysis } = await import('/js/app.js'); const { PositionIndex } = await import('/js/explore-index.js');
   window.__n = { live: 0, find: 0, sync: 0, patch: 0, parsed: [] };
   const patch = PositionIndex.prototype.patch; PositionIndex.prototype.patch = async function () { window.__n.patch++; const s = await patch.apply(this, arguments); window.__n.parsed.push(s.parsed); return s; };
+  const eng = Analysis.restartEngine; Analysis.restartEngine = function () { (window.__engineFens || []).push(this.tree.fen()); return eng.apply(this, arguments); };
   const live = Analysis.searchLive; Analysis.searchLive = function () { window.__n.live++; return live.apply(this, arguments); };
   const find = PositionIndex.prototype.find; PositionIndex.prototype.find = function () { window.__n.find++; return find.apply(this, arguments); };
   const sync = PositionIndex.prototype.sync; PositionIndex.prototype.sync = async function () { window.__n.sync++; const s = await sync.apply(this, arguments); window.__n.parsed.push(s.parsed); return s; };`;
@@ -157,6 +180,19 @@ const view = () => evalP(`const { Analysis } = await import('/js/app.js');
     base: Analysis.explore && Analysis.explore.baseId, source: Analysis.exploreSource,
     sideways: document.documentElement.scrollWidth > window.innerWidth };`);
 
+// Where the board stands: `key` is the tree's position, `shown` the one the
+// board itself draws, `line` the moves that lead there, `selected` the move
+// highlighted in the moves list and `inView` whether it is inside the list's box.
+const where = () => evalP(`const { Analysis } = await import('/js/app.js'); const { fenKey } = await import('/js/explore-index.js');
+  const list = document.getElementById('ana-moves'), cur = list.querySelector('.mv.current');
+  const lr = list.getBoundingClientRect(), cr = cur && cur.getBoundingClientRect();
+  const line = []; for (let n = Analysis.tree.current; n.parent; n = n.parent) line.unshift(n.san);
+  const h = Analysis.tree.headers || {};
+  return { key: fenKey(Analysis.tree.fen()), shown: fenKey(Analysis.board.fen), white: h.White || '', black: h.Black || '', line: line.join(' '),
+    selected: cur ? cur.textContent.trim() : '', inView: !!cur && cr.top >= lr.top - 1 && cr.bottom <= lr.bottom + 1,
+    movesShowing: !list.classList.contains('hidden'), gameId: Analysis.ctx.gameId || null, atEnd: Analysis.tree.atEnd(),
+    engineKeys: (window.__engineFens || []).map(fenKey) };`);
+
 let failed = 0;
 const log = [];
 function check(name, ok, detail) {
@@ -173,7 +209,7 @@ async function run(lang, scheme, first) {
   await load(lang, scheme);
   check('seed', true, await evalP(SEED));
   await send('Page.reload', {}); await sleep(3500);
-  await evalP(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());`);
+  await evalP(CLEAN);
   await evalP(SPY);
   let v;
 
@@ -218,9 +254,83 @@ async function run(lang, scheme, first) {
   await click('#ana-prev'); await click('#ana-next');
   check('with the moves showing, stepping calls the search 0 times', JSON.parse(await counts()).live === 0, await counts());
   await click('#ana-explore'); v = await view();
-  check('🔎 from the moves: no chooser, same base, this position (mate → 1 game)', v.modal === 0 && v.gamesShowing && count(v, 'Classics', 1) && v.rows[0].startsWith('Morphy'), v.status);
+  check('🔎 from the moves: no chooser, same base, this position (the game opened on 2...d6 → 2 games)', v.modal === 0 && v.gamesShowing && count(v, 'Classics', 2) && v.rows[0].startsWith('Morphy'), v.status);
   check('…and the index was not rebuilt', JSON.parse(await counts()).sync === 0, await counts());
   await click('#ana-first'); v = await view(); check('⏮ in the opened game → 5 (still live)', count(v, 'Classics', 5), v.status);
+
+  // 5b–5h. A game tapped in the results opens on the position that was on the
+  //        board at the tap — not on its last move. Every tap and move is real.
+  const newGame = async () => { await click('#ana-new-game-btn'); await click('#ana-explore'); };   // 🔎 from the moves: back to the results
+  const play = async moves => { for (const m of moves.split(' ')) await move(m.slice(0, 2), m.slice(2)); };
+  const same = (w, b) => w.key === b.key && w.shown === b.key && w.movesShowing;
+  let b4 = await where();
+  await click('#ana-games-list .list-item', 'Dufresne'); await sleep(400);
+  let w = await where();
+  check('5b. start position, tap Anderssen — Dufresne: same position before and after, now inside that game, no move selected',
+    same(w, b4) && w.black === 'Dufresne' && w.line === '' && w.selected === '' && !w.atEnd, w);
+  await click('#ana-next'); w = await where();
+  check('…▶ plays that game\'s first move', w.line === 'e4' && w.selected.includes('e4'), w);
+
+  await newGame();
+  await play('e2e4 e7e5 g1f3 d7d6 d2d4 c8g4 d4e5 g4f3 d1f3 d6e5 f1c4 g8f6');
+  await click('#ana-engine-toggle');   // engine ON for this tap
+  v = await view(); b4 = await where();
+  check('5c. six moves played on the board → 1 game', count(v, 'Classics', 1) && b4.line.split(' ').length === 12 && !b4.gameId, { status: v.status, line: b4.line });
+  await evalP(`window.__engineFens = [];`);
+  await click('#ana-games-list .list-item'); await sleep(500); w = await where();
+  check('…tap it: same position, inside Morphy\'s game, its 6...Nf6 selected and in view in the moves list',
+    same(w, b4) && w.white === 'Morphy' && !!w.gameId && w.line === b4.line && w.selected.includes('Nf6') && w.inView && !w.atEnd, w);
+  check('…and the engine (on) was restarted on that position, not on the last move', w.engineKeys.length > 0 && w.engineKeys.every(k => k === b4.key), w.engineKeys);
+  await shot(`${tag}-6-opened-on-position`);
+  await click('#ana-engine-toggle');
+  await click('#ana-next'); w = await where();
+  check('…▶ plays the GAME\'s next move (7.Qb3), which becomes the selected one', w.line === b4.line + ' Qb3' && w.selected.includes('Qb3') && w.inView, w);
+  await click('#ana-prev'); await click('#ana-prev'); w = await where();
+  check('…◀ ◀ steps back from there to 6.Bc4', w.line === b4.line.replace(/ Nf6$/, '') && w.selected.includes('Bc4'), w);
+
+  // 5d. the Internet list (a made-up account and a made-up game: see fakeLichess)
+  await evalP(`localStorage.setItem('ctc-lichess-token', 'lip_MADEUP');`);
+  await newGame(); await play('g1f3 b8c6 e2e4 e7e5 f1b5');
+  await click('#ana-explore'); await click('.modal-box .sheet-btn', '🌐'); await sleep(1500);
+  v = await view(); b4 = await where();
+  check('5d. Internet results for a position reached by 1.Nf3 Nc6 2.e4 e5 3.Bb5', v.source === 'lichess' && v.rows.length === 1 && v.rows[0].startsWith('Test, White'), v);
+  await click('#ana-games-list .list-item'); await sleep(700); w = await where();
+  check('…tap it: same position, inside that game by ITS move order, 3.Bb5 selected',
+    same(w, b4) && w.white === 'Test, White' && w.line === 'e4 e5 Nf3 Nc6 Bb5' && b4.line === 'Nf3 Nc6 e4 e5 Bb5' && w.selected.includes('Bb5') && w.inView && !w.atEnd, w);
+  await click('#ana-next'); w = await where();
+  check('…▶ plays the game\'s next move (3...a6)', w.line === 'e4 e5 Nf3 Nc6 Bb5 a6' && w.selected.includes('a6'), w);
+  await evalP(`localStorage.removeItem('ctc-lichess-token');`);
+
+  // 5e. FORCED (it cannot be tapped): a game that never reaches the position
+  w = await evalP(`const { Analysis } = await import('/js/app.js'); const { parsePgn } = await import('/js/tree.js');
+    Analysis.loadTree(parsePgn(${JSON.stringify(G.legal[6])}), { baseId: null, gameId: null }, 'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1');
+    return { atEnd: Analysis.tree.atEnd(), san: Analysis.tree.current.san, toast: !document.getElementById('toast').classList.contains('hidden') };`);
+  check('5e. position not in the game: it opens on the last move as before, nothing is said', w.atEnd && w.san === 'Nd5#' && !w.toast, w);
+
+  // 5f. reached by another move order than the game's
+  await newGame(); await play('g1f3 e7e5 e2e4 d7d6');
+  v = await view(); b4 = await where();
+  check('5f. 1.Nf3 e5 2.e4 d6 on the board → the same 2 games as 1.e4 e5 2.Nf3 d6', count(v, 'Classics', 2) && v.rows[1].startsWith('Legal') && b4.line === 'Nf3 e5 e4 d6', { rows: v.rows, line: b4.line });
+  await click('#ana-games-list .list-item', 'Legal'); await sleep(400); w = await where();
+  check('…tap Legal: same position, found by position — the game\'s own 2...d6 is the selected move',
+    same(w, b4) && w.white === 'Legal' && w.line === 'e4 e5 Nf3 d6' && w.selected.includes('d6') && w.inView && !w.atEnd, w);
+  await click('#ana-next'); w = await where();
+  check('…▶ plays the game\'s next move (3.Bc4)', w.line === 'e4 e5 Nf3 d6 Bc4' && w.selected.includes('Bc4'), w);
+
+  // 5g. unchanged: the Bases tab's own list, and its ◀ ▶ game arrows, open on the last move
+  await click('#ana-base-back'); await sleep(500);
+  await click('#base-games-view .list-item', 'Kieseritzky'); await sleep(500); w = await where();
+  check('5g. Bases tab, tap Anderssen — Kieseritzky: it opens on its last move (23.Be7#), as before', w.black === 'Kieseritzky' && w.atEnd && w.line.split(' ').length === 45 && w.selected.includes('Be7#') && w.movesShowing, w);
+  const firstId = w.gameId;
+  await click('#ana-base-next'); await sleep(500); w = await where();
+  check('…and the next-game arrow opens the next game on ITS last move, as before', w.gameId !== firstId && !!w.gameId && w.atEnd && w.line !== '' && w.movesShowing, w);
+  if (first) await shot(`${tag}-7-from-bases-last-move`);
+
+  // 5h. a new game still opens empty; then back to where check 6 expects to be
+  await click('#ana-new-game-btn'); w = await where();
+  check('5h. New game: an empty board, as before', w.line === '' && w.atEnd && !w.gameId && w.key.startsWith('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w'), w);
+  await click('#ana-explore'); v = await view();
+  check('…🔎: the same base again, all 5 games', v.modal === 0 && count(v, 'Classics', 5), v.status);
 
   // 6. 🔎 with the results showing: the chooser
   await click('#ana-explore'); v = await view();
@@ -266,7 +376,7 @@ async function run(lang, scheme, first) {
   // 11. the index is kept on disk: a new app start reopens it and reads no game
   const restart = async () => {
     await send('Page.reload', {}); await sleep(3500);
-    await evalP(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove());`);
+    await evalP(CLEAN);
     await evalP(SPY);
   };
   const pickBase = async name => { await click('#ana-explore'); await click('.modal-box .sheet-btn'); await click('.modal-box .sheet-btn', name); await sleep(500); return view(); };
