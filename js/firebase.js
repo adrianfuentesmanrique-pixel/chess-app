@@ -2096,7 +2096,7 @@ export async function deleteHomework(hwId) {
 // second phone adds its own puzzles instead of overwriting (the rules only let
 // the counters go up). `finish` stamps status 'done' + completedAt from the
 // server; the rules accept that only once the target is reached.
-export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false, addIds = [], addResults = [] } = {}) {
+export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, finish = false, addIds = [], addResults = [], addTries = 0, mistakes = null } = {}) {
   if (!auth.currentUser || !hwId) return false;
   const patch = {};
   if (addDone > 0) patch.done = increment(Math.round(addDone));
@@ -2106,16 +2106,23 @@ export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, 
   if (finish) { patch.status = 'done'; patch.completedAt = serverTimestamp(); }
   // Per-puzzle results (stage 6), arrayUnion for the same reason.
   if (addResults.length) patch.results = arrayUnion(...addResults);
+  // An endgame's detail: practices started, and the wrong moves of the one
+  // that solved it (the rules take `mistakes` only on the finishing write).
+  if (addTries > 0) patch.tries = increment(Math.round(addTries));
+  if (finish && Number.isInteger(mistakes)) patch.mistakes = Math.max(0, Math.min(999, mistakes));
   if (!Object.keys(patch).length) return false;
   const ref = doc(firestore, 'homework', hwId);
   try {
     await updateDoc(ref, patch);
   } catch (e) {
     // The detail is optional, the count is not. If the write was refused with
-    // results in it (a second phone filled the cap, or the stage 6 rules are
-    // not deployed yet), send the same bundle again without them.
-    if (!patch.results) throw e;
+    // results or an endgame's tries in it (a second phone filled the cap, or
+    // those rules are not deployed yet), send the same bundle again without
+    // them.
+    if (!patch.results && !patch.tries && !('mistakes' in patch)) throw e;
     delete patch.results;
+    delete patch.tries;
+    delete patch.mistakes;
     if (!Object.keys(patch).length) throw e;
     await updateDoc(ref, patch);
   }

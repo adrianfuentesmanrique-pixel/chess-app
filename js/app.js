@@ -7038,6 +7038,7 @@ export const Endgame = {
     this.bookMode = true;      // still replaying the book's move sequence
     this.moveIdx = 0;          // index into current.moves
     this.mistakes = 0;
+    Students.hwEndgameTry(this.current.id);   // an endgame homework counts its tries
     this.playerColor = practiceColor(this.current);
     $('endgame-comment').classList.add('hidden');
     $('endgame-status').classList.remove('hidden');
@@ -7227,6 +7228,9 @@ export const Endgame = {
     // no longer banks the day.
     if (success) Streak.recordActivity();
     if (success) this.recordConversion(cat);
+    // An endgame given as homework is done here and nowhere else, so the
+    // walkthrough (which never gets here) cannot finish it.
+    Students.hwEndgameDone(this.current.id, success, this.mistakes);
     Badges.checkNew();
   },
 

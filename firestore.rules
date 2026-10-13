@@ -884,10 +884,12 @@ service cloud.firestore {
     //                       writes it once; after that only the STUDENT's app
     //                       moves it, and only its progress fields.
     //
-    // Four kinds: 'puzzles' (N puzzles of a theme set and rating band) and
+    // Five kinds: 'puzzles' (N puzzles of a theme set and rating band) and
     // 'text' (the student ticks it off) since stage 4; 'chapter' (one chapter of
     // a Masterclass the teacher OWNS) and 'list' (≤ 20 hand-picked puzzles,
     // stored whole so the student never has to find them) since stage 5.
+    // 'endgame' (ONE study of the Learn tab, by its id in js/endgames-data.js;
+    // done when the student's practice of it ends in success) since v217.
     //
     // Progress is reported by the student's own phone (plan Part 1, point 2):
     // these clauses reject impossible values, they cannot prove the puzzles
@@ -921,7 +923,13 @@ service cloud.firestore {
             && d.params.chapterId is string && d.params.chapterId.matches('[A-Za-z0-9_-]{1,128}'))
         || (d.kind == 'list' && d.params is map
             && d.params.keys().hasOnly(['puzzles'])
-            && hwListOk(d.params.puzzles));
+            && hwListOk(d.params.puzzles))
+        // The id is only ever looked up in the app's own list (never a path),
+        // and an id the app does not have shows as "no longer available".
+        || (d.kind == 'endgame' && d.params is map
+            && d.params.keys().hasOnly(['endgameId'])
+            && d.params.endgameId is string
+            && d.params.endgameId.matches('[A-Za-z0-9_-]{1,40}'));
     }
 
     // ≤ 20 packed puzzles (hwPzOk below), walked with fixed indexes because
@@ -1014,18 +1022,18 @@ service cloud.firestore {
     }
 
     // What `done` counts up to: the puzzle count, the length of a list, or 1
-    // for a text task or a chapter.
+    // for a text task, a chapter or an endgame.
     function hwTargetOk(d, n) {
       return (d.kind == 'puzzles' && n <= d.params.count)
         || (d.kind == 'list' && n <= d.params.puzzles.size())
-        || (d.kind in ['text', 'chapter'] && n <= 1);
+        || (d.kind in ['text', 'chapter', 'endgame'] && n <= 1);
     }
     // …and 'done' only once it is reached exactly (the rules auditor's
     // finding: without this a text task could be 'done' with done == 0).
     function hwTargetReached(d, n) {
       return (d.kind == 'puzzles' && n == d.params.count)
         || (d.kind == 'list' && n == d.params.puzzles.size())
-        || (d.kind in ['text', 'chapter'] && n == 1);
+        || (d.kind in ['text', 'chapter', 'endgame'] && n == 1);
     }
 
     match /homework/{hwId} {
@@ -1052,7 +1060,7 @@ service cloud.firestore {
         && after().studentUid.size() > 0 && after().studentUid.size() <= 128
         && after().studentUid != me()
         && get(coachingPath(me() + '_' + after().studentUid)).data.status == 'active'
-        && after().kind in ['puzzles', 'text', 'chapter', 'list']
+        && after().kind in ['puzzles', 'text', 'chapter', 'list', 'endgame']
         && after().title is string && after().title.size() >= 1 && after().title.size() <= 80
         && (!('note' in after()) || (after().note is string && after().note.size() <= 500))
         && (!('dueDate' in after())
@@ -1071,7 +1079,8 @@ service cloud.firestore {
       // increment(), so two phones add up instead of overwriting), `done` never
       // passes the target, and time is capped at 100 hours. 'done' is final:
       // it cannot be reopened, and a task can only be 'done' once its target
-      // is reached (count for puzzles, list length, 1 for text and chapter).
+      // is reached (count for puzzles, list length, 1 for text, chapter and
+      // endgame).
       // completedAt is stamped by the server exactly once, on the move to 'done'.
       //
       // doneIds (stage 5) is which puzzles of a 'list' are solved. Only a list
@@ -1082,7 +1091,20 @@ service cloud.firestore {
       // nothing either way (plan Part 1, point 2).
       allow update: if signedIn()
         && resource.data.studentUid == me()
-        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt', 'doneIds', 'results'])
+        && after().diff(resource.data).affectedKeys().hasOnly(['done', 'seconds', 'status', 'completedAt', 'doneIds', 'results', 'tries', 'mistakes'])
+        // An 'endgame' only: `tries` is how many practices of it were started
+        // (only grows, the app sends increment()), `mistakes` the wrong moves
+        // of the practice that solved it, written once, by the write that
+        // finishes the homework. Self-reported like every progress field.
+        && (!('tries' in after().diff(resource.data).affectedKeys())
+            || (resource.data.kind == 'endgame'
+                && after().tries is int && after().tries <= 1000
+                && after().tries >= resource.data.get('tries', 0)))
+        && (!('mistakes' in after().diff(resource.data).affectedKeys())
+            || (resource.data.kind == 'endgame'
+                && after().status != resource.data.status
+                && after().mistakes is int
+                && after().mistakes >= 0 && after().mistakes <= 999))
         // results (stage 6): how each puzzle went — see hwResultsOk. Keyed on
         // the diff for the same reason as doneIds below.
         && (!('results' in after().diff(resource.data).affectedKeys())

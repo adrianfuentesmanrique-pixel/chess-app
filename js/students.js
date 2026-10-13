@@ -30,8 +30,10 @@ import {
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen,
-  paintCapCounter, openAuthModal, openEloHistoryModal, segInit, Puzzles, PuzzleLog,
+  paintCapCounter, openAuthModal, openEloHistoryModal, segInit, Puzzles, PuzzleLog, Endgame,
 } from './app.js';
+// An endgame homework names ONE study of the Learn tab by its id.
+import { ENDGAMES, ENDGAME_CATEGORIES } from './endgames-data.js';
 import { TRACKED_THEMES } from './puzzles.js';
 import { Activity, AREAS, sumActive, daysAgo } from './activity.js';
 // friends.js does not import this file, and app.js imports it first, so this is
@@ -409,6 +411,7 @@ export const Students = {
       if (here) here.done = Math.min(this.hwTarget(here), (here.done || 0) + run.addDone);
       if (here && run.addIds.length) here.doneIds = [...new Set([...(here.doneIds || []), ...run.addIds])];
       if (here && run.addResults.length) here.results = [...new Set([...(here.results || []), ...run.addResults])];
+      if (here && run.addTries) here.tries = (here.tries || 0) + run.addTries;
     }
     this.homework = list;
     await this.saveHwCounts();
@@ -906,6 +909,14 @@ export const Students = {
       return this.hwGone.has(h.id) ? t('hw_chapter_gone') : t(forTeacher ? 'hw_what_chapter_t' : 'hw_what_chapter');
     }
     if (h.kind === 'list') return t('hw_what_list').replace('{n}', this.hwTarget(h));
+    if (h.kind === 'endgame') {
+      const pos = this.hwEndgame(h);
+      if (!pos) return t(forTeacher ? 'hw_endgame_gone_t' : 'hw_endgame_gone');
+      // Many studies share a name ("Example 1", "Example 2"): the subtitle
+      // is what tells them apart.
+      const name = pos.name[getLang()] + (pos.subtitle ? ' · ' + pos.subtitle[getLang()] : '');
+      return t(forTeacher ? 'hw_what_endgame_t' : 'hw_what_endgame').replace('{n}', name);
+    }
     if (h.kind !== 'puzzles') return t(forTeacher ? 'hw_what_text_t' : 'hw_what_text');
     const p = h.params || {};
     const themes = Array.isArray(p.themes) && p.themes.length
@@ -930,7 +941,27 @@ export const Students = {
     const left = h.kind === 'puzzles' || h.kind === 'list' ? t('hw_progress').replace('{d}', done).replace('{n}', target)
       : t(h.status === 'done' ? 'hw_status_done' : 'hw_status_open');
     return `<div class="hw-prog"><i><b style="width:${pct}%"></b></i>` +
-      `<em>${esc(left)} · ${esc(t('hw_time').replace('{m}', this.fmtMin(h.seconds)))}</em></div>`;
+      `<em>${esc(left + this.hwEndgameDetail(h))} · ${esc(t('hw_time').replace('{m}', this.fmtMin(h.seconds)))}</em></div>`;
+  },
+
+  // The endgame a homework points at, or null when the app no longer has it
+  // (the card then says so and can be ticked off, as a deleted chapter is).
+  hwEndgame(h) {
+    const id = h.params && h.params.endgameId;
+    return ENDGAMES.find(e => e.id === id) || null;
+  },
+
+  // " · 3 tries · 1 mistake": practices started, and the wrong moves of the
+  // one that solved it. Written by the student's phone, like all progress.
+  hwEndgameDetail(h) {
+    if (h.kind !== 'endgame') return '';
+    let s = '';
+    if (h.tries > 0) s += ' · ' + t(h.tries === 1 ? 'hw_eg_try' : 'hw_eg_tries').replace('{n}', h.tries);
+    if (h.status === 'done' && Number.isInteger(h.mistakes)) {
+      s += ' · ' + (h.mistakes === 0 ? t('hw_eg_clean')
+        : t(h.mistakes === 1 ? 'hw_eg_mistake' : 'hw_eg_mistakes').replace('{n}', h.mistakes));
+    }
+    return s;
   },
 
   hwSub(h, who) {
@@ -942,7 +973,7 @@ export const Students = {
   },
 
   hwRowHtml(h, who, forTeacher) {
-    const ico = { puzzles: '🧩', list: '🎯', chapter: '📖' }[h.kind] || '📝';
+    const ico = { puzzles: '🧩', list: '🎯', chapter: '📖', endgame: '♟' }[h.kind] || '📝';
     return `<span class="hw-ico" aria-hidden="true">${ico}</span>` +
       `<span class="fr-name">${esc(h.title)}<span class="fr-sub">${esc(this.hwSub(h, who))}</span></span>` +
       `<p class="hw-what">${esc(this.hwWhat(h, forTeacher))}</p>` +
@@ -1002,9 +1033,12 @@ export const Students = {
     } else if (h.kind === 'chapter' && !this.hwGone.has(h.id)) {
       btn.textContent = t('hw_open_chapter');
       btn.onclick = () => this.hwOpenChapter(h, btn);
+    } else if (h.kind === 'endgame' && this.hwEndgame(h)) {
+      btn.textContent = t('hw_open_chapter');
+      btn.onclick = () => this.hwOpenEndgame(h);
     } else {
-      // A text task, or a chapter that is no longer there (plan 3.6): the
-      // student ticks it off, and the confirm says nobody can check it.
+      // A text task, or a chapter or an endgame that is no longer there (plan
+      // 3.6): the student ticks it off, and the confirm says nobody can check it.
       btn.textContent = t('hw_mark_done');
       btn.onclick = () => this.markTextDone(h, btn);
     }
@@ -1042,6 +1076,7 @@ export const Students = {
     if (this.hwRun && this.hwRun.id !== h.id) this.hwEnd();
     if (!this.hwRun) {
       this.hwRun = { id: h.id, kind: h.kind, addDone: 0, addSec: 0, addIds: [], counted: new Set(),
+        addTries: 0, mistakes: null,              // an endgame's detail
         addResults: [], pzId: null, pzSec: 0,     // stage 6: per-puzzle results + this puzzle's seconds
         timer: setInterval(() => this.hwTick(), 1000) };
     }
@@ -1054,9 +1089,13 @@ export const Students = {
     else this.hwStop();
   },
 
-  // Is the player on the task right now? Puzzles in homework mode, or the
-  // homework's chapter on the Analysis board.
+  // Is the player on the task right now? Puzzles in homework mode, the
+  // homework's chapter on the Analysis board, or its endgame open in Learn.
   hwOnTask(run) {
+    if (run.kind === 'endgame') {
+      return activeScreen === 'endgame' && !!Endgame.current && Endgame.current.id === run.endgameId
+        && !$('endgame-viewer-view').classList.contains('hidden');
+    }
     if (run.kind === 'chapter') {
       const ctx = Masterclass.chapterCtx();
       return activeScreen === 'analysis' && !!ctx && ctx.mcId === run.mcId && ctx.chapterId === run.chapterId;
@@ -1074,7 +1113,7 @@ export const Students = {
       const id = Puzzles.current ? Puzzles.current.id : null;
       if (id !== run.pzId) { run.pzId = id; run.pzSec = 0; }
       run.pzSec++;
-    } else if (run.addDone || run.addSec || run.addResults.length) {
+    } else if (run.addDone || run.addSec || run.addResults.length || run.addTries) {
       this.hwSave();                      // left the task: save the bundle
     }
   },
@@ -1138,11 +1177,12 @@ export const Students = {
     const run = this.hwRun;
     if (!run) return;
     const addDone = run.addDone, addSeconds = run.addSec, addIds = run.addIds, addResults = run.addResults;
-    run.addDone = 0; run.addSec = 0; run.addIds = []; run.addResults = [];
+    const addTries = run.addTries;
+    run.addDone = 0; run.addSec = 0; run.addIds = []; run.addResults = []; run.addTries = 0;
     const h = this.homework.find(x => x.id === run.id);
     if (h) h.seconds = Math.min(360000, (h.seconds || 0) + addSeconds);
-    if (!addDone && !addSeconds && !finish && !addResults.length) return;
-    saveHomeworkProgress(run.id, { addDone, addSeconds, finish, addIds, addResults })
+    if (!addDone && !addSeconds && !finish && !addResults.length && !addTries) return;
+    saveHomeworkProgress(run.id, { addDone, addSeconds, finish, addIds, addResults, addTries, mistakes: run.mistakes })
       .catch(e => console.error('Saving homework progress failed', e));
     this.writeCache();
   },
@@ -1213,6 +1253,58 @@ export const Students = {
     h.done = 1;
     run.addDone = 1;
     this.hwFinish(h);
+  },
+
+  // ── endgame homework ──
+  // Open = that study in the Learn tab, as Home's discovery card opens one.
+  // Done when a PRACTICE of it ends in success (Endgame.finishPractice, the
+  // only place that knows): wrong moves on the way are taken back there and
+  // do not stop it counting — they are reported instead. It counts however
+  // the student got to the study, from this card or through the Learn tab.
+  hwOpenEndgame(h) {
+    const pos = this.hwEndgame(h);
+    if (!pos) { this.render(); return; }
+    const run = this.hwBegin(h);
+    run.endgameId = pos.id;
+    showScreen('endgame');
+    Endgame.category = pos.category;
+    Endgame.openPosition(pos);
+  },
+
+  hwOpenEndgames(endgameId) {
+    return this.homework.filter(h => h.status === 'open' && h.kind === 'endgame'
+      && !!h.params && h.params.endgameId === endgameId);
+  },
+
+  // Endgame.startPractice() calls this: one more try. The walkthrough never
+  // starts a practice, so watching is not a try.
+  hwEndgameTry(endgameId) {
+    const h = this.hwOpenEndgames(endgameId)[0];
+    if (!h) return;
+    const run = this.hwBegin(h);
+    run.endgameId = endgameId;
+    if ((h.tries || 0) >= 999) return;      // the rules stop at 1000
+    h.tries = (h.tries || 0) + 1;
+    run.addTries++;
+    this.writeCache();
+  },
+
+  // Endgame.finishPractice() calls this. A failed practice (resigned, or
+  // mated after leaving the line) leaves the homework open; its try is saved.
+  hwEndgameDone(endgameId, success, mistakes) {
+    const open = this.hwOpenEndgames(endgameId);
+    if (!open.length) return;
+    if (!success) { if (this.hwRun && this.hwRun.kind === 'endgame') this.hwSave(); return; }
+    // Two teachers can give the same endgame: one solve finishes both.
+    for (const h of open) {
+      const run = this.hwBegin(h);
+      run.endgameId = endgameId;
+      if (!h.tries) { h.tries = 1; run.addTries = 1; }
+      h.done = 1;
+      run.addDone = 1;
+      h.mistakes = run.mistakes = Math.max(0, Math.min(999, Math.round(mistakes) || 0));
+      this.hwFinish(h);
+    }
   },
 
   // A text task has no proof — the student ticks it, and the confirm says so.
@@ -1359,17 +1451,18 @@ export const Students = {
     const themes = TRACKED_THEMES.filter(x => t('theme_' + x) !== 'theme_' + x);
     const weak = themes.filter(x => typeof rated[x] === 'number').sort((a, b) => rated[a] - rated[b]);
     const ordered = [...weak, ...themes.filter(x => !weak.includes(x))];
-    // Two buttons on top; Puzzles holds both "by theme and level" and "chosen
+    // Three buttons on top; Puzzles holds both "by theme and level" and "chosen
     // by me". The stored kinds do not change: the second one is still 'list'.
-    if (kind0 !== 'chapter' && kind0 !== 'list') kind0 = 'puzzles';
-    const top0 = kind0 === 'chapter' ? 'chapter' : 'puzzles';
+    if (!['chapter', 'list', 'endgame'].includes(kind0)) kind0 = 'puzzles';
+    const top0 = kind0 === 'list' ? 'puzzles' : kind0;
+    const lang = getLang();
     let mode = kind0 === 'list' ? 'list' : 'puzzles';
     return modal((box, close) => {
       box.classList.add('hw-sheet');
       box.innerHTML =
         `<h3>${esc(t('hw_assign_to').replace('{n}', p.profileName))}</h3>` +
         `<div class="seg hw-kind">` +
-        ['puzzles', 'chapter'].map(k =>
+        ['puzzles', 'chapter', 'endgame'].map(k =>
           `<button data-v="${k}"${k === top0 ? ' class="on"' : ''}>${esc(t('hw_kind_' + k))}</button>`).join('') +
         `</div>` +
         `<div class="seg hw-mode">` +
@@ -1380,6 +1473,10 @@ export const Students = {
         `<label class="hw-label">${esc(t('hw_f_class'))}<select class="input hw-mc"></select></label>` +
         `<label class="hw-label">${esc(t('hw_f_chapter'))}<select class="input hw-chs"></select></label>` +
         `<p class="hint hw-ch-note"></p>` +
+        `</div>` +
+        `<div class="hw-eg hidden">` +
+        `<label class="hw-label">${esc(t('hw_f_eg_cat'))}<select class="input hw-egc"></select></label>` +
+        `<label class="hw-label">${esc(t('hw_f_eg'))}<select class="input hw-egs"></select></label>` +
         `</div>` +
         `<div class="hw-ls hidden"><div class="hw-label hw-ls-head"></div><div class="hw-ls-rows"></div></div>` +
         `<div class="hw-pz">` +
@@ -1398,16 +1495,30 @@ export const Students = {
       let kind = kind0;
       const showKind = v => {
         kind = v;
-        if (v !== 'chapter') mode = v;
-        $$('.hw-mode').classList.toggle('hidden', v === 'chapter');
+        const inPuzzles = v === 'puzzles' || v === 'list';
+        if (inPuzzles) mode = v;
+        $$('.hw-mode').classList.toggle('hidden', !inPuzzles);
         $$('.hw-pz').classList.toggle('hidden', v !== 'puzzles');
         $$('.hw-ch').classList.toggle('hidden', v !== 'chapter');
+        $$('.hw-eg').classList.toggle('hidden', v !== 'endgame');
         $$('.hw-ls').classList.toggle('hidden', v !== 'list');
         if (v === 'chapter') loadClasses();
         if (v === 'list') drawList();
       };
-      segInit($$('.hw-kind'), v => showKind(v === 'chapter' ? 'chapter' : mode));
+      segInit($$('.hw-kind'), v => showKind(v === 'puzzles' ? mode : v));
       segInit($$('.hw-mode'), showKind);
+
+      // ── Endgame: a category of the Learn tab, then ONE of its studies, by
+      // name and subtitle as the Learn tab lists them. All of it is in the app.
+      const egCat = $$('.hw-egc'), egSel = $$('.hw-egs');
+      egCat.innerHTML = ENDGAME_CATEGORIES.map(c =>
+        `<option value="${esc(c)}">${esc(t('cat_' + c))}</option>`).join('');
+      const fillEndgames = () => {
+        egSel.innerHTML = ENDGAMES.filter(e => e.category === egCat.value).map(e =>
+          `<option value="${esc(e.id)}">${esc(e.name[lang] + (e.subtitle ? ' — ' + e.subtitle[lang] : ''))}</option>`).join('');
+      };
+      egCat.onchange = fillEndgames;
+      fillEndgames();
 
       // ── Chapter: my OWN classes (only an owner can add a viewer), then
       // that class's chapters. Fetched when the tab is first shown.
@@ -1528,6 +1639,13 @@ export const Students = {
           if (!ch) { toast(t('hw_pick_chapter')); return; }
           close({ kind, title: (title || ch.title || mc.name || '?').slice(0, 80), note, dueDate,
             params: { mcId: mc.id, chapterId: ch.id }, memberCount: mc.memberCount || 0 });
+          return;
+        }
+        if (kind === 'endgame') {
+          const pos = ENDGAMES.find(e => e.id === egSel.value);
+          if (!pos) return;
+          close({ kind, title: (title || pos.name[lang]).slice(0, 80), note, dueDate,
+            params: { endgameId: pos.id } });
           return;
         }
         if (kind === 'list') {

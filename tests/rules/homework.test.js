@@ -667,6 +667,178 @@ describe('/homework — per-puzzle results (stage 6)', () => {
   });
 });
 
+// ═══════════════════════ endgame (v217) ═══════════════════════
+// ONE study of the Learn tab, by its id. Done when the student's practice of
+// it ends in success; `tries` and `mistakes` are the detail the teacher sees.
+
+const endgameTask = (extra = {}, params = {}) => ({
+  teacherUid: TEACH, studentUid: STU, kind: 'endgame',
+  title: 'The Lucena position',
+  params: { endgameId: 'r12', ...params },
+  status: 'open', done: 0, seconds: 0, createdAt: serverTimestamp(),
+  ...extra,
+});
+
+describe('/homework — an endgame of the Learn tab (v217)', () => {
+  it('CAN assign an endgame, with or without a note and a date', async () => {
+    await active();
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/a'), endgameTask()));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/b'),
+      endgameTask({ note: 'Build the bridge', dueDate: '2026-10-20' }, { endgameId: 'p1' })));
+  });
+
+  it('CANNOT assign an endgame without an active link', async () => {
+    await assertFails(setDoc(doc(asTeacher(), `homework/${HW}`), endgameTask()));
+    await seed(`coaching/${LINK}`, storedLink(TEACH, STU, 'pending'));
+    await assertFails(setDoc(doc(asTeacher(), `homework/${HW}`), endgameTask()));
+  });
+
+  it('endgame params are exactly {endgameId}, a short id', async () => {
+    await active();
+    await assertFails(setDoc(doc(asTeacher(), 'homework/a'), endgameTask({ params: {} })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), endgameTask({}, { extra: 1 })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/c'), endgameTask({}, { endgameId: 7 })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/d'), endgameTask({}, { endgameId: '' })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/e'), endgameTask({}, { endgameId: 'x'.repeat(41) })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/f'), endgameTask({}, { endgameId: 'r1/2' })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/g'), endgameTask({}, { endgameId: 'r 12' })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/h'), endgameTask({ params: 'r12' })));
+    // Another kind's params do not pass as an endgame's, nor the other way.
+    await assertFails(setDoc(doc(asTeacher(), 'homework/i'), endgameTask({ params: { mcId: MC, chapterId: CH } })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/j'), textTask({ params: { endgameId: 'r12' } })));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/k'), endgameTask({}, { endgameId: 'x'.repeat(40) })));
+  });
+
+  it('a new endgame task cannot start with tries or mistakes', async () => {
+    await active();
+    await assertFails(setDoc(doc(asTeacher(), 'homework/a'), endgameTask({ tries: 0 })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/b'), endgameTask({ mistakes: 0 })));
+  });
+
+  it('progress is bounded to 1, and done needs it reached', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask()));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`), { done: 2 }));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: 2, status: 'done', completedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { status: 'done', completedAt: serverTimestamp() }));
+  });
+
+  it('a failed practice: a try and its seconds, still open', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask()));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { tries: increment(1), seconds: increment(40) }));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`), { tries: increment(2) }));
+    const snap = await getDoc(doc(asStudent(), `homework/${HW}`));
+    if (snap.data().tries !== 3 || snap.data().status !== 'open') throw new Error('tries did not add up');
+  });
+
+  it('the student finishes it: done 1, the try and the mistakes in ONE write', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask()));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`), {
+      done: increment(1), seconds: increment(95), tries: increment(1), mistakes: 2,
+      status: 'done', completedAt: serverTimestamp(),
+    }));
+  });
+
+  it('finishing without the detail still works (the app\'s fallback write)', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask()));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: increment(1), status: 'done', completedAt: serverTimestamp() }));
+  });
+
+  it('an endgame the app no longer has can still be ticked off', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask({}, { endgameId: 'gone-99' })));
+    await assertSucceeds(updateDoc(doc(asStudent(), `homework/${HW}`),
+      { done: increment(1), status: 'done', completedAt: serverTimestamp() }));
+  });
+
+  it('tries only grow, are whole numbers, stop at 1000 and cannot be deleted', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored({ ...endgameTask(), tries: 5 }));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { tries: 4 }));
+    await assertFails(updateDoc(ref, { tries: 5.5 }));
+    await assertFails(updateDoc(ref, { tries: 'many' }));
+    await assertFails(updateDoc(ref, { tries: 1001 }));
+    await assertFails(updateDoc(ref, { tries: deleteField() }));
+    await assertSucceeds(updateDoc(ref, { tries: 1000 }));
+    await assertFails(updateDoc(ref, { tries: increment(1) }));
+  });
+
+  it('mistakes: 0–999, a whole number, only on the write that finishes', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask()));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    const fin = { done: increment(1), status: 'done', completedAt: serverTimestamp() };
+    await assertFails(updateDoc(ref, { mistakes: 1 }));                       // still open
+    await assertFails(updateDoc(ref, { ...fin, mistakes: -1 }));
+    await assertFails(updateDoc(ref, { ...fin, mistakes: 1000 }));
+    await assertFails(updateDoc(ref, { ...fin, mistakes: 1.5 }));
+    await assertFails(updateDoc(ref, { ...fin, mistakes: '2' }));
+    await assertSucceeds(updateDoc(ref, { ...fin, mistakes: 0 }));
+    // Finished: the number is final, and the task cannot be reopened.
+    await assertFails(updateDoc(ref, { mistakes: 3 }));
+    await assertFails(updateDoc(ref, { mistakes: deleteField() }));
+    await assertFails(updateDoc(ref, { status: 'open' }));
+    // …but a second phone's late bundle (a try, seconds) is still taken.
+    await assertSucceeds(updateDoc(ref, { tries: increment(1), seconds: increment(10) }));
+  });
+
+  it('the other four kinds may not carry tries or mistakes', async () => {
+    await active();
+    await seedClass();
+    const fin = { status: 'done', completedAt: serverTimestamp() };
+    await seed('homework/t', stored(textTask()));
+    await seed('homework/c', stored(chapterTask()));
+    await seed('homework/p', stored({ ...puzzlesTask(), done: 9 }));
+    await seed('homework/l', stored({ ...listTask(1) }));
+    for (const id of ['t', 'c', 'p', 'l']) {
+      await assertFails(updateDoc(doc(asStudent(), `homework/${id}`), { tries: 1 }));
+      await assertFails(updateDoc(doc(asStudent(), `homework/${id}`), { done: increment(1), ...fin, mistakes: 0 }));
+    }
+  });
+
+  it('an endgame task may not carry doneIds or results, nor be edited', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask()));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    await assertFails(updateDoc(ref, { doneIds: ['x'] }));
+    await assertFails(updateDoc(ref, { results: [`${pz(1)}|1|12`] }));
+    await assertFails(updateDoc(ref, { 'params.endgameId': 'p1' }));
+    await assertFails(updateDoc(ref, { kind: 'text' }));
+    await assertFails(updateDoc(ref, { title: 'Easier' }));
+  });
+
+  it('the teacher and a stranger CANNOT write its progress', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(endgameTask()));
+    const fin = { done: 1, tries: 1, mistakes: 0, status: 'done', completedAt: serverTimestamp() };
+    await assertFails(updateDoc(doc(asTeacher(), `homework/${HW}`), fin));
+    await assertFails(updateDoc(doc(asTeacher(), `homework/${HW}`), { tries: 1 }));
+    await assertFails(updateDoc(doc(asOther(), `homework/${HW}`), fin));
+  });
+
+  it('the four older kinds still assign and finish as before', async () => {
+    await active();
+    await seedClass();
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/p'), puzzlesTask({}, { count: 1 })));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/t'), textTask()));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/c'), chapterTask()));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/l'), listTask(1)));
+    const fin = { done: increment(1), status: 'done', completedAt: serverTimestamp() };
+    for (const id of ['p', 't', 'c']) {
+      await assertSucceeds(updateDoc(doc(asStudent(), `homework/${id}`), fin));
+    }
+    await assertSucceeds(updateDoc(doc(asStudent(), 'homework/l'), { ...fin, doneIds: arrayUnion('p0') }));
+  });
+});
+
 // ═══════════════════════ read ═══════════════════════
 
 describe('/homework — reading', () => {
