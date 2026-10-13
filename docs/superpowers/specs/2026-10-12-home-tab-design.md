@@ -1,6 +1,9 @@
 # Inicio / Home — the screen the app opens on (design)
 
-Date: 2026-10-12. Status: **design only, nothing built.** Written against commit
+Date: 2026-10-12. Status: **built and live. Changed on 2026-10-13 (cache
+v211): the block between "Hoy" and "Descubre" is "Tu entrenamiento", always
+three rows, an empty one being an invitation; see decision a, item 3, which
+also replaces the "Empieza por aquí" bullet of decision b.** Written against commit
 `5c607ff` (cache v196). Internal name `home`; the screen is `#screen-home`.
 
 Adrian's words: "Create designs for the home tab and select the best one." And,
@@ -86,14 +89,34 @@ decision a, item 1.
    - Under it, the other two missions as the same rows Profile shows today
      (`.daily-mission-row`): play a game against the engine → Play; practise an
      opening → Openings.
-3. **"Continuar"**, only the rows that exist, three at most, in this order:
-   - homework from a teacher that is still open (`Students.homework`, status
-     `open`) → the Students screen. A gold "Nueva" pill if not seen yet;
-   - the book last opened (`db.listBookSummaries()`, newest `openedAt`) → Read,
-     opening that book at its page;
-   - the last game against the engine (`db.pageHistory({ count: 1 })`) → that
-     game, opened the way Play's history opens it.
-   With no rows at all the heading is not drawn either (see b).
+3. **"Tu entrenamiento" / "Your training" — CHANGED BY ADRIAN, 2026-10-13.**
+   Always three rows, for everybody, in this order, and the section is never
+   hidden. (Before: "Continuar", only the rows that existed, and no heading
+   when there were none; a user with a streak and nothing half-way saw nothing
+   between "Hoy" and "Descubre".) Each row is the thing to continue, or, when
+   there is nothing, an **invitation**: the same row, with a navy button in
+   place of the arrow, that opens the tab where the thing is started.
+   - **homework** from a teacher that is still open (`Students.homework`, status
+     `open`) → the Students screen. A gold "Nueva" pill if not seen yet.
+     Empty, it says why, the first that fits, and always opens Students:
+     signed out: "Deberes de tu profesor · Inicia sesión para recibirlos",
+     button "Entrar" (Students is its own sign-in page); a teacher's invitation
+     waiting: "{name} quiere ser tu profesor · Responde a su invitación"; a
+     teacher and nothing open: "Deberes al día · Nada pendiente por ahora"; no
+     teacher but students of my own: "Tus alumnos · Mira cómo van sus deberes";
+     no teacher: "Deberes de tu profesor · ¿Tienes profesor? Pídele que te
+     invite". Button "Ver" in the last four;
+   - the **book** last opened (`db.listBookSummaries()`, newest `openedAt`) →
+     Read, opening that book at its page. Empty: "Lee un libro de ajedrez ·
+     Añade un PDF de tu teléfono", button "Añadir" → Read's shelf;
+   - the last **game** against the engine (`db.pageHistory({ count: 1 })`) →
+     that game, opened the way Play's history opens it. Empty: "Repasa tu
+     última partida · Juega una y aparecerá aquí", button "Jugar" → Play. The
+     words are about reviewing, so they do not repeat the "Hoy" row above.
+   One heading for every case, because "Continuar" is not true of an
+   invitation. An invitation becomes the real row on Home's next draw (coming
+   back to Home, the app coming to the front, a change in Students' lists).
+   The rule is `homeBlock()` in `js/home.js`.
 4. **"Descubre" / "Discover": the second board — ADDED AND NAMED BY ADRIAN.** One
    card, one board, one question, one button, **no switch**. It shows one of two
    things, and a small grey word in the corner says which ("Final" / "Apertura"):
@@ -136,11 +159,12 @@ Home is never a page of empty boxes, because nothing on it needs an account:
 - Kael's welcome line.
 - The "Hoy" card, complete: the puzzle of the day and "0 / 3". The puzzle and
   the missions work signed out.
-- In place of "Continuar", **"Empieza por aquí"** with three rows: your first
-  lesson (Learn), play against Kael at the lowest level (Play), and the guided
-  tour (`Tour.start`). This block shows while there is nothing to continue
-  **and** the user has never finished a day of practice (`bestStreak` is 0).
-  Someone who has practised but has nothing half-way simply sees no middle block.
+- "Tu entrenamiento" with its three invitations (decision a, item 3), the
+  homework one saying "Inicia sesión para recibirlos". **Changed by Adrian on
+  2026-10-13:** the first-time block "Empieza por aquí" (first lesson, play
+  Kael at the lowest level, guided tour) is gone; the three rows are the same
+  for everybody. The tour is still offered after the level picker on the first
+  launch.
 - "Descubre", complete: the endgames ship with the app.
 
 The streak in the top bar shows 0, greyed, as it does today.
@@ -254,6 +278,10 @@ counts as no practice. That is right and stays so.
    *Checks:* a brand-new profile shows "Empieza por aquí"; with a book, a game
    and a homework all three rows show in order and each opens the right thing;
    deleting the book removes its row; signed out, no homework row and no error.
+   **Superseded on 2026-10-13** by decision a, item 3: the checks are now the
+   ones in `tools/cdp-verify-home.mjs` (three invitations for a new player and
+   for one with a streak; only homework, only a book, only a game, all three;
+   every invitation tapped; an invitation turning into the real row).
 
 Every session that changes a screen checks it at 375px, light AND dark, Spanish
 AND English, with screenshots actually opened and looked at.
@@ -268,11 +296,13 @@ Firestore rule or index.
 
 ## 6. Open risks, said plainly
 
-- **"Descubre" sits at the bottom, below the first screenful** when all three
-  "Continuar" rows show on a small phone (in the picture the card starts right
-  at the 667px line). A user who never scrolls will not see it. If that matters,
-  the fix is to put it above "Continuar"; that is Adrian's call after seeing it
-  on a phone.
+- **"Descubre" sits at the bottom, below the first screenful, for everybody**
+  since 2026-10-13, because the three rows are always there. Measured at 375px:
+  the card starts at y=657 (it was 415 with the section hidden), so at 375x667
+  it is off the first screen and at 375x812 its heading, name and the top of
+  its board show. A user who never scrolls will not see it. If that matters,
+  the fix is to put it above "Tu entrenamiento"; that is Adrian's call after
+  seeing it on a phone.
 - **"Once each time the app is opened" is my reading** of "switch aleatory". He
   may want a new one every time Home is shown, or a new one each day.
 - **A random card can show the same thing twice in a row**, and with no switch

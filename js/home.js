@@ -107,28 +107,40 @@ function givenAt(h) {
 //   seen        ids of the open ones I have already seen (Students.hwSeen)
 //   book        the book last opened, or null
 //   game        the last game against the engine, or null
-//   bestStreak  the longest streak ever: 0 = never finished a day of practice
-// Returns { kind, rows }:
-//   'continue'  one to three rows, always in this order: homework, book, game.
-//               The homework row is { type, item, isNew, count }: the newest
-//               one not seen yet, else the newest open one; `count` is how
-//               many are open.
-//   'start'     nothing to continue and never practised: lesson, play, tour.
-//   'none'      practised, nothing half-way: no block and no heading.
-export function homeBlock({ homework = [], seen = [], book = null, game = null, bestStreak = 0 } = {}) {
+//   signedIn    somebody is signed in
+//   links       my coaching links as a student (Students.asStudent)
+//   teaching    I have a student of my own (Students.hasStudents())
+// Returns { rows }: ALWAYS three, in this order: homework, book, game, for
+// everybody. Each is the thing to continue, or, with nothing there, an
+// invitation to start it (`invite` is set):
+//   homework  { type, item, isNew, count }: the newest one not seen yet, else
+//             the newest open one; `count` is how many are open. With none
+//             open, `invite` says why, the first that fits:
+//               'signedout'  nobody is signed in
+//               'pending'    a teacher's invitation waits for my answer
+//                            (`link` is that link)
+//               'idle'       I have a teacher, and nothing is open
+//               'teaching'   no teacher of my own, but students: my students
+//               'noteacher'  no teacher
+//   book      { type, item }, or { type, invite: 'empty' }
+//   game      { type, item }, or { type, invite: 'empty' }
+export function homeBlock({ homework = [], seen = [], book = null, game = null, signedIn = false, links = [], teaching = false } = {}) {
   const rows = [];
   const open = (Array.isArray(homework) ? homework : []).filter(h => h && h.status === 'open');
-  if (open.length) {
+  const mine = signedIn && Array.isArray(links) ? links.filter(Boolean) : [];
+  const waiting = mine.find(l => l.status === 'pending');
+  if (signedIn && open.length) {
     const known = new Set(seen || []);
     const newest = list => list.reduce((a, b) => (givenAt(b) > givenAt(a) ? b : a));
     const fresh = open.filter(h => !known.has(h.id));
     rows.push({ type: 'homework', item: newest(fresh.length ? fresh : open), isNew: fresh.length > 0, count: open.length });
-  }
-  if (book) rows.push({ type: 'book', item: book });
-  if (game) rows.push({ type: 'game', item: game });
-  if (rows.length) return { kind: 'continue', rows };
-  if (!(bestStreak > 0)) return { kind: 'start', rows: [{ type: 'lesson' }, { type: 'play' }, { type: 'tour' }] };
-  return { kind: 'none', rows: [] };
+  } else if (!signedIn) rows.push({ type: 'homework', invite: 'signedout' });
+  else if (waiting) rows.push({ type: 'homework', invite: 'pending', link: waiting });
+  else if (mine.some(l => l.status === 'active')) rows.push({ type: 'homework', invite: 'idle' });
+  else rows.push({ type: 'homework', invite: teaching ? 'teaching' : 'noteacher' });
+  rows.push(book ? { type: 'book', item: book } : { type: 'book', invite: 'empty' });
+  rows.push(game ? { type: 'game', item: game } : { type: 'game', invite: 'empty' });
+  return { rows };
 }
 
 // Everything the line needs: the rule, the streak's number, and the greeting

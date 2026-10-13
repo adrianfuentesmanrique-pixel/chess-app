@@ -995,6 +995,9 @@ body.mode-light .home-row-ico { color: var(--accent); }
 .home-row-text b, .home-row-text .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-row .hw-new { flex: 0 0 auto; margin-left: 0; }
 .home-row-arrow { color: var(--muted); font-size: 18px; flex: 0 0 auto; }
+/* An empty slot's invitation: the same row, a navy button where the arrow is. */
+.home-row.invite .home-row-text b, .home-row.invite .home-row-text .sub { white-space: normal; }
+.home-row-go { flex: 0 0 auto; background: var(--accent); color: var(--btn-text); font-weight: 700; font-size: 13px; border-radius: var(--radius); padding: 6px 12px; }
 /* "Descubre": the same row in a plain card; a grey word in the corner says
    which of the two kinds came up. */
 .home-discover .home-puzzle { border-bottom: none; padding-bottom: 0; }

@@ -1375,44 +1375,59 @@ export const Home = {
     this.drawBoards();
   },
 
-  // ── "Continuar" / "Empieza por aquí" ──
+  // ── "Tu entrenamiento": homework, book, game ──
   // A step after render(): two small reads of the phone's own database (the
   // books, the last game) and what Students already holds. No server, no
-  // engine. Which block and which rows is homeBlock() in js/home.js. The block
-  // is replaced only when what it shows has changed, so coming back to Home
-  // moves nothing under a finger.
+  // engine. The three slots, and whether each is the thing to continue or an
+  // invitation to start it, is homeBlock() in js/home.js. The block is
+  // replaced only when what it shows has changed, so coming back to Home
+  // moves nothing under a finger; an invitation becomes the real row on the
+  // next draw after the thing was done (refresh() below, Students.onHomework).
   nextRows: [],
   nextHtml: null,
   nextRun: 0,
   async drawNext() {
     const run = ++this.nextRun;
-    const [books, last, bestStreak] = await Promise.all([
+    const [books, last] = await Promise.all([
       db.listBookSummaries().catch(() => []),
       db.pageHistory({ count: 1 }).catch(() => ({ items: [] })),
-      db.kvGet('bestStreak', 0),
     ]);
     if (run !== this.nextRun) return;   // a later call is on its way
     const block = homeBlock({
       homework: Students.homework, seen: Students.hwSeen,
-      book: books[0] || null, game: last.items[0] || null, bestStreak: +bestStreak || 0,
+      book: books[0] || null, game: last.items[0] || null,
+      signedIn: !!Auth.user, links: Students.asStudent, teaching: Students.hasStudents(),
     });
     this.nextRows = block.rows;
-    const head = block.kind === 'none' ? '' : t('home_' + block.kind);
+    const head = t('home_next');
     const rows = block.rows.map((row, i) => this.nextRowHtml(row, i)).join('');
     if (head + rows === this.nextHtml) return;
     this.nextHtml = head + rows;
-    $('home-next').classList.toggle('hidden', block.kind === 'none');
-    $('home-next').dataset.kind = block.kind;
     $('home-next-head').textContent = head;
     $('home-next-list').innerHTML = rows;
   },
 
   // One row: the icon of the screen it opens (the menu's own drawing), a title
-  // and one grey line, in the words that screen itself uses.
+  // and one grey line, in the words that screen itself uses. An empty slot is
+  // the same row as an invitation: what to start, and a button in place of the
+  // arrow (the whole row takes the tap, as for the others).
   nextRowHtml(row, i) {
-    const lang = getLang(), it = row.item;
-    let ico, title, sub, pill = '';
-    if (row.type === 'homework') {
+    const it = row.item;
+    let ico, title, sub, pill = '', go = '';
+    if (row.invite) {
+      ico = { homework: 'students', book: 'read', game: 'play' }[row.type];
+      if (row.type === 'homework') {
+        const why = row.invite;
+        const who = why === 'pending' ? Students.who(row.link.teacherUid).profileName : '';
+        title = why === 'pending' ? (who && who !== '?' ? t('home_inv_hw_pending').replace('{n}', who) : t('home_inv_hw_pending_anon'))
+          : why === 'idle' || why === 'teaching' ? t('home_inv_hw_' + why) : t('home_inv_hw');
+        sub = t('home_inv_hw_' + why + '_sub');
+        go = t(why === 'signedout' ? 'home_inv_signin' : 'home_inv_open');
+      } else {
+        title = t('home_inv_' + row.type); sub = t('home_inv_' + row.type + '_sub');
+        go = t(row.type === 'book' ? 'home_inv_add' : 'tab_play');
+      }
+    } else if (row.type === 'homework') {
       const who = Students.who(it.teacherUid);
       ico = 'students'; title = it.title;
       sub = [t('hw_title'), Students.hwSub(it, who.profileName === '?' ? null : who),
@@ -1421,40 +1436,27 @@ export const Home = {
     } else if (row.type === 'book') {
       ico = 'read'; title = it.name;
       sub = t('tab_read') + ' · ' + t('read_page_of').replace('{p}', it.page || 1).replace('{n}', it.pageCount || '?');
-    } else if (row.type === 'game') {
+    } else {
       const { white, black } = History.namesFor(it);
       ico = 'play'; title = `${white} – ${black} · ${History.displayResult(it)}`;
       sub = [t('history_end_' + it.endReason), `${it.moveCount} ${tn('history_moves', it.moveCount)}`, History.formatWhen(it.playedAt)].join(' · ');
-    } else if (row.type === 'lesson') {
-      ico = 'endgame'; title = t('home_start_lesson');
-      sub = t('tab_endgame') + ' · ' + LEARNING_CATEGORIES[0].title[lang];
-    } else if (row.type === 'play') {
-      ico = 'play'; title = t('home_start_play');
-      sub = t('level_n').replace('{n}', 1) + ' · ' + t('level_names')[0];
-    } else {
-      ico = 'home'; title = t('home_start_tour'); sub = t('home_start_tour_sub');
     }
     const svg = document.querySelector(`#tabbar button[data-screen="${ico}"] svg`)?.outerHTML || '';
-    return `<button class="list-item home-row" type="button" data-i="${i}" data-type="${row.type}"><span class="home-row-ico">${svg}</span>` +
-      `<span class="home-row-text"><b>${esc(title)}</b><span class="sub">${esc(sub)}</span></span>${pill}<span class="home-row-arrow">›</span></button>`;
+    return `<button class="list-item home-row${row.invite ? ' invite' : ''}" type="button" data-i="${i}" data-type="${row.type}"${row.invite ? ` data-invite="${row.invite}"` : ''}><span class="home-row-ico">${svg}</span>` +
+      `<span class="home-row-text"><b>${esc(title)}</b><span class="sub">${esc(sub)}</span></span>${pill}` +
+      (go ? `<span class="home-row-go">${esc(go)}</span>` : '<span class="home-row-arrow">›</span>') + '</button>';
   },
 
   goNext(row) {
     if (!row) return;
-    if (row.type === 'homework') showScreen('students');
+    // An invitation opens the tab where that thing is started; signed out,
+    // Students is its own sign-in page.
+    if (row.invite) showScreen({ homework: 'students', book: 'read', game: 'play' }[row.type]);
+    else if (row.type === 'homework') showScreen('students');
     // That book, at its saved page: Read opens the one named on entering.
     else if (row.type === 'book') { Read.openOnEnter(row.item.id); showScreen('read'); }
     // As Play's history opens a game: its moves, in Analysis.
-    else if (row.type === 'game') History.openGame(row.item);
-    else if (row.type === 'lesson') { showScreen('endgame'); Endgame.Lessons.openCategory(LEARNING_CATEGORIES[0]); }
-    else if (row.type === 'play') {
-      showScreen('play');
-      // The lowest level chosen on Play's own setup page; starting the game is
-      // left to the user. A game already on the board is not touched.
-      if (!$('play-game').classList.contains('hidden')) return;
-      if (!$('play-history').classList.contains('hidden')) History.close();
-      $('play-level').querySelector('button[data-v="0"]')?.click();
-    } else Tour.start(tourCtx());
+    else History.openGame(row.item);
   },
 
   // ── the two boards ──

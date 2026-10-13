@@ -9,6 +9,32 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **HOME: THE THREE SLOTS ARE ALWAYS THERE (2026-10-13, v211).** Spec:
+  `docs/superpowers/specs/2026-10-12-home-tab-design.md`, decision a item 3 (rewritten).
+  The block between "Hoy" and "Descubre" is now "Tu entrenamiento" / "Your training" and
+  ALWAYS shows homework, book, game, for everybody; it is never hidden. An empty slot is an
+  invitation: the same `.home-row`, class `invite`, `data-invite` saying which, and a navy
+  `.home-row-go` button where the arrow is; the whole row takes the tap and opens Students,
+  Read or Play. `homeBlock()` in `js/home.js` returns `{ rows }` (three, always); `kind`,
+  `bestStreak`, "Continuar" and the first-time "Empieza por aquí" block (lesson, play, tour)
+  are GONE, with their i18n keys (Adrian's four decisions, asked with pictures). The empty
+  homework slot has five reasons, first that fits: `signedout`, `pending` (a teacher's
+  invitation waits: "{name} quiere ser tu profesor"), `idle` (a teacher, nothing open),
+  `teaching` (students of my own, no teacher: "Tus alumnos"), `noteacher`. Words: `home_next`,
+  `home_inv_*` in `js/i18n.js`. An invitation becomes the real row on Home's next draw
+  (`Home.refresh`, `Students.onHomework`); nothing new listens.
+  - **Measured at 375 px:** each row is 61 px; "Descubre" now starts at y=657 for everybody
+    (415 when the section was hidden): off the first screen at 375x667, its top showing at
+    375x812. Moving it above the three rows is Adrian's call, not done.
+  - **Verified:** `test:tree` 457 (homeBlock: every combination), `test:precache` 59 files,
+    `tools/cdp-verify-home.mjs` all checks, ES/EN, light/dark, 375x667 (+ one picture at
+    812), screenshots opened. Signed in is `Auth.user` set BY HAND and Students' lists set
+    by hand: no real account, no real teacher, no real phone.
+  - **The tool's ports:** `cdp-verify-home.mjs` draws its random ports from the same ranges
+    as `emu-verify-simul.mjs`; with that one running, pass `CDP_PORT=9212 WEB_PORT=9062`.
+  - **Still owed, not touched:** a saved SIMUL game still shows in the game slot with the
+    engine's robot icon (owed since v205).
+
 - **BLINDFOLD AND SEALED MOVES: THE NEXT BUTTON (2026-10-13, v210).** No spec; Adrian chose
   from measured pictures (today and two mock-ups of each screen, 375 x 667, light and dark).
   - **Measured before (Spanish, same in dark).** Blindfold: `#blind-next` was 37 px tall and

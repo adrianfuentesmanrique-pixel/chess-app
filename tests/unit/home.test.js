@@ -139,73 +139,98 @@ const GAME = { id: 3, outcome: 'win', level: 3 };
 const hw = (id, status, createdAt) => ({ id, status, createdAt, title: 'T' + id });
 const types = b => b.rows.map(r => r.type).join();
 
-test('homeBlock: a brand-new, signed-out user gets "Empieza por aquí": lesson, play, tour', () => {
-  const b = homeBlock({ homework: [], seen: [], book: null, game: null, bestStreak: 0 });
-  assert.equal(b.kind, 'start');
-  assert.equal(types(b), 'lesson,play,tour');
-  assert.deepEqual(homeBlock(), b);
+const ACTIVE = { teacherUid: 't1', status: 'active' }, PENDING = { teacherUid: 't2', status: 'pending' }, DECLINED = { teacherUid: 't3', status: 'declined' };
+// What each of the three slots holds: the thing itself, or which invitation.
+const slots = b => b.rows.map(r => r.type + ':' + (r.invite || 'real')).join();
+
+test('homeBlock: always three slots, in the order homework, book, game, in every combination', () => {
+  for (const signedIn of [false, true]) for (const homework of [[], [hw('a', 'open', 1)], [hw('a', 'done', 1)]])
+    for (const links of [[], [ACTIVE], [PENDING]]) for (const teaching of [false, true])
+      for (const book of [null, BOOK]) for (const game of [null, GAME]) {
+        const b = homeBlock({ homework, seen: [], book, game, signedIn, links, teaching });
+        assert.deepEqual(Object.keys(b), ['rows']);
+        assert.equal(types(b), 'homework,book,game');
+        for (const r of b.rows) assert.ok(!!r.invite !== !!r.item, JSON.stringify(r));
+        assert.equal(!b.rows[1].invite, !!book);
+        assert.equal(!b.rows[2].invite, !!game);
+        assert.equal(!b.rows[0].invite, signedIn && homework[0]?.status === 'open');
+      }
 });
 
-test('homeBlock: practised, nothing half-way: no block at all', () => {
-  assert.deepEqual(homeBlock({ bestStreak: 3 }), { kind: 'none', rows: [] });
-  assert.deepEqual(homeBlock({ homework: [hw('a', 'done', 5)], bestStreak: 1 }), { kind: 'none', rows: [] });
+test('homeBlock: nothing half-way gives three invitations, with a streak or without (the section is never empty)', () => {
+  assert.equal(slots(homeBlock()), 'homework:signedout,book:empty,game:empty');
+  assert.equal(slots(homeBlock({ signedIn: true })), 'homework:noteacher,book:empty,game:empty');
+  assert.equal(slots(homeBlock({ signedIn: true, links: [ACTIVE] })), 'homework:idle,book:empty,game:empty');
+  // the old rule read the best streak; it no longer changes anything
+  assert.deepEqual(homeBlock({ bestStreak: 3 }), homeBlock({ bestStreak: 0 }));
 });
 
-test('homeBlock: only homework that is done does not count as something to continue', () => {
-  assert.equal(homeBlock({ homework: [hw('a', 'done', 5)], bestStreak: 0 }).kind, 'start');
+test('homeBlock: only a book, only a game, only homework, each pair, and all three', () => {
+  const H = [hw('a', 'open', 1)], me = { signedIn: true, links: [ACTIVE] };
+  assert.equal(slots(homeBlock({ ...me, book: BOOK })), 'homework:idle,book:real,game:empty');
+  assert.equal(slots(homeBlock({ ...me, game: GAME })), 'homework:idle,book:empty,game:real');
+  assert.equal(slots(homeBlock({ ...me, homework: H })), 'homework:real,book:empty,game:empty');
+  assert.equal(slots(homeBlock({ ...me, book: BOOK, game: GAME })), 'homework:idle,book:real,game:real');
+  assert.equal(slots(homeBlock({ ...me, homework: H, game: GAME })), 'homework:real,book:empty,game:real');
+  assert.equal(slots(homeBlock({ ...me, homework: H, book: BOOK })), 'homework:real,book:real,game:empty');
+  const all = homeBlock({ ...me, homework: H, book: BOOK, game: GAME });
+  assert.equal(slots(all), 'homework:real,book:real,game:real');
+  assert.equal(all.rows[1].item, BOOK);
+  assert.equal(all.rows[2].item, GAME);
 });
 
-test('homeBlock: all three rows, always homework, book, game', () => {
-  const b = homeBlock({ homework: [hw('a', 'open', 5)], seen: [], book: BOOK, game: GAME, bestStreak: 12 });
-  assert.equal(b.kind, 'continue');
-  assert.equal(types(b), 'homework,book,game');
-  assert.equal(b.rows[1].item, BOOK);
-  assert.equal(b.rows[2].item, GAME);
+test('homeBlock: the empty homework slot says why, the first reason that fits', () => {
+  const why = o => homeBlock(o).rows[0].invite;
+  assert.equal(why({ signedIn: false }), 'signedout');
+  assert.equal(why({ signedIn: true }), 'noteacher');
+  assert.equal(why({ signedIn: true, links: [DECLINED] }), 'noteacher');
+  assert.equal(why({ signedIn: true, links: [ACTIVE] }), 'idle');
+  assert.equal(why({ signedIn: true, links: [ACTIVE], homework: [hw('a', 'done', 5)] }), 'idle');
+  assert.equal(why({ signedIn: true, teaching: true }), 'teaching');
+  // a teacher of my own comes before my students; an invitation before both
+  assert.equal(why({ signedIn: true, links: [ACTIVE], teaching: true }), 'idle');
+  assert.equal(why({ signedIn: true, links: [ACTIVE, PENDING], teaching: true }), 'pending');
+  assert.equal(homeBlock({ signedIn: true, links: [DECLINED, PENDING] }).rows[0].link, PENDING);
 });
 
-test('homeBlock: only the rows that exist, one at a time and in pairs', () => {
-  assert.equal(types(homeBlock({ game: GAME })), 'game');
-  assert.equal(types(homeBlock({ book: BOOK })), 'book');
-  assert.equal(types(homeBlock({ homework: [hw('a', 'open', 1)] })), 'homework');
-  assert.equal(types(homeBlock({ book: BOOK, game: GAME })), 'book,game');
-  assert.equal(types(homeBlock({ homework: [hw('a', 'open', 1)], game: GAME })), 'homework,game');
+test('homeBlock: an open homework comes before every invitation, a waiting one included', () => {
+  const r = homeBlock({ signedIn: true, links: [ACTIVE, PENDING], homework: [hw('a', 'open', 5)] }).rows[0];
+  assert.deepEqual([r.item.id, r.invite], ['a', undefined]);
 });
 
-test('homeBlock: something to continue wins over "Empieza por aquí", whatever the streak', () => {
-  assert.equal(homeBlock({ game: GAME, bestStreak: 0 }).kind, 'continue');
-  assert.equal(homeBlock({ book: BOOK, bestStreak: 0 }).kind, 'continue');
+test('homeBlock: signed out, lists left over from an account are not read', () => {
+  const b = homeBlock({ signedIn: false, homework: [hw('a', 'open', 5)], links: [ACTIVE, PENDING], teaching: true, book: BOOK, game: GAME });
+  assert.equal(slots(b), 'homework:signedout,book:real,game:real');
 });
 
-test('homeBlock: signed out there is no homework row (the list is empty), the rest stands', () => {
-  const b = homeBlock({ homework: [], seen: [], book: BOOK, game: GAME, bestStreak: 2 });
-  assert.equal(types(b), 'book,game');
-});
+const mine = o => homeBlock({ signedIn: true, links: [ACTIVE], ...o });
 
 test('homeBlock: one open homework not seen yet is new; seen, it is not', () => {
-  let r = homeBlock({ homework: [hw('a', 'open', 5)], seen: [] }).rows[0];
+  let r = mine({ homework: [hw('a', 'open', 5)], seen: [] }).rows[0];
   assert.deepEqual([r.item.id, r.isNew, r.count], ['a', true, 1]);
-  r = homeBlock({ homework: [hw('a', 'open', 5)], seen: ['a'] }).rows[0];
+  r = mine({ homework: [hw('a', 'open', 5)], seen: ['a'] }).rows[0];
   assert.deepEqual([r.item.id, r.isNew, r.count], ['a', false, 1]);
 });
 
 test('homeBlock: several open: the newest one not seen yet, and how many are open', () => {
   const list = [hw('old', 'open', 10), hw('seen', 'open', 40), hw('mid', 'open', 20), hw('new', 'open', 30), hw('done', 'done', 99)];
-  const r = homeBlock({ homework: list, seen: ['seen'] }).rows[0];
+  const r = mine({ homework: list, seen: ['seen'] }).rows[0];
   assert.deepEqual([r.item.id, r.isNew, r.count], ['new', true, 4]);
 });
 
 test('homeBlock: several open and all seen: the newest open one, not new', () => {
   const list = [hw('a', 'open', 10), hw('b', 'open', 40), hw('c', 'open', 20)];
-  const r = homeBlock({ homework: list, seen: ['a', 'b', 'c'] }).rows[0];
+  const r = mine({ homework: list, seen: ['a', 'b', 'c'] }).rows[0];
   assert.deepEqual([r.item.id, r.isNew, r.count], ['b', false, 3]);
 });
 
 test('homeBlock: a server time kept as { seconds } is read as a date too', () => {
   const list = [hw('a', 'open', { seconds: 100, nanoseconds: 0 }), hw('b', 'open', { seconds: 200, nanoseconds: 0 }), hw('c', 'open', undefined)];
-  assert.equal(homeBlock({ homework: list }).rows[0].item.id, 'b');
+  assert.equal(mine({ homework: list }).rows[0].item.id, 'b');
 });
 
 test('homeBlock survives junk', () => {
-  assert.equal(homeBlock({ homework: null, seen: null, bestStreak: undefined }).kind, 'start');
-  assert.equal(homeBlock({ homework: [null, hw('a', 'open', 1)], seen: null }).rows[0].item.id, 'a');
+  assert.equal(slots(homeBlock({ homework: null, seen: null, links: null, signedIn: true })), 'homework:noteacher,book:empty,game:empty');
+  assert.equal(slots(homeBlock({ signedIn: true, links: [null, undefined, ACTIVE] })), 'homework:idle,book:empty,game:empty');
+  assert.equal(mine({ homework: [null, hw('a', 'open', 1)], seen: null }).rows[0].item.id, 'a');
 });
