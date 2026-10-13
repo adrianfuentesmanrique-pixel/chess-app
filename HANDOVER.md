@@ -9,6 +9,27 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **HOME TAB: DESIGN ONLY, NOTHING BUILT (2026-10-12, no version bump).** The spec is
+  `docs/superpowers/specs/2026-10-12-home-tab-design.md`; beside it the mock-up page
+  (`2026-10-12-home-tab-mockup.html`) and two pictures of the chosen design. Three designs
+  were drawn and photographed at 375px; **Adrian chose A ("Hoy")** and replaced its row of
+  eight section buttons with a second board, "Descubre": an endgame ("do you know this
+  endgame?") or an opening ("play it against the engine?").
+  - **Home, top to bottom:** Kael's one line; the "Hoy" card (puzzle of the day with a small
+    board, the other two missions); "Continuar" (open homework, last book, last game; a
+    new user gets "Empieza por aquí" instead); "Descubre".
+  - **Recommended and shown to him, not objected to:** Home is the first menu button and
+    first in the swipe; the app always opens on Home; Back ends on Home; the missions move
+    from Profile to Home (Profile keeps one row); the tour starts on Home; Home reads only
+    what is on the phone and loads the puzzle file after it is drawn.
+  - **Still his to confirm:** that "Descubre" alternates by the day with two chips to see the
+    other one (my reading of his words).
+  - **Found while reading, not fixed:** `puzzleOfDay()` gives every player under 1800 a
+    puzzle from `puzzles-0.json` (ratings up to 799), and that file is not in the offline
+    list in `sw.js` (only `puzzles-3.json` is). Written up in the spec's risks.
+  - **Build plan:** three conversations (the screen and navigation; the two boards;
+    Continuar). None started.
+
 - **PROFILE ICON IN THE TOP BAR, SETTINGS IN THE MENU (2026-10-12, v196).** The two swapped
   places. Adrian's decisions: the icon is the user's own avatar; a gold dot on it for a
   waiting friend request; Profile is reached by the icon only, not by swiping.

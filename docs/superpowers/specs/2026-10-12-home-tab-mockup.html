@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Home tab mock-ups</title>
+<style>
+/* Tokens copied from css/style.css (commit 5c607ff). */
+body.mode-dark {
+  --bg:#0e131a; --panel:#18202b; --panel2:#212b39; --text:#f5f7fa; --muted:#b3bece;
+  --accent:#5b8cff; --accent2:#84a8ff; --gold:#f4c15d; --success:#31d487; --danger:#ff7070;
+  --gold-bg:rgba(244,193,93,.18); --gold-glow:rgba(244,193,93,.65); --tab-active-bg:rgba(91,140,255,.18);
+  --input-border:#2a3441; --shadow:rgba(0,0,0,.5); --btn-text:#0b1526; --sheet:#0a0e14;
+}
+body.mode-light {
+  --bg:#f6f7fb; --panel:#ffffff; --panel2:#edf0f6; --text:#1a202c; --muted:#6b7280;
+  --accent:#102a43; --accent2:#3659d9; --gold:#f5b942; --success:#2bb673; --danger:#eb5757;
+  --gold-bg:rgba(245,185,66,.16); --gold-glow:rgba(245,185,66,.55); --tab-active-bg:rgba(16,42,67,.12);
+  --input-border:#b6bdc8; --shadow:rgba(0,0,0,.12); --btn-text:#f6f7fb; --sheet:#d9dde6;
+}
+:root { --radius:12px; --sq-light:#ecdab9; --sq-dark:#ae8a68; --navy:#102a43; }
+* { box-sizing:border-box; }
+html, body { margin:0; }
+body { background:var(--sheet); color:var(--text); font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; }
+#sheet { display:flex; gap:24px; padding:24px; align-items:flex-start; width:max-content; }
+.col h4 { margin:0 0 10px; font-size:15px; color:var(--text); font-weight:700; }
+.phone { width:375px; background:var(--bg); position:relative; overflow:hidden; }
+.fold { position:absolute; left:0; right:0; top:667px; border-top:2px dashed var(--danger); opacity:.55; pointer-events:none; }
+.fold span { position:absolute; right:4px; top:-16px; font-size:10px; color:var(--danger); }
+.topbar { display:grid; grid-template-columns:1fr minmax(0,max-content) 1fr; align-items:center; gap:8px; padding:6px 14px; background:var(--panel); font-weight:700; font-size:18px; }
+.topbar .l { display:flex; } .topbar .r { justify-self:end; display:flex; align-items:center; gap:10px; }
+.topbar .t { display:flex; align-items:center; gap:8px; }
+.topbar svg { display:block; }
+.streak-badge { font-size:15px; font-weight:700; display:inline-flex; align-items:center; gap:4px; }
+.streak-badge img { width:20px; height:20px; }
+.streak-badge.zero { opacity:.5; }
+.avatar { width:30px; height:30px; border-radius:50%; object-fit:cover; display:block; }
+.screen { padding:10px 12px 18px; }
+.card { background:var(--panel); border-radius:var(--radius); padding:14px; margin:10px 0; }
+.card h3 { margin:0 0 8px; font-size:15px; color:var(--muted); font-weight:700; }
+.row { display:flex; align-items:center; gap:10px; }
+.between { justify-content:space-between; }
+.hint { color:var(--muted); font-size:13px; line-height:1.45; }
+.btn { border:none; border-radius:10px; padding:10px 14px; font:inherit; font-size:15px; background:var(--panel2); color:var(--text); }
+.btn.primary { background:var(--accent); color:var(--btn-text); font-weight:700; }
+.btn.gold { background:var(--gold); color:#0b1526; font-weight:700; }
+.btn.wide { display:block; width:100%; }
+.chip { display:inline-flex; align-items:center; gap:5px; background:var(--gold-bg); border:1px solid var(--gold); color:var(--text); border-radius:999px; padding:3px 10px; font-size:12px; font-weight:600; white-space:nowrap; }
+.chip.plain { background:var(--panel2); border-color:transparent; color:var(--muted); }
+.pill { background:var(--gold); color:#0b1526; font-size:11px; font-weight:800; border-radius:999px; padding:1px 7px; }
+.sec { margin:16px 2px 6px; font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+/* daily missions, as on Profile */
+.m-row { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--input-border); font-size:14px; }
+.m-row:last-child { border-bottom:none; padding-bottom:0; }
+.m-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--muted); display:flex; align-items:center; justify-content:center; font-size:13px; flex:0 0 auto; color:transparent; }
+.m-row.done .m-check { background:var(--success); border-color:var(--success); color:#fff; }
+.m-row .lab { flex:1; } .m-row.done .lab { color:var(--muted); text-decoration:line-through; }
+.m-row .arr { color:var(--muted); }
+/* list-item, as in the app */
+.list { display:flex; flex-direction:column; gap:8px; }
+.li { background:var(--panel); border-radius:var(--radius); padding:11px 12px; display:flex; align-items:center; gap:12px; font-size:15px; }
+.li .ico { width:38px; height:38px; border-radius:10px; background:var(--tab-active-bg); color:var(--accent2); display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+body.mode-light .li .ico { color:var(--accent); }
+.li .tx { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.li .tx b { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.li .sub { color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.li .arr { color:var(--muted); font-size:18px; }
+/* board */
+.board { display:grid; grid-template-columns:repeat(8,1fr); aspect-ratio:1/1; border-radius:6px; overflow:hidden; flex:0 0 auto; }
+.board i { display:block; background:var(--sq-light); position:relative; }
+.board i.d { background:var(--sq-dark); }
+.board i.h::before { content:''; position:absolute; inset:0; background:rgba(244,193,93,.55); }
+.board img { position:absolute; inset:0; width:100%; height:100%; }
+/* Kael */
+.kael { width:44px; height:44px; border-radius:50%; object-fit:cover; flex:0 0 auto; border:2px solid var(--gold); background:#e9edf3; }
+.bubble { background:var(--panel); border-radius:14px 14px 14px 4px; padding:10px 12px; font-size:14px; line-height:1.4; flex:1; }
+.bubble b { color:var(--text); }
+/* tab grid */
+.tabs4 { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.tab4 { background:var(--panel); border-radius:var(--radius); padding:10px 2px 8px; display:flex; flex-direction:column; align-items:center; gap:5px; font-size:11.5px; color:var(--text); position:relative; }
+.tab4 svg { color:var(--accent2); } body.mode-light .tab4 svg { color:var(--accent); }
+.dot { position:absolute; top:7px; right:9px; width:9px; height:9px; border-radius:50%; background:var(--gold); }
+/* design B tiles */
+.tiles { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.tile { background:var(--panel); border-radius:var(--radius); padding:12px; display:flex; flex-direction:column; gap:4px; min-height:92px; position:relative; }
+.tile .hd { display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; }
+.tile .hd svg { color:var(--accent2); flex:0 0 auto; } body.mode-light .tile .hd svg { color:var(--accent); }
+.tile .big { font-size:20px; font-weight:700; line-height:1.15; }
+.tile .sub { color:var(--muted); font-size:12.5px; line-height:1.3; }
+.banner { background:var(--navy); color:#f5f7fa; border-radius:var(--radius); padding:12px; display:flex; gap:12px; align-items:center; border:1px solid var(--gold); }
+body.mode-dark .banner { background:#14233a; }
+.banner .board { width:104px; }
+.banner .k { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); font-weight:700; }
+.banner .ttl { font-size:17px; font-weight:700; margin:2px 0 3px; }
+.banner .s { font-size:13px; color:#c9d3e2; margin-bottom:8px; }
+.strip { display:flex; gap:8px; margin:10px 0; }
+.stat { flex:1; background:var(--panel); border-radius:var(--radius); padding:8px 4px; text-align:center; font-size:11.5px; color:var(--muted); display:flex; flex-direction:column; gap:2px; }
+.stat b { font-size:17px; color:var(--text); display:flex; align-items:center; justify-content:center; gap:4px; }
+.stat b img { width:18px; height:18px; }
+/* design C hero */
+.hero { background:linear-gradient(160deg,#102a43 0%,#0b1c30 100%); color:#f5f7fa; margin:-10px -12px 0; padding:14px 14px 0; position:relative; overflow:hidden; min-height:150px; }
+.hero .art { position:absolute; right:-18px; bottom:0; width:176px; height:158px; object-fit:cover; object-position:50% 0; -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26%); mask-image:linear-gradient(90deg,transparent 0,#000 26%); }
+.hero .say { width:205px; position:relative; }
+.hero .hi { font-size:20px; font-weight:700; line-height:1.2; }
+.hero .line { font-size:13.5px; color:#c9d3e2; margin-top:6px; line-height:1.4; }
+.week { display:flex; gap:6px; margin-top:12px; padding-bottom:14px; position:relative; }
+.day { width:24px; text-align:center; font-size:10px; color:#9fb0c8; }
+.day u { display:block; width:22px; height:22px; margin:0 auto 3px; border-radius:50%; border:2px solid #40577a; text-decoration:none; font-size:12px; line-height:18px; color:transparent; }
+.day.on u { background:var(--gold); border-color:var(--gold); color:#0b1526; font-weight:800; }
+.day.today u { border-color:var(--gold); border-style:dashed; }
+.next { background:var(--panel); border-radius:var(--radius); padding:14px; margin:12px 0 10px; border:1px solid var(--gold); box-shadow:0 0 0 3px var(--gold-bg); }
+.next .k { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); font-weight:800; }
+body.mode-light .next .k { color:#a8730a; }
+.next .board { width:100%; margin:10px 0; }
+.ring { display:flex; gap:6px; }
+.seg3 { flex:1; height:6px; border-radius:3px; background:var(--panel2); } .seg3.on { background:var(--success); }
+.hscroll { display:flex; gap:8px; overflow:hidden; margin:0 -12px; padding:0 12px; }
+.hcard { flex:0 0 150px; background:var(--panel); border-radius:var(--radius); padding:11px; display:flex; flex-direction:column; gap:3px; font-size:14px; }
+.hcard .k2 { font-size:11px; color:var(--muted); display:flex; align-items:center; gap:5px; }
+.hcard .k2 svg { width:15px; height:15px; }
+.hcard b { font-weight:600; line-height:1.25; } .hcard .sub { color:var(--muted); font-size:12.5px; }
+.bar { height:5px; border-radius:3px; background:var(--panel2); margin-top:5px; overflow:hidden; } .bar i { display:block; height:100%; background:var(--gold); }
+.elo4 { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.elo4 .stat { padding:8px 2px; }
+</style>
+</head>
+<body>
+<div id="sheet"></div>
+<script>
+const Q = new URLSearchParams(location.search);
+const theme = Q.get('theme') || 'light', lang = Q.get('lang') || 'es', state = Q.get('state') || 'active';
+const only = Q.get('d');
+document.body.className = 'mode-' + theme;
+const APP = '../../../';   // the repo root, from docs/superpowers/specs/
+const L = (es, en) => lang === 'es' ? es : en;
+const NEW = state === 'new';
+
+const svg = (p, s = 24) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+// The eight menu icons, copied from #tabbar in index.html.
+const ICO = {
+  home: '<path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.8V20h4.8v-5.5h3.4V20h4.8V9.8"/>',
+  analysis: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/>',
+  endgame: '<path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11.2v4.3c0 1.6 2.5 3 5.5 3s5.5-1.4 5.5-3v-4.3"/><path d="M21.5 9v5.5"/>',
+  base: '<rect x="3" y="4" width="4.5" height="16" rx="1"/><rect x="9.5" y="4" width="4.5" height="16" rx="1"/><path d="m15.8 5.3 3.9-1 2.8 14.7-3.9 1z"/>',
+  trainer: '<path d="M12 6.5C10 5 7 4.5 3 5v13c4-.5 7 0 9 1.5 2-1.5 5-2 9-1.5V5c-4-.5-7 0-9 1.5z"/><path d="M12 6.5v13"/>',
+  puzzles: '<path d="M5.5 7.5H9a2 2 0 1 1 4 0h3.5V11a2 2 0 1 1 0 4v3.5h-11z"/>',
+  play: '<rect x="5" y="8" width="14" height="11" rx="2.5"/><path d="M12 5v3M9.5 12.5v1.5M14.5 12.5v1.5M2.5 12v3M21.5 12v3"/><circle cx="12" cy="3.5" r="1"/>',
+  read: '<path d="M7 3.5h10a1 1 0 0 1 1 1v16l-6-4-6 4v-16a1 1 0 0 1 1-1z"/>',
+  students: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-6 6.5-6s5.9 2.4 6.5 6"/><path d="M15.5 4.8a3.5 3.5 0 0 1 0 6.4M17.5 14.3c2.2.7 3.6 2.8 4 5.7"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+};
+const TAB = {
+  analysis: L('Análisis', 'Analysis'), endgame: L('Aprender', 'Learn'), base: 'Bases', trainer: L('Aperturas', 'Openings'),
+  puzzles: 'Puzzles', play: L('Jugar', 'Play'), read: L('Leer', 'Read'), students: L('Alumnos', 'Students'),
+};
+const ORDER = ['analysis', 'endgame', 'base', 'trainer', 'puzzles', 'play', 'read', 'students'];
+
+// A mate-in-two style position for the thumbnail (illustrative only).
+const FEN = '6k1/5ppp/4p3/8/3r4/1Q4P1/5P1P/6K1';
+function board(hl = ['d4', 'b3'], fen = FEN) {
+  let out = '';
+  fen.split('/').forEach((rank, r) => {
+    let f = 0;
+    for (const ch of rank) {
+      if (/\d/.test(ch)) { for (let k = 0; k < +ch; k++) out += sq(r, f++, null); }
+      else out += sq(r, f++, ch);
+    }
+  });
+  function sq(r, f, p) {
+    const name = 'abcdefgh'[f] + (8 - r);
+    const img = p ? `<img src="${APP}pieces/${p === p.toUpperCase() ? 'w' : 'b'}${p.toUpperCase()}.svg">` : '';
+    return `<i class="${(r + f) % 2 ? 'd' : ''}${hl.includes(name) ? ' h' : ''}">${img}</i>`;
+  }
+  return `<div class="board">${out}</div>`;
+}
+
+const streak = NEW ? 0 : 12;
+function topbar() {
+  return `<div class="topbar"><div class="l">${svg(ICO.menu)}</div>
+    <div class="t">${svg(ICO.home, 22)}<span>${L('Inicio', 'Home')}</span></div>
+    <div class="r"><span class="streak-badge${NEW ? ' zero' : ''}"><img src="${APP}streaks/${NEW ? 'flame1' : 'flame2'}.png"><span>${streak}</span></span>
+    <img class="avatar" src="${APP}avatars/${NEW ? 'pawn_w' : 'knight_b'}.png"></div></div>`;
+}
+const missions = (withPuzzle = true) => `
+  ${withPuzzle ? `<div class="m-row"><span class="m-check">✓</span><span class="lab">${L('Resolver el puzzle del día', 'Solve the puzzle of the day')}</span><span class="arr">›</span></div>` : ''}
+  <div class="m-row${NEW ? '' : ' done'}"><span class="m-check">✓</span><span class="lab">${L('Jugar una partida contra el motor', 'Play a game against the engine')}</span><span class="arr">${NEW ? '›' : ''}</span></div>
+  <div class="m-row"><span class="m-check">✓</span><span class="lab">${L('Practicar una apertura', 'Practice an opening')}</span><span class="arr">›</span></div>`;
+const li = (ico, title, sub, extra = '') => `<div class="li"><span class="ico">${svg(ICO[ico], 22)}</span><span class="tx"><b>${title}</b><span class="sub">${sub}</span></span>${extra}<span class="arr">›</span></div>`;
+const tabs4 = () => `<div class="tabs4">${ORDER.map(k => `<div class="tab4">${svg(ICO[k], 24)}<span>${TAB[k]}</span>${k === 'students' && !NEW ? '<i class="dot"></i>' : ''}</div>`).join('')}</div>`;
+
+// ───────────── A — "Hoy": one column, today first ─────────────
+function second(kind) {
+  const eg = kind === 'endgame';
+  const seg = (on, txt) => '<span class="chip' + (on ? '' : ' plain') + '">' + txt + '</span>';
+  return '<div class="card"><div class="row between" style="margin-bottom:10px;"><h3 style="margin:0">' + L('Descubre', 'Discover') + '</h3>'
+    + '<span class="row" style="gap:6px;">' + seg(eg, L('Final', 'Endgame')) + seg(!eg, L('Apertura', 'Opening')) + '</span></div>'
+    + '<div class="row" style="align-items:stretch; gap:12px;"><div style="width:118px;">'
+    + (eg ? board(['a2'], '6k1/8/8/8/8/8/P7/7K') : board(['c4'], 'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R')) + '</div>'
+    + '<div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">'
+    + '<b style="font-size:16px;">' + (eg ? L('La regla del cuadrado', 'The Rule of the Square') : 'Italian Game') + '</b>'
+    + '<span class="hint">' + (eg ? L('¿Conoces este final? Juegan blancas y ganan.', 'Do you know this endgame? White to move and win.')
+                                  : L('¿La juegas contra el motor? 1.e4 e5 2.Cf3 Cc6 3.Ac4', 'Play it against the engine? 1.e4 e5 2.Nf3 Nc6 3.Bc4')) + '</span>'
+    + '<span style="flex:1"></span><button class="btn primary wide">' + (eg ? L('Aprenderlo', 'Learn it') : L('Jugarla', 'Play it')) + '</button></div></div></div>';
+}
+function designA(kind) {
+  const greet = NEW
+    ? L('<b>Bienvenido.</b> Soy Kael. Empieza por el puzzle de hoy: es un minuto.', '<b>Welcome.</b> I am Kael. Start with today\'s puzzle: it takes a minute.')
+    : L('<b>Buenas tardes, Adrián.</b> Te faltan 2 misiones para que la racha llegue a 13.', '<b>Good afternoon, Adrián.</b> Two missions left for the streak to reach 13.');
+  return `<div class="screen">
+    <div class="row" style="align-items:flex-end; margin-top:4px;"><img class="kael" src="${APP}icons/kael/kael-bust.png"><div class="bubble">${greet}</div></div>
+    <div class="card" style="border:1px solid var(--gold);">
+      <div class="row between" style="margin-bottom:10px;"><h3 style="margin:0">${L('Hoy', 'Today')}</h3>
+        <span class="chip">${NEW ? '0' : '1'} / 3</span></div>
+      <div class="row" style="align-items:stretch; gap:12px;">
+        <div style="width:118px;">${board()}</div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
+          <b style="font-size:16px;">${L('Puzzle del día', 'Puzzle of the day')}</b>
+          <span class="hint">${L('Juegan blancas', 'White to move')}${NEW ? '' : ' · 1430'}</span>
+          <span style="flex:1"></span>
+          <button class="btn gold wide">${L('Resolver', 'Solve')}</button>
+        </div>
+      </div>
+      <div style="margin-top:8px;">${missions(false)}</div>
+    </div>
+    ${NEW ? `
+    <div class="sec">${L('Empieza por aquí', 'Start here')}</div>
+    <div class="list">
+      ${li('endgame', L('Tu primera lección', 'Your first lesson'), L('Aprender · mates básicos', 'Learn · basic checkmates'))}
+      ${li('play', L('Juega contra Kael', 'Play against Kael'), L('Nivel 1, sin reloj', 'Level 1, no clock'))}
+      ${li('home', L('Recorrido guiado', 'Guided tour'), L('Kael te enseña la app en 2 minutos', 'Kael shows you the app in 2 minutes'))}
+    </div>` : `
+    <div class="sec">${L('Continuar', 'Continue')}</div>
+    <div class="list">
+      ${li('students', L('Tarea: 10 puzzles de clavada', 'Homework: 10 pin puzzles'), L('De Marta · nueva', 'From Marta · new'), `<span class="pill">${L('Nueva', 'New')}</span>`)}
+      ${li('read', 'Mi sistema', L('Leer · página 84', 'Read · page 84'))}
+      ${li('play', L('Ganaste contra Kael, nivel 4', 'You beat Kael, level 4'), L('Ayer · 38 jugadas · revisar', 'Yesterday · 38 moves · review'))}
+    </div>`}
+    ${kind ? second(kind) : `<div class="sec">${L('Todas las secciones', 'All sections')}</div>${tabs4()}`}
+  </div>`;
+}
+
+// ───────────── B — "Tablero": every tab as a live tile ─────────────
+function designB() {
+  const sub = NEW ? {
+    analysis: L('Tablero libre con motor', 'Free board with engine'), endgame: L('265 finales y lecciones', '265 endgames and lessons'),
+    base: L('Guarda e importa partidas', 'Save and import games'), trainer: L('150 aperturas', '150 openings'),
+    puzzles: L('30 000 puzzles', '30,000 puzzles'), play: L('Contra Kael, 8 niveles', 'Against Kael, 8 levels'),
+    read: L('Tus libros en PDF', 'Your PDF books'), students: L('Profesor o alumno', 'Teacher or student'),
+  } : {
+    analysis: L('Tablero libre con motor', 'Free board with engine'), endgame: 'ELO 1310',
+    base: L('2 bases · 146 partidas', '2 bases · 146 games'), trainer: 'ELO 1385',
+    puzzles: 'ELO 1430', play: L('Ganaste · nivel 4', 'Won · level 4'),
+    read: L('Mi sistema · pág. 84', 'Mi sistema · p. 84'), students: L('1 tarea nueva', '1 new homework'),
+  };
+  return `<div class="screen">
+    <div class="banner">${board()}
+      <div style="flex:1; min-width:0;"><div class="k">${L('Puzzle del día', 'Puzzle of the day')}</div>
+        <div class="ttl">${L('Juegan blancas', 'White to move')}</div>
+        <div class="s">${NEW ? L('El mismo para todos hoy', 'The same for everyone today') : L('Misiones: 1 de 3', 'Missions: 1 of 3')}</div>
+        <button class="btn gold">${L('Resolver', 'Solve')}</button></div>
+    </div>
+    <div class="strip">
+      <div class="stat"><b><img src="${APP}streaks/${NEW ? 'flame1' : 'flame2'}.png">${streak}</b>${L('Racha', 'Streak')}</div>
+      <div class="stat"><b>${NEW ? '0' : '1'}/3</b>${L('Misiones', 'Missions')}</div>
+      <div class="stat"><b>${NEW ? '0 min' : '1 h 45'}</b>${L('Esta semana', 'This week')}</div>
+    </div>
+    <div class="tiles">${ORDER.map(k => `<div class="tile"><div class="hd">${svg(ICO[k], 22)}<span>${TAB[k]}</span></div>
+      <div class="sub" style="font-size:13.5px; ${!NEW && /ELO/.test(sub[k]) ? 'color:var(--text); font-weight:700; font-size:18px;' : ''}">${sub[k]}</div>
+      ${k === 'students' && !NEW ? '<i class="dot"></i>' : ''}</div>`).join('')}</div>
+    <div class="row" style="align-items:flex-end; margin-top:14px;"><img class="kael" src="${APP}icons/kael/kael-bust.png">
+      <div class="bubble">${L('«La táctica fluye de una posición superior.» <span class="hint">— Bobby Fischer</span>', '"Tactics flow from a superior position." <span class="hint">— Bobby Fischer</span>')}</div></div>
+  </div>`;
+}
+
+// ───────────── C — "Kael te guía": one next step ─────────────
+function designC() {
+  const days = L('L M X J V S D', 'M T W T F S S').split(' ');
+  const on = NEW ? [] : [0, 1, 2, 3], today = 4;
+  return `<div class="screen">
+    <div class="hero">
+      <img class="art" src="${APP}icons/kael/kael-welcome.png">
+      <div class="say"><div class="hi">${NEW ? L('Bienvenido', 'Welcome') : L('Buenas tardes, Adrián', 'Good afternoon, Adrián')}</div>
+        <div class="line">${NEW ? L('Un puzzle al día es el mejor comienzo.', 'One puzzle a day is the best start.') : L('12 días seguidos. Hoy todavía no cuenta.', '12 days in a row. Today does not count yet.')}</div></div>
+      <div class="week">${days.map((d, i) => `<div class="day${on.includes(i) ? ' on' : ''}${i === today ? ' today' : ''}"><u>✓</u>${d}</div>`).join('')}</div>
+    </div>
+    <div class="next">
+      <div class="row between"><span class="k">${L('Tu siguiente paso', 'Your next step')}</span><span class="hint">${NEW ? '0' : '1'} / 3</span></div>
+      <div class="ring" style="margin-top:8px;"><i class="seg3${NEW ? '' : ' on'}"></i><i class="seg3"></i><i class="seg3"></i></div>
+      ${board()}
+      <div class="row between"><div><b style="font-size:16px;">${L('Puzzle del día', 'Puzzle of the day')}</b><div class="hint">${L('Juegan blancas', 'White to move')}</div></div>
+        <button class="btn gold">${L('Resolver', 'Solve')}</button></div>
+    </div>
+    <div class="sec">${NEW ? L('Explora', 'Explore') : L('Continuar', 'Continue')}</div>
+    <div class="hscroll">
+      ${NEW ? `
+      <div class="hcard"><span class="k2">${svg(ICO.endgame)}${TAB.endgame}</span><b>${L('Tu primera lección', 'Your first lesson')}</b><span class="sub">${L('Mates básicos', 'Basic checkmates')}</span></div>
+      <div class="hcard"><span class="k2">${svg(ICO.play)}${TAB.play}</span><b>${L('Juega contra Kael', 'Play against Kael')}</b><span class="sub">${L('Nivel 1', 'Level 1')}</span></div>
+      <div class="hcard"><span class="k2">${svg(ICO.trainer)}${TAB.trainer}</span><b>${L('150 aperturas', '150 openings')}</b><span class="sub">${L('Elige una', 'Pick one')}</span></div>` : `
+      <div class="hcard"><span class="k2">${svg(ICO.students)}${L('Tarea · Marta', 'Homework · Marta')}</span><b>${L('10 puzzles de clavada', '10 pin puzzles')}</b><span class="sub">${L('Nueva', 'New')}</span></div>
+      <div class="hcard"><span class="k2">${svg(ICO.read)}${TAB.read}</span><b>Mi sistema</b><span class="sub">${L('Página 84', 'Page 84')}</span></div>
+      <div class="hcard"><span class="k2">${svg(ICO.play)}${TAB.play}</span><b>${L('Ganaste, nivel 4', 'Won, level 4')}</b><span class="sub">${L('Revisar', 'Review')}</span></div>`}
+    </div>
+    <div class="sec">${L('Tu nivel', 'Your level')}</div>
+    <div class="elo4">
+      ${[['Puzzles', 1430], [L('Aperturas', 'Openings'), 1385], [L('Finales', 'Endgames'), 1310], [L('A ciegas', 'Blindfold'), 1240]].map(([n, v]) => `<div class="stat"><b>${NEW ? 1200 : v}</b>${n}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+const D = [
+  ['a', L('A — «Hoy»: una columna, lo de hoy primero', 'A — "Today": one column, today first'), designA],
+  ['b', L('B — «Tablero»: cada sección, una ficha viva', 'B — "Dashboard": every section a live tile'), designB],
+  ['c', L('C — «Kael te guía»: un solo paso siguiente', 'C — "Kael guides you": one next step'), designC],
+];
+if (only === 'final') { D.length = 0;
+  D.push(['f1', L('A final — hoy toca un final', 'Final A — an endgame today'), () => designA('endgame')]);
+  D.push(['f2', L('A final — hoy toca una apertura', 'Final A — an opening today'), () => designA('opening')]); }
+document.getElementById('sheet').innerHTML = D.filter(d => !only || only === 'final' || d[0] === only).map(([id, name, fn]) =>
+  `<div class="col"><h4>${name}</h4><div class="phone">${topbar()}${fn()}<div class="fold"><span>667px</span></div></div></div>`).join('');
+// Report the sheet's size so the screenshot can be cut to fit.
+document.title = document.getElementById('sheet').offsetWidth + 'x' + document.getElementById('sheet').offsetHeight;
+</script>
+</body>
+</html>
