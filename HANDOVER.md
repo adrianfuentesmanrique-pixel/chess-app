@@ -9,6 +9,45 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS: THE ASSIGN SHEET OFFERS PUZZLES AND CHAPTER; LIST IS INSIDE PUZZLES; TASK IS GONE (2026-10-13, v215).**
+  Session 1 of 3 of Adrian's plan (decided 2026-10-13): everything he can assign is something
+  in the app that the app itself checks. The sheet will end with four buttons: 🧩 Puzzles,
+  📖 Chapter, ♟ Endgame (session 2, NOT BUILT), 🤖 Position (session 3, NOT BUILT).
+  WHAT CHANGED: `assignSheet(p, r, kind0)` in js/students.js draws two buttons (`.hw-kind`:
+  puzzles, chapter) and, inside Puzzles, a second switch `.hw-mode` with `data-v="puzzles"`
+  ("Por tema y nivel" / "By theme and level", the old form, the default) and `data-v="list"`
+  ("Elegidos por mí" / "Chosen by me", the old List block: the draft, Remove per row, n/20).
+  Its look is the gold outline of `.seg.lib-first`, so the two rows do not read as one.
+  THE STORED KINDS DID NOT CHANGE: "chosen by me" sends `kind: 'list'` exactly as before, and
+  homework already sent as 'list' or 'text' shows, is played / ticked and reaches the finished
+  strip as before. firestore.rules was NOT touched and still allows the same four kinds.
+  `kind0` accepts 'puzzles', 'chapter', 'list'; anything else (the old 'text') opens Puzzles.
+  EMPTY "chosen by me": the hint `hw_list_empty` says how to add puzzles and a button
+  `.hw-ls-go` (`hw_list_go`) closes the sheet AND the student's page and goes to the Puzzles
+  tab (the sheet resolves `{ go: 'puzzles' }`; `teacherHwBlock(p, r, closePage)` does the rest).
+  `.hw-send-list` on the student's page stays and opens Puzzles > chosen by me.
+  ADRIAN'S TWO DECISIONS (asked 2026-10-13): the labels above; Task removed NOW, not kept until
+  session 3. So until sessions 2 and 3 ship there is no way to set work outside the app.
+  i18n: new `hw_mode_theme`, `hw_mode_list`, `hw_list_go`; reworded `hw_list_empty`,
+  `hw_list_n` ("Problemas elegidos (n/m)"); removed, after grepping, `hw_kind_text`,
+  `hw_kind_list`, `hw_f_task`, `hw_need_title`. KEPT because the student's side still reads
+  them: `hw_mark_done`, `hw_mark_done_confirm`.
+  VERIFIED: 469 unit tests (469 before, none added), precache 59 files, new
+  tools/cdp-verify-students7.mjs 73 of 73 with real taps at 375 px, ES and EN, light and dark
+  (it serves the folder itself and uses Chrome ports 9100-9189). tools/cdp-verify-students4
+  and 5 print the same as on main except, on purpose: students4 no longer sends a Task from the
+  sheet (it reads the two buttons and the empty "go to Puzzles" instead; its shot 4c is now
+  the empty "chosen by me"), students5 reaches the draft through Puzzles > chosen by me.
+  HOW TO RUN 4 / 5 / 6: they need a server that DOES serve sw.js for their last, offline step
+  (with sw.js refused they stop there with "caches is not defined"; that is the server, not
+  the app). They open on the right tab by themselves (the seeds call `showScreen`).
+  NOT VERIFIED: the write to Firestore itself (headless Chrome has no user) — what is checked
+  is what the sheet hands to `assignHomework`, which is field for field what it was.
+  REPORTED, NOT FIXED: (1) "Give to a student" in the puzzle review still wears the old List
+  icon 🎯, as does "🎯 Send puzzle list (n)"; (2) the toast after "Give to a student" sits over
+  that same button for 3.5 s; (3) tools/cdp-verify-students4 reads its bad-band toast with
+  `.toast`, which matches nothing (the element is `#toast`), so that value prints as missing.
+
 - **COORDINATES: A RUN FROM 30 SECONDS TO 3 MINUTES, AND AN EMPTY BOARD (2026-10-13, v214).**
   Two things Adrian could not do in the coordinates trainer (Learn tab), both now choices on
   its set-up screen and both remembered on the device (kv `coordPrefs`: `seconds`, `pieces`).
