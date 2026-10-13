@@ -2,7 +2,7 @@
 import { Chess, validateFen } from '../vendor/chess.js';
 import { t, tn, getLang, setLang, applyStatic } from './i18n.js';
 import { GameTree, parsePgn, splitPgn, START_FEN } from './tree.js';
-import { Board, parsePlacement, setPieceSet, getPieceSet } from './board.js';
+import { Board, parsePlacement, setPieceSet, getPieceSet, miniBoardHtml } from './board.js';
 import { Engine, uciToMove, pvWithNumbers, LEVELS } from './engine.js';
 import * as db from './db.js';
 import { PUZZLES, PUZZLE_THEMES, PUZZLE_PATTERNS, TRACKED_THEMES,
@@ -46,7 +46,8 @@ import { Notifications } from './notifications.js';
 import { shouldInvite, MAX_ASKS } from './remind-invite.js';
 import { hourLabel } from './remind-time.js';
 import Tour from './tour.js';
-import { kaelLine, missionsDone, greetName } from './home.js';
+import { kaelLine, missionsDone, greetName, HOME_OPENINGS, discoverPick } from './home.js';
+import { numbered } from './opening-lib.js';
 
 // Free-tier usage limits — not membership-gated yet, but kept as named
 // constants so they're easy to loosen for supporting users once that
@@ -1144,11 +1145,15 @@ const PUZZLE_OF_DAY_BANDS = [0, 1800, 2000, 2300, 2500, 2800, Infinity];
 // Drawn from one whole rating band, never from "whatever is loaded" — the
 // puzzle of the day has to be identical for every player in a tier, and the
 // set of loaded bands varies by session.
-async function puzzleOfDay(playerElo) {
+// `onlyItsBand`: nothing at all when that band's file cannot be had, instead of
+// a stand-in from the bands already loaded. Home's board asks this way: a
+// stand-in changes as more bands load, so the board would not be the puzzle the
+// button then opens.
+async function puzzleOfDay(playerElo, { onlyItsBand = false } = {}) {
   let tier = 0;
   for (let i = 1; i < PUZZLE_OF_DAY_BANDS.length - 1; i++) if (playerElo >= PUZZLE_OF_DAY_BANDS[i]) tier = i;
   const band = bandOf(PUZZLE_OF_DAY_BANDS[tier]);
-  try { await loadBand(band); } catch { /* fall back to whatever is already loaded */ }
+  try { await loadBand(band); } catch { if (onlyItsBand) return null; /* else fall back to whatever is already loaded */ }
   const pool = puzzlesInBand(band);
   const list = pool.length ? pool : PUZZLES;
   if (!list.length) return null;
@@ -1280,10 +1285,14 @@ export const DailyMissions = {
 // The screen the app opens on (#screen-home): Kael's one line and the "Hoy"
 // card. It is drawn only from what is already on the phone, so it never waits.
 // Which sentence Kael says is decided in js/home.js; the two mission rows in
-// the card are DailyMissions.render()'s.
+// the card are DailyMissions.render()'s. The two boards (the puzzle of the day
+// and "Descubre") are a step of their own, drawBoards(), after render().
 export const Home = {
   init() {
     $('home-puzzle-btn').onclick = () => DailyMissions.goPuzzle();
+    $('home-puzzle-board').onclick = () => DailyMissions.goPuzzle();
+    $('home-discover-btn').onclick = () => this.goDiscover();
+    $('home-discover-board').onclick = () => this.goDiscover();
     $('profile-missions-row').onclick = () => showScreen('home');
     // His bubble takes a tap only while it holds a message that goes somewhere.
     $('home-kael-line').onclick = () => {
@@ -1343,6 +1352,89 @@ export const Home = {
       ? tn('home_line_' + line.rule, line.n) : t('home_line_' + line.rule);
     // Not over something he is saying (say() above); endSay() redraws.
     if (!this.saying) $('home-kael-line').innerHTML = greet + esc(text);
+  },
+
+  // ── the two boards ──
+  // Drawn after render(), never inside it. "Descubre" costs nothing (the
+  // endgames are in memory, an opening is a few moves); the puzzle of the day
+  // needs one whole puzzle file, so its board is asked for only once the page
+  // has been painted and fills in when the file has come.
+  pick: null,       // "Descubre": { kind, index }, thrown once each time the app is opened
+  puzzle: null,     // the puzzle on the "Hoy" board: { id, placement, side, last }
+
+  drawBoards() {
+    this.drawDiscover();
+    this.paintPuzzle();
+    if (activeScreen === 'home') this.loadPuzzle();
+  },
+
+  async loadPuzzle() {
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+    const p = await puzzleOfDay(await db.kvGet('puzzleElo', 1200), { onlyItsBand: true });
+    this.puzzle = null;
+    if (p) {
+      // What the Puzzles screen shows once it has settled (Puzzles.loadPuzzle):
+      // the puzzle's first move is the opponent's, so the position to solve is
+      // the one after it, seen from the side of the player, who moves next.
+      const chess = new Chess(p.fen);
+      const side = chess.turn() === 'w' ? 'b' : 'w';
+      let last = null;
+      try { const m = chess.move(uciToMove(p.moves[0])); last = { from: m.from, to: m.to }; } catch {}
+      this.puzzle = { id: p.id, placement: chess.fen().split(' ')[0], side, last };
+    }
+    this.paintPuzzle();
+  },
+
+  // With no puzzle (the file has not come, or cannot: offline) there is no
+  // board and no empty box, and the row is title and button as before.
+  paintPuzzle() {
+    const p = this.puzzle, board = $('home-puzzle-board');
+    board.classList.toggle('hidden', !p);
+    board.parentElement.classList.toggle('has-board', !!p);
+    board.setAttribute('aria-label', t('home_puzzle_title'));
+    board.innerHTML = p ? miniBoardHtml(p.placement, { flipped: p.side === 'b', last: p.last }) : '';
+    $('home-puzzle-side').textContent = p ? t('home_to_move_' + p.side) : '';
+  },
+
+  drawDiscover() {
+    this.pick ??= discoverPick(Math.random(), ENDGAMES.length);
+    const lang = getLang(), endgame = this.pick.kind === 'endgame';
+    let placement, flipped = false, name, sub;
+    if (endgame) {
+      const pos = ENDGAMES[this.pick.index];
+      placement = pos.fen.split(' ')[0];
+      flipped = practiceColor(pos) === 'b';   // the way the study itself faces
+      name = pos.name[lang];
+      sub = t('home_discover_endgame_q') + (pos.subtitle ? ' ' + pos.subtitle[lang] : '');
+    } else {
+      const [n, moves] = HOME_OPENINGS[this.pick.index];
+      const chess = new Chess();
+      for (const san of moves.split(' ')) chess.move(san);
+      placement = chess.fen().split(' ')[0];
+      name = n;
+      sub = t('home_discover_opening_q') + ' ' + numbered(moves);
+    }
+    $('home-discover-kind').textContent = t('home_kind_' + this.pick.kind);
+    const board = $('home-discover-board');
+    board.innerHTML = miniBoardHtml(placement, { flipped });
+    board.setAttribute('aria-label', name);
+    $('home-discover-name').textContent = name;
+    $('home-discover-sub').textContent = sub;
+    $('home-discover-btn').textContent = t(endgame ? 'home_discover_learn' : 'home_discover_play');
+  },
+
+  // An endgame: Learn, with that study open, and its own Back leading to the
+  // list it belongs to. An opening: Openings, with the library's own Study
+  // question for that line (the library is loaded here, not before).
+  goDiscover() {
+    const p = this.pick;
+    if (!p) return;
+    if (p.kind === 'endgame') {
+      const pos = ENDGAMES[p.index];
+      showScreen('endgame');
+      Endgame.category = pos.category;
+      Endgame.openPosition(pos);
+    } else OpeningLib.studyLine(...HOME_OPENINGS[p.index]);
   },
 };
 
@@ -1406,7 +1498,7 @@ export function showScreen(name) {
   // page (Home.say). A corner bubble still open is closed on the way in; a
   // message on Home ends on the way out.
   document.body.classList.toggle('on-home', name === 'home');
-  if (name === 'home') { if ($('kael-bubble').classList.contains('show')) KaelQuotes.hide(); Home.render(); }
+  if (name === 'home') { if ($('kael-bubble').classList.contains('show')) KaelQuotes.hide(); Home.render(); Home.drawBoards(); }
   else Home.endSay();
   if (name !== 'analysis') Analysis.pauseEngine();
   if (name !== 'endgame') { engine.stop(); Endgame.engineOn = false; }
@@ -7558,7 +7650,7 @@ function openSettings() {
       if (curPieceSet === v) b.classList.add('on');
       seg4.appendChild(b);
     }
-    segInit(seg4, v => { Themes.setPieceSetChoice(v); OpeningLib.refresh(); });
+    segInit(seg4, v => { Themes.setPieceSetChoice(v); OpeningLib.refresh(); Home.drawBoards(); });
     // guided tour — the only way back into it once the first launch is over
     const lTour = document.createElement('label'); lTour.className = 'fld-label'; lTour.textContent = t('tour_prompt_title');
     const tourBtn = document.createElement('button'); tourBtn.className = 'btn'; tourBtn.style.width = '100%';
@@ -7633,6 +7725,7 @@ function relabel() {
   buildLevelSeg($('trainer-level'), +(segValue($('trainer-level')) ?? 2));
   Puzzles.updateProgress?.();
   DailyMissions.render();   // Home's card and Kael's line, in the new language
+  Home.drawBoards();
   if (activeScreen === 'profile') Profile.refresh();
   if (activeScreen === 'endgame') Endgame.refreshLists();
   if (activeScreen === 'read') Read.refresh();

@@ -15,6 +15,27 @@ export function setPieceSet(name) {
 }
 export function getPieceSet() { return PIECE_SET; }
 
+// A small board that is only looked at (css: .mini-board): the inside of the
+// box, drawn in the current piece set. The 64 squares are the box's one
+// background; only the pieces, and the two squares of a last move, are
+// elements. `placement` is the first field of a FEN; `flipped` puts Black at
+// the bottom; `last` is { from, to }.
+export function miniBoardHtml(placement, { flipped = false, last = null } = {}) {
+  const at = (f, r) => `left:${(flipped ? 7 - f : f) * 12.5}%;top:${(flipped ? 7 - r : r) * 12.5}%`;
+  let html = '';
+  for (const sq of last ? [last.from, last.to] : []) html += `<i style="${at(FILES.indexOf(sq[0]), 8 - +sq[1])}"></i>`;
+  placement.split('/').forEach((row, r) => {
+    let f = 0;
+    for (const ch of row) {
+      if (ch >= '1' && ch <= '8') { f += +ch; continue; }
+      const file = (ch === ch.toUpperCase() ? 'w' : 'b') + ch.toUpperCase();
+      html += `<img src="${PIECE_SET}/${file}.svg" alt="" style="${at(f, r)}">`;
+      f++;
+    }
+  });
+  return html;
+}
+
 // Where a piece could go on an empty board. A pre-move is aimed at a position
 // that does not exist yet — the recapture on a square my own piece still stands
 // on, the pawn capture of a piece that has not arrived, the line that is about

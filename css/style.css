@@ -898,6 +898,21 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 }
 .home-puzzle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 10px; border-bottom: 1px solid var(--input-border); }
 .home-puzzle b { font-size: 16px; min-width: 0; }
+/* Without a board (the puzzle file has not come, or cannot) the row is the
+   title and the button side by side. With one (.has-board): the board on the
+   left, and beside it the title, a grey line and the button at the foot. */
+.home-board-text { display: contents; }
+.home-sub { font-size: 13px; line-height: 1.35; color: var(--muted); overflow-wrap: anywhere; }
+.home-sub:empty { display: none; }
+.home-puzzle.has-board { align-items: stretch; justify-content: flex-start; }
+.home-board { flex: 0 0 118px; width: 118px; height: 118px; align-self: flex-start; cursor: pointer; }
+.has-board .home-board-text { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.has-board .home-board-text .btn { margin-top: auto; width: 100%; }
+.has-board .home-board-text .home-sub { margin-bottom: 8px; }
+/* "Descubre": the same row in a plain card; a grey word in the corner says
+   which of the two kinds came up. */
+.home-discover .home-puzzle { border-bottom: none; padding-bottom: 0; }
+.home-kind { font-size: 12px; color: var(--muted); }
 /* Gold while the puzzle is still to do; quiet once it is solved. Dark ink on
    gold in both colour modes, as on the streak and the gold pills. */
 .btn.home-solve { background: var(--gold); color: #0b1526; font-weight: 700; min-width: 120px; flex: 0 0 auto; line-height: 20px; }
@@ -1035,11 +1050,16 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 #lib-count { margin: 8px 2px 0; }
 .list-item.lib-card { flex-direction: row; align-items: center; gap: 12px; padding: 10px; }
 /* A card's board: the 64 squares are one background, only the pieces are elements. */
-.lib-mini {
-  flex: 0 0 88px; width: 88px; height: 88px; position: relative; border-radius: 4px; overflow: hidden;
+/* A small board that is only looked at: miniBoardHtml() in js/board.js fills
+   it. The 64 squares are this one background; the pieces are <img>, the two
+   squares of a last move are <i>. Its size is the user's (.lib-mini, .home-board). */
+.mini-board {
+  position: relative; display: block; overflow: hidden; border-radius: 4px; padding: 0; border: none;
   background: conic-gradient(var(--sq-dark) 25%, var(--sq-light) 0 50%, var(--sq-dark) 0 75%, var(--sq-light) 0) 0 0 / 25% 25%;
 }
-.lib-mini img { position: absolute; width: 12.5%; height: 12.5%; display: block; }
+.mini-board img, .mini-board i { position: absolute; width: 12.5%; height: 12.5%; display: block; }
+.mini-board i { background: var(--hl); }
+.lib-mini { flex: 0 0 88px; width: 88px; height: 88px; }
 .lib-card-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .lib-card-name { font-weight: 600; }
 /* White or Black, said with a king of the current piece set: a filled and an

@@ -9,6 +9,45 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **HOME TAB, CONVERSATION 2 OF 3: THE TWO BOARDS (2026-10-12, v199).**
+  Spec `docs/superpowers/specs/2026-10-12-home-tab-design.md`, build plan item 2.
+  - **One small board for all three places:** `miniBoardHtml(placement, { flipped, last })`
+    in `js/board.js`, css `.mini-board` (the size is the user's: `.lib-mini` 88px on the
+    Openings cards, `.home-board` 118px on Home). The old private one in
+    `js/opening-lib-ui.js` is gone.
+  - **Puzzle board in "Hoy":** `#home-puzzle-board` (a button: a tap is `goPuzzle()`),
+    `#home-puzzle-side` ("Juegan blancas/negras"). `Home.drawBoards()` runs after
+    `Home.render()` from `showScreen('home')`, `relabel()` and the piece-set switch;
+    `Home.loadPuzzle()` waits for a painted frame, then asks `puzzleOfDay(elo,
+    { onlyItsBand: true })`. That option returns nothing when the band's own file cannot be
+    had, instead of a stand-in from other bands: a stand-in changes as bands load, so the
+    board would not be the puzzle the button opens. No file = no board, no box, the row is
+    title and button as in v198.
+  - **Which position:** the one AFTER the puzzle's first move (the opponent's), seen from the
+    player's side, with that move's two squares tinted: what the Puzzles screen shows once
+    settled. `Home.puzzle` is `{ id, placement, side, last }`.
+  - **"Descubre":** `#home-discover`. `Home.pick` is thrown once per app open
+    (`discoverPick(Math.random(), ENDGAMES.length)` in `js/home.js`, half endgames, half
+    openings), nothing stored. `Home.goDiscover()`: an endgame opens Learn with that study
+    (`Endgame.category` set first, so the study's Back leads to its list); an opening calls
+    the new `OpeningLib.studyLine(name, moves)`, which shows the Library, puts the line on
+    the preview board and asks the library's own Study question. The board is tappable too.
+  - **`HOME_OPENINGS`** in `js/home.js`: 32 openings as `[full name, moves]`; a unit test
+    checks each is a real line of the library under that exact name. White at the bottom
+    for all of them, like the Library's cards.
+  - **Checked:** `node tools/cdp-verify-home.mjs <outDir>` 210 of 210 at 375 x 667, ES and
+    EN, light and dark, screenshots looked at. The tool's server can hold and refuse the
+    puzzle files; each kind of card is forced with `Home.pick` and then really tapped.
+    `test:tree` 344, `test:precache` OK. NOT checked: a real phone, signed in, the service
+    worker.
+  - **ASK ADRIAN:** "once each time the app is opened" is still a reading of his "switch
+    aleatory", not his words.
+  - **Known, not fixed:** every player under 1800 gets a puzzle from `puzzles-0.json`, which
+    is not in the offline list in `sw.js`: a new user offline sees no board. The tour's last
+    step still says Kael is "always down in the corner". In dark mode `.btn.primary` is the
+    light blue it is everywhere else, not the navy of the picture.
+  - **Next:** conversation 3, "Continuar" and "Empieza por aquí".
+
 - **HOME TAB, CONVERSATION 1 OF 3: THE SCREEN, AND THE APP OPENS ON IT (2026-10-12, v197, v198).**
   Spec `docs/superpowers/specs/2026-10-12-home-tab-design.md`, build plan item 1.
   - **Screen:** `#screen-home` in `index.html` (first `<section>` in `<main>`): Kael's line

@@ -43,6 +43,58 @@ export function greetName(profileName, displayName) {
   return first.includes('@') ? '' : first;
 }
 
+// The openings the "Descubre" card can show: [full name, moves]. Home never
+// loads the opening library (323 KB), so these are written out here and the
+// position is worked out with the chess rules. Each one is a real line of
+// js/opening-library.js under that exact name (tests/unit/home.test.js checks
+// it), because "Jugarla" finds the line there by name and moves. English only,
+// like the library.
+export const HOME_OPENINGS = [
+  ['Italian Game', 'e4 e5 Nf3 Nc6 Bc4'],
+  ['Italian Game: Giuoco Piano', 'e4 e5 Nf3 Nc6 Bc4 Bc5'],
+  ['Italian Game: Two Knights Defense', 'e4 e5 Nf3 Nc6 Bc4 Nf6'],
+  ['Italian Game: Evans Gambit', 'e4 e5 Nf3 Nc6 Bc4 Bc5 b4'],
+  ['Ruy Lopez', 'e4 e5 Nf3 Nc6 Bb5'],
+  ['Ruy Lopez: Berlin Defense', 'e4 e5 Nf3 Nc6 Bb5 Nf6'],
+  ['Scotch Game', 'e4 e5 Nf3 Nc6 d4'],
+  ['Four Knights Game', 'e4 e5 Nf3 Nc6 Nc3 Nf6'],
+  ['Vienna Game', 'e4 e5 Nc3'],
+  ["King's Gambit", 'e4 e5 f4'],
+  ["Petrov's Defense", 'e4 e5 Nf3 Nf6'],
+  ['Philidor Defense', 'e4 e5 Nf3 d6'],
+  ['Sicilian Defense', 'e4 c5'],
+  ['Sicilian Defense: Najdorf Variation', 'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6'],
+  ['Sicilian Defense: Dragon Variation', 'e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6'],
+  ['French Defense', 'e4 e6 d4 d5'],
+  ['French Defense: Winawer Variation', 'e4 e6 d4 d5 Nc3 Bb4'],
+  ['Caro-Kann Defense', 'e4 c6 d4 d5'],
+  ['Scandinavian Defense', 'e4 d5'],
+  ['Pirc Defense', 'e4 d6 d4 Nf6 Nc3 g6'],
+  ["Queen's Gambit", 'd4 d5 c4'],
+  ["Queen's Gambit Declined", 'd4 d5 c4 e6'],
+  ["Queen's Gambit Accepted", 'd4 d5 c4 dxc4'],
+  ['Slav Defense', 'd4 d5 c4 c6'],
+  ["King's Indian Defense", 'd4 Nf6 c4 g6 Nc3'],
+  ['Nimzo-Indian Defense', 'd4 Nf6 c4 e6 Nc3 Bb4'],
+  ["Queen's Indian Defense", 'd4 Nf6 c4 e6 Nf3 b6'],
+  ['Grünfeld Defense', 'd4 Nf6 c4 g6 Nc3 d5'],
+  ['Dutch Defense', 'd4 f5'],
+  ['London System', 'd4 Nf6 Nf3 g6 Bf4'],
+  ['Catalan Opening', 'd4 Nf6 c4 e6 g3 d5'],
+  ['Réti Opening', 'Nf3 d5 c4'],
+];
+
+// What the "Descubre" card shows, from one random number `r` in [0, 1): the
+// lower half is an endgame, the upper half an opening, and within its half
+// every one is as likely as the next. Returns { kind, index }: an index into
+// ENDGAMES, or into HOME_OPENINGS. With none of one kind, always the other.
+export function discoverPick(r, endgames, openings = HOME_OPENINGS.length) {
+  const x = Math.min(Math.max(+r || 0, 0), 1 - 1e-9) * 2;
+  const endgame = openings <= 0 || (endgames > 0 && x < 1);
+  const n = endgame ? endgames : openings;
+  return { kind: endgame ? 'endgame' : 'opening', index: Math.min(n - 1, Math.floor((x % 1) * n)) };
+}
+
 // Everything the line needs: the rule, the streak's number, and the greeting
 // (null when there is no name to greet: signed out).
 export function kaelLine({ streak = 0, pending = false, bestStreak = 0, done = 0, everMission = false, name = '', hour = 12 } = {}) {

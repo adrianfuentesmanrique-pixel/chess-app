@@ -22,14 +22,14 @@
 // because every app.js binding used here is only read inside a method.
 import { Chess } from '../vendor/chess.js';
 import { t, tn, getLang } from './i18n.js';
-import { Board, getPieceSet } from './board.js';
+import { Board, getPieceSet, miniBoardHtml } from './board.js';
 import * as db from './db.js';
 import { fold, numbered, fullName, buildCards, filterCards, buildSearchIndex, searchLines, openingRows,
   buildNameIndex, nameAt, numberedFrom, continuations, buildBook } from './opening-lib.js';
 import { GameTree } from './tree.js';
 import { fenKey } from './explore-index.js';
 import Tour from './tour.js';
-import { $, esc, segInit, segValue, buildLevelSeg, modal, Trainer, Analysis } from './app.js';
+import { $, esc, segInit, segValue, buildLevelSeg, modal, Trainer, Analysis, showScreen } from './app.js';
 
 const FILES = 'abcdefgh';
 const CARD_PAGE = 16;   // cards drawn at a time: each carries a board
@@ -75,23 +75,6 @@ function placementAfter(moves) {
     placements.set(moves, p);
   }
   return p;
-}
-
-// The small board of a card: a static drawing in the current piece set. The 64
-// squares are one background; only the pieces are elements.
-function miniBoardHtml(moves) {
-  const set = getPieceSet();
-  let html = '';
-  placementAfter(moves).split('/').forEach((row, r) => {
-    let f = 0;
-    for (const ch of row) {
-      if (ch >= '1' && ch <= '8') { f += +ch; continue; }
-      const file = (ch === ch.toUpperCase() ? 'w' : 'b') + ch.toUpperCase();
-      html += `<img src="${set}/${file}.svg" alt="" style="left:${f * 12.5}%;top:${r * 12.5}%">`;
-      f++;
-    }
-  });
-  return html;
 }
 
 function sideHtml(side) {
@@ -263,7 +246,7 @@ export const OpeningLib = {
     b.type = 'button';
     b.className = 'list-item lib-card';
     b.dataset.o = c.index;
-    b.innerHTML = `<span class="lib-mini">${miniBoardHtml(c.moves)}</span>`
+    b.innerHTML = `<span class="mini-board lib-mini">${miniBoardHtml(placementAfter(c.moves))}</span>`
       + `<span class="lib-card-text"><span class="lib-card-name">${esc(c.name)}</span>`
       + `<span class="sub">${sideHtml(c.side)}</span>`
       + `<span class="sub moves">${esc(numbered(c.moves))}</span>`
@@ -413,6 +396,25 @@ export const OpeningLib = {
       box.querySelector('#lib-study-cancel').onclick = () => close(null);
     });
     if (choice) this.startStudy({ line, ...choice });
+  },
+
+  // From Home's "Descubre" card: the Openings tab on the Library, that line on
+  // the preview board, and the Study question over it. `name` is the line's
+  // full name, `moves` its moves as text. This is the one place the library is
+  // loaded for Home; without it (not stored yet, no connection) the Library
+  // says so itself and nothing more happens.
+  async studyLine(name, moves) {
+    this.restored = true;   // this visit says which view it wants
+    showScreen('trainer');
+    this.setView('library', { save: false });
+    await this.ensure();
+    if (!this.lib) return;
+    for (let o = 0; o < this.lib.length; o++) {
+      const l = this.lib[o].lines.findIndex(x => x[2] === moves && fullName(this.lib[o], x) === name);
+      if (l < 0) continue;
+      this.openPreview(o, l, 'list');
+      return this.study();
+    }
   },
 
   // The book of a line: made once, kept while that line is the one studied.

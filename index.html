@@ -300,11 +300,34 @@
         <h3 data-i18n="home_today"></h3>
         <span id="home-today-chip" class="home-chip"></span>
       </div>
+      <!-- The board is filled in after the page is drawn (Home.drawPuzzle):
+           without the puzzle file it stays hidden and the row is title and
+           button, as it was before the board. -->
       <div class="home-puzzle">
-        <b data-i18n="home_puzzle_title"></b>
-        <button id="home-puzzle-btn" class="btn home-solve" type="button"></button>
+        <button id="home-puzzle-board" class="mini-board home-board hidden" type="button"></button>
+        <div class="home-board-text">
+          <b data-i18n="home_puzzle_title"></b>
+          <span id="home-puzzle-side" class="home-sub"></span>
+          <button id="home-puzzle-btn" class="btn home-solve" type="button"></button>
+        </div>
       </div>
       <div id="daily-missions-list" class="daily-missions-list"></div>
+    </div>
+    <!-- "Descubre": one endgame or one opening, picked at random once each time
+         the app is opened (Home.drawDiscover; the pick is js/home.js). -->
+    <div id="home-discover" class="profile-card home-discover">
+      <div class="home-today-head">
+        <h3 data-i18n="home_discover"></h3>
+        <span id="home-discover-kind" class="home-kind"></span>
+      </div>
+      <div class="home-puzzle has-board">
+        <button id="home-discover-board" class="mini-board home-board" type="button"></button>
+        <div class="home-board-text">
+          <b id="home-discover-name"></b>
+          <span id="home-discover-sub" class="home-sub"></span>
+          <button id="home-discover-btn" class="btn primary" type="button"></button>
+        </div>
+      </div>
     </div>
   </section>
 
