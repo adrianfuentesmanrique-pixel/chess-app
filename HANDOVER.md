@@ -25,7 +25,9 @@ are in `CLAUDE.md` under "Finish by pushing".
   (`Home.refresh`, `Students.onHomework`); nothing new listens.
   - **Measured at 375 px:** each row is 61 px; "Descubre" now starts at y=657 for everybody
     (415 when the section was hidden): off the first screen at 375x667, its top showing at
-    375x812. Moving it above the three rows is Adrian's call, not done.
+    375x812. Moving it above the three rows was put to Adrian with pictures on 2026-10-13:
+    he keeps this order ("Tu entrenamiento" above, "Descubre" below). Closed, no code
+    change; the measurements of the other two orders are in the spec's section 6.
   - **Verified:** `test:tree` 457 (homeBlock: every combination), `test:precache` 59 files,
     `tools/cdp-verify-home.mjs` all checks, ES/EN, light/dark, 375x667 (+ one picture at
     812), screenshots opened. Signed in is `Auth.user` set BY HAND and Students' lists set

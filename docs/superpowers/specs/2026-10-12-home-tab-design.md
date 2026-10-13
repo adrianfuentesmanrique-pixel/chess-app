@@ -300,9 +300,14 @@ Firestore rule or index.
   since 2026-10-13, because the three rows are always there. Measured at 375px:
   the card starts at y=657 (it was 415 with the section hidden), so at 375x667
   it is off the first screen and at 375x812 its heading, name and the top of
-  its board show. A user who never scrolls will not see it. If that matters,
-  the fix is to put it above "Tu entrenamiento"; that is Adrian's call after
-  seeing it on a phone.
+  its board show. A user who never scrolls will not see it. **DECIDED BY
+  ADRIAN, 2026-10-13: it stays there.** "Tu entrenamiento" above, "Descubre"
+  below. He saw pictures of the real Home at 375x667 and 375x812, light and
+  dark, Spanish and English, in three orders: this one; "Descubre" right under
+  "Hoy" (the card whole on both screens at y=415 to 591, but then only the
+  heading and half of the homework row show at 375x667, and the game row is
+  cut at 375x812); and the same with a shorter card (22 px gained, 1 px when
+  an opening's name takes two lines). Nothing in the app was changed.
 - **"Once each time the app is opened" is my reading** of "switch aleatory". He
   may want a new one every time Home is shown, or a new one each day.
 - **A random card can show the same thing twice in a row**, and with no switch
