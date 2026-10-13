@@ -9,6 +9,54 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS: 🤖 POSITION HOMEWORK - A POSITION OF MINE, PLAYED AGAINST THE COMPUTER, DONE WHEN THE GAME ENDS (2026-10-13, v218).**
+  Session 3 of 3 of Adrian's plan: the plan is finished. The sheet has four buttons, two by
+  two: 🧩 Puzzles, 📖 Chapter, ♟ Endgame, 🤖 Position. FIRESTORE.RULES CHANGED: the rules
+  are deployed by Adrian before the push.
+  ADRIAN'S DECISIONS (2026-10-13, do not re-open): (a) the sheet SENDS ME TO THE BOARD EDITOR
+  and brings me back; no "give to a student" on the Analysis board; (b) NO CLOCK, NO UNDO in
+  a homework game; (c) a game left in the middle does not count and STARTS AGAIN from the
+  position (no resume); (d) DONE IS DONE: no playing it again as homework, I see the one game
+  that finished it; (e) two by two, and the words as they are in js/i18n.js (`hw_pos_*`,
+  `hw_what_position*`).
+  WHAT IS STORED: kind `'position'`, params `{ fen, color: 'w'|'b', level: 0-7 }`. On the
+  finishing write the student's phone adds `game: { outcome: 'win'|'loss'|'draw', end, moves }`
+  - `end` is js/history.js's endReasonOf name (no timeout: there is no clock), `moves` is UCI
+  with one space between, at most 800 plies (4,800 characters, `MAX_HW_GAME_CHARS` in
+  js/firebase.js); a longer game sends `moves: ''` and the result still goes. Resigning
+  before any move finishes it too ("Lost · Resignation · 0 moves", no game to open).
+  THE RULES: `hwParamsOk` has a 'position' arm (the FEN regex is hwPzOk's), `hwGameOk(g)` is
+  new (ONE regex for the moves), `game` is in the update's affectedKeys and is taken only on
+  the write that moves status to 'done' - and a position can be finished ONLY WITH its game,
+  so an app too old to know the kind cannot tick it off with "Mark done" (it gets "try
+  again"). `saveHomeworkProgress` therefore never drops `game` on its retry.
+  THE CODE: js/students.js `hwPosition(h)` (the params, checked), `hwGame(h)`,
+  `hwPositionDetail(h)` (teacher only: `hwProgressHtml(h, forTeacher)`), `hwOpenGame(h, p)`,
+  `hwOpenPosition(h)`, `hwPositionDone(id, game)`, `hwPositionBack(uid, fen)`; `hwPos` is
+  uid → the FEN waiting to be sent (memory only). `openPage(p, r, { assign })` and
+  `teacherHwBlock(..., assign)` reopen the sheet on a kind. The sheet resolves to
+  `{ setup: true }` for the editor, as `{ go }` leaves for Puzzles. js/app.js:
+  `Setup.open(fen, forHw)` (the uid; then the one exit is `#setup-homework`, and
+  `Setup.done('homework')` refuses a position where the game is already over),
+  `Play.startHomework({ id, fen, color, level })`, `Play.hwId`, `Play.begin(..., hwId)`,
+  `Play.openHomeworkGame(...)`; `Play.finish` reports through `Students.hwPositionDone`;
+  Back clears `hwId`. `Play.saveToHistory` now reads the game's fields BEFORE its first
+  await (a homework game starts over an unfinished one in the same breath).
+  VERIFIED: test:rules 566 of 566 (550 before, 16 new), test:tree 469, test:precache OK,
+  tools/cdp-verify-students9.mjs (new) 148 of 148 with real taps and Stockfish answering,
+  students8 133 of 133 and students7 73 of 73 (one expectation changed on purpose in each:
+  "three buttons" is four; in students8 "fit on one line" is "same height, nothing cut"),
+  students4 and 5 print what they print on a clean copy of main except the kinds list, which
+  now ends in "position". 375 px, light and dark, Spanish and English, screenshots looked at.
+  NOT CHECKED ON A REAL PHONE: all of it (headless Chrome has no Firebase user: "sent" is
+  what the sheet hands to assignHomework, the write is proved by test:rules).
+  KNOWN LIMITS: what is typed in title, note or date BEFORE "Set up the position" is lost on
+  the way back (the hint says to set the position first); the editor's top bar still reads
+  "Analysis"; the student's own done card does not show the result (the teacher's does).
+  A TRAP FOR THE NEXT TOOL RUN: ports 8791 and 8792 were another session's servers on
+  2026-10-13 - a scratch server for students4/5 must print that it is listening before its
+  output is believed.
+
 - **STUDENTS: ♟ ENDGAME HOMEWORK - ONE STUDY OF THE LEARN TAB, DONE WHEN A PRACTICE OF IT ENDS IN SUCCESS (2026-10-13, v217).**
   Session 2 of 3 of Adrian's plan. The sheet now has three buttons: 🧩 Puzzles, 📖 Chapter,
   ♟ Endgame. 🤖 Position (session 3) is NOT BUILT. FIRESTORE.RULES CHANGED: the rules were
