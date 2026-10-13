@@ -120,9 +120,10 @@ for (const lang of ['en', 'es']) {
     await evalP(`const m = [...document.querySelectorAll('.modal-box')].pop(); m.scrollTop = m.scrollHeight;`);
     await sleep(200);
     await shot(`${tag}-4b-assign-bottom`);
-    await evalP(`document.querySelector('.hw-kind button[data-v="text"]').click();`);
+    // v215: Task is gone from the sheet; the second view is "chosen by me", empty.
+    await evalP(`document.querySelector('.hw-mode button[data-v="list"]').click();`);
     await sleep(200);
-    await shot(`${tag}-4c-assign-text`);
+    await shot(`${tag}-4c-assign-chosen-empty`);
     await closeModals();
     // 5. Start → Puzzles in homework mode.
     await evalP(`document.querySelector('#stu-hw-list .hw-card .btn.primary').click();`);
@@ -154,12 +155,13 @@ const spec = await evalP(`const { Students } = await import('/js/students.js');
   [...document.querySelectorAll('.modal-box .row .btn.primary')].pop().click();
   await new Promise(r => setTimeout(r, 200));
   const badBand = document.querySelector('.toast')?.textContent;
-  document.querySelector('.hw-kind button[data-v="text"]').click();
-  document.querySelector('.hw-title').value = 'Read chapter 3';
-  document.querySelector('.hw-note-in').value = 'Pages 40-52';
-  [...document.querySelectorAll('.modal-box .row .btn.primary')].pop().click();
+  // v215: no Task button. The sheet offers Puzzles and Chapter only, and
+  // "chosen by me" with nothing chosen hands back "go to Puzzles".
+  const kinds = [...document.querySelectorAll('.hw-kind button')].map(x => x.dataset.v);
+  document.querySelector('.hw-mode button[data-v="list"]').click();
+  document.querySelector('.hw-ls-go').click();
   const b = await pr2;
-  return { puzzles: a, badBand, text: b };`);
+  return { puzzles: a, badBand, kinds, emptyChosen: b };`);
 console.error('  ' + JSON.stringify(spec));
 
 console.error('ERRORS (online run): ' + JSON.stringify(errors, null, 1));

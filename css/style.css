@@ -2427,6 +2427,12 @@ body.read-spread #read-reader {
 .hw-chip.on { background: var(--gold-bg); border-color: var(--gold); }
 /* Stage 5: four kinds do not fit one row at 375px — two by two. */
 .hw-sheet .hw-kind { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* Inside Puzzles: "by theme and level" / "chosen by me" — the second-level
+   switch, in the gold outline the Library's own second switch uses. */
+.hw-sheet .hw-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.hw-sheet .hw-mode button { min-width: 0; padding: 7px 4px; font-size: 13px; text-align: center; border: 1px solid transparent; }
+.hw-sheet .hw-mode button.on { background: var(--gold-bg); color: var(--text); border-color: var(--gold); font-weight: 600; }
+.hw-ls-go { margin-top: 8px; }
 .hw-ls-head { margin-bottom: 4px; }
 .hw-ls-row {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;

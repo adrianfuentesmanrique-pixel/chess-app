@@ -867,7 +867,7 @@ export const Students = {
       // Teacher only: what I gave this student, and Assign. Opening the page
       // also clears the "finished since last time" dot for this student.
       if (!self) {
-        box.append(this.pageHead('hw_title', 'hw_title_hint'), this.teacherHwBlock(p, r));
+        box.append(this.pageHead('hw_title', 'hw_title_hint'), this.teacherHwBlock(p, r, close));
         if ((r.hwDone || 0) !== (this.doneSeen[p.uid] || 0)) {
           this.doneSeen[p.uid] = r.hwDone || 0;
           this.writeCache();
@@ -1238,7 +1238,7 @@ export const Students = {
   // Fetched when the page opens (≤ 1 read per homework), not with the roster.
   // The last list fetched is kept (kv cache), so offline shows it instead of
   // nothing.
-  teacherHwBlock(p, r) {
+  teacherHwBlock(p, r, closePage) {
     const wrap = document.createElement('div');
     wrap.className = 'hw-teacher';
     const add = document.createElement('button');
@@ -1305,6 +1305,8 @@ export const Students = {
       const spec = await this.assignSheet(p, r, kind0);
       paintSend();                        // the sheet can remove draft puzzles
       if (!spec) return;
+      // "Chosen by me" with nothing chosen: off to the Puzzles tab to pick.
+      if (spec.go) { closePage(null); showScreen(spec.go); return; }
       const { memberCount, ...task } = spec;
       try {
         if (task.kind === 'chapter') {
@@ -1357,13 +1359,22 @@ export const Students = {
     const themes = TRACKED_THEMES.filter(x => t('theme_' + x) !== 'theme_' + x);
     const weak = themes.filter(x => typeof rated[x] === 'number').sort((a, b) => rated[a] - rated[b]);
     const ordered = [...weak, ...themes.filter(x => !weak.includes(x))];
+    // Two buttons on top; Puzzles holds both "by theme and level" and "chosen
+    // by me". The stored kinds do not change: the second one is still 'list'.
+    if (kind0 !== 'chapter' && kind0 !== 'list') kind0 = 'puzzles';
+    const top0 = kind0 === 'chapter' ? 'chapter' : 'puzzles';
+    let mode = kind0 === 'list' ? 'list' : 'puzzles';
     return modal((box, close) => {
       box.classList.add('hw-sheet');
       box.innerHTML =
         `<h3>${esc(t('hw_assign_to').replace('{n}', p.profileName))}</h3>` +
         `<div class="seg hw-kind">` +
-        ['puzzles', 'chapter', 'list', 'text'].map(k =>
-          `<button data-v="${k}"${k === kind0 ? ' class="on"' : ''}>${esc(t('hw_kind_' + k))}</button>`).join('') +
+        ['puzzles', 'chapter'].map(k =>
+          `<button data-v="${k}"${k === top0 ? ' class="on"' : ''}>${esc(t('hw_kind_' + k))}</button>`).join('') +
+        `</div>` +
+        `<div class="seg hw-mode">` +
+        [['puzzles', 'hw_mode_theme'], ['list', 'hw_mode_list']].map(([k, key]) =>
+          `<button data-v="${k}"${k === mode ? ' class="on"' : ''}>${esc(t(key))}</button>`).join('') +
         `</div>` +
         `<div class="hw-ch hidden">` +
         `<label class="hw-label">${esc(t('hw_f_class'))}<select class="input hw-mc"></select></label>` +
@@ -1387,14 +1398,16 @@ export const Students = {
       let kind = kind0;
       const showKind = v => {
         kind = v;
+        if (v !== 'chapter') mode = v;
+        $$('.hw-mode').classList.toggle('hidden', v === 'chapter');
         $$('.hw-pz').classList.toggle('hidden', v !== 'puzzles');
         $$('.hw-ch').classList.toggle('hidden', v !== 'chapter');
         $$('.hw-ls').classList.toggle('hidden', v !== 'list');
-        $$('.hw-title-lab').textContent = t(v === 'text' ? 'hw_f_task' : 'hw_f_title_auto');
         if (v === 'chapter') loadClasses();
         if (v === 'list') drawList();
       };
-      segInit($$('.hw-kind'), showKind);
+      segInit($$('.hw-kind'), v => showKind(v === 'chapter' ? 'chapter' : mode));
+      segInit($$('.hw-mode'), showKind);
 
       // ── Chapter: my OWN classes (only an owner can add a viewer), then
       // that class's chapters. Fetched when the tab is first shown.
@@ -1443,7 +1456,10 @@ export const Students = {
         const draft = this.hwDraft[p.uid] || [];
         $$('.hw-ls-head').textContent = t('hw_list_n').replace('{n}', draft.length).replace('{m}', MAX_LIST_PUZZLES);
         const rows = $$('.hw-ls-rows');
-        rows.innerHTML = draft.length ? '' : `<p class="hint">${esc(t('hw_list_empty'))}</p>`;
+        rows.innerHTML = draft.length ? '' : `<p class="hint">${esc(t('hw_list_empty'))}</p>` +
+          `<button type="button" class="btn btn-wide hw-ls-go">${esc(t('hw_list_go'))}</button>`;
+        // Nothing chosen yet: the puzzles are picked in the Puzzles tab.
+        if (!draft.length) rows.querySelector('.hw-ls-go').onclick = () => close({ go: 'puzzles' });
         draft.forEach((packed, i) => {
           const pz = unpackPuzzle(packed);
           const row = document.createElement('div');
@@ -1506,11 +1522,6 @@ export const Students = {
         const note = $$('.hw-note-in').value.trim().slice(0, 500);
         const due = $$('.hw-due').value;
         const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : '';
-        if (kind === 'text') {
-          if (!title) { toast(t('hw_need_title')); return; }
-          close({ kind, title, note, params: {}, dueDate });
-          return;
-        }
         if (kind === 'chapter') {
           const mc = (classes || []).find(c => c.id === mcSel.value);
           const ch = mc && (chapterCache.get(mc.id) || []).find(c => c.id === chSel.value);

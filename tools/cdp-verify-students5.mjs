@@ -126,8 +126,9 @@ for (const lang of ['en', 'es']) {
     await evalP(`document.querySelector('.hw-kind button[data-v="chapter"]').click();`);
     await sleep(500);
     await shot(`${tag}-3-assign-chapter`);
-    // 4. Assign sheet → List (the draft, removable).
-    await evalP(`document.querySelector('.hw-kind button[data-v="list"]').click();`);
+    // 4. Assign sheet → Puzzles → "chosen by me" (the draft, removable; v215).
+    await evalP(`document.querySelector('.hw-kind button[data-v="puzzles"]').click();`);
+    await evalP(`document.querySelector('.hw-mode button[data-v="list"]').click();`);
     await sleep(300);
     await shot(`${tag}-4-assign-list`);
     await closeModals();
