@@ -19,7 +19,9 @@
 // Puzzles.userMove() with the moves, Play.undo() (its button is hidden),
 // Setup.load() for the pieces, showScreen(), Students.hwChapterStep().
 // SET by script: the level (a native <select> opens an OS list that CDP cannot
-// tap), the note and the date.
+// tap) and the date (a native picker); in D also the note.
+// REALLY TYPED (v219, the language loop and D2): the title and the note, by a
+// tap on the field and the keyboard's text.
 // STOOD IN FOR: Masterclass.openForHomework (the chapter is in Firestore).
 // THE COMPUTER REALLY PLAYS: Stockfish answers in G, H and I (G needs it to
 // find a mate in one at the top level).
@@ -112,6 +114,17 @@ const tapX = async find => {
   await touch('touchStart', pt); await sleep(40); await touch('touchEnd'); await sleep(350);
 };
 const tap = sel => tapX(`document.querySelector(${JSON.stringify(sel)})`);
+// Really typed: a tap on the field, then the keyboard's text into what has the focus.
+const type = async (sel, text) => {
+  await tap(sel);
+  if (!await ev(`return document.activeElement === document.querySelector(${JSON.stringify(sel)});`)) throw new Error('the tap did not put the cursor in ' + sel);
+  await send('Input.insertText', { text });
+};
+// The sheet's three shared fields and the two Position choices, as they stand.
+const fields = () => ev(`const s = document.querySelector('.hw-sheet'); if (!s) return null;
+  const on = s.querySelector('.hw-ps-color button.on');
+  return { title: s.querySelector('.hw-title').value, note: s.querySelector('.hw-note-in').value, due: s.querySelector('.hw-due').value,
+    color: on ? on.dataset.v : '', level: s.querySelector('.hw-ps-lv').value, board: s.querySelector('.hw-ps-board').innerHTML };`);
 const top = `[...document.querySelectorAll('.modal-box')].pop()`;      // the sheet on top
 const closeModals = () => ev(`document.querySelectorAll('.modal-back').forEach(e => e.remove());`);
 const toastText = () => ev(`const el = document.getElementById('toast'); return el.classList.contains('hidden') ? '' : el.textContent;`);
@@ -315,7 +328,10 @@ try {
       check(`${tag}: with no position yet: the hint and "${w.set}", no board, no colour, no level`, s.hint.startsWith(w.hint) && s.set === w.set && !s.board && !s.opts, s);
       await shot(`${tag}-5-sheet-position-empty`);
 
-      // Off to the board editor and back.
+      // Off to the board editor and back, with the three fields filled in first.
+      await type('.hw-title', 'Lucena 1');
+      await type('.hw-note-in', 'Sin prisa / No hurry');
+      await ev(`document.querySelector('.hw-due').value = '2026-11-05';`);
       await tapX(`document.querySelector('.hw-ps-set')`);
       await sleep(400);
       let ed = await ev(`return { screen: ${on('screen-setup')}, hw: ${on('setup-homework')}, an: ${on('setup-analyze')}, pl: ${on('setup-play')},
@@ -338,6 +354,11 @@ try {
       await ev(`document.querySelector('.hw-sheet .hw-kind').scrollIntoView({ block: 'start' });`);
       await sleep(200);
       await shot(`${tag}-7-sheet-position`);
+      const f = await fields();
+      check(`${tag}: the title, the note and the date typed before the editor are back in the sheet`, f.title === 'Lucena 1' && f.note === 'Sin prisa / No hurry' && f.due === '2026-11-05', { ...f, board: 0 });
+      await ev(`document.querySelector('.hw-sheet .hw-due').scrollIntoView({ block: 'end' });`);
+      await sleep(200);
+      await shot(`${tag}-7b-sheet-fields-back`);
       await closeModals();
 
       // The student's button starts exactly that game.
@@ -409,6 +430,82 @@ try {
   await sleep(300);
   const usual = await ev(`return { hw: ${on('setup-homework')}, an: ${on('setup-analyze')}, pl: ${on('setup-play')}, forHw: __app.Setup.forHw };`);
   check('D. opened from Analysis, the editor has Analyse and Play again and no homework button', !usual.hw && usual.an && usual.pl && usual.forHw === null, usual);
+
+  // D2. What I typed and chose survives the board editor (v219).
+  const typed = (f, title) => f.title === title && f.note === 'Take your time' && f.due === '2026-11-05';
+  const lean = f => ({ ...f, board: f.board.length });
+  const backToSheet = async () => { await until(`document.querySelector('.hw-sheet')`); await sleep(300); return fields(); };
+  await toStudents();
+  await openPage();
+  await openSheet();
+  await tapX(`document.querySelector('.hw-kind button[data-v="position"]')`);
+  await type('.hw-title', 'Mate in one');
+  await type('.hw-note-in', 'Take your time');
+  await ev(`document.querySelector('.hw-due').value = '2026-11-05';`);
+  let f = await fields();
+  check('D2. typed with real taps: the title and the note are in their fields before I leave', typed(f, 'Mate in one'), lean(f));
+  await tapX(`document.querySelector('.hw-ps-set')`);
+  await sleep(400);
+  const waiting = await ev(`return __stu.hwForm.s_uid;`);
+  check('D2. what I typed waits in memory while the editor is open', same(waiting, { title: 'Mate in one', note: 'Take your time', due: '2026-11-05', level: '2', turn: '' }), waiting);
+  await ev(`__app.Setup.load(${JSON.stringify(FEN_WIN)});`);
+  await tap('#setup-homework');
+  f = await backToSheet();
+  check('D2. "Use for the homework": the title, the note and the date are back', typed(f, 'Mate in one'), lean(f));
+  check('D2. a first position still proposes the side to move (White) and 3 · Casual', f.color === 'w' && f.level === '2', lean(f));
+  check('D2. once put back, nothing is left waiting', (await ev(`return __stu.hwForm.s_uid === undefined;`)));
+  const boardW = f.board;
+  // The side to move changes in the editor: the new side is proposed, the rest stays.
+  await ev(`document.querySelector('.hw-ps-lv').value = '6';`);
+  await tapX(`document.querySelector('.hw-ps-set')`);
+  await sleep(400);
+  await tapX(`document.querySelector('#setup-turn button[data-v="b"]')`);
+  await tap('#setup-homework');
+  f = await backToSheet();
+  check('D2. Black to move now: Black is proposed although I had White, board seen from Black', f.color === 'b' && f.board !== boardW && f.board.length > 100, lean(f));
+  check('D2. …and level 7 and the three fields stay', f.level === '6' && typed(f, 'Mate in one'), lean(f));
+  // I choose White against the side to move, then Cancel in the editor: it all stays.
+  await tapX(`document.querySelector('.hw-ps-color button[data-v="w"]')`);
+  await type('.hw-title', ' again');
+  await tapX(`document.querySelector('.hw-ps-set')`);
+  await sleep(400);
+  await tap('#setup-cancel');
+  f = await backToSheet();
+  check('D2. Cancel in the editor: the title, the note and the date are back', typed(f, 'Mate in one again'), lean(f));
+  check('D2. Cancel: White, chosen against the side to move, and level 7 stay; the board is seen from White', f.color === 'w' && f.level === '6' && f.board === boardW, lean(f));
+  // The same side to move through "Use for the homework": my colour stays too.
+  await tapX(`document.querySelector('.hw-ps-set')`);
+  await sleep(400);
+  await tap('#setup-homework');
+  f = await backToSheet();
+  check('D2. "Use for the homework" with the same side to move: White, level 7 and the fields stay', f.color === 'w' && f.level === '6' && f.board === boardW && typed(f, 'Mate in one again'), lean(f));
+  await ev(`document.querySelector('.hw-sheet .hw-due').scrollIntoView({ block: 'end' });`);
+  await sleep(200);
+  await shot('D2-sheet-after-the-editor');
+  await tapX(`${top}.querySelector('.row .btn.primary')`);
+  await sleep(500);
+  const d2 = await ev(`return __specs.filter(x => x && x.kind).pop();`);
+  check('D2. Send hands over what is on the sheet', d2 && d2.title === 'Mate in one again' && d2.note === 'Take your time' && d2.dueDate === '2026-11-05'
+    && d2.params.fen.split(' ')[0] === FEN_WIN.split(' ')[0] && d2.params.fen.split(' ')[1] === 'b' && d2.params.color === 'w' && d2.params.level === 6, d2);
+  // After Send the next sheet is empty.
+  if (!await ev(`return !!document.querySelector('.stu-page');`)) { await toStudents(); await openPage(); }
+  await openSheet();
+  await tapX(`document.querySelector('.hw-kind button[data-v="position"]')`);
+  f = await fields();
+  const s2 = await sheetState();
+  check('D2. after Send the next sheet is empty: no title, no note, no date, no position', f.title === '' && f.note === '' && f.due === '' && !s2.board && !s2.opts
+    && (await ev(`return __stu.hwForm.s_uid === undefined && __stu.hwPos.s_uid === undefined;`)), { f: lean(f), s2 });
+  // Left for the editor and never came back through it: the next sheet, opened
+  // the usual way, starts clean.
+  await type('.hw-title', 'Left behind');
+  await tapX(`document.querySelector('.hw-ps-set')`);
+  await sleep(400);
+  await toStudents();
+  await openPage();
+  await openSheet();
+  f = await fields();
+  check('D2. the editor left another way: the sheet opened from the button starts clean', f.title === '' && (await ev(`return __stu.hwForm.s_uid === undefined;`)), lean(f));
+  await closeModals();
 
   // E. A won game finishes it.
   const done = async (id, title) => {
@@ -578,6 +675,9 @@ try {
   await sleep(600);
   check('K. its practice solved, the Endgame is done', (await st('k5')) === 'done');
   check('K. nothing is left open', (await ev(`return __stu.homework.filter(x => x.status === 'open').length;`)) === 0);
+  // Last, because it empties the seed: a different account.
+  await ev(`__stu.hwForm.s_uid = { title: 'x' }; __stu.uid = 'someone_else'; await __stu.onAuth(); window.__kept = Object.keys(__stu.hwForm).length;`);
+  check('D2. when the account changes, what was typed is dropped', (await ev(`return __kept;`)) === 0);
 } catch (e) { failed = true; console.error('\nSTOPPED: ' + e.message); }
 
 const bad = checks.filter(c => !c.ok);

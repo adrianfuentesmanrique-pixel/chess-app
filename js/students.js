@@ -134,6 +134,10 @@ export const Students = {
   // uid → the position (FEN) I set up for that student's next 'position'
   // homework. This visit only: the sheet shows it until it is sent.
   hwPos: {},
+  // uid → what I had typed and chosen in the sheet when I left for the board
+  // editor ({title, note, due, color, level, turn}). Memory only: the sheet
+  // puts it back once on the way in (assignSheet), and that is the end of it.
+  hwForm: {},
   hwGone: new Set(),  // chapter homework whose class/chapter is gone (plan 3.6)
   // Stage 6, teacher side: homework students finished that I have not opened
   // yet — [{id, studentUid, title, kind, doneMs, seen}], the strip on top of
@@ -179,7 +183,7 @@ export const Students = {
     this.uid = uid;
     this.asTeacher = []; this.asStudent = []; this.reports = {}; this.people = {};
     this.homework = []; this.hwSeen = []; this.doneSeen = {}; this.hwGiven = {};
-    this.hwDraft = {}; this.hwPos = {}; this.hwGone = new Set();
+    this.hwDraft = {}; this.hwPos = {}; this.hwForm = {}; this.hwGone = new Set();
     this.finNew = []; this.finSeenAt = 0; this.finCheckAt = 0;
     if (this.hwRun) this.hwDrop();
     this.loaded = false; this.failed = false; this.cachedAt = 0; this.practiceS = 0;
@@ -1516,7 +1520,11 @@ export const Students = {
       if (spec.go) { closePage(null); showScreen(spec.go); return; }
       // Position: off to the board editor, which comes back here with it
       // (Setup.done → hwPositionBack).
-      if (spec.setup) { closePage(null); Setup.open(this.hwPos[p.uid] || undefined, p.uid); return; }
+      if (spec.setup) {
+        this.hwForm[p.uid] = spec.form;
+        closePage(null); Setup.open(this.hwPos[p.uid] || undefined, p.uid);
+        return;
+      }
       const { memberCount, ...task } = spec;
       try {
         if (task.kind === 'chapter') {
@@ -1646,18 +1654,31 @@ export const Students = {
       // student's side — the side to move unless I say otherwise — and the
       // computer's level. Until there is a position, only the way to the editor.
       const posFen = this.hwPos[p.uid] || '';
+      const posTurn = !posFen ? '' : posFen.split(' ')[1] === 'b' ? 'b' : 'w';
+      // Back from the editor (the only way in on Position): what I had typed
+      // is put back. Any other way in starts clean.
+      const kept = kind0 === 'position' ? this.hwForm[p.uid] : null;
+      delete this.hwForm[p.uid];
       $$('.hw-ps-board').classList.toggle('hidden', !posFen);
       $$('.hw-ps-hint').classList.toggle('hidden', !!posFen);
       $$('.hw-ps-opts').classList.toggle('hidden', !posFen);
       $$('.hw-ps-set').textContent = t(posFen ? 'hw_pos_change' : 'hw_pos_set');
-      $$('.hw-ps-set').onclick = () => close({ setup: true });
+      $$('.hw-ps-set').onclick = () => close({ setup: true, form: {
+        title: $$('.hw-title').value, note: $$('.hw-note-in').value, due: $$('.hw-due').value,
+        color: segValue($$('.hw-ps-color')), level: $$('.hw-ps-lv').value, turn: posTurn } });
       segInit($$('.hw-ps-color'), v => {
         $$('.hw-ps-board').innerHTML = miniBoardHtml(posFen.split(' ')[0], { flipped: v === 'b' });
       });
       if (posFen) {
-        const turn = posFen.split(' ')[1] === 'b' ? 'b' : 'w';
-        $$(`.hw-ps-color [data-v="${turn}"]`).classList.add('on');
-        $$('.hw-ps-board').innerHTML = miniBoardHtml(posFen.split(' ')[0], { flipped: turn === 'b' });
+        // The colour I had chosen stays while the side to move is the one it
+        // was; a new side to move is proposed, as on a first visit.
+        const side = kept && kept.color && kept.turn === posTurn ? kept.color : posTurn;
+        $$(`.hw-ps-color [data-v="${side}"]`).classList.add('on');
+        $$('.hw-ps-board').innerHTML = miniBoardHtml(posFen.split(' ')[0], { flipped: side === 'b' });
+      }
+      if (kept) {
+        $$('.hw-title').value = kept.title; $$('.hw-note-in').value = kept.note; $$('.hw-due').value = kept.due;
+        if (kept.turn) $$('.hw-ps-lv').value = kept.level;
       }
 
       // ── Endgame: a category of the Learn tab, then ONE of its studies, by
