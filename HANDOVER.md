@@ -9,6 +9,29 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **NEW MODERN KAEL ART IN THE APP (2026-10-14, v224).** Adrian's 18 new drawings (1024 JPEG
+  `.jfif` on #00FF00, in `C:\Users\Adrian\chess-app-art\kael\`, OUTSIDE the repo, canon in its
+  KAEL-PROMPTS.md) replace the old painterly Kael. ONE TOOL: `python -I tools/kael-art.py`.
+  It keys all 18 to transparent 1024 PNGs in `chess-app-art\kael\final\` (widget lit/atrisk/zero
+  also as `-512.png`; `kael-widget-atrisk` is flipped, it was drawn mirrored; "model sheet" ->
+  `kael-model-sheet.png`, reference only) and writes the 4 shipped files, sized from the largest
+  display x 3: `icons/kael/kael-bust.png` 390x390 (99.8 KB), `icons/kael/kael-welcome.png`
+  390x450 trimmed to the figure (107 KB), `icons/notif/daily.png` 192 (52 KB, from kael-notif),
+  `icons/notif/daily-wide.jpg` 960x480 on the navy radial (44 KB). KEY: alpha from g-max(r,b)
+  (28..110), green clamped to max(r,b), alpha median+1px erode; ship sizes median-smoothed and
+  colour-rounded to fit ~100 KB (a 256-colour palette was tried: visible dither, rejected).
+  File names unchanged, so NO code/CSS change: measured, the bust's head sits fully inside the
+  inscribed circle (only the cloak's bottom corners are cut), the muzzle tip 92 px (of 1024)
+  inside the edge. The old bust was opaque; the circles' own #f2eee6 ground now shows behind.
+  `tools/resize-notif.mjs` now makes ONLY badge.png (it used to redraw daily* from the old
+  Notification/Daily reminder.png, which is still on disk and would have put the old art back).
+  VERIFIED: new `tools/cdp-verify-kael-art.mjs` 40/40 (level picker + tour offer = welcome; tour
+  circle 42px, Home ring 44px, #kael-fab 48px, calc line 32px, calc intro 90px, history empty
+  96px, a 130px portrait as GameReview uses, the invite's daily.png 110px; ES/EN x light/dark at
+  375, 4x close-ups of each circle), cdp-verify-remind 44/44, test:precache, test:tree 475/475,
+  test:rules pass. The 11 faces are NOT used in the app yet (Adrian decides where);
+  "worried" was never drawn.
+
 - **HOME-SCREEN STREAK WIDGET, ANDROID PART (2026-10-14, app 1.0.6 / versionCode 8).** Built
   in `C:\Users\Adrian\chess-app-android`, which NOW HAS LOCAL GIT (no remote; android.keystore,
   local.properties, *.aab/*.apk and build/ are in .gitignore): baseline commit 4e4e2a3, widget
