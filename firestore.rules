@@ -108,6 +108,31 @@ service cloud.firestore {
         && after().lang in ['es','en'];
     }
 
+    // The home-screen streak widget. The Android widget has no Firebase user,
+    // so it reads this document by REST with only the random code (the doc id)
+    // the user pasted into it. Holding the code IS the permission to read, so
+    // `get` is open and `list` is shut: nobody can enumerate codes. The code is
+    // 128 random bits; a leaked code is fixed by "Make a new code" in Profile.
+    // The document holds the streak number and its date, nothing else.
+    match /streakWidget/{token} {
+      allow get: if true;
+      allow list: if false;
+      // `resource == null`: deleting a code whose document was never written
+      // (made offline, say) must not error the "make a new code" flow.
+      allow delete: if signedIn() && (resource == null || resource.data.owner == me());
+
+      allow create, update: if signedIn()
+        && token.matches('^[0-9a-f]{32}$')
+        && (resource == null || resource.data.owner == me())
+        && after().keys().hasOnly(['owner','count','lastDate','updatedAt'])
+        && after().keys().hasAll(['owner','count','lastDate','updatedAt'])
+        && after().owner == me()
+        && num(after().count, 0, 30000)
+        && after().lastDate is string
+        && after().lastDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && after().updatedAt == request.time;
+    }
+
     match /leaderboard/{uid} {
       allow read: if true;
 

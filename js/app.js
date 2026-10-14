@@ -16,7 +16,7 @@ import { blindPick, BLIND_PICK_MIN } from './blind-pick.js';
 import { QUOTES, KAEL_LINES, KAEL_PRAISE, KAEL_MISTAKE, KAEL_CHECKIN, KAEL_BLINDFOLD, KAEL_HINT_WARNING, KAEL_GAME_REVIEW, KAEL_ALT_MOVE } from './quotes-data.js';
 import { Auth, authErrorMessage, fetchLeaderboard,
          MAX_MASTERCLASSES, MAX_CHAPTERS, MAX_CHAPTER_BYTES, MAX_MEMBERS,
-         MAX_STUDENTS, MAX_TEACHERS } from './firebase.js';
+         MAX_STUDENTS, MAX_TEACHERS, getWidgetCode, replaceWidgetCode } from './firebase.js';
 import { LEGAL_TERMS, LEGAL_PRIVACY } from './legal-data.js';
 import { classifyOpening, VALID_OPENING_NAMES } from './openings-eco.js';
 import * as History from './history.js';
@@ -8246,13 +8246,70 @@ export const Profile = {
       </div>
       <div class="streak-tier-list">${rows}</div>
       ${showToggle ? `<button class="btn small streak-ladder-more">${esc(toggleLabel)}</button>` : ''}
-      ${this.streakHowHtml()}`;
+      ${this.streakHowHtml()}
+      ${this.widgetHtml()}`;
 
     const btn = el.querySelector('.streak-ladder-more');
     if (btn) btn.onclick = () => { this.streakLadderOpen = !this.streakLadderOpen; this.renderStreakLadder(); };
     const how = el.querySelector('.streak-how-btn');
     if (how) how.onclick = () => { this.streakHowOpen = !this.streakHowOpen; this.renderStreakLadder(); };
+    this.bindWidget(el);
     Notifications.profileRow(openSettings);
+  },
+
+  // Home-screen widget: the account's private code, which the Android widget
+  // reads the streak with (js/firebase.js, getWidgetCode). Signed in only: the
+  // document is written under the login. `widgetShown` is the code on screen
+  // after a copy failed, so the player can select it by hand.
+  widgetShown: null,
+  widgetHtml() {
+    if (!Auth.user) {
+      this.widgetShown = null;   // never carry one account's code to the next
+      return `<div class="streak-widget"><p class="streak-how-foot">${esc(t('widget_signed_out'))}</p></div>`;
+    }
+    const shown = this.widgetShown
+      ? `<p class="streak-how-foot">${esc(t('widget_select'))}</p><code class="streak-widget-code">${esc(this.widgetShown)}</code>`
+      : '';
+    return `<div class="streak-widget">
+        <div class="streak-how-lead">${esc(t('widget_title'))}</div>
+        <p class="streak-widget-help">${esc(t('widget_help'))}</p>
+        <button class="btn small streak-widget-copy">${esc(t('widget_copy'))}</button>
+        <button class="btn small streak-widget-new">${esc(t('widget_new'))}</button>
+        ${shown}
+      </div>`;
+  },
+
+  bindWidget(el) {
+    const copy = el.querySelector('.streak-widget-copy');
+    const fresh = el.querySelector('.streak-widget-new');
+    // Copied, or shown for selecting by hand when the clipboard is refused.
+    const hand = async (res) => {
+      if (!res) return;
+      try {
+        await navigator.clipboard.writeText(res.token);
+        this.widgetShown = null;
+        toast(t('copied'));
+      } catch {
+        this.widgetShown = res.token;
+      }
+      this.renderStreakLadder();
+      // Only a failure is worth a word; a success is the toast above. Offline
+      // the write waits for the connection, so silence is not a failure here.
+      res.saved.then(ok => { if (!ok) toast(t('widget_not_saved'), 4000); });
+    };
+    if (copy) copy.onclick = async () => {
+      copy.disabled = true;
+      try { await hand(await getWidgetCode()); } finally { copy.disabled = false; }
+    };
+    if (fresh) fresh.onclick = async () => {
+      if (!await askConfirm(esc(t('widget_new_confirm')))) return;
+      fresh.disabled = true;
+      try {
+        const res = await replaceWidgetCode();
+        if (res) { this.widgetShown = null; toast(t('widget_new_done'), 3500); this.renderStreakLadder(); }
+        res?.saved.then(ok => { if (!ok) toast(t('widget_not_saved'), 4000); });
+      } finally { fresh.disabled = false; }
+    };
   },
 
   // The rules the flame actually follows, in the one place the flame lives.
