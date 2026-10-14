@@ -20,6 +20,13 @@
 // NOT REACHED: the password pop-up (delete account) and the complete-your-
 // profile pop-up need a signed-in user; both are built from the same .input.
 // A real phone: this is Chrome on Windows with a phone's screen size.
+//
+// BUTTONS (v222): every <button> takes the app's font from one rule,
+// `button { font-family: inherit; }`. At every stop, and on the main screens,
+// each button on screen is measured with that one rule switched off in the
+// stylesheet (what v221 and before showed: Arial) and as shipped, and compared:
+// same font as the page, no button past the screen or its row, no label newly
+// cut or newly on a second line.
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import os from 'node:os';
@@ -36,7 +43,7 @@ const PORT = 9100 + Math.floor(Math.random() * 90);
 const WEB = 8700 + Math.floor(Math.random() * 90);
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'cdp-fonts-'));
 fs.mkdirSync(OUT, { recursive: true });
-setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 420000).unref();
+setTimeout(() => { console.error('VERIFY TIMEOUT'); process.exit(2); }, 600000).unref();
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.wasm': 'application/wasm',
@@ -148,11 +155,43 @@ const fill = () => ev(`${BOXES}.forEach(e => { if (e.value) return;
   else if (e.tagName !== 'SELECT') e.value = e.type === 'email' ? 'marco@example.com' : 'Rook endings 123'; });`);
 const REVERT = `.input, .comment-box textarea { font-family: revert !important; }`;
 
+// Every button on screen (in the open pop-up, if one is open): its font, its box,
+// whether its row or the screen holds it, cut text, and how many lines its words take.
+const BUTTONS = `[...document.querySelectorAll('button')].filter(e => { const r = e.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' && (!document.querySelector('.modal-back') || e.closest('.modal-back')); })`;
+const measureButtons = () => ev(`return ${BUTTONS}.map(e => { const c = getComputedStyle(e), r = e.getBoundingClientRect(), p = e.parentElement.getBoundingClientRect();
+  const tops = [], w = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+  for (let n; (n = w.nextNode());) { if (!n.nodeValue.trim()) continue; const g = document.createRange(); g.selectNodeContents(n);
+    for (const q of g.getClientRects()) if (q.width > 0 && !tops.some(t => Math.abs(t - q.top) < 6)) tops.push(q.top); }
+  return { who: 'button' + (e.id ? '#' + e.id : '') + (e.classList.length ? '.' + [...e.classList].join('.') : '') + ' "' + e.textContent.trim().replace(/\\s+/g, ' ').slice(0, 30) + '"',
+    font: c.fontFamily, w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right), row: Math.round(p.right),
+    cut: e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1, lines: tops.length }; });`);
+// Switch the one `button { font-family: inherit }` rule off or back on, in the stylesheet itself.
+const buttonRule = on => ev(`for (const s of document.styleSheets) { let rules; try { rules = s.cssRules; } catch { continue; }
+  for (const r of rules) if (r.selectorText === 'button' && (r.style.fontFamily || r.__off)) {
+    if (${on}) { r.style.setProperty('font-family', 'inherit'); r.__off = false; } else { r.style.removeProperty('font-family'); r.__off = true; } return true; } }
+  return false;`);
+const buttonStats = { stops: 0, buttons: 0, taller: new Map() };
+const buttonStop = async (tag, name) => {
+  check(`${tag} ${name}: the button font rule is in the stylesheet`, await buttonRule(false));
+  const before = await measureButtons();
+  await buttonRule(true);
+  const after = await measureButtons();
+  buttonStats.stops++; buttonStats.buttons += after.length;
+  check(`${tag} ${name}: every button (${after.length}) is in the app's font`, after.length && after.every(b => b.font === bodyFont), after.filter(b => b.font !== bodyFont).map(b => [b.who, b.font]));
+  check(`${tag} ${name}: with the rule off some were NOT (so the check can fail)`, before.some(b => b.font !== bodyFont), before.length);
+  check(`${tag} ${name}: no button past the screen or its row, no label newly cut or on a new line`,
+    after.every((b, i) => (b.right <= 375 || before[i].right > 375) && (b.right <= b.row + 1 || before[i].right > before[i].row + 1) && (!b.cut || before[i].cut) && b.lines <= before[i].lines),
+    after.map((b, i) => [b, before[i]]).filter(([b, a]) => (b.right > 375 && a.right <= 375) || (b.right > b.row + 1 && a.right <= a.row + 1) || (b.cut && !a.cut) || b.lines > a.lines));
+  after.forEach((b, i) => { const d = b.h - before[i].h; if (d) { const k = (d > 0 ? '+' : '') + d + 'px'; buttonStats.taller.set(k, (buttonStats.taller.get(k) || 0) + 1); } });
+};
+
 let bodyFont = '';
 const changes = [];
 // One stop: the boxes with the rule off, then as shipped, then a picture.
 const stop = async (tag, name, want, file) => {
   await sleep(250);
+  await buttonStop(tag, name);
   await fill();
   await ev(`const s = document.createElement('style'); s.id = '__rev'; s.textContent = ${JSON.stringify(REVERT)}; document.head.appendChild(s);`);
   const before = await measure();
@@ -177,6 +216,14 @@ for (const lang of ['es', 'en']) {
     await load(lang, scheme);
     bodyFont = await ev(`return getComputedStyle(document.body).fontFamily;`);
     check(`${tag}: the page's own font is the system one`, bodyFont.startsWith('system-ui'), bodyFont);
+
+    // The main screens: their buttons only (no boxes to type in counted here).
+    for (const [id, file] of [['home', '00a-home'], ['play', '00b-play'], ['puzzles', '00c-puzzles'], ['analysis', '00d-analysis'], ['endgame', '00e-endgame'],
+      ['calc', '00f-calc'], ['blind', '00g-blind'], ['read', '00h-read'], ['profile', '00i-profile'], ['simul', '00j-simul']]) {
+      await screen(id);
+      await buttonStop(tag, `${id} screen`);
+      await shot(`${tag}-${file}`);
+    }
 
     // Sign in, create account.
     await ev(`__app.openAuthModal();`);
@@ -279,6 +326,9 @@ for (const lang of ['es', 'en']) {
     await seed();
     await tap('#stu-list .stu-card.tappable');
     await until(`document.querySelector('.stu-page')`);
+    await sleep(250);
+    await buttonStop(tag, 'student page');
+    await shot(`${tag}-16b-student-page`);
     await tap('.hw-teacher .btn-wide');
     await until(`document.querySelector('.hw-sheet')`);
     const three = await ev(`const s = document.querySelector('.hw-sheet'), f = q => getComputedStyle(s.querySelector(q)).fontFamily;
@@ -298,6 +348,8 @@ for (const lang of ['es', 'en']) {
 const bad = checks.filter(c => !c.ok);
 console.log(`\nSizes that changed with the font (${new Set(changes).size} kinds):`);
 [...new Set(changes)].forEach(c => console.log('  ' + c));
+console.log(`\nButtons: ${buttonStats.buttons} measured at ${buttonStats.stops} stops; height change with the font: ` +
+  ([...buttonStats.taller].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} x${n}`).join(', ') || 'none'));
 console.log(`\n${checks.length - bad.length} of ${checks.length} checks passed`);
 if (bad.length) { console.log('FAILED:'); bad.forEach(c => console.log('  ' + c.name)); }
 chrome.kill(); server.close();

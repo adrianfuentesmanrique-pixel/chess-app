@@ -76,6 +76,9 @@ html, body {
 }
 
 body { display: flex; flex-direction: column; height: 100dvh; }
+/* A <button> does not take the page's font by itself: Chrome on a computer draws
+   it in Arial. Size and weight are left alone. */
+button { font-family: inherit; }
 
 /* ☰ | current screen (icon + name) | streak + settings. The two outer tracks
    are equal 1fr, so the title is centred on the bar itself even though the
