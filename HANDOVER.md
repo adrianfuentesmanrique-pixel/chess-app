@@ -9,6 +9,38 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **ENDINGS: EACH ENDGAME SHOWS HOW LONG AGO IT WAS LAST SOLVED (2026-10-13, v220).**
+  In Learn > Endings > a category, every row has a dot: green = solved today or up to 60 days
+  ago, orange = 61 to 90, red = 91 or more (until solved again), an EMPTY GREY RING = never.
+  The days are on the right ("hoy", "12 d"), so colour is never the only signal. A line above
+  the list explains the four. The six category rows add "· ● N en verde" / "N green".
+  ADRIAN'S DECISIONS (2026-10-13, do not re-open): the colour rule above; design A (the dot)
+  out of four shown; ANY practice that ends in success counts, wrong moves or not; the
+  category rows show the green count; the legend says the days ("hasta 60 días · 61 a 90 ·
+  91 o más · sin hacer"). "al día" was NOT used for the count: it reads as "per day".
+  HOW: js/endgame-fresh.js (pure: `daysSince`, `freshState`, `mergeSolved`, `solvedNewer`).
+  New synced key `endgameSolvedAt` = { endgameId: 'YYYY-MM-DD' }, the player's own calendar
+  day, written ONLY by `Endgame.recordSolved` from `finishPractice(true)`; the walk-through
+  and a failed practice never get there. `Endgame.solvedAt` is the copy in memory
+  (`loadSolved`, called by `ensureLoaded` and after a sign-in). `openCategory` draws the dots
+  and `#endgame-legend`; `showCategories` the count; `refreshLists` now also redraws the
+  list of a category. A day in the future (another phone's clock) counts as today.
+  SYNC: every other synced key is REPLACED by the account's copy on sign-in, which would lose
+  one phone's work here. So js/firebase.js `DAY_MAP_KEYS`: on sign-in the phone's map and the
+  account's are merged, the newer day winning per endgame, and a phone only SENDS the entries
+  it has newer (setDoc merge writes those fields only). Sign-out wipes it with the rest of
+  the kv store. No firestore.rules change (the users document has no field allowlist).
+  Nothing was invented: everyone starts all grey.
+  VERIFIED: tools/cdp-verify-endfresh.mjs 62 of 62 at 375 px, es and en, light and dark,
+  screenshots looked at. REALLY TAPPED: menu, Learn, Endings, the category, the row, Walk
+  through, Practice, Resign and its Yes, Back. The chess moves go through
+  `Endgame.userMove`. SEEDED: the dates of 60, 61, 90, 91, 75 and 240 days ago. tests/unit/
+  endgame-fresh.test.js (6: days 0, 1, 60, 61, 90, 91, 400, never, a future day, the merge).
+  students8 133 of 133, test:tree 475, test:precache OK.
+  NOT PROVED: the sync between two real phones (headless Chrome has no Firebase user); the
+  merge rule is unit-tested and the redraw after a sign-in is checked by changing the stored
+  dates under the open list.
+
 - **STUDENTS: 🤖 POSITION - WHAT I TYPED STAYS THROUGH THE BOARD EDITOR (2026-10-13, v219).**
   On the assign sheet's Position, the title, the note, the due date and the computer's level
   are back in the sheet when I return from the board editor, from "Use for the homework" and
