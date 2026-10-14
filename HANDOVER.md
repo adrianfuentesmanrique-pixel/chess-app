@@ -9,6 +9,28 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **STUDENTS: 🤖 POSITION - WHAT I TYPED STAYS THROUGH THE BOARD EDITOR (2026-10-13, v219).**
+  On the assign sheet's Position, the title, the note, the due date and the computer's level
+  are back in the sheet when I return from the board editor, from "Use for the homework" and
+  from Cancel alike. No new words, no new style, no rules change.
+  ADRIAN'S DECISIONS (2026-10-13, do not re-open): the LEVEL is kept; the COLOUR is kept only
+  while the side to move is the one it was, and a new side to move is proposed as before.
+  HOW: js/students.js `hwForm` (uid -> {title, note, due, color, level, turn}), beside `hwPos`,
+  memory only, never written to the cache. `.hw-ps-set` closes the sheet with
+  `{ setup: true, form }`; `teacherHwBlock`'s `give()` stores it; `assignSheet()` reads it
+  ONCE when it opens on 'position' (the way back from the editor is the only way in on that
+  kind) and deletes it on every open, so a sheet opened from the button always starts clean
+  and nothing survives a Send. Reset in `onAuth` with the rest. js/app.js is untouched.
+  VERIFIED: tools/cdp-verify-students9.mjs 166 of 166 (its 148 plus 18: the title and the
+  note REALLY TYPED after a tap on the field, the date and the level set by script as native
+  pickers; through Use, through Cancel, side to move changed, after Send, editor left another
+  way, account changed; 375 px, es and en, light and dark, screenshots looked at). students8
+  133 of 133, students7 73 of 73, test:tree 469, test:precache OK.
+  SEEN, NOT TOUCHED: in the sheet the note (a textarea) and the date show in the browser's
+  monospace face, the title in the app's face; headless Chrome on Windows, not checked on a
+  phone. Still not kept: what was typed when Send itself fails (the sheet has already closed),
+  for every kind, as before.
+
 - **STUDENTS: 🤖 POSITION HOMEWORK - A POSITION OF MINE, PLAYED AGAINST THE COMPUTER, DONE WHEN THE GAME ENDS (2026-10-13, v218).**
   Session 3 of 3 of Adrian's plan: the plan is finished. The sheet has four buttons, two by
   two: 🧩 Puzzles, 📖 Chapter, ♟ Endgame, 🤖 Position. FIRESTORE.RULES CHANGED: the rules
