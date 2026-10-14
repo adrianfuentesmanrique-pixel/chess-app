@@ -9,8 +9,46 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **HOME-SCREEN STREAK WIDGET, ANDROID PART (2026-10-14, app 1.0.6 / versionCode 8).** Built
+  in `C:\Users\Adrian\chess-app-android`, which NOW HAS LOCAL GIT (no remote; android.keystore,
+  local.properties, *.aab/*.apk and build/ are in .gitignore): baseline commit 4e4e2a3, widget
+  commit 27783ca. Backup of the pre-widget folder: `C:\Users\Adrian\chess-app-android-backup-2026-10-14`.
+  No web change, no rules change, no sw.js bump.
+  FILES (all hand-added, NOT from Bubblewrap; `bubblewrap update` would wipe the manifest part):
+  `StreakWidget.java` (AppWidgetProvider: REST GET inside goAsync(), 4 s timeouts,
+  HttpURLConnection + org.json, no new library; caches count/lastDate in SharedPreferences
+  "streak_widget"), `StreakWidgetConfigActivity.java` (Paste button, ^[0-9a-f]{32}$, Open CTC,
+  Cancel), layouts `widget_streak` (1x1), `widget_streak_wide` (2x1, Android 12+ picks by size,
+  older by OPTION_APPWIDGET_MIN_WIDTH >= 100dp), `widget_streak_empty`, `activity_widget_config`;
+  `xml/streak_widget_info.xml` (updatePeriodMillis 1800000, resize horizontal, reconfigurable);
+  `values/` + `values-es/widget_strings.xml`, `values/` + `values-night/widget_colors.xml` and
+  `widget_styles.xml` (the web's light/dark tokens); manifest: receiver + config activity +
+  INTERNET permission. LauncherActivity's "Open with" patch untouched.
+  RULES IT APPLIES (same as Streak/isYesterday in js/app.js, phone's local day): lastDate >= today
+  -> lit flame + count; == yesterday -> grey + count; older -> grey 0; no code -> "Open CTC and
+  copy the widget code" (tap opens the Paste screen). 404 -> the code is forgotten, the cached
+  count stays on screen grey, a tap opens Paste with "this code no longer works". Network
+  errors keep the cache, so the day still turns over offline.
+  ART: `res/drawable-nodpi/widget_flame.png` = streaks/flame1.png with its alpha-2 canvas
+  cleared (it showed as a faint square on the light widget); `widget_flame_grey.png` = greyed
+  copy. NEW FLAME ART REPLACES EXACTLY THESE TWO FILES (redo the alpha clean-up and the grey).
+  TWO TRAPS FOUND: (1) text set only in a RemoteViews layout XML is inflated in the LAUNCHER's
+  locale, so "no code" stayed English under a Spanish app locale; it is now set from code.
+  (2) the browser API key's referrer lock does NOT block this read: a GET with no Referer
+  returned 404/200 normally (measured).
+  BUILD: `gradlew.bat assembleRelease bundleRelease` (PowerShell, JAVA_HOME = the bubblewrap
+  JDK 17) OK; signed with the upload key (4D:50...) -> `app-release-signed-1.0.6.apk`,
+  `app-release-bundle-1.0.6.aab` in the Android folder (password read by a script, never shown).
+  VERIFIED on the API 36.1 emulator: all four states + "1 day/día" singular, 1x1 and 2x1,
+  light and dark, English and Spanish (40 screenshots, cached states offline in airplane
+  mode on a debug build); Paste: empty clipboard, non-code text, fake code (-> 404 path),
+  Adrian's real code on the RELEASE build -> 14 days grey, matching the doc (lastDate
+  2026-10-13 at 01:37 on the 14th); tap opens CTC full-screen; "Open with" a PGN still lands
+  in Bases. The emulator proves NOTHING about the Play-signed install.
+  NOT DONE: Play Console upload of 1.0.6 and the test on Adrian's phone.
+
 - **HOME-SCREEN STREAK WIDGET, WEB PART (2026-10-14, v223).** Option "d" of the 2026-10-13
-  investigation. The Android widget itself is NOT built yet (next session).
+  investigation. The Android widget is built (entry above).
   DATA: `streakWidget/{code}`, code = 32 lowercase hex (16 random bytes), fields exactly
   owner, count, lastDate ('YYYY-MM-DD', the app's local day), updatedAt (server time).
   No streak yet -> lastDate '1970-01-01' (reads as "long ago": grey 0); the rules refuse null.
