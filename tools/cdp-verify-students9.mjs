@@ -125,7 +125,7 @@ const fields = () => ev(`const s = document.querySelector('.hw-sheet'); if (!s) 
   const on = s.querySelector('.hw-ps-color button.on');
   return { title: s.querySelector('.hw-title').value, note: s.querySelector('.hw-note-in').value, due: s.querySelector('.hw-due').value,
     color: on ? on.dataset.v : '', level: s.querySelector('.hw-ps-lv').value, board: s.querySelector('.hw-ps-board').innerHTML };`);
-// The font the three fields are drawn in, next to the page's own (v220).
+// The font the three fields are drawn in, next to the page's own (v221).
 const fonts = () => ev(`const s = document.querySelector('.hw-sheet'), c = q => getComputedStyle(s.querySelector(q));
   return { body: getComputedStyle(document.body).fontFamily, title: c('.hw-title').fontFamily, note: c('.hw-note-in').fontFamily, due: c('.hw-due').fontFamily,
     sizes: ['.hw-title', '.hw-note-in', '.hw-due'].map(q => c(q).fontSize).join(' ') };`);
@@ -361,7 +361,7 @@ try {
       const f = await fields();
       check(`${tag}: the title, the note and the date typed before the editor are back in the sheet`, f.title === 'Lucena 1' && f.note === 'Sin prisa / No hurry' && f.due === '2026-11-05', { ...f, board: 0 });
       const ff = await fonts();
-      check(`${tag}: the title, the note and the date are in the page's font (v220), still 15px`, ff.title === ff.body && ff.note === ff.body && ff.due === ff.body && ff.sizes === '15px 15px 15px', ff);
+      check(`${tag}: the title, the note and the date are in the page's font (v221), still 15px`, ff.title === ff.body && ff.note === ff.body && ff.due === ff.body && ff.sizes === '15px 15px 15px', ff);
       await ev(`document.querySelector('.hw-sheet .hw-due').scrollIntoView({ block: 'end' });`);
       await sleep(200);
       await shot(`${tag}-7b-sheet-fields-back`);

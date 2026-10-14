@@ -1,4 +1,4 @@
-// The boxes you type in use the app's font (v220): every box of class .input
+// The boxes you type in use the app's font (v221): every box of class .input
 // and the Analysis comment box. Dev tool, not shipped. Headless Chrome over CDP
 // at 375 x 812, signed out, no service worker.
 //
@@ -7,7 +7,7 @@
 // The skeleton (server, Chrome, tapX, load, seed) is tools/cdp-verify-students9.mjs's.
 // At every stop each box on screen is measured TWICE in the same page: once
 // with the font rule rolled back to the browser's own (`font-family: revert`,
-// which is what v219 showed) and once as shipped. So "before" is not a second
+// which is what v220 and before showed) and once as shipped. So "before" is not a second
 // copy of the app, it is this one with the rule switched off.
 // CALLED, not tapped: the openers (openAuthModal, askText, showScreen,
 // Analysis.editComment / editDetails, Trainer.pickGame, history's open(),

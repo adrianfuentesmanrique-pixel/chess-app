@@ -9,6 +9,35 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **THE BOXES YOU TYPE IN USE THE APP'S FONT (2026-10-13, v221).** Two lines in
+  css/style.css: `.input` and `.comment-box textarea` now carry `font-family: inherit`.
+  WHAT WAS WRONG (measured, not guessed): Chrome gives a `<textarea>` and an
+  `<input type="date">` `monospace`, and every other input and `<select>` `Arial`; nothing in
+  the stylesheet said otherwise. So the homework note and date, the date of birth, the two
+  history-filter dates and the Analysis comment box were in the typewriter font, and every
+  other box was in Arial (on Android Arial and the app's font are both Roboto, so only the
+  typewriter ones show on a phone). The v219 prompt said the title was in the app's font: it
+  was Arial.
+  ADRIAN'S DECISION (2026-10-13, do not re-open): every `.input` box AND the Analysis comment
+  box, not the assign sheet alone.
+  SIZES: font-size untouched (15px). With Segoe UI the boxes are a little taller in Chrome on
+  Windows: one-line boxes 39 -> 42px, selects 41 -> 44, date 42 -> 44, the note 58 -> 62, the
+  comment box 76 -> 82. No box is wider, no text is newly cut.
+  VERIFIED: tools/cdp-verify-fonts.mjs 420 of 420 at 375 px, es and en, light and dark. It
+  opens every such box (sign in, create account, the name pop-up, database list, game list,
+  advanced search, trainer and its game picker, library and one opening, leaderboard,
+  history filter, settings' reminder hour, the comment box, game details, the simul opening
+  sheet, the assign sheet in its four kinds) and measures each one twice in the same page:
+  with the rule rolled back (`font-family: revert`) and as shipped. students9 171 of 171
+  (166 + 5 font checks), students8 133, students7 73, test:tree, test:precache.
+  NOT REACHED: a real phone (headless Chrome on Windows only); the Friends search (hidden
+  signed out, its font read where it hides); the password pop-up of "delete account" and the
+  complete-your-profile pop-up (signed-in only, same `.input`).
+  FOUND, NOT FIXED: every `.btn` button is `Arial` too, for the same reason (a `<button>`
+  does not inherit the font and `.btn` sets none). Invisible on Android, visible on a
+  computer. The trainer's database `<select>` cuts its "first create a database…" line at
+  375 px, as it did before.
+
 - **ENDINGS: EACH ENDGAME SHOWS HOW LONG AGO IT WAS LAST SOLVED (2026-10-13, v220).**
   In Learn > Endings > a category, every row has a dot: green = solved today or up to 60 days
   ago, orange = 61 to 90, red = 91 or more (until solved again), an EMPTY GREY RING = never.
