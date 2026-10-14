@@ -549,6 +549,7 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .input {
   width: 100%; background: var(--panel2); color: var(--text);
   border: 1px solid var(--input-border); border-radius: 8px; padding: 10px; font-size: 15px; margin: 6px 0;
+  font-family: inherit;   /* a textarea and a date box default to monospace, the others to Arial */
 }
 
 .hint { color: var(--muted); font-size: 13px; line-height: 1.45; }
@@ -1670,6 +1671,7 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .comment-box textarea {
   width: 100%; background: var(--panel2); color: var(--text);
   border: 1px solid var(--input-border); border-radius: 8px; padding: 10px; font-size: 15px;
+  font-family: inherit;
 }
 
 /* ── palette (setup) ───────────────────── */
