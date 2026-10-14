@@ -40,6 +40,7 @@ import { CalcUI } from './calc-ui.js';
 import { CoordUI } from './coord-ui.js';
 import { OpeningLib } from './opening-lib-ui.js';
 import { eloAfter } from './elo.js';
+import { freshState } from './endgame-fresh.js';
 import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { SimulUI } from './simul-ui.js';
@@ -6872,6 +6873,7 @@ export const Endgame = {
   thinking: false,
   engineOn: false,
   elo: {},               // per-category rating
+  solvedAt: {},          // endgame id → the day it was last solved
 
   init() {
     this.board = new Board($('endgame-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
@@ -6929,6 +6931,14 @@ export const Endgame = {
 
   async ensureLoaded() {
     this.elo = await db.kvGet('endgameElo', {});
+    await this.loadSolved();
+  },
+
+  // { endgameId: 'YYYY-MM-DD' } — the player's own calendar day each endgame
+  // was last solved in Practice. Drives the colour of its row (js/endgame-fresh.js).
+  async loadSolved() {
+    const m = await db.kvGet('endgameSolvedAt', {});
+    this.solvedAt = (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
   },
 
   // The Learn screen holds seven sibling views; exactly one is ever visible.
@@ -6975,18 +6985,25 @@ export const Endgame = {
   refreshLists() {
     if (!$('endgame-sections-view').classList.contains('hidden')) this.renderSections();
     else if (!$('endgame-list-view').classList.contains('hidden')) this.showCategories();
+    else if (!$('endgame-positions-view').classList.contains('hidden') && this.category) this.openCategory(this.category);
   },
 
   showCategories() {
     this.showView('endgame-list-view');
     const el = $('endgame-cat-list');
     el.innerHTML = '';
+    const today = todayStr();
     for (const cat of ENDGAME_CATEGORIES) {
-      const count = ENDGAMES.filter(e => e.category === cat).length;
+      const inCat = ENDGAMES.filter(e => e.category === cat);
+      const count = inCat.length;
       const rating = this.elo[cat] ? Math.round(this.elo[cat]) : '—';
+      // How many of them are green today (solved in the last 60 days).
+      const green = inCat.filter(e => freshState(this.solvedAt[e.id], today).state === 'green').length;
       const item = document.createElement('button');
       item.className = 'list-item';
-      item.innerHTML = `<b>${t('cat_' + cat)}</b><span class="sub">${count} ${tn('games', count)} · ${t('endgame_elo')}: ${rating}</span>`;
+      item.dataset.cat = cat;
+      item.innerHTML = `<b>${t('cat_' + cat)}</b><span class="sub">${count} ${tn('games', count)} · ${t('endgame_elo')}: ${rating} · `
+        + `<span class="eg-key eg-green"><span class="eg-mark" aria-hidden="true"></span>${green} ${t('eg_green_n')}</span></span>`;
       item.onclick = () => this.openCategory(cat);
       el.appendChild(item);
     }
@@ -6998,11 +7015,24 @@ export const Endgame = {
     $('endgame-cat-title').textContent = t('cat_' + cat);
     const el = $('endgame-pos-list');
     el.innerHTML = '';
+    // The line that explains the four colours, with the same dots as the rows.
+    const legend = $('endgame-legend');
+    const key = (state, words) => `<span class="eg-key eg-${state}"><span class="eg-mark" aria-hidden="true"></span>${esc(words)}</span>`;
+    legend.innerHTML = `<span>${esc(t('eg_legend'))}</span>` + key('green', t('eg_k_green')) + key('orange', t('eg_k_orange'))
+      + key('red', t('eg_k_red')) + key('never', t('eg_k_never'));
+    const today = todayStr();
     for (const pos of ENDGAMES.filter(e => e.category === cat)) {
       const item = document.createElement('button');
-      item.className = 'list-item';
+      const f = freshState(this.solvedAt[pos.id], today);
+      item.className = 'list-item eg-item eg-' + f.state;
+      item.dataset.eg = pos.id;
       const sub = pos.subtitle ? `<span class="sub">${esc(pos.subtitle[getLang()])}</span>` : '';
-      item.innerHTML = `<b>${esc(pos.name[getLang()])}</b>${sub}`;
+      // The number of days says the same as the colour, for whoever cannot tell
+      // the colours apart; a never-solved row has an empty ring and no number.
+      // Any practice that ends in success counts (Adrian, 2026-10-13).
+      const age = f.days === null ? '' : f.days === 0 ? t('eg_today') : `${f.days} ${t('eg_d')}`;
+      item.innerHTML = `<span class="eg-mark" aria-hidden="true"></span><span class="eg-text"><b>${esc(pos.name[getLang()])}</b>${sub}</span>`
+        + `<span class="eg-age">${esc(age)}</span>`;
       item.onclick = () => this.openPosition(pos);
       el.appendChild(item);
     }
@@ -7276,10 +7306,21 @@ export const Endgame = {
     // no longer banks the day.
     if (success) Streak.recordActivity();
     if (success) this.recordConversion(cat);
+    if (success) this.recordSolved(this.current.id);
     // An endgame given as homework is done here and nowhere else, so the
     // walkthrough (which never gets here) cannot finish it.
     Students.hwEndgameDone(this.current.id, success, this.mistakes);
     Badges.checkNew();
+  },
+
+  // Read, change, write: the list may not have been opened yet (homework goes
+  // straight to the board), and one entry must never replace the whole map.
+  async recordSolved(id) {
+    const m = await db.kvGet('endgameSolvedAt', {});
+    const map = (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+    map[id] = todayStr();
+    this.solvedAt = map;
+    await db.kvSet('endgameSolvedAt', map);
   },
 
   async recordConversion(cat) {
@@ -8663,6 +8704,7 @@ async function main() {
     await CalcUI.reload();
     await CoordUI.reload();
     Endgame.elo = await db.kvGet('endgameElo', {});
+    await Endgame.loadSolved();
     if (Blind.loaded) {
       Blind.elo = await db.kvGet('blindfoldElo', 1200);
       await Blind.loadTimeSettings();

@@ -20,6 +20,7 @@ import {
 } from '../vendor/firebase-10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from '../vendor/firebase-10.14.1/firebase-app-check.js';
 import * as db from './db.js';
+import { mergeSolved, solvedNewer } from './endgame-fresh.js';
 import { PULSO, applySolve, applyMistake, decideResult, unpackIds, clockOffset } from './pulso.js';
 import {
   SIMUL, startClocks, checkStart, positionOf, tryMove, packMove, moveWrite, inTime, flagged,
@@ -56,7 +57,18 @@ const SYNCED_KEYS = [
   'coordBestFind', 'coordBestName',
   'coordBestFind60', 'coordBestFind90', 'coordBestFind120', 'coordBestFind150', 'coordBestFind180',
   'coordBestName60', 'coordBestName90', 'coordBestName120', 'coordBestName150', 'coordBestName180',
+  // Endings: { endgameId: 'YYYY-MM-DD' }, the day each was last solved. Private.
+  // Also in DAY_MAP_KEYS below: two phones add to it, so it is merged, not replaced.
+  'endgameSolvedAt',
 ];
+
+// Synced maps of days that every phone of the account adds to. Everywhere else
+// the account's copy simply replaces the phone's; here that would throw away
+// whatever one phone solved. So: on sign-in the two are merged (the newer day
+// wins per entry), and a phone only ever SENDS the entries it has newer —
+// setDoc(merge) writes those fields and leaves the rest of the map alone.
+const DAY_MAP_KEYS = ['endgameSolvedAt'];
+const accountDayMaps = {};   // key → what the account is known to hold
 
 // Profile visibility is stored as a WORD, not a yes/no, so further levels
 // ('friends', …) can be added later without changing the stored shape or
@@ -185,6 +197,7 @@ export const Auth = {
     // First, while the login can still delete this device's reminder document.
     await dropThisDevicePush();
     await db.clearSyncedProfileData();
+    for (const key of DAY_MAP_KEYS) delete accountDayMaps[key];
     await signOut(auth);
   },
 
@@ -343,6 +356,11 @@ async function updatePublicLeaderboardDoc(uid) {
 db.setSyncHook((key, value) => {
   if (suppressSync || !Auth.user || !SYNCED_KEYS.includes(key)) return;
   const uid = Auth.user.uid;
+  if (DAY_MAP_KEYS.includes(key)) {
+    value = solvedNewer(value, accountDayMaps[key]);
+    if (!Object.keys(value).length) return;
+    accountDayMaps[key] = mergeSolved(accountDayMaps[key], value);
+  }
   setDoc(doc(firestore, 'users', uid), { [key]: value }, { merge: true }).catch(e => {
     console.error('Firestore sync failed for', key, e);
   });
@@ -2142,7 +2160,20 @@ async function pullOrBootstrap(uid) {
     if (snap.exists()) {
       const remote = snap.data();
       for (const key of SYNCED_KEYS) {
+        if (DAY_MAP_KEYS.includes(key)) continue;
         if (remote[key] !== undefined) await db.kvSet(key, remote[key]);
+      }
+      for (const key of DAY_MAP_KEYS) {
+        const local = await db.kvGet(key, null);
+        accountDayMaps[key] = mergeSolved(remote[key], null);
+        if (local !== null || remote[key] !== undefined) await db.kvSet(key, mergeSolved(local, remote[key]));
+        // What this phone solved that the account has not seen (offline, or
+        // before signing in). Not awaited: a write waits forever while offline.
+        const owed = solvedNewer(local, remote[key]);
+        if (Object.keys(owed).length) {
+          accountDayMaps[key] = mergeSolved(accountDayMaps[key], owed);
+          setDoc(ref, { [key]: owed }, { merge: true }).catch(e => console.error('Firestore sync failed for', key, e));
+        }
       }
       // Both, not just firstName. username arrived with Friends, so every
       // account created before it has a firstName and no username — and those
@@ -2160,6 +2191,7 @@ async function pullOrBootstrap(uid) {
         if (v !== null) local[key] = v;
       }
       await setDoc(ref, local, { merge: true });
+      for (const key of DAY_MAP_KEYS) accountDayMaps[key] = mergeSolved(local[key], null);
       Auth.needsProfileCompletion = !local.firstName || !local.username;
     }
   } finally {

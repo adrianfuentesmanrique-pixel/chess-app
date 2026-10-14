@@ -1309,6 +1309,17 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .list-item .sub.moves { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .list-item .sub.moves:empty { display: none; }
 .list-item .result { color: var(--accent); }
+/* Endings: the colour of a row says how long ago it was last solved. */
+.eg-green { --eg: var(--success); } .eg-orange { --eg: var(--warning); }
+.eg-red { --eg: var(--danger); } .eg-never { --eg: var(--muted); }
+.list-item.eg-item { flex-direction: row; align-items: center; gap: 10px; }
+.eg-text { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.eg-age { flex: none; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.eg-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 0; font-size: 12px; }
+.eg-key { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+/* A dot; an empty ring when it was never solved (a shape, not only a colour). */
+.eg-mark { flex: none; box-sizing: border-box; width: 11px; height: 11px; border-radius: 50%; background: var(--eg); }
+.eg-never .eg-mark { background: none; border: 2px solid var(--eg); }
 
 /* endgame viewer title: "Example 2 — Black to move, draw" under the heading */
 #endgame-pos-title { display: flex; flex-direction: column; gap: 2px; }

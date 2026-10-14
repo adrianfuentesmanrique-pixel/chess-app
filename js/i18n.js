@@ -590,6 +590,15 @@ const DICT = {
   practice_fail: { es: 'No se logró esta vez. ¡Sigue practicando!', en: "Didn't work out this time. Keep practicing!" },
   checking_move: { es: 'Comprobando la jugada…', en: 'Checking the move...' },
   endgame_elo: { es: 'ELO de finales', en: 'Endgame ELO' },
+  // Endings: how long ago each endgame was last solved (js/endgame-fresh.js).
+  eg_legend: { es: 'Resuelto hace:', en: 'Last solved:' },
+  eg_k_green: { es: 'hasta 60 días', en: 'up to 60 days' },
+  eg_k_orange: { es: '61 a 90', en: '61 to 90' },
+  eg_k_red: { es: '91 o más', en: '91 or more' },
+  eg_k_never: { es: 'sin hacer', en: 'not done' },
+  eg_today: { es: 'hoy', en: 'today' },
+  eg_d: { es: 'd', en: 'd' },
+  eg_green_n: { es: 'en verde', en: 'green' },
   // Profile
   sign_in_google: { es: 'Iniciar sesión con Google', en: 'Sign in with Google' },
   sign_in_or_up: { es: 'Iniciar sesión / Crear cuenta', en: 'Sign in / Sign up' },

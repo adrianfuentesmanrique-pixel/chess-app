@@ -105,6 +105,7 @@ const ASSETS = [
   'js/elo.js',
   'js/calc-ui.js',
   'js/coord.js',
+  'js/endgame-fresh.js',
   'js/coord-ui.js',
   'js/sound.js',
   'js/move-feel.js',
