@@ -9,6 +9,25 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **BUTTONS USE THE APP'S FONT (2026-10-13, v222).** One rule in css/style.css, right
+  under `body`: `button { font-family: inherit; }`. Size and weight untouched.
+  WHAT WAS WRONG (measured by script on 42 screens and pop-ups, es and en): 64 kinds of
+  button were `Arial`, not only `.btn`: plain class-less buttons (Settings choices, Play's
+  colour, the Analysis symbols, ½-½), `.list-item`, `.tool-btn`, `.icon-btn`, `.pal-btn`,
+  `.nav-back`, `.fr-more`, `.sheet-btn`, `.pw-toggle`, `.google-btn`, `.auth-link`,
+  `.calc-chip`, `.annotate-btn`, `.read-fs-btn` and more. Ten kinds already inherited.
+  On Android Arial and the app's font are both Roboto: this changes nothing on a phone.
+  ADRIAN'S DECISION (2026-10-13, do not re-open): one rule for every button, not `.btn` only.
+  SIZES: the old note that Segoe UI is wider than Arial was wrong for these labels: most get
+  NARROWER (middle -2.8%, widest gain 3.7px on "½-½"); "My Masterclasses" no longer wraps.
+  Buttons get 1-8px TALLER (Segoe UI's line height): mostly +5 (list rows) and +3 (`.btn`
+  37 -> 40). No label newly cut, wrapped, off screen or past its row.
+  VERIFIED: tools/cdp-verify-fonts.mjs 916 of 916 (the 420 box checks + 496 button checks:
+  at every stop and on ten main screens and the student page, each button measured with the
+  one rule switched off in the stylesheet and as shipped), 375 px, es/en, light/dark,
+  screenshots looked at. students9 171, students8 133, students7 73, test:tree, test:precache.
+  NOT REACHED: a real phone or an iPhone; signed-in-only pop-ups.
+
 - **THE BOXES YOU TYPE IN USE THE APP'S FONT (2026-10-13, v221).** Two lines in
   css/style.css: `.input` and `.comment-box textarea` now carry `font-family: inherit`.
   WHAT WAS WRONG (measured, not guessed): Chrome gives a `<textarea>` and an
