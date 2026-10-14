@@ -9,6 +9,34 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **HOME-SCREEN STREAK WIDGET, WEB PART (2026-10-14, v223).** Option "d" of the 2026-10-13
+  investigation. The Android widget itself is NOT built yet (next session).
+  DATA: `streakWidget/{code}`, code = 32 lowercase hex (16 random bytes), fields exactly
+  owner, count, lastDate ('YYYY-MM-DD', the app's local day), updatedAt (server time).
+  No streak yet -> lastDate '1970-01-01' (reads as "long ago": grey 0); the rules refuse null.
+  RULES (firestore.rules, tests in tests/rules/streakwidget.test.js): get open to anyone with
+  the code, list shut, create/update only by the signed-in owner (an existing doc's owner
+  can't be swapped), the four keys only, count 0..30000, date pattern, updatedAt ==
+  request.time; delete by owner (or a code never written).
+  WEB (js/firebase.js): kv key `widgetToken` in SYNCED_KEYS; the sync hook calls
+  publishWidget() on streakCount / streakLastDate / widgetToken, writes chained so the
+  last asked lands last. getWidgetCode() (makes the code on first use, rewrites the doc),
+  replaceWidgetCode() (deletes the old doc first). Auth.deleteAccount deletes the doc.
+  UI (js/app.js Profile.widgetHtml/bindWidget, under "How the flame works"): Copy widget
+  code (clipboard; on refusal the code is shown to select by hand), Make a new code
+  (askConfirm), one line of help; signed out: a sign-in line. Strings widget_* in i18n.js.
+  The widget reads https://firestore.googleapis.com/v1/projects/chess-training-center/databases/(default)/documents/streakWidget/{code}?key=<apiKey in js/firebase.js>
+  — no login. App Check is NOT enforced for Firestore (measured 2026-10-13); IF IT EVER IS,
+  THE WIDGET BREAKS.
+  VERIFIED: test:rules 582/582, test:tree 475, test:precache. The app's own code against the
+  Firestore + Auth emulators (firebase.js served pointed at them, a real emulator sign-in):
+  doc written with exactly the four fields and count/date after a day earned, old doc gone
+  after "Make a new code", unauthenticated GET 200 / LIST 403, doc gone after deleteAccount.
+  375 px, es/en, light/dark, signed-out and copy-refused states, no sideways scroll.
+  NOT VERIFIED LIVE: a write to the real project (App Check 403 on localhost); a real
+  clipboard on a phone. Two devices that both make a first code at once: the later one
+  wins in the account, the earlier doc is left orphaned (harmless, holds a count only).
+
 - **BUTTONS USE THE APP'S FONT (2026-10-13, v222).** One rule in css/style.css, right
   under `body`: `button { font-family: inherit; }`. Size and weight untouched.
   WHAT WAS WRONG (measured by script on 42 screens and pop-ups, es and en): 64 kinds of
