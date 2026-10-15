@@ -11,7 +11,13 @@ largest place each is shown x 3 for phone pixel density:
   icons/kael/kael-welcome.png  390 wide     (same), trimmed to the figure
   icons/notif/daily.png        192 square   kael-notif, notification icon
   icons/notif/daily-wide.jpg   960x480      kael-notif on navy, expanded notification
+  icons/kael/kael-<mood>.png   the faces Kael wears while he speaks (MOODS below)
 icons/notif/badge.png is not Kael: tools/resize-notif.mjs makes it.
+
+The faces are 3/4 views: uncropped, their ears and muzzle fall outside the
+round frames (Home ring 44px, #kael-fab 48px). So each is cut to a square
+around the smallest circle holding his head (light skin above the chin line)
+and the hand that makes the gesture, plus 20% room for the gold ring.
 """
 import sys, os, glob
 import numpy as np
@@ -70,6 +76,51 @@ def banner(pic, w, h):
     return out.convert('RGB')
 
 
+def circle(pts, it=4000):
+    """Smallest circle around the points (Badoiu-Clarkson: step towards the
+    farthest point, by less each time). Returns centre, radius."""
+    c = pts.mean(0)
+    for i in range(1, it):
+        c = c + (pts[((pts - c) ** 2).sum(1).argmax()] - c) / (i + 1)
+    return c, np.sqrt(((pts - c) ** 2).sum(1).max())
+
+
+def face_crop(pic, chin, hand=0, room=1.2):
+    """The square around his head for a round frame. Head = his light skin
+    (ears, face, muzzle) above `chin`; with `hand`, the black glove above that
+    line too (the raised finger, the thumb, the hand on the chin)."""
+    a = np.asarray(pic).astype(np.int32)
+    solid = a[..., 3] > 200
+    def clean(m, n):
+        m = Image.fromarray((m * 255).astype(np.uint8))
+        return np.asarray(m.filter(ImageFilter.MinFilter(n)).filter(ImageFilter.MaxFilter(n))) > 0
+    m = clean(solid & (a[..., :3].min(-1) > 140) & (a[..., 2] >= a[..., 0] - 10), 9)
+    m[chin:] = False
+    if hand:
+        g = clean(solid & (a[..., :3].max(-1) < 70), 7)
+        g[hand:] = False
+        m |= g
+    ys, xs = np.nonzero(m)
+    c, r = circle(np.stack([xs, ys], 1).astype(np.float64)[::5])
+    r *= room
+    y0 = min(c[1] - r, pic.height - 2 * r)    # the body ends at the canvas bottom: no gap under it
+    return pic.crop(tuple(int(round(v)) for v in (c[0] - r, y0, c[0] + r, y0 + 2 * r)))
+
+
+# mood: (chin line, hand line or 0 for none, ship size). Ship size is the
+# largest place it shows x 3: 48px #kael-fab -> 144; thinking is also the 90px
+# calc/coord intro -> 270. Wink is only the 96px history picture, a rounded
+# square like the bust's, so it is the whole drawing, not cut for a circle.
+MOODS = {
+    'happy': (650, 0, 144),
+    'proud': (630, 0, 144),
+    'encouraging': (650, 740, 144),
+    'idea': (600, 640, 144),
+    'thinking': (620, 780, 270),
+    'wink': (None, 0, 288),
+}
+
+
 def smooth(pic):
     """Median-filter the colour (not the alpha): the JPEG noise in the
     drawings is what makes a PNG big, and the flat cartoon art loses nothing."""
@@ -115,3 +166,8 @@ wel = smooth(trim(keyed['kael-welcome']))
 save(resize(wel, (390, round(wel.height * 390 / wel.width))),'icons/kael/kael-welcome.png')
 save(resize(smooth(keyed['kael-notif']), (192, 192)), 'icons/notif/daily.png')
 save(banner(keyed['kael-notif'], 960, 480), 'icons/notif/daily-wide.jpg')
+for mood, (chin, hand, px) in MOODS.items():
+    pic = keyed['kael-' + mood]
+    if chin:
+        pic = face_crop(pic, chin, hand)
+    save(resize(smooth(pic), (px, px)), f'icons/kael/kael-{mood}.png', budget=(30 if px < 200 else 50) * 1024)

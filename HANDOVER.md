@@ -9,6 +9,37 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **KAEL'S FACES WHILE HE SPEAKS (2026-10-15, v225).** A quote item may carry `mood`;
+  `KaelQuotes.setFace(img, mood)` (js/app.js, next to KaelQuotes.show) swaps the picture to
+  `icons/kael/kael-<mood>.png` and back to kael-bust when he stops. On Home: Home.say sets the
+  ring (`#screen-home .home-kael-pic` only, NOT the simul banner's), endSay resets it. Off Home:
+  show() sets `#kael-fab img`, hide() resets it in its 400 ms timer (after he has slid out).
+  Unknown or no mood = bust. MOODS = happy, proud, encouraging, idea, thinking.
+  WIRED: one mission done -> happy, all three -> proud (DailyMissions.complete), streak tier up
+  -> encouraging (Streak.celebrateTier), not-an-opening -> thinking, lesson hint -> idea.
+  FIXED PICTURES: calc and coord intros (90px) -> kael-thinking, history empty (96px) -> kael-wink;
+  puzzle check-in and the GameReview portrait stay the bust.
+  ADRIAN DECIDED (2026-10-15): the 32px calc line and the 42px tour circle KEEP the bust; the
+  badge card (js/badge-card.js, its own card since before v224, no Kael on it) stays as is, so
+  "badge -> proud" from the plan has nowhere to go and was dropped.
+  ART: `tools/kael-art.py` MOODS table + face_crop(): the faces are 3/4 views whose ears and
+  muzzle fall outside a circle, so each is cut to the smallest circle around his light skin
+  above a per-face chin line (plus the glove for encouraging/idea/thinking, so the thumb, the
+  finger and the chin hand show), x1.2 room for the gold ring. Shipped: happy/proud/encouraging/
+  idea 144px (~27-30 KB), thinking 270px (46 KB), wink 288px whole drawing, not cut (62 KB).
+  The other 5 faces (laughing, surprise, sad, facepalm, sleepy) are NOT shipped: nothing uses
+  them. Adrian saw the pictures as files before they shipped.
+  V224 DEFECT FIXED HERE: v224 redrew kael-bust/kael-welcome under the same names without
+  renaming the art cache, so installed phones kept the OLD painterly Kael. sw.js: ART_CACHE
+  'ctc-art-2'; ART_WAS = only 'ctc-art-1' (copies everything across) EXCEPT ART_REDRAWN (the
+  two portraits, downloaded fresh). Next time art is redrawn under an old name: bump ART_CACHE
+  and list the files in ART_REDRAWN.
+  VERIFIED: `node tools/cdp-verify-kael-art.mjs <outDir>` 149/149 (each mood on Home and on the
+  corner, back to the bust each time, the real callers, both intros, history, ES/EN x
+  light/dark at 375, 4x close-ups; plus a seeded ctc-art-1 -> ctc-art-2 upgrade with the real
+  sw.js); test:precache, test:tree 475/475, test:rules pass. Lesson hint and not-an-opening
+  are verified by the shared show() path, not by playing a lesson.
+
 - **NEW MODERN KAEL ART IN THE APP (2026-10-14, v224).** Adrian's 18 new drawings (1024 JPEG
   `.jfif` on #00FF00, in `C:\Users\Adrian\chess-app-art\kael\`, OUTSIDE the repo, canon in its
   KAEL-PROMPTS.md) replace the old painterly Kael. ONE TOOL: `python -I tools/kael-art.py`.
@@ -29,7 +60,7 @@ are in `CLAUDE.md` under "Finish by pushing".
   circle 42px, Home ring 44px, #kael-fab 48px, calc line 32px, calc intro 90px, history empty
   96px, a 130px portrait as GameReview uses, the invite's daily.png 110px; ES/EN x light/dark at
   375, 4x close-ups of each circle), cdp-verify-remind 44/44, test:precache, test:tree 475/475,
-  test:rules pass. The 11 faces are NOT used in the app yet (Adrian decides where);
+  test:rules pass. The faces went into the app in v225 (entry above);
   "worried" was never drawn.
 
 - **HOME-SCREEN STREAK WIDGET, ANDROID PART (2026-10-14, app 1.0.6 / versionCode 8).** Built

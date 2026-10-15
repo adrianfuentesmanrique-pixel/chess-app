@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v224';
+const CACHE = 'chess-training-center-v225';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -47,15 +47,19 @@ const CACHE_FIRST = /\/(vendor|pieces|pieces2|icons|streaks|avatars)\//;
 // `npm.cmd run test:precache` fails if a file in these folders is not listed.
 // avatars/ is top-level files only: "avatars/CTC new arts" is the 137 MB of
 // source drawings for tools/build_*.py, which the app never loads.
-const ART_CACHE = 'ctc-art-1';
+const ART_CACHE = 'ctc-art-2';
 const ART_RE = /\/(icons\/(badges|kael|pulso)|streaks|avatars)\//;
-// Versioned caches that may hold today's art from a first fetch: the art last
-// changed during v62. What a phone already has is moved across at install
-// instead of being downloaded again.
-const ART_WAS = k => +(k.match(/^chess-training-center-v(\d+)$/) || [])[1] >= 63;
+// Caches that may hold today's art: what a phone already has is moved across
+// at install instead of being downloaded again. ctc-art-1 holds today's
+// drawings EXCEPT Kael's bust and welcome, redrawn in v224 under the same
+// names (v224 forgot the bump, so phones kept the old Kael): ART_REDRAWN is
+// never copied, it is downloaded. Versioned caches hold no art since v158.
+const ART_WAS = k => k === 'ctc-art-1';
+const ART_REDRAWN = ['icons/kael/kael-bust.png', 'icons/kael/kael-welcome.png'];
 const names = (dir, list) => list.split(' ').map(n => `${dir}/${n}.png`);
 const ART = [
-  ...names('icons/kael', 'kael-bust kael-welcome'),
+  // The faces are what Kael wears while he speaks (KaelQuotes.setFace in js/app.js).
+  ...names('icons/kael', 'kael-bust kael-welcome kael-happy kael-proud kael-encouraging kael-idea kael-thinking kael-wink'),
   ...names('icons/pulso',
     'pulso-draw pulso-empty pulso-hero pulso-lose pulso-marker pulso-marker-hot pulso-win'),
   ...names('icons/badges',
@@ -227,7 +231,7 @@ async function stockArt() {
   const was = (await caches.keys()).filter(ART_WAS);
   await Promise.all(ART.map(abs).map(async url => {
     if (await art.match(url)) return;
-    for (const k of was) {
+    if (!ART_REDRAWN.some(p => url.endsWith('/' + p))) for (const k of was) {
       const hit = await (await caches.open(k)).match(url);
       if (hit) return art.put(url, hit);
     }

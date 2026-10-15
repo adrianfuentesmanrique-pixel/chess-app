@@ -240,7 +240,7 @@ function render() {
       return;
     }
     el.innerHTML = `<div class="kael-empty">
-      <img src="icons/kael/kael-bust.png" class="kael-portrait" alt="Kael">
+      <img src="icons/kael/kael-wink.png" class="kael-portrait" alt="Kael">
       <p class="hint">${esc(t('history_empty'))}</p>
     </div>`;
     return;

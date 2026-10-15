@@ -151,7 +151,7 @@ export const CalcUI = {
     if (seen || this.introOpen) return;
     this.introOpen = true;
     modal((box, close) => {
-      box.innerHTML = `<div class="kael-modal-head"><img src="icons/kael/kael-bust.png" class="kael-portrait" alt="Kael" style="width:90px;"></div>
+      box.innerHTML = `<div class="kael-modal-head"><img src="icons/kael/kael-thinking.png" class="kael-portrait" alt="Kael" style="width:90px;"></div>
         <h3>${esc(t('calc_title'))}</h3>` + ['calc_intro_1', 'calc_intro_2', 'calc_intro_3'].map(k => `<p>${esc(t(k))}</p>`).join('');
       const ok = document.createElement('button');
       ok.className = 'btn primary big'; ok.id = 'calc-intro-ok'; ok.textContent = t('calc_intro_ok');

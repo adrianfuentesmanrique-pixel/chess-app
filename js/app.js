@@ -659,6 +659,15 @@ export const KaelQuotes = {
       : text;
   },
 
+  // The face he wears while he speaks: item.mood names one of these pictures
+  // (icons/kael/kael-<mood>.png, made by tools/kael-art.py, cut for a round
+  // frame). No mood, or one not listed, is his usual bust.
+  MOODS: ['happy', 'proud', 'encouraging', 'idea', 'thinking'],
+  setFace(img, mood) {
+    const src = this.MOODS.includes(mood) ? `icons/kael/kael-${mood}.png` : 'icons/kael/kael-bust.png';
+    if (img && img.getAttribute('src') !== src) img.src = src;
+  },
+
   show(item, duration = 6000, asked = false) {
     if (!asked && (Rush.running || PulsoMatch.id)) return;
     // On Home Kael is at the top of the page, and that is where he speaks:
@@ -676,6 +685,7 @@ export const KaelQuotes = {
     // differently from the ordinary ones that only dismiss.
     bubble.classList.toggle('actionable', !!this.onTap);
     bubble.classList.add('show');
+    this.setFace($('kael-fab').querySelector('img'), item.mood);
     $('kael-corner').classList.add('speaking');    // slide in from the edge
     Sound.play('kael-pop');
     this.lastShownAt = Date.now();
@@ -694,8 +704,9 @@ export const KaelQuotes = {
     // hiding, so it went on holding its full ~184x136px of layout at opacity 0
     // — which is what made the corner of the screen dead to touch, and what
     // would otherwise stop Kael parking neatly off the edge.
+    // His usual face comes back once he has slid out, not halfway.
     clearTimeout(this.hideTimer);
-    this.hideTimer = setTimeout(() => { bubble.innerHTML = ''; }, 400);
+    this.hideTimer = setTimeout(() => { bubble.innerHTML = ''; this.setFace($('kael-fab').querySelector('img')); }, 400);
   },
 
   // Optional flavour: skipped unless things have been quiet for a while, and
@@ -1027,6 +1038,7 @@ export const Streak = {
         text: tier.label[getLang()],
         image: `streaks/${tier.icon}.png`,
         imageClass: 'kael-quote-streak',
+        mood: 'encouraging',
       }, 5000);
     }, 400);
   },
@@ -1207,11 +1219,11 @@ export const DailyMissions = {
       await db.kvSet('dailyMissionStreak', this.streak);
       const best = await db.kvGet('bestDailyMissionStreak', 0);
       if (this.streak > best) await db.kvSet('bestDailyMissionStreak', this.streak);
-      KaelQuotes.show({ title: '🎯 ' + t('daily_missions_complete'), text: t(doneMsgKey) }, 5500);
+      KaelQuotes.show({ title: '🎯 ' + t('daily_missions_complete'), text: t(doneMsgKey), mood: 'proud' }, 5500);
       // delayed so it doesn't immediately overwrite the message just shown above
       setTimeout(() => Badges.checkNew(), 5700);
     } else {
-      KaelQuotes.show({ text: t(doneMsgKey) }, 4000);
+      KaelQuotes.show({ text: t(doneMsgKey), mood: 'happy' }, 4000);
       setTimeout(() => Badges.checkNew(), 4200);
     }
     this.render();
@@ -1329,6 +1341,7 @@ export const Home = {
     this.saying = true;
     this.onTap = item.onTap || null;
     el.innerHTML = KaelQuotes.html(item);
+    KaelQuotes.setFace(document.querySelector('#screen-home .home-kael-pic'), item.mood);
     el.classList.add('saying');
     el.classList.toggle('actionable', !!this.onTap);
     this.sayTimer = setTimeout(() => this.endSay(), duration);
@@ -1339,6 +1352,7 @@ export const Home = {
     this.saying = false;
     this.onTap = null;
     $('home-kael-line').classList.remove('saying', 'actionable');
+    KaelQuotes.setFace(document.querySelector('#screen-home .home-kael-pic'));
     this.render();
   },
 
@@ -4907,7 +4921,7 @@ export const Trainer = {
     // the tracking.
     const openingName = classifyOpening(this.chess.history());
     if (!openingName) {
-      KaelQuotes.show({ text: t('not_an_opening_msg'), author: null }, 5500);
+      KaelQuotes.show({ text: t('not_an_opening_msg'), author: null, mood: 'thinking' }, 5500);
       DailyMissions.complete('opening');
       return;
     }
@@ -7628,7 +7642,7 @@ Endgame.Lessons = {
     if (recent.some(v => v >= 700)) return; // already clearly winning — nothing useful to say
     const delta = recent[WINDOW - 1] - recent[0];
     if (delta < 15) {
-      KaelQuotes.show({ text: lesson.hint[getLang()], author: null }, 5500);
+      KaelQuotes.show({ text: lesson.hint[getLang()], author: null, mood: 'idea' }, 5500);
       this.hintCooldown = 8;
     }
   },

@@ -117,7 +117,7 @@ export const CoordUI = {
     if (seen || this.introOpen) return;
     this.introOpen = true;
     modal((box, close) => {
-      box.innerHTML = `<div class="kael-modal-head"><img src="icons/kael/kael-bust.png" class="kael-portrait" alt="Kael" style="width:90px;"></div>
+      box.innerHTML = `<div class="kael-modal-head"><img src="icons/kael/kael-thinking.png" class="kael-portrait" alt="Kael" style="width:90px;"></div>
         <h3>${esc(t('coord_title'))}</h3>` + ['coord_intro_1', 'coord_intro_2', 'coord_intro_3'].map(k => `<p>${esc(t(k))}</p>`).join('');
       const ok = document.createElement('button');
       ok.className = 'btn primary big'; ok.id = 'coord-intro-ok'; ok.textContent = t('calc_intro_ok');
