@@ -2448,6 +2448,15 @@ body.read-spread #read-reader {
 .hw-ps-board { width: 168px; height: 168px; margin: 4px auto 8px; }
 .hw-ps-color { margin-top: 6px; }
 .hw-ps-color button { flex: 1; }
+.hw-pr-tick { padding: 12px 0 0; margin: 0; font-weight: 600; }
+.hw-pr-opts .hint { margin: 6px 0 0; }
+
+/* Chapter homework in practice mode: only the board, the practice bar and
+   the way back to the class. The moves list would give the answers away. */
+#ana-pr-bar { display: none; }
+#ana-pr-head { margin: 8px 0 0; text-align: center; }
+#screen-analysis.practicing #ana-pr-bar { display: block; }
+#screen-analysis.practicing > :not(#ana-board):not(#ana-pr-bar):not(#ana-mc-nav) { display: none !important; }
 /* Inside Puzzles: "by theme and level" / "chosen by me" — the second-level
    switch, in the gold outline the Library's own second switch uses. */
 .hw-sheet .hw-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }

@@ -443,6 +443,41 @@ describe('/homework — a Masterclass chapter (stage 5)', () => {
     await seed(`homework/${HW}`, stored(chapterTask()));
     await assertFails(updateDoc(doc(asStudent(), `homework/${HW}`), { doneIds: ['x'] }));
   });
+
+  // Practice mode: the student plays one side from memory.
+  it('practice mode: an optional practice key, \'w\' or \'b\' only', async () => {
+    await active();
+    await seedClass();
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/a'), chapterTask({}, { practice: 'w' })));
+    await assertSucceeds(setDoc(doc(asTeacher(), 'homework/b'), chapterTask({}, { practice: 'b' })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/c'), chapterTask({}, { practice: 'white' })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/d'), chapterTask({}, { practice: true })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/e'), chapterTask({}, { practice: null })));
+    await assertFails(setDoc(doc(asTeacher(), 'homework/f'), chapterTask({}, { practice: 'w', color: 'w' })));
+  });
+
+  it('practice mode: the finishing write may carry mistakes, nothing earlier, never tries', async () => {
+    await active();
+    await seed(`homework/${HW}`, stored(chapterTask({}, { practice: 'b' })));
+    const ref = doc(asStudent(), `homework/${HW}`);
+    const fin = { done: increment(1), status: 'done', completedAt: serverTimestamp() };
+    await assertFails(updateDoc(ref, { mistakes: 1 }));                       // still open
+    await assertFails(updateDoc(ref, { tries: increment(1) }));
+    await assertFails(updateDoc(ref, { ...fin, mistakes: -1 }));
+    await assertFails(updateDoc(ref, { ...fin, mistakes: 1000 }));
+    await assertFails(updateDoc(ref, { ...fin, mistakes: '2' }));
+    await assertSucceeds(updateDoc(ref, { ...fin, seconds: increment(40), mistakes: 3 }));
+    await assertFails(updateDoc(ref, { mistakes: 0 }));                       // done is final
+  });
+
+  it('practice mode: the student cannot switch it on, off or to the other side', async () => {
+    await active();
+    await seed('homework/p', stored(chapterTask({}, { practice: 'w' })));
+    await seed('homework/q', stored(chapterTask()));
+    await assertFails(updateDoc(doc(asStudent(), 'homework/p'), { 'params.practice': 'b' }));
+    await assertFails(updateDoc(doc(asStudent(), 'homework/p'), { params: { mcId: MC, chapterId: CH } }));
+    await assertFails(updateDoc(doc(asStudent(), 'homework/q'), { 'params.practice': 'w' }));
+  });
 });
 
 // ═══════════════════════ stage 5: list ═══════════════════════

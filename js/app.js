@@ -2155,8 +2155,12 @@ export const Analysis = {
       // Moves accumulate across the whole session here, not per position — the
       // point of this tab is that you set a position up, push a few moves,
       // then set up another one. Ten moves in total is a day's use.
-      onMove: (mv) => { if (this.tree.play(mv)) { noteStreakMove(this); this.refresh(); } },
+      onMove: (mv) => {
+        if (this.practiceRun) { if (this.practice.active) this.practice.checkMove(mv); return; }
+        if (this.tree.play(mv)) { noteStreakMove(this); this.refresh(); }
+      },
       onShapesChange: (shapes) => {
+        if (this.practiceRun) return;
         this.pushUndo();
         this.tree.current.shapes = shapes;
         // Drawing does not go through refresh(), so the live board needs its
@@ -2167,6 +2171,26 @@ export const Analysis = {
       },
       onSound: type => Sound.play(type),
     });
+    // Chapter homework in practice mode — see startPractice().
+    this.practice = createWalker({
+      board: () => this.board,
+      fen: () => this.practiceRun.fen,
+      line: () => this.practiceRun.line,
+      orientation: () => this.practiceRun.color,
+      playerFirst: () => this.practiceRun.fen.split(' ')[1] === this.practiceRun.color,
+      noArrow: true,
+      ids: {
+        nav: 'ana-pr-nav', back: 'ana-pr-back',
+        show: 'ana-pr-show', counter: 'ana-pr-counter',
+        status: 'ana-pr-status',
+      },
+      onStart: () => {},
+      onFinish: () => { if (this.practiceRun.onDone) this.practiceRun.onDone(this.practice.misses); },
+    });
+    $('ana-pr-back').onclick = () => this.practice.back();
+    $('ana-pr-show').onclick = () => this.practice.showMe();
+    $('ana-pr-restart').onclick = () => { if (this.practiceRun) this.practice.start(); };
+    $('ana-pr-exit').onclick = () => this.stopPractice();
     $('ana-first').onclick = () => { this.tree.toStart(); this.refresh(); };
     $('ana-prev').onclick = () => { this.tree.prev(); this.refresh(); };
     $('ana-next').onclick = () => { this.tree.next(); this.refresh(); };
@@ -2261,7 +2285,45 @@ export const Analysis = {
     this.refresh();
   },
 
+  // ── Practice mode (chapter homework) ──
+  // The student plays one side of the chapter's MAIN line from memory and the
+  // other side's moves play themselves: the guided walker, with no arrow shown
+  // first. It moves the board only, never the tree, so nothing here goes
+  // through refresh() or Masterclass.onBoardChange() — stepping to the end of
+  // the chapter is not what counts; reaching the end of the practice is
+  // (onDone, with the wrong moves + 👁 Show me as its mistakes).
+  practice: null,      // the walker, built in init()
+  practiceRun: null,   // { fen, line, color, onDone } while practising
+  startPractice(color, onDone = null) {
+    const line = [];
+    for (let n = this.tree.root.children[0]; n; n = n.children[0]) {
+      const promo = (n.san.match(/=([QRBN])/) || [])[1];
+      line.push(n.from + n.to + (promo ? promo.toLowerCase() : ''));
+    }
+    if (!line.length) return false;
+    if (this.engineOn) this.toggleEngine();
+    this.practiceRun = { fen: this.tree.root.fen, line, color, onDone };
+    $('screen-analysis').classList.add('practicing');
+    $('ana-pr-head').textContent = t('mc_pr_head').replace('{c}', t('hw_pos_' + color));
+    this.board.setLiveShapes(null);
+    this.practice.start();
+    return true;
+  },
+
+  // Back to the chapter as it was. `redraw` is false when a new game is about
+  // to be loaded over it anyway.
+  stopPractice(redraw = true) {
+    if (!this.practiceRun) return;
+    this.practice.stop();
+    this.practiceRun = null;
+    $('screen-analysis').classList.remove('practicing');
+    $('ana-pr-status').classList.add('hidden');
+    this.board.interactive = true;
+    if (redraw) this.refresh();
+  },
+
   loadTree(tree, ctx = { baseId: null, gameId: null }, at = null) {
+    this.stopPractice(false);
     this.tree = tree;
     this.ctx = ctx;
     this.undoStack = [];
@@ -6745,6 +6807,10 @@ const VIEWS = [
 // walker must never reach `Endgame.finishPractice` — the only writer of
 // `endgameElo`. Its own state machine is entirely separate from `mode`.
 //
+// A third user, chapter homework in practice mode (Analysis.startPractice),
+// sets `noArrow`: the move is never shown first, because remembering it is
+// the point. `misses` counts wrong moves + 👁 Show me for its report.
+//
 // Design: docs/superpowers/specs/2026-08-14-learn-walkthrough-design.md
 function createWalker(cfg) {
   return {
@@ -6753,6 +6819,7 @@ function createWalker(cfg) {
     idx: 0,
     chess: null,
     tries: 0,
+    misses: 0,
     timer: null,
     // True from a move being played until the next one is shown — the stretch
     // that covers the opponent's reply. The board is dead then, but the nav
@@ -6773,6 +6840,7 @@ function createWalker(cfg) {
       this.active = true;
       this.idx = 0;
       this.tries = 0;
+      this.misses = 0;
       this.busy = false;
       this.chess = new Chess(c.fen());
       const b = c.board();
@@ -6823,10 +6891,21 @@ function createWalker(cfg) {
     show() {
       const c = this.cfg;
       const b = c.board();
+      const status = $(c.ids.status);
+      if (c.noArrow) {
+        // Nothing to watch: straight to the player. A "try again" stays up.
+        clearTimeout(this.timer);
+        b.setShapes({ squares: [], arrows: [] });
+        if (!status.classList.contains('bad')) {
+          status.classList.remove('good');
+          status.textContent = t('learn_practice_prompt');
+        }
+        b.interactive = true;
+        return;
+      }
       const mv = uciToMove(c.line()[this.idx]);
       b.interactive = false;
       b.setShapes({ squares: [], arrows: [{ from: mv.from, to: mv.to, color: 'green' }] });
-      const status = $(c.ids.status);
       status.classList.remove('good', 'bad');
       status.textContent = t('learn_walk_watch');
       clearTimeout(this.timer);
@@ -6844,6 +6923,7 @@ function createWalker(cfg) {
       const played = mv.from + mv.to + (expected.length > 4 ? (mv.promotion || '') : '');
       if (played === expected) { this.play(true); return; }
       this.tries++;
+      this.misses++;
       Sound.play('puzzle-wrong');
       c.board().setPosition(this.chess.fen());
       const status = $(c.ids.status);
@@ -6884,6 +6964,7 @@ function createWalker(cfg) {
     showMe() {
       if (!this.active || this.busy) return;
       clearTimeout(this.timer);
+      this.misses++;
       this.play(false);
     },
 

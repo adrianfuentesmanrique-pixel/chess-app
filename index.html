@@ -402,6 +402,22 @@
       <button id="ana-setup-btn" class="tool-btn" style="flex:0 0 auto; width:auto; padding:8px 14px;" data-i18n-aria="setup_position">✏️</button>
     </div>
     <div id="ana-board" class="board-wrap"></div>
+    <!-- Chapter homework in practice mode (Analysis.startPractice). While the
+         screen has .practicing, everything else on it but the board and the
+         way back to the class is hidden: the moves list would give it away. -->
+    <div id="ana-pr-bar">
+      <p id="ana-pr-head" class="hint"></p>
+      <div id="ana-pr-nav" class="row hidden" style="justify-content:center; align-items:center; gap:10px; margin:8px 0;">
+        <button id="ana-pr-back" class="tool-btn">◀</button>
+        <span id="ana-pr-counter" class="hint" style="min-width:64px; text-align:center;"></span>
+        <button id="ana-pr-show" class="btn" data-i18n="learn_walk_show"></button>
+      </div>
+      <div id="ana-pr-status" class="status-bar hidden"></div>
+      <div class="row" style="gap:6px;">
+        <button id="ana-pr-restart" class="btn" data-i18n="mc_pr_restart"></button>
+        <button id="ana-pr-exit" class="btn" data-i18n="mc_pr_exit"></button>
+      </div>
+    </div>
     <div id="ana-engine" class="engine-panel hidden">
       <div class="engine-lines-row">
         <div class="engine-lines" id="ana-engine-lines"></div>

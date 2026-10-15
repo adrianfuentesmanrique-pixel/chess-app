@@ -946,8 +946,11 @@ service cloud.firestore {
             && d.params.minRating <= d.params.maxRating
             && d.params.count is int && d.params.count >= 1 && d.params.count <= 100)
         || (d.kind == 'chapter' && d.params is map
-            && d.params.keys().hasOnly(['mcId', 'chapterId'])
+            && d.params.keys().hasOnly(['mcId', 'chapterId', 'practice'])
             && d.params.keys().hasAll(['mcId', 'chapterId'])
+            // Practice mode (optional): the side the student plays from
+            // memory. Absent = step through the chapter, as before.
+            && (!('practice' in d.params) || d.params.practice in ['w', 'b'])
             // Document-id characters only: both go into get()/exists() paths
             // below, where a '/' would change which document is looked up.
             && d.params.mcId is string && d.params.mcId.matches('[A-Za-z0-9_-]{1,128}')
@@ -1162,12 +1165,15 @@ service cloud.firestore {
         // (only grows, the app sends increment()), `mistakes` the wrong moves
         // of the practice that solved it, written once, by the write that
         // finishes the homework. Self-reported like every progress field.
+        // A practice-mode chapter carries `mistakes` too (wrong moves + 👁
+        // Show me of the run that reached the end), never `tries`.
         && (!('tries' in after().diff(resource.data).affectedKeys())
             || (resource.data.kind == 'endgame'
                 && after().tries is int && after().tries <= 1000
                 && after().tries >= resource.data.get('tries', 0)))
         && (!('mistakes' in after().diff(resource.data).affectedKeys())
-            || (resource.data.kind == 'endgame'
+            || ((resource.data.kind == 'endgame'
+                 || (resource.data.kind == 'chapter' && 'practice' in resource.data.params))
                 && after().status != resource.data.status
                 && after().mistakes is int
                 && after().mistakes >= 0 && after().mistakes <= 999))

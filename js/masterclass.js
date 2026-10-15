@@ -343,7 +343,9 @@ export const Masterclass = {
   // Students stage 5: a chapter homework's Open. Resolves to 'ok', 'gone'
   // (the class or the chapter was deleted, or I am no longer in it — plan
   // 3.6), or 'failed' (network). Costs what opening the class by hand costs.
-  async openForHomework(mcId, chapterId) {
+  // `practice` 'w'|'b' starts the chapter's practice mode for that side, and
+  // `onDone(mistakes)` is called when it reaches the end.
+  async openForHomework(mcId, chapterId, practice = null, onDone = null) {
     if (!Auth.user || !navigator.onLine) return 'failed';
     if (!this.classes.some(c => c.id === mcId)) await this.load();
     if (this.loadFailed) return 'failed';
@@ -356,6 +358,7 @@ export const Masterclass = {
     // openChapter() lands on the END of the game (Analysis.loadTree). A
     // homework starts from the first move, so the student steps through it.
     if (Analysis.tree) { Analysis.tree.toStart(); Analysis.refresh(); }
+    if (practice) Analysis.startPractice(practice, onDone);
     return 'ok';
   },
 

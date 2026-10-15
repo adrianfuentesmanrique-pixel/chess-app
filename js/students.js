@@ -928,7 +928,10 @@ export const Students = {
   // "10 puzzles · Fork, Pin · rated 1200–1500" / "Task — …".
   hwWhat(h, forTeacher = false) {
     if (h.kind === 'chapter') {
-      return this.hwGone.has(h.id) ? t('hw_chapter_gone') : t(forTeacher ? 'hw_what_chapter_t' : 'hw_what_chapter');
+      if (this.hwGone.has(h.id)) return t('hw_chapter_gone');
+      const side = this.hwPracticeSide(h);
+      if (side) return t(forTeacher ? 'hw_what_chapter_pr_t' : 'hw_what_chapter_pr').replace('{c}', t('hw_pos_' + side));
+      return t(forTeacher ? 'hw_what_chapter_t' : 'hw_what_chapter');
     }
     if (h.kind === 'list') return t('hw_what_list').replace('{n}', this.hwTarget(h));
     if (h.kind === 'endgame') {
@@ -1022,8 +1025,9 @@ export const Students = {
 
   // " · 3 tries · 1 mistake": practices started, and the wrong moves of the
   // one that solved it. Written by the student's phone, like all progress.
+  // A practice-mode chapter reports its mistakes the same way (no tries).
   hwEndgameDetail(h) {
-    if (h.kind !== 'endgame') return '';
+    if (h.kind !== 'endgame' && !this.hwPracticeSide(h)) return '';
     let s = '';
     if (h.tries > 0) s += ' · ' + t(h.tries === 1 ? 'hw_eg_try' : 'hw_eg_tries').replace('{n}', h.tries);
     if (h.status === 'done' && Number.isInteger(h.mistakes)) {
@@ -1293,11 +1297,23 @@ export const Students = {
   // Counted when the board reaches the last move of the MAIN line after that
   // (plan 3.2: "opened from the homework card" + "reached the end"). The app
   // cannot know whether it was understood, and the plan says so.
+  //
+  // Practice mode (params.practice 'w'|'b'): the student plays that side of
+  // the MAIN line from memory instead (Analysis.startPractice). Stepping to
+  // the end does not count then; reaching the end of the practice does,
+  // whatever the mistakes and 👁 Show me cost — those go to the teacher.
+  hwPracticeSide(h) {
+    const s = h.kind === 'chapter' && h.params ? h.params.practice : null;
+    return s === 'w' || s === 'b' ? s : null;
+  },
+
   async hwOpenChapter(h, btn) {
     if (!this.online()) return;
     const p = h.params || {};
+    const side = this.hwPracticeSide(h);
     if (btn) btn.disabled = true;
-    const res = await Masterclass.openForHomework(p.mcId, p.chapterId);
+    const res = await Masterclass.openForHomework(p.mcId, p.chapterId,
+      side, side && (misses => this.hwPracticeDone(h.id, misses)));
     if (btn) btn.disabled = false;
     if (res === 'gone') {
       // Deleted class or chapter, or I am no longer in it (plan 3.6).
@@ -1310,8 +1326,23 @@ export const Students = {
     const run = this.hwBegin(h);
     run.mcId = p.mcId; run.chapterId = p.chapterId;
     // Armed only now: opening lands on the end of the game (loadTree), and
-    // openForHomework() rewinds it — neither board may count.
-    run.armed = true;
+    // openForHomework() rewinds it — neither board may count. A practice is
+    // never armed: only hwPracticeDone() finishes it.
+    run.armed = !side;
+  },
+
+  // Analysis calls this when a practice of the homework's chapter reaches the
+  // end. The run is (re)started here, so it still counts if the student left
+  // for something else and came back to the practice still on the board.
+  hwPracticeDone(hwId, misses) {
+    const h = this.homework.find(x => x.id === hwId);
+    if (!h || h.status !== 'open') return;
+    const run = this.hwBegin(h);
+    run.mcId = h.params.mcId; run.chapterId = h.params.chapterId;
+    h.done = 1;
+    run.addDone = 1;
+    h.mistakes = run.mistakes = Math.max(0, Math.min(999, Math.round(misses) || 0));
+    this.hwFinish(h);
   },
 
   // Masterclass.onBoardChange() calls this on every board change of a
@@ -1601,6 +1632,12 @@ export const Students = {
         `<label class="hw-label">${esc(t('hw_f_class'))}<select class="input hw-mc"></select></label>` +
         `<label class="hw-label">${esc(t('hw_f_chapter'))}<select class="input hw-chs"></select></label>` +
         `<p class="hint hw-ch-note"></p>` +
+        `<label class="trainer-one hw-pr-tick"><input type="checkbox" class="hw-pr"><span>${esc(t('hw_f_practice'))}</span></label>` +
+        `<div class="hw-pr-opts hidden">` +
+        `<p class="hint">${esc(t('hw_f_practice_hint'))}</p>` +
+        `<div class="hw-label">${esc(t('hw_f_pos_color'))}<div class="seg hw-ps-color hw-pr-color">` +
+        ['w', 'b'].map(c => `<button type="button" data-v="${c}">${esc(t(c === 'w' ? 'white' : 'black'))}</button>`).join('') +
+        `</div></div></div>` +
         `</div>` +
         `<div class="hw-eg hidden">` +
         `<label class="hw-label">${esc(t('hw_f_eg_cat'))}<select class="input hw-egc"></select></label>` +
@@ -1715,7 +1752,21 @@ export const Students = {
         }
         if (mcSel.value !== mcId) return;
         chSel.innerHTML = rows.map(c => `<option value="${esc(c.id)}">${esc(c.title || '?')}</option>`).join('');
+        prDefault();
       };
+      // Practice mode: the student plays one side from memory. The side the
+      // chapter was saved facing is proposed; with none saved, nothing is
+      // picked and Send asks for it, so the side is never a silent guess.
+      const prTick = $$('.hw-pr'), prColor = $$('.hw-pr-color');
+      segInit(prColor);
+      const prDefault = () => {
+        const rows = chapterCache.get(mcSel.value) || [];
+        const ch = rows.find(c => c.id === chSel.value);
+        const side = ch && (ch.orientation === 'w' || ch.orientation === 'b') ? ch.orientation : null;
+        prColor.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === side));
+      };
+      prTick.onchange = () => $$('.hw-pr-opts').classList.toggle('hidden', !prTick.checked);
+      chSel.onchange = prDefault;
       const loadClasses = async () => {
         if (classes) return;
         classes = [];
@@ -1810,8 +1861,14 @@ export const Students = {
           const mc = (classes || []).find(c => c.id === mcSel.value);
           const ch = mc && (chapterCache.get(mc.id) || []).find(c => c.id === chSel.value);
           if (!ch) { toast(t('hw_pick_chapter')); return; }
+          const params = { mcId: mc.id, chapterId: ch.id };
+          if (prTick.checked) {
+            const side = segValue(prColor);
+            if (side !== 'w' && side !== 'b') { toast(t('hw_pick_practice_side')); return; }
+            params.practice = side;
+          }
           close({ kind, title: (title || ch.title || mc.name || '?').slice(0, 80), note, dueDate,
-            params: { mcId: mc.id, chapterId: ch.id }, memberCount: mc.memberCount || 0 });
+            params, memberCount: mc.memberCount || 0 });
           return;
         }
         if (kind === 'endgame') {
