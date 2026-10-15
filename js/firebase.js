@@ -50,6 +50,7 @@ const SYNCED_KEYS = [
   'rushBestScore', 'rushBest180', 'rushBest300',
   'rushMonth180', 'rushMonth300', 'rushMonthKey', 'puzzleAttemptCount', 'radarThemes',
   'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
+  'puzzleSkipConfirm',
   'blindfoldAttemptCount', 'blindfoldSeconds',
   // Sealed Moves: its own rating. The keys say calc, like every id of the mode.
   // calcElo is also published (PUBLIC_ALWAYS_KEYS); the other three are not.

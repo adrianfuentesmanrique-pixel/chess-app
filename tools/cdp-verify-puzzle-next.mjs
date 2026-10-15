@@ -127,6 +127,9 @@ try {
     await ev(`document.querySelectorAll('.tour-back, .tour-overlay, .modal-back').forEach(e => e.remove()); window.__app = await import('/js/app.js'); __app.showScreen('puzzles');`);
     await until(`__app.activeScreen === 'puzzles'`);
     await ready();
+    // Skips here go straight through: the "skip this puzzle?" question (v228)
+    // has its own check, tools/cdp-verify-skip-confirm.mjs.
+    await ev(`await (await import('/js/db.js')).kvSet('puzzleSkipConfirm', false);`);
     // Every puzzle put on the board from here on is counted.
     await ev(`const P = ${P}, real = P.loadPuzzle; window.__loads = 0; P.loadPuzzle = function (p) { window.__loads++; return real.call(this, p); };`);
 

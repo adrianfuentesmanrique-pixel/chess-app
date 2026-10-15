@@ -9,6 +9,28 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **"SKIP THIS PUZZLE?" QUESTION ON PUZZLES (2026-10-15, v228).** The one click handler on
+  `#puzzle-status` (Puzzles.init) now calls `Puzzles.askSkip()` before `nextPuzzle()` when
+  the bar is not `.done` (= not solved and solution not shown); `nextPuzzle()` itself is
+  untouched, so auto-advance, theme changes, homework start/exit and loading never ask.
+  askSkip(): modal() with Kael `icons/kael/kael-encouraging.png`, `skip_confirm_q`, one of
+  `skip_motiv_1..5` at random, tick `skip_dont_show` (+ `skip_dont_show_hint`), buttons
+  `#skip-keep` "Keep trying" (primary, focused; a tap beside the box = keep) and `#skip-go`
+  "Skip". Ticking sets kv `puzzleSkipConfirm` false. A second tap while open does nothing;
+  if the puzzle changed while it was open, Skip does not skip again. Settings: new seg
+  `#set-skip-confirm` under Sound, reusing sound_on/sound_off words. `puzzleSkipConfirm`
+  (default true) is in SYNCED_KEYS (js/firebase.js) — Adrian chose sync, like soundEnabled.
+  Applies to normal puzzles, the daily puzzle (DailyMissions.goPuzzle) and homework.
+  NOT in Rush/Duel (own screens), NOT in Blindfold (Adrian: leave it), Sealed Moves has no
+  skip (its Next exists only when done). Rating unaffected: markFailed already charged it.
+  VERIFIED: `node tools/cdp-verify-skip-confirm.mjs <outDir>` (new) 66/66 at 375x667,
+  es/en x light/dark: untouched asks, Keep/tap-beside keep, Skip loads exactly one; after
+  a wrong move asks; solved / gold bar / solution shown / auto-advance / theme change do
+  not ask; daily and homework ask; tick turns it off, Settings On brings it back, Off stops
+  it. Zero console errors. tools/cdp-verify-puzzle-next.mjs now switches the question off
+  first (its skip step would otherwise stop at it). test:tree 475/475, test:precache OK.
+  NOT VERIFIED: the setting syncing between two real signed-in devices (App Check 403).
+
 - **SIGN OUT MOVED FROM THE PROFILE TAB INTO SETTINGS (2026-10-15, v226).** Same move as
   Delete account (2026-09-01). `#profile-signout-btn` is gone from index.html and its two
   lines from `Profile.init`/`renderAccount` in js/app.js. openSettings()'s account block

@@ -5137,8 +5137,13 @@ export const Puzzles = {
     $('puzzle-options').onclick = () => this.openOptions();
     // One handler on the bar, not one on the button and one on the bar: a tap
     // on the button bubbles here, and two nextPuzzle()s must never run.
-    $('puzzle-status').onclick = e => {
-      if (e.target.closest('#puzzle-next') || e.currentTarget.classList.contains('done')) this.nextPuzzle();
+    // Only this tap asks before skipping: nextPuzzle() is also run by theme
+    // changes, homework, loading and auto-advance, and those never ask.
+    $('puzzle-status').onclick = async e => {
+      const done = e.currentTarget.classList.contains('done');
+      if (!e.target.closest('#puzzle-next') && !done) return;
+      if (!done && this.current && !await this.askSkip()) return;
+      this.nextPuzzle();
     };
     $('puzzle-hint').onclick = () => this.hint();
     $('puzzle-solution').onclick = () => this.showSolution();
@@ -5149,6 +5154,37 @@ export const Puzzles = {
     $('puzzle-nav-next').onclick = () => this.gotoHistory(this.viewIdx + 1);
     $('puzzle-nav-last').onclick = () => this.gotoHistory(this.posHistory.length - 1);
     this.updateNavButtons();
+  },
+
+  // Next on a puzzle not solved yet (the bar is not .done): Kael asks first.
+  // Only a nudge — a wrong move, hint or solution already charged the rating
+  // (markFailed), and a skip changes nothing. Resolves true to skip. The
+  // switch is 'puzzleSkipConfirm' in Settings, synced like soundEnabled.
+  async askSkip() {
+    if (!await db.kvGet('puzzleSkipConfirm', true)) return true;
+    if (this.skipAsking) return false;   // a second tap while it is open
+    this.skipAsking = true;
+    const puzzle = this.current;
+    const line = t('skip_motiv_' + (1 + Math.floor(Math.random() * 5)));
+    const skip = await modal((box, close) => {
+      box.innerHTML = `<div class="kael-modal-head"><img src="icons/kael/kael-encouraging.png" class="kael-portrait" alt="Kael" style="width:90px;"></div>
+        <h3>${esc(t('skip_confirm_q'))}</h3><p>${esc(line)}</p>
+        <label class="theme-pick-row" style="font-weight:400"><input type="checkbox" id="skip-dont-show"><span>${esc(t('skip_dont_show'))}</span></label>
+        <p class="hint">${esc(t('skip_dont_show_hint'))}</p>`;
+      const cb = box.querySelector('#skip-dont-show');
+      const done = v => { if (cb.checked) db.kvSet('puzzleSkipConfirm', false); close(v); };
+      const row = document.createElement('div'); row.className = 'row';
+      const keep = document.createElement('button'); keep.className = 'btn primary'; keep.id = 'skip-keep'; keep.textContent = t('skip_keep_trying');
+      const go = document.createElement('button'); go.className = 'btn'; go.id = 'skip-go'; go.textContent = t('skip_do');
+      keep.onclick = () => done(false); go.onclick = () => done(true);
+      row.append(keep, go);
+      box.append(row);
+      setTimeout(() => keep.focus(), 50);
+    });
+    this.skipAsking = false;
+    // Moved on some other way while it was open (a theme change, homework):
+    // that puzzle is gone, so there is nothing left to skip.
+    return skip === true && this.current === puzzle;
   },
 
   // Blindfold opens this same picker for its own theme: it passes the filter
@@ -7866,6 +7902,18 @@ function openSettings() {
     }
     segInit(segSound, v => Sound.setEnabled(v === 'on'));
     box.append(lSound, segSound);
+    // ask before skipping an unsolved puzzle (Puzzles.askSkip)
+    const lSkip = document.createElement('label'); lSkip.className = 'fld-label'; lSkip.textContent = t('skip_setting');
+    const segSkip = document.createElement('div'); segSkip.className = 'seg'; segSkip.id = 'set-skip-confirm';
+    const skipOn = await db.kvGet('puzzleSkipConfirm', true);
+    for (const [v, key] of [['on', 'sound_on'], ['off', 'sound_off']]) {
+      const b = document.createElement('button');
+      b.textContent = t(key); b.dataset.v = v;
+      if ((skipOn ? 'on' : 'off') === v) b.classList.add('on');
+      segSkip.appendChild(b);
+    }
+    segInit(segSkip, v => db.kvSet('puzzleSkipConfirm', v === 'on'));
+    box.append(lSkip, segSkip);
     // language
     const l1 = document.createElement('label'); l1.className = 'fld-label'; l1.textContent = t('language');
     const seg = document.createElement('div'); seg.className = 'seg';
