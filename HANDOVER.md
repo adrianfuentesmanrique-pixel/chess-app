@@ -9,6 +9,74 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **KAEL STREAK WIDGET + WIDGETS LINK THEMSELVES (2026-10-15, web v227, app 1.0.6 / code 8).**
+  Supersedes the copy-and-paste parts of the two widget entries below (Profile code box,
+  Paste screen, "lost code" state): ADRIAN DECIDED no user should ever copy a code.
+  ANDROID (C:\Users\Adrian\chess-app-android, local git, commits d726770 Kael widget,
+  ba0e698 auto-link): `StreakWidgetKael.java` = an empty subclass, its own receiver;
+  everything lives in StreakWidget (PROVIDERS = both classes, one fetch redraws both).
+  `xml/streak_widget_kael_info.xml` 2x2 (110dp), resizes horizontally to maxResizeWidth
+  420dp; layouts `widget_kael` (Kael over flame+count+days), `widget_kael_wide` (Kael left,
+  flame 56dp + count 48sp right) from KAEL_WIDE_DP = 240 (measured: 2 Pixel cells ~180dp,
+  3 ~275dp), `widget_kael_empty(_wide)` = waving kael-welcome + message. Art in
+  drawable-nodpi: widget_kael_lit / _atrisk / _zero / _welcome, from
+  chess-app-art\kael\final (the -512 files, kael-welcome.png), trimmed to the figure, max
+  512px, alpha <= 3 cleared (~1 MB total). Kael: lit = played today, atrisk = count > 0 not
+  played yet, zero = 0.
+  LINKING: StreakWidget.code() makes the phone's own 32-hex code (SecureRandom, prefs
+  "streak_widget"). LauncherActivity.getLaunchingUrl (CTC PATCH, re-apply after any
+  `bubblewrap update`) appends `?ctcWidget=<code>` ONLY on a plain launch (never a share /
+  Open with) and ONLY while a widget is placed and has no lastDate yet (codeForLaunch), and
+  then sets two AlarmManager re-reads at +1 and +5 min. 404 = back to "not linked" (count and
+  date dropped, code kept), so the next launch hands it over again. Not linked: "Open CTC and
+  sign in to see your streak here" (es: "Abre CTC e inicia sesión para ver tu racha aquí"),
+  tap opens CTC. REMOVED: StreakWidgetConfigActivity, activity_widget_config, widget_button,
+  widget_styles, widget_accent/btn_text colours, the config strings, android:configure.
+  WEB (js/firebase.js, v227 a1e84a1): widgetFromUrl reads ctcWidget at module load and takes
+  it out of the address (history.replaceState); kv `widgetPending` (local) until signed in;
+  adoptWidget() after pullOrBootstrap adds it to synced `widgetTokens` (newest first, max 5,
+  a dropped code's doc deleted) and deletes the old single `widgetToken` doc. publishWidget
+  writes every code, each on its own. deleteAccount deletes all of them. Profile's
+  widgetHtml/bindWidget, the widget_* strings and .streak-widget CSS are gone. Rules unchanged.
+  KNOWN LIMIT: if a second account signs in on a phone whose code another account already
+  owns, its write is refused by the rules and the widget keeps showing the first account.
+  Anyone who sends a CTC link with a chosen ctcWidget could read that person's count and
+  last date (nothing else); Adrian was told and accepted.
+  VERIFIED: `node tools/emu-verify-widget-link.mjs` 19/19 (real firebase.js + rules on the
+  emulator: address cleaned, doc fields, sync, signed-out pending then sign-in, every code
+  updated, take-over refused, cap 5); test:tree 475, test:rules 582, test:precache.
+  API 36.1 emulator: all states (lit / atrisk / zero / 1 day / not linked / no code) x
+  light/dark x es/en x 1x1, Kael 2x2, Kael 4x2 (24 screenshots); RELEASE build: widget tap
+  launches `https://chesstrainingcenter.app/?ctcWidget=<code>` full-screen (no address bar),
+  linked launch = plain URL, 404 resets, "Open with" a PGN still lands in Bases.
+  PLAY: 8 (1.0.6) uploaded to Closed testing - Alpha (replaces 7), submitted for review
+  2026-10-15. NOT YET VERIFIED: the install on Adrian's phone and a real signed-in link.
+
+- **SAVED GAMES AND CHAPTERS REMEMBER WHICH WAY THE BOARD FACED (2026-10-15, v229).**
+  Field `orientation` 'w'|'b' (optional; missing = 'w').
+  BASES (IndexedDB): Analysis.saveToBase() stores `this.board.orientation`. New
+  Analysis.openSavedGame(full, at) parses first, then setOrientation, then loadTree; used by
+  Base.openGame, gotoAdjacentGame (arrows) and the 🔎 search-result open. A record with no
+  field opens White at the bottom (before: whatever the last board faced). Not in the PGN:
+  sharing/exporting a base as .pgn loses it.
+  CHAPTERS (Firestore): addChapter/updateChapter (js/firebase.js) always write orientation;
+  saveToChapter takes it from the board (title/order still from the stored row);
+  addFromBoard passes the board's, addFromBase the base game's, renameChapter passes the
+  stored one back (setDoc replaces the doc, it would be lost). openChapter() sets it before
+  loadTree, so owner, student, homework (openForHomework) and a live follower (applyLive,
+  on a chapter change only) all open it the teacher's way — Adrian chose that. A teacher
+  flipping mid-broadcast is NOT mirrored (live/state has no orientation).
+  firestore.rules chapters: hasOnly gains 'orientation' + `(!('orientation' in after()) ||
+  after().orientation in ['w','b'])`; tests 53-56 in tests/rules/masterclass.test.js.
+  DECIDED: flipping alone marks nothing changed — there is no change tracking; both 💾
+  buttons are always offered, so flip + Save stores it.
+  VERIFIED: test:rules 586/586, test:tree 475, test:precache OK. `node
+  tools/emu-verify-orientation.mjs <outDir>` (new) 80/80, es/en x light/dark at 375 px, the
+  app's own code against the Firestore emulator: base new/updated/old/arrows, chapter
+  new/updated via 💾/rename/old, student by hand/homework/live follower; zero console
+  errors; screenshots show Black at the bottom. NOT VERIFIED: a write to the real project
+  (App Check 403 on localhost) — rules:deploy is Adrian's, before the push.
+
 - **"SKIP THIS PUZZLE?" QUESTION ON PUZZLES (2026-10-15, v228).** The one click handler on
   `#puzzle-status` (Puzzles.init) now calls `Puzzles.askSkip()` before `nextPuzzle()` when
   the bar is not `.done` (= not solved and solution not shown); `nextPuzzle()` itself is
@@ -99,7 +167,9 @@ are in `CLAUDE.md` under "Finish by pushing".
   test:rules pass. The faces went into the app in v225 (entry above);
   "worried" was never drawn.
 
-- **HOME-SCREEN STREAK WIDGET, ANDROID PART (2026-10-14, app 1.0.6 / versionCode 8).** Built
+- **HOME-SCREEN STREAK WIDGET, ANDROID PART (2026-10-14, app 1.0.6 / versionCode 8).**
+  [2026-10-15: the Paste screen and the "lost code" state below are GONE - see the Kael
+  widget entry above.] Built
   in `C:\Users\Adrian\chess-app-android`, which NOW HAS LOCAL GIT (no remote; android.keystore,
   local.properties, *.aab/*.apk and build/ are in .gitignore): baseline commit 4e4e2a3, widget
   commit 27783ca. Backup of the pre-widget folder: `C:\Users\Adrian\chess-app-android-backup-2026-10-14`.
@@ -137,7 +207,9 @@ are in `CLAUDE.md` under "Finish by pushing".
   in Bases. The emulator proves NOTHING about the Play-signed install.
   NOT DONE: Play Console upload of 1.0.6 and the test on Adrian's phone.
 
-- **HOME-SCREEN STREAK WIDGET, WEB PART (2026-10-14, v223).** Option "d" of the 2026-10-13
+- **HOME-SCREEN STREAK WIDGET, WEB PART (2026-10-14, v223).** [2026-10-15, v227: the
+  Profile "Copy widget code" / "Make a new code" UI and the single `widgetToken` are GONE;
+  codes now come from the app - see the Kael widget entry above.] Option "d" of the 2026-10-13
   investigation. The Android widget is built (entry above).
   DATA: `streakWidget/{code}`, code = 32 lowercase hex (16 random bytes), fields exactly
   owner, count, lastDate ('YYYY-MM-DD', the app's local day), updatedAt (server time).
