@@ -9,6 +9,20 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIGN OUT MOVED FROM THE PROFILE TAB INTO SETTINGS (2026-10-15, v226).** Same move as
+  Delete account (2026-09-01). `#profile-signout-btn` is gone from index.html and its two
+  lines from `Profile.init`/`renderAccount` in js/app.js. openSettings()'s account block
+  (shown only when `Auth.user`) now holds Sign out (`t('sign_out')`, plain `.btn`, full
+  width, 8px gap) ABOVE Delete account; it closes the sheet, then `Auth.signOut()` after
+  120 ms, like delBtn. Profile keeps `#profile-auth-btn` for signed-out users. The tour and
+  tools/ never referred to the old button.
+  VERIFIED: `node tools/emu-verify-signout.mjs <outDir>` (new; Firestore emulator + stand-in
+  auth as `?uid=`, like emu-verify-pulso-ui) 32/32 at 375 px, es/en x light/dark: signed
+  out no account block + Sign in on Profile; signed in Sign out above Delete account, not
+  red, same width; tapping it closes the sheet, signs out once, Profile back to Sign in.
+  Zero console errors. test:tree 475/475, test:precache OK.
+  NOT VERIFIED: a real Firebase sign-out (App Check 403 on localhost); a real finger tap.
+
 - **KAEL'S FACES WHILE HE SPEAKS (2026-10-15, v225).** A quote item may carry `mood`;
   `KaelQuotes.setFace(img, mood)` (js/app.js, next to KaelQuotes.show) swaps the picture to
   `icons/kael/kael-<mood>.png` and back to kael-bust when he stops. On Home: Home.say sets the

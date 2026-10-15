@@ -7970,17 +7970,20 @@ function openSettings() {
     const legalRow = document.createElement('div'); legalRow.className = 'row wrap';
     legalRow.append(termsBtn, privacyBtn);
 
-    // account — deletion was relocated here from the Profile tab. Only shown
-    // when signed in (there is no account to delete otherwise).
+    // account — Sign out and Delete account were relocated here from the Profile
+    // tab. Only shown when signed in (there is no account otherwise).
     const accountEls = [];
     if (Auth.user) {
       const lAccount = document.createElement('label'); lAccount.className = 'fld-label'; lAccount.textContent = t('account_section');
+      const outBtn = document.createElement('button'); outBtn.className = 'btn'; outBtn.style.width = '100%'; outBtn.style.marginBottom = '8px';
+      outBtn.textContent = t('sign_out');
+      outBtn.onclick = () => { close(null); setTimeout(() => Auth.signOut(), 120); };
       const delBtn = document.createElement('button'); delBtn.className = 'btn danger'; delBtn.style.width = '100%';
       delBtn.textContent = t('delete_account_btn');
       // Close this sheet first: deleteAccountFlow opens its own confirm + reauth
       // dialogs, which must not stack on top of the settings modal.
       delBtn.onclick = () => { close(null); setTimeout(() => Profile.deleteAccountFlow(), 120); };
-      accountEls.push(lAccount, delBtn);
+      accountEls.push(lAccount, outBtn, delBtn);
     }
 
     const about = document.createElement('p'); about.className = 'hint'; about.textContent = t('about');
@@ -8093,8 +8096,7 @@ export const Profile = {
     $('radar-pick').onclick = () => openRadarPicker();
     $('profile-edit-btn').onclick = () => this.openEditModal();
     $('profile-auth-btn').onclick = () => openAuthModal();
-    $('profile-signout-btn').onclick = () => Auth.signOut();
-    // Delete account now lives in the Settings sheet (openSettings), not here.
+    // Sign out and Delete account now live in the Settings sheet (openSettings), not here.
     $('profile-elo-puzzle-card').onclick = async () => openEloHistoryModal(await db.kvGet('puzzleEloHistory', []), 'puzzle_elo');
     $('profile-elo-opening-card').onclick = async () => openEloHistoryModal(await db.kvGet('openingEloHistory', []), 'opening_elo');
     $('profile-elo-endgame-card').onclick = async () => openEloHistoryModal(await db.kvGet('endgameEloHistory', []), 'endgame_elo');
@@ -8141,7 +8143,6 @@ export const Profile = {
   async renderAccount() {
     const user = Auth.user;
     $('profile-auth-btn').classList.toggle('hidden', !!user);
-    $('profile-signout-btn').classList.toggle('hidden', !user);
     const profileName = await db.kvGet('profileName', '');
     $('profile-display-name').textContent = profileName || (user && (user.displayName || user.email)) || t('your_name');
   },
