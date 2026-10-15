@@ -52,31 +52,6 @@ are in `CLAUDE.md` under "Finish by pushing".
   PLAY: 8 (1.0.6) uploaded to Closed testing - Alpha (replaces 7), submitted for review
   2026-10-15. NOT YET VERIFIED: the install on Adrian's phone and a real signed-in link.
 
-- **SAVED GAMES AND CHAPTERS REMEMBER WHICH WAY THE BOARD FACED (2026-10-15, v229).**
-  Field `orientation` 'w'|'b' (optional; missing = 'w').
-  BASES (IndexedDB): Analysis.saveToBase() stores `this.board.orientation`. New
-  Analysis.openSavedGame(full, at) parses first, then setOrientation, then loadTree; used by
-  Base.openGame, gotoAdjacentGame (arrows) and the 🔎 search-result open. A record with no
-  field opens White at the bottom (before: whatever the last board faced). Not in the PGN:
-  sharing/exporting a base as .pgn loses it.
-  CHAPTERS (Firestore): addChapter/updateChapter (js/firebase.js) always write orientation;
-  saveToChapter takes it from the board (title/order still from the stored row);
-  addFromBoard passes the board's, addFromBase the base game's, renameChapter passes the
-  stored one back (setDoc replaces the doc, it would be lost). openChapter() sets it before
-  loadTree, so owner, student, homework (openForHomework) and a live follower (applyLive,
-  on a chapter change only) all open it the teacher's way — Adrian chose that. A teacher
-  flipping mid-broadcast is NOT mirrored (live/state has no orientation).
-  firestore.rules chapters: hasOnly gains 'orientation' + `(!('orientation' in after()) ||
-  after().orientation in ['w','b'])`; tests 53-56 in tests/rules/masterclass.test.js.
-  DECIDED: flipping alone marks nothing changed — there is no change tracking; both 💾
-  buttons are always offered, so flip + Save stores it.
-  VERIFIED: test:rules 586/586, test:tree 475, test:precache OK. `node
-  tools/emu-verify-orientation.mjs <outDir>` (new) 80/80, es/en x light/dark at 375 px, the
-  app's own code against the Firestore emulator: base new/updated/old/arrows, chapter
-  new/updated via 💾/rename/old, student by hand/homework/live follower; zero console
-  errors; screenshots show Black at the bottom. NOT VERIFIED: a write to the real project
-  (App Check 403 on localhost) — rules:deploy is Adrian's, before the push.
-
 - **"SKIP THIS PUZZLE?" QUESTION ON PUZZLES (2026-10-15, v228).** The one click handler on
   `#puzzle-status` (Puzzles.init) now calls `Puzzles.askSkip()` before `nextPuzzle()` when
   the bar is not `.done` (= not solved and solution not shown); `nextPuzzle()` itself is
