@@ -1342,16 +1342,6 @@ const DICT = {
   streak_how_lesson: { es: 'Aprender — completa la práctica de una lección', en: 'Learn — finish the practice in one lesson' },
   streak_how_day: { es: 'El día termina a medianoche en tu hora local. Si te saltas un día entero, la racha vuelve a cero, pero tu mejor racha se conserva.', en: "The day ends at midnight where you are. Miss a whole day and the flame goes back to zero, but your best streak is kept." },
   streak_how_missions: { es: 'Las misiones diarias se cuentan aparte y no afectan la racha.', en: "Daily missions are counted separately and don't change the flame." },
-  // Home-screen widget code (Profile, under the streak ladder).
-  widget_title: { es: 'Widget', en: 'Widget' },
-  widget_help: { es: 'Pega este código en el widget de CTC de la pantalla de inicio de tu teléfono.', en: "Paste this code into the CTC widget on your phone's home screen." },
-  widget_copy: { es: 'Copiar código del widget', en: 'Copy widget code' },
-  widget_new: { es: 'Crear un código nuevo', en: 'Make a new code' },
-  widget_new_confirm: { es: '¿Crear un código nuevo? El widget con el código anterior dejará de funcionar hasta que pegues el nuevo.', en: 'Make a new code? A widget using the old code stops working until you paste the new one.' },
-  widget_new_done: { es: 'Código nuevo creado. Cópialo y pégalo en el widget.', en: 'New code made. Copy it and paste it into the widget.' },
-  widget_select: { es: 'No se pudo copiar. Mantén pulsado el código para seleccionarlo:', en: "Couldn't copy. Press and hold the code to select it:" },
-  widget_not_saved: { es: 'El código aún no está guardado en el servidor. Revisa tu conexión.', en: "The code isn't saved on the server yet. Check your connection." },
-  widget_signed_out: { es: 'Inicia sesión para poner tu racha en un widget de la pantalla de inicio.', en: 'Sign in to put your flame in a home-screen widget.' },
   // Home ("Inicio"). Kael's line: one of five sentences, chosen in js/home.js.
   // The streak and the missions are counted separately: no sentence names both.
   home_today: { es: 'Hoy', en: 'Today' },

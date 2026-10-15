@@ -40,9 +40,9 @@ const firebaseConfig = {
 const SYNCED_KEYS = [
   'profileName', 'username', 'firstName', 'lastName', 'dateOfBirth', 'profileVisibility',
   'streakCount', 'streakLastDate',
-  // The home-screen widget's private code (see publishWidget below). Synced so
-  // every device of the account updates the same widget document.
-  'widgetToken',
+  // The home-screen widgets' private codes (see publishWidget below). Synced so
+  // every device of the account updates every widget document.
+  'widgetTokens',
   'puzzleElo', 'puzzleThemeElo', 'puzzlesSolved',
   'openingElo', 'endgameElo', 'boardTheme', 'pieceSet', 'colorMode', 'variationColor',
   'puzzleEloHistory', 'openingEloHistory', 'endgameEloHistory', 'avatarId',
@@ -272,9 +272,11 @@ export const Auth = {
       if (e.code !== 'permission-denied') throw e;
       console.warn('Could not list push subscriptions — proceeding anyway', e);
     }
-    // The home-screen widget's document is keyed by its code, not the uid.
-    const widgetToken = await db.kvGet('widgetToken', null);
-    if (WIDGET_TOKEN_RE.test(widgetToken || '')) paths.push(['streakWidget', widgetToken]);
+    // The home-screen widgets' documents are keyed by their codes, not the uid
+    // (plus the one code of the old copy-and-paste widget, if this phone has it).
+    for (const token of [...await widgetTokens(), await db.kvGet('widgetToken', null)]) {
+      if (WIDGET_TOKEN_RE.test(token || '')) paths.push(['streakWidget', token]);
+    }
     paths.push(['leaderboard', uid], ['users', uid]);
     for (const path of paths) {
       try {
@@ -378,71 +380,89 @@ db.setSyncHook((key, value) => {
 
 // ── Home-screen streak widget ──
 // The Android widget has no Firebase login. It reads streakWidget/{code} by
-// REST with only the code the player pasted into it, so the code is the whole
-// permission: 128 random bits, never derived from the uid. The document holds
+// REST with only its code, so the code is the whole permission: 128 random
+// bits made by the Android app, never derived from the uid. The document holds
 // the streak number and its local date and nothing else; the widget applies
 // the same day rules as Streak (lit today, grey yesterday, 0 if older).
-const WIDGET_KEYS = ['streakCount', 'streakLastDate', 'widgetToken'];
+// LINKING IS AUTOMATIC: the Android app opens CTC with ?ctcWidget=<its code>
+// (LauncherActivity.getLaunchingUrl) until the widget has read its document
+// once. The page takes the code out of the address and, signed in, adds it to
+// the account's list; signed out it waits in `widgetPending` for a sign-in.
+const WIDGET_KEYS = ['streakCount', 'streakLastDate', 'widgetTokens'];
 const WIDGET_TOKEN_RE = /^[0-9a-f]{32}$/;
+// One code per phone with the app; a sixth phone drops the oldest code.
+const WIDGET_MAX = 5;
 // No streak yet: a date that reads as "long ago", so the widget shows a grey 0.
 // The rules need a YYYY-MM-DD string, and null would be refused.
 const WIDGET_NO_DATE = '1970-01-01';
 
-function newWidgetToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+// Read once at load, before app.js looks at the address.
+const widgetFromUrl = (() => {
+  try {
+    const url = new URL(location.href);
+    const code = url.searchParams.get('ctcWidget');
+    if (code === null) return null;
+    url.searchParams.delete('ctcWidget');
+    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+    return WIDGET_TOKEN_RE.test(code) ? code : null;
+  } catch (e) { return null; }
+})();
+const widgetPendingSaved = widgetFromUrl ? db.kvSet('widgetPending', widgetFromUrl) : Promise.resolve();
+
+async function widgetTokens() {
+  const list = await db.kvGet('widgetTokens', []);
+  return Array.isArray(list) ? list.filter(t => WIDGET_TOKEN_RE.test(t || '')).slice(0, WIDGET_MAX) : [];
 }
 
 // Writes are chained so they reach Firestore in the order they were asked
 // for: recordActivity sets the count and then the date, and the second write
-// (both new values) must be the one that lands last.
+// (both new values) must be the one that lands last. Each code is written on
+// its own: one refused write (a code another account already owns) must not
+// stop the rest.
 let widgetChain = Promise.resolve(true);
 function publishWidget() {
   widgetChain = widgetChain.then(async () => {
     const user = auth.currentUser;
-    const token = await db.kvGet('widgetToken', null);
-    if (!user || !WIDGET_TOKEN_RE.test(token || '')) return false;
+    const tokens = await widgetTokens();
+    if (!user || !tokens.length) return false;
     const count = Math.max(0, Math.min(30000, Math.floor(+(await db.kvGet('streakCount', 0)) || 0)));
     const lastDate = await db.kvGet('streakLastDate', null);
-    await setDoc(doc(firestore, 'streakWidget', token), {
+    const data = {
       owner: user.uid,
       count,
       lastDate: /^\d{4}-\d{2}-\d{2}$/.test(lastDate || '') ? lastDate : WIDGET_NO_DATE,
       updatedAt: serverTimestamp(),
-    });
-    return true;
+    };
+    const done = await Promise.all(tokens.map(token => setDoc(doc(firestore, 'streakWidget', token), data)
+      .then(() => true, e => { console.error('Widget sync failed', token.slice(0, 4), e); return false; })));
+    return done.every(Boolean);
   }).catch(e => { console.error('Widget sync failed', e); return false; });
   return widgetChain;
 }
 
-// "Copy widget code": the account's code, made on first use. The document is
-// written again either way, so a code whose first write never landed (offline)
-// starts working the moment it is copied. Resolves { token, saved }, where
-// `saved` is a promise of true/false: a Firestore write only settles once the
-// server has it, so offline it waits, and the code must not wait with it.
-export async function getWidgetCode() {
-  if (!auth.currentUser) return null;
-  let token = await db.kvGet('widgetToken', null);
-  if (!WIDGET_TOKEN_RE.test(token || '')) {
-    token = newWidgetToken();
-    await db.kvSet('widgetToken', token);   // the sync hook publishes it
-    return { token, saved: widgetChain };
-  }
-  return { token, saved: publishWidget() };
-}
-
-// "Make a new code": the remedy if a code leaks. The old document is deleted
-// (queued ahead of the new one's write), so the old code stops working.
-export async function replaceWidgetCode() {
-  if (!auth.currentUser) return null;
+// Signed in: the code the Android app handed over joins the account's list
+// (the sync hook then publishes every code). Already on the list: written
+// again anyway, so a first write that never landed is retried.
+async function adoptWidget() {
+  await widgetPendingSaved;
+  // The copy-and-paste widget's single code (before 2026-10-15): its document goes.
   const old = await db.kvGet('widgetToken', null);
-  if (WIDGET_TOKEN_RE.test(old || '')) {
-    widgetChain = widgetChain.then(() => deleteDoc(doc(firestore, 'streakWidget', old)))
-      .then(() => true, e => { console.error('Could not delete the old widget code', e); return false; });
+  if (old !== null) {
+    await db.kvSet('widgetToken', null);
+    if (WIDGET_TOKEN_RE.test(old)) {
+      deleteDoc(doc(firestore, 'streakWidget', old)).catch(e => console.warn('Old widget code not deleted', e));
+    }
   }
-  const token = newWidgetToken();
-  await db.kvSet('widgetToken', token);
-  return { token, saved: widgetChain };
+  const code = await db.kvGet('widgetPending', null);
+  if (!auth.currentUser || !WIDGET_TOKEN_RE.test(code || '')) return;
+  await db.kvSet('widgetPending', null);
+  const list = await widgetTokens();
+  if (list.includes(code)) { publishWidget(); return; }
+  const next = [code, ...list];
+  await db.kvSet('widgetTokens', next.slice(0, WIDGET_MAX));
+  for (const dropped of next.slice(WIDGET_MAX)) {
+    deleteDoc(doc(firestore, 'streakWidget', dropped)).catch(e => console.warn('Dropped widget code not deleted', e));
+  }
 }
 
 // Top N players by the given field (default puzzle ELO). Public read — no
@@ -2353,6 +2373,7 @@ onAuthStateChanged(auth, async (user) => {
   Auth.known = true;
   if (user) {
     try { await pullOrBootstrap(user.uid); } catch (e) { console.error('Firestore pull failed', e); }
+    adoptWidget().catch(e => console.error('Widget link failed', e));
   }
   Auth._notify();
 });
