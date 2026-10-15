@@ -626,7 +626,10 @@ service cloud.firestore {
       // STAGE 2: this becomes `mcIsOwner(mcId) || mcRole(mcId) == 'editor'`.
       // That is the whole change — the stored shape does not move.
       allow write: if mcIsOwner(mcId)
-        && after().keys().hasOnly(['title', 'pgn', 'startFen', 'order', 'updatedAt', 'updatedBy'])
+        && after().keys().hasOnly(['title', 'pgn', 'startFen', 'order', 'orientation', 'updatedAt', 'updatedBy'])
+        // Which side the owner had at the bottom. Optional, so chapters
+        // written before it existed (and older apps) still pass.
+        && (!('orientation' in after()) || after().orientation in ['w', 'b'])
         && after().title is string && after().title.size() <= 80
         // The real anti-abuse bound. The 50-chapter and 30-member caps in the
         // UI are advisory and cannot be enforced here; this one can.

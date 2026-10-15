@@ -441,6 +441,43 @@ describe('/masterclasses/{id}/chapters — the content', () => {
     await assertFails(updateDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
       { order: 7, updatedAt: serverTimestamp() }));
   });
+
+  // ── orientation: which side the owner had at the bottom ────────────────
+  // Optional, so a chapter written before it existed (test 25's shape, no
+  // orientation) still passes — that is test 25 itself, unchanged.
+  it('53. the owner CAN create and overwrite a chapter with orientation w or b', async () => {
+    await seedClass();
+    await assertSucceeds(setDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      chapter({ orientation: 'b' })));
+    await assertSucceeds(setDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      chapter({ orientation: 'w' })));
+  });
+
+  it('54. an orientation other than w or b is denied', async () => {
+    await seedClass();
+    for (const orientation of ['black', 'B', '', 1, null, true]) {
+      await assertFails(setDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+        chapter({ orientation })));
+    }
+  });
+
+  it('55. a viewer CANNOT set a chapter\'s orientation', async () => {
+    await seedClass();
+    await seedMember(VIEWER);
+    await seed(`masterclasses/${MC}/chapters/ch1`, { ...chapter(), updatedAt: new Date() });
+    await assertFails(updateDoc(doc(asViewer(), `masterclasses/${MC}/chapters/ch1`),
+      { orientation: 'b', updatedBy: VIEWER, updatedAt: serverTimestamp() }));
+  });
+
+  // A reorder patches three keys of a document that now may hold seven; the
+  // stored orientation rides along untouched.
+  it('56. a reorder of a chapter that has an orientation still passes', async () => {
+    await seedClass();
+    await seed(`masterclasses/${MC}/chapters/ch1`,
+      { ...chapter({ orientation: 'b' }), updatedAt: new Date() });
+    await assertSucceeds(updateDoc(doc(asOwner(), `masterclasses/${MC}/chapters/ch1`),
+      { order: 7, updatedBy: OWNER, updatedAt: serverTimestamp() }));
+  });
 });
 
 // ═══════════════════ masterclasses/{mcId}/live/state ═══════════════════

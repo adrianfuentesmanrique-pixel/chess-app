@@ -406,12 +406,16 @@ export const Masterclass = {
     // The row is gone if somebody deleted the chapter while it was open. Saving
     // would recreate it as a document nobody expects, so this stops instead.
     if (!row) { toast(t('mc_chapter_gone')); return; }
+    // The board's facing IS taken from the board, unlike title and order: the
+    // owner flipping it and saving is how they say "open it this way".
+    const orientation = Analysis.board.orientation === 'b' ? 'b' : 'w';
     try {
       await updateChapter(mc.id, chapterId, {
         title: row.title,
         pgn: tree.toPgn(),
         startFen: tree.startFen || row.startFen || '',
         order: row.order ?? 0,
+        orientation,
       });
     } catch (e) {
       if (e && e.message === 'chapter-too-big') {
@@ -427,6 +431,7 @@ export const Masterclass = {
     // like it had not saved when you went back and opened it again.
     row.pgn = tree.toPgn();
     row.startFen = tree.startFen || row.startFen || '';
+    row.orientation = orientation;
     toast(t('mc_chapter_saved'));
   },
 
@@ -543,6 +548,10 @@ export const Masterclass = {
     // BEFORE loadTree(), because loadTree() calls Analysis.refresh(), which is
     // what fires onBoardChange() and pushes the first state of the chapter.
     this.liveChapterId = ch.id;
+    // Everyone — owner, student, homework, a follower of a live class — opens
+    // it facing the way the owner saved it. A chapter saved before this was
+    // stored has none and opens with White at the bottom.
+    Analysis.board.setOrientation(ch.orientation === 'b' ? 'b' : 'w');
     // mcChapterId is what makes the chapter EDITABLE: it is the only record of
     // which document the board came from, and it rides in ctx rather than on
     // this object so that loading any other game clears it by itself. A stale
@@ -642,6 +651,9 @@ export const Masterclass = {
         pgn: ch.pgn,
         startFen: ch.startFen || '',
         order: ch.order ?? 0,
+        // updateChapter() replaces the whole document, so the stored facing
+        // has to be passed back or a rename would lose it.
+        orientation: ch.orientation,
       });
     } catch (e) {
       console.error('Renaming a chapter failed', e);
@@ -1329,7 +1341,7 @@ export const Masterclass = {
     // The same "White vs Black" the base list shows, so the default title is
     // the name the owner just tapped.
     const startFen = (full.pgn.match(/\[FEN\s+"([^"]*)"\]/) || [])[1] || '';
-    await this.saveChapter(`${g.white || '?'} vs ${g.black || '?'}`, full.pgn, startFen);
+    await this.saveChapter(`${g.white || '?'} vs ${g.black || '?'}`, full.pgn, startFen, full.orientation);
   },
 
   // Whatever is on the Analysis board right now, variations and comments
@@ -1344,7 +1356,7 @@ export const Masterclass = {
     const def = (H['White'] || H['Black'])
       ? `${H['White'] || '?'} vs ${H['Black'] || '?'}`
       : '';
-    await this.saveChapter(def, tree.toPgn(), tree.startFen || '');
+    await this.saveChapter(def, tree.toPgn(), tree.startFen || '', Analysis.board.orientation);
   },
 
   chooseGame(games) {
@@ -1379,7 +1391,7 @@ export const Masterclass = {
     });
   },
 
-  async saveChapter(defaultTitle, pgn, startFen) {
+  async saveChapter(defaultTitle, pgn, startFen, orientation) {
     const mc = this.current;
     if (!mc) return;
     const title = await askText(t('mc_chapter_title'), defaultTitle);
@@ -1388,7 +1400,7 @@ export const Masterclass = {
     // array index so a future reorder does not have to rewrite every document.
     const order = this.chapters.reduce((max, c) => Math.max(max, c.order ?? 0), 0) + 1;
     try {
-      await addChapter(mc.id, { title, pgn, startFen, order });
+      await addChapter(mc.id, { title, pgn, startFen, order, orientation });
     } catch (e) {
       if (e && e.message === 'chapter-too-big') {
         toast(t('mc_chapter_too_big').replace('{n}', Math.round(MAX_CHAPTER_BYTES / 1000)));

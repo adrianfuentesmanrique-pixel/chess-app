@@ -1483,11 +1483,13 @@ export const MAX_CHAPTERS = 50;
 // bare permission-denied.
 export const MAX_CHAPTER_BYTES = 100000;
 
-// The five stored fields are exactly the five the rules allow — the key set is
-// checked with hasOnly(), so adding a sixth here fails the write.
+// The stored fields are exactly the ones the rules allow — the key set is
+// checked with hasOnly(), so adding another here fails the write. orientation
+// ('w'|'b') is optional in the rules, so a chapter written before it existed
+// still reads and still accepts writes from an older app.
 // serverTimestamp(), never Date.now(): the rule is `updatedAt == request.time`
 // and a client clock a few seconds out would be refused.
-export async function addChapter(mcId, { title, pgn, startFen, order }) {
+export async function addChapter(mcId, { title, pgn, startFen, order, orientation }) {
   // Size first, so an oversized PGN always reports itself the same way — this
   // is validation of the input, not of the session. Blob counts bytes and the
   // rule counts characters, so it is the stricter of the two and can never let
@@ -1500,6 +1502,8 @@ export async function addChapter(mcId, { title, pgn, startFen, order }) {
     pgn,
     startFen: String(startFen || '').slice(0, 100),
     order: Number(order) || 0,
+    // Which side the owner had at the bottom; openChapter() opens it that way.
+    orientation: orientation === 'b' ? 'b' : 'w',
     updatedBy: user.uid,
     updatedAt: serverTimestamp(),
   });
@@ -1522,7 +1526,7 @@ export async function addChapter(mcId, { title, pgn, startFen, order }) {
 // updatedAt is serverTimestamp() for the same reason as everywhere else here —
 // the rule is `updatedAt == request.time` and a client clock a few seconds out
 // is refused.
-export async function updateChapter(mcId, chapterId, { title, pgn, startFen, order }) {
+export async function updateChapter(mcId, chapterId, { title, pgn, startFen, order, orientation }) {
   // Checked before the session, identically to addChapter(), so an oversized
   // PGN reports itself the same way whichever door it came through.
   if (new Blob([pgn || '']).size > MAX_CHAPTER_BYTES) throw new Error('chapter-too-big');
@@ -1533,6 +1537,8 @@ export async function updateChapter(mcId, chapterId, { title, pgn, startFen, ord
     pgn,
     startFen: String(startFen || '').slice(0, 100),
     order: Number(order) || 0,
+    // Which side the owner had at the bottom; openChapter() opens it that way.
+    orientation: orientation === 'b' ? 'b' : 'w',
     updatedBy: user.uid,
     updatedAt: serverTimestamp(),
   });

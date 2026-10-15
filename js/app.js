@@ -2281,6 +2281,15 @@ export const Analysis = {
     this.updateBaseNav();
   },
 
+  // A game from a base opens facing the way it was saved. A record saved
+  // before orientation was stored has none and opens with White at the bottom,
+  // rather than inheriting whichever way the last board happened to face.
+  openSavedGame(full, at = null) {
+    const tree = parsePgn(full.pgn);   // first, so a bad PGN leaves the board alone
+    this.board.setOrientation(full.orientation === 'b' ? 'b' : 'w');
+    this.loadTree(tree, { baseId: full.baseId, gameId: full.id }, at);
+  },
+
   // Opening a game from a database keeps the player oriented in the Bases
   // tab — same board/engine/comment tools, but the tab bar stays on
   // "Bases" and there's a way back to the list plus prev/next game.
@@ -2383,8 +2392,7 @@ export const Analysis = {
       // way Base.openGame() does, and guard a record that genuinely has none.
       const full = g.pgn ? g : await db.getGame(g.id);
       if (!full || !full.pgn) { toast(t('import_failed')); return; }
-      const tree = parsePgn(full.pgn);
-      this.loadTree(tree, { baseId: full.baseId, gameId: full.id });
+      this.openSavedGame(full);
     } catch { toast(t('import_failed')); }
   },
 
@@ -2762,7 +2770,7 @@ export const Analysis = {
           const at = this.tree.fen();   // the board at the tap, before anything is awaited
           try {
             const full = await db.getGame(item.id);
-            this.loadTree(parsePgn(full.pgn), { baseId: full.baseId, gameId: full.id }, at);
+            this.openSavedGame(full, at);
           } catch { toast(t('import_failed')); }
         };
       } else {
@@ -3013,6 +3021,9 @@ export const Analysis = {
       event: H['Event'] ?? '', date: H['Date'] ?? '',
       result: H['Result'] ?? '*',
       pgn: this.tree.toPgn(),
+      // Which side was at the bottom, so the game opens the same way again
+      // (openSavedGame). Not part of the PGN: a shared .pgn file loses it.
+      orientation: this.board.orientation === 'b' ? 'b' : 'w',
       updatedAt: Date.now(),
     };
     if (gameId) { rec.id = gameId; await db.updateGame(rec); }
@@ -3422,8 +3433,7 @@ const Base = {
       // The list holds summaries only, so fetch the move text on demand.
       const full = g.pgn ? g : await db.getGame(g.id);
       if (!full || !full.pgn) { toast(t('import_failed')); return; }
-      const tree = parsePgn(full.pgn);
-      Analysis.loadTree(tree, { baseId: full.baseId, gameId: full.id });
+      Analysis.openSavedGame(full);
     } catch (e) {
       toast(t('import_failed'));
     }
