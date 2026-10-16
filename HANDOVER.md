@@ -9,6 +9,20 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v242: A LIGHTER FIRST LAUNCH (Sentry JAVASCRIPT-9 again, 2026-10-16).** The second
+  event (Adrian's screenshots): OnePlus 8 Pro, Android 11, Chrome 90 (2021), Paris, 3g,
+  1.35 Mbps, swControlled false (first launch, nothing cached), ms 30106 when the 20 s
+  timer fired, so the page itself took ~10 s to arrive. Not a hang: every one of the 63
+  start files parses in Chrome 90 (scanned for static blocks, `#x in`, newer APIs).
+  Measured with a throttled first launch (1.35 Mbps, 300 ms): live 12.0 s, 1.54 MB, of
+  which 0.6 MB images; their real signal was far worse. Fix, fewer bytes before the app
+  starts: the splash and the boot panel use the new `icons/logo-splash.png` (logo-mark
+  at 360 px, 29 KB, was 201 KB; looks the same); the watermarks and the three Pulso
+  pictures are `loading="lazy"` (they sit on screens hidden at start and load when shown,
+  checked). Images at start 0.59 → 0.19 MB. Also: Blindfold's piece list used `.at(-1)`,
+  missing before Chrome 92 — replaced. Whether this user's start finished late: no
+  "Boot finished late" report was mentioned; not checked in Sentry.
+
 - **v241: A CRASHED ENGINE NO LONGER KEEPS ITS MEMORY (2026-10-16).** Tester on v237
   (Adrian's words): "whenever you make a mistake, it freeze again the app, all the app",
   with 🖥️ on, nothing responds; screenshot on m5 (V.Bron 1955) at the start position.

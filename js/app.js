@@ -6564,7 +6564,10 @@ export const Blind = {
   fillList() {
     const lang = getLang();
     const pieces = blindPieceList(this.chess.fen(), lang);
-    const last = this.chess.history({ verbose: true }).at(-1);
+    // Not .at(-1): Chrome before 92 lacks it, and installed copies run old ones
+    // (Chrome 90 seen in Sentry, 2026-10-16).
+    const hist = this.chess.history({ verbose: true });
+    const last = hist[hist.length - 1];
     $('blind-list-last').textContent = last
       ? t(last.color === 'w' ? 'blind_list_last_w' : 'blind_list_last_b').replace('{m}', blindSanLocal(last.san, lang)) : '';
     $('blind-list-w-label').textContent = `${t('white')}:`;

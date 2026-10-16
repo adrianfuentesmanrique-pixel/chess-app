@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v241';
+const CACHE = 'chess-training-center-v242';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -194,6 +194,7 @@ const ASSETS = [
   'icons/icon-maskable-512.png',
   'icons/icon-180.png',
   'icons/logo-mark.png',
+  'icons/logo-splash.png',
   'icons/logo-full.png',
   'icons/google-g.svg',
   // Badges, Kael, streak flames and avatars are NOT here: see ART above.

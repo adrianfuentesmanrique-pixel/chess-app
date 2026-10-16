@@ -213,7 +213,7 @@
     // The mark is navy: on the dark background it sits on a light tile.
     logo.setAttribute('style', 'width:84px;height:auto;' + (dark ? 'background:#f6f7fb;border-radius:20px;padding:14px;' : ''));
     logo.onerror = function () { logo.remove(); };
-    logo.src = 'icons/logo-mark.png';
+    logo.src = 'icons/logo-splash.png';
     var title = document.createElement('div');
     title.setAttribute('style', 'font-size:20px;font-weight:700;');
     title.textContent = slow ? (isEs ? 'Está tardando demasiado' : 'This is taking too long')
@@ -275,7 +275,12 @@
 <body>
 
 <div id="splash">
-  <img src="icons/logo-mark.png" alt="" id="splash-logo">
+  <!-- logo-splash.png: logo-mark.png at 360 px wide, 29 KB instead of 201 KB.
+       The splash shows it at 120 px at most, and on a first launch over a slow
+       signal every byte before the app's code delays the start (Sentry
+       JAVASCRIPT-9, 2026-10-16). The watermarks keep the full-size mark and
+       load only when their screen is shown. -->
+  <img src="icons/logo-splash.png" alt="" id="splash-logo">
   <div id="splash-title">Chess Training Center</div>
 </div>
 
@@ -514,7 +519,7 @@
   <!-- ══════════ DATABASE ══════════ -->
   <section id="screen-base" class="screen hidden">
     <div id="base-list-view">
-      <img src="icons/logo-mark.png" class="watermark" alt="">
+      <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
       <!-- No title here: the top bar already says "Bases". Both ways to make a
            base share the row, with the counter at the right edge. -->
       <div class="row wrap screen-head tab-head">
@@ -572,7 +577,7 @@
   <!-- ══════════ PLAY ══════════ -->
   <section id="screen-play" class="screen hidden">
     <div id="play-setup">
-      <img src="icons/logo-mark.png" class="watermark" alt="">
+      <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
       <div class="option-group tab-lead">
         <label data-i18n="color"></label>
         <div class="seg" id="play-color">
@@ -663,7 +668,7 @@
       <p id="read-persist-warn" class="hint read-persist-warn hidden" data-i18n="read_persist_warn"></p>
       <div id="read-grid" class="read-grid"></div>
       <div id="read-empty" class="empty-note hidden">
-        <img src="icons/logo-mark.png" class="watermark" alt="">
+        <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
         <p class="hint" data-i18n="read_empty"></p>
       </div>
     </div>
@@ -780,7 +785,7 @@
       </div>
     </div>
     <div id="trainer-setup">
-      <img src="icons/logo-mark.png" class="watermark" alt="">
+      <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
       <p class="hint tab-lead" data-i18n="trainer_explain"></p>
       <div class="option-group">
         <label data-i18n="book_base"></label>
@@ -892,7 +897,7 @@
   <!-- ══════════ PUZZLE RUSH ══════════ -->
   <section id="screen-rush" class="screen hidden">
     <div id="rush-intro">
-      <img src="icons/logo-mark.png" class="watermark" alt="">
+      <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
       <!-- The top bar says "Puzzles" here and the lit chip says which mode, so
            the title is kept for screen readers only. -->
       <h2 class="sr-only" data-i18n="rush_title"></h2>
@@ -963,8 +968,8 @@
       <div class="pulso-hero">
         <!-- The second picture takes the first one's place while the player
              has no friends to challenge (#pulso-lobby.no-friends). -->
-        <img class="pulso-hero-art" src="icons/pulso/pulso-hero.png" alt="" width="320" height="200">
-        <img class="pulso-empty-art" src="icons/pulso/pulso-empty.png" alt="" width="160" height="160">
+        <img class="pulso-hero-art" src="icons/pulso/pulso-hero.png" alt="" width="320" height="200" loading="lazy">
+        <img class="pulso-empty-art" src="icons/pulso/pulso-empty.png" alt="" width="160" height="160" loading="lazy">
         <div class="pulso-title" data-i18n="pulso_name"></div>
         <p class="hint" data-i18n="pulso_tagline"></p>
       </div>
@@ -999,7 +1004,7 @@
            come, and the bar stays frozen where the match left it. The picture
            is pulso-win, pulso-lose or pulso-draw: PulsoMatch.paintResult. -->
       <div id="pulso-result" class="pulso-result hidden">
-        <img id="pulso-result-art" src="icons/pulso/pulso-draw.png" alt="" width="200" height="200">
+        <img id="pulso-result-art" src="icons/pulso/pulso-draw.png" alt="" width="200" height="200" loading="lazy">
         <h2 id="pulso-end-line" role="status"></h2>
         <p id="pulso-end-sub" class="hint hidden"></p>
       </div>
@@ -1054,7 +1059,7 @@
          board. Blind.showStart() / Blind.go() move the one .blind-time box
          between this panel and the game below. -->
     <div id="blind-start">
-      <img src="icons/logo-mark.png" class="watermark" alt="">
+      <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
       <div class="row wrap profile-elo-row">
         <div class="elo-card"><span data-i18n="blindfold_elo"></span><b id="blind-start-elo"></b></div>
       </div>
@@ -1161,7 +1166,7 @@
        key. Only the visible label says "Learn". -->
   <section id="screen-endgame" class="screen hidden">
     <div id="endgame-sections-view">
-      <img src="icons/logo-mark.png" class="watermark" alt="">
+      <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
       <div id="endgame-section-list" class="list tab-lead"></div>
     </div>
 
@@ -1440,7 +1445,7 @@
 
   <!-- ══════════ LEADERBOARD ══════════ -->
   <section id="screen-leaderboard" class="screen hidden">
-    <img src="icons/logo-mark.png" class="watermark" alt="">
+    <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
     <div class="row screen-head">
       <button id="leaderboard-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="leaderboard_title"></h2>
@@ -1644,7 +1649,7 @@
   <!-- A near-copy of #screen-leaderboard: same segmented controls, same row
        markup, same watermark. No name filter — at most 100 rows. -->
   <section id="screen-friends-leaderboard" class="screen hidden">
-    <img src="icons/logo-mark.png" class="watermark" alt="">
+    <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
     <div class="row screen-head">
       <button id="flb-back" class="btn" data-i18n="back"></button>
       <h2 data-i18n="friends_lb_title"></h2>
