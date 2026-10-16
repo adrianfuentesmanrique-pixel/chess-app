@@ -9,6 +9,22 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v233: A SLOW START TELLS SENTRY WHETHER IT FINISHED (2026-10-15).** Came from Sentry
+  JAVASCRIPT-9: one "Boot failed (timeout): still on the splash after 20000 ms", Android 10,
+  Chrome 154, the TWA, La Chorrera, 2026-10-12 (during the v205-v223 burst). The guard's
+  panel goes away by itself if the app does start, but Sentry was never told, so a slow
+  update on a weak signal looked the same as a hang. `index.html` boot guard: the timeout
+  event now carries `bootContext()` (extra: ms since the page began, online, net
+  effectiveType, downlinkMbps, saveData, swControlled AT PAGE START, retried; tags
+  `boot_net`, `boot_sw`), and when `__bootDone` runs after a reported timeout it sends ONE
+  warning, fixed text "Boot finished late (after the 20 s timeout)" (fixed so Sentry keeps
+  one issue; the time is extra.ms). Behaviour unchanged: no reload on a timeout. Verified in
+  headless Chrome with a stand-in window.Sentry, js/app.js held 23 s: timeout at 20.0 s,
+  "finished late" at 24.6 s, panel gone, splash hidden; a normal start sends nothing.
+  READING IT: a timeout with a "finished late" next to it = slow, not stuck; a timeout alone
+  = the user gave up or it really hung. Whether JAVASCRIPT-9's phone was Adrian's: not asked
+  yet.
+
 - **v232: THE TEACHER'S SIMUL BOARD FITS 375x667 AGAIN (2026-10-15).** Measured, not guessed:
   99a33e8's `button { font-family: inherit; }` (kept) gives End the app font's taller
   "normal" line: End 40 px (was 37 in Arial), the control row 27 (was 26), so End ended at

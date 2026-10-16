@@ -129,9 +129,26 @@
   // window.__bootFail() from main().catch; the module <script> tag at the foot
   // of this file calls __bootFail from its onerror.
   var BOOT_LIMIT = 20000, RETRY_KEY = 'ctcBootRetry';
-  var booted = false, leaving = false, panel = null;
+  var booted = false, leaving = false, panel = null, slowSent = false;
   var bootTimer = setTimeout(function () { bootFail('timeout', 'still on the splash after ' + BOOT_LIMIT + ' ms'); }, BOOT_LIMIT);
   function retried() { try { return sessionStorage.getItem(RETRY_KEY) === '1'; } catch (e) { return true; } }
+  // What a slow start report carries, so a weak signal or a first install can be
+  // told apart from a real hang: time since the page began loading, the
+  // connection as the phone sees it, and whether the service worker (the
+  // cached app) served this launch -- read now: it takes over during the start.
+  var swAtStart = null;
+  try { swAtStart = !!(navigator.serviceWorker && navigator.serviceWorker.controller); } catch (e) {}
+  function bootContext() {
+    var c = navigator.connection || {}, x = {};
+    try { x.ms = Math.round(performance.now()); } catch (e) {}
+    x.online = navigator.onLine;
+    if (c.effectiveType) x.net = c.effectiveType;
+    if (c.downlink != null) x.downlinkMbps = c.downlink;
+    if (c.saveData) x.saveData = true;
+    x.swControlled = swAtStart;
+    x.retried = retried();
+    return { level: 'error', tags: { boot_net: x.net || 'unknown', boot_sw: String(x.swControlled) }, extra: x };
+  }
   // Returns true when the failure belongs to the start-up and is handled here.
   function bootFail(reason, detail) {
     if (booted) return false;
@@ -143,7 +160,8 @@
     if (!panel) {
       try {
         if (window.Sentry && Sentry.captureException) {
-          Sentry.captureException(new Error('Boot failed (' + reason + '): ' + ((detail && detail.message) || detail)));
+          Sentry.captureException(new Error('Boot failed (' + reason + '): ' + ((detail && detail.message) || detail)), bootContext());
+          slowSent = reason === 'timeout';
         }
       } catch (e) {}
     }
@@ -156,6 +174,19 @@
     clearTimeout(bootTimer);
     try { sessionStorage.removeItem(RETRY_KEY); } catch (e) {}
     if (panel) { panel.remove(); panel = null; }
+    // A timeout was reported and the app did start after all: say so, once, so
+    // the timeout in Sentry reads as "slow" and not as "stuck for good".
+    if (slowSent) {
+      slowSent = false;
+      try {
+        if (window.Sentry && Sentry.captureMessage) {
+          var ctx = bootContext();
+          ctx.level = 'warning';
+          // One fixed text: Sentry groups by it. The time is in ctx.extra.ms.
+          Sentry.captureMessage('Boot finished late (after the 20 s timeout)', ctx);
+        }
+      } catch (e) {}
+    }
   };
   function showBootPanel(slow) {
     if (panel) return;
