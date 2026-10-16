@@ -49,8 +49,11 @@ are in `CLAUDE.md` under "Finish by pushing".
   light/dark x es/en x 1x1, Kael 2x2, Kael 4x2 (24 screenshots); RELEASE build: widget tap
   launches `https://chesstrainingcenter.app/?ctcWidget=<code>` full-screen (no address bar),
   linked launch = plain URL, 404 resets, "Open with" a PGN still lands in Bases.
-  PLAY: 8 (1.0.6) uploaded to Closed testing - Alpha (replaces 7), submitted for review
-  2026-10-15. NOT YET VERIFIED: the install on Adrian's phone and a real signed-in link.
+  PLAY: 8 (1.0.6) on Closed testing - Alpha (replaces 7), approved and installed 2026-10-15.
+  ON ADRIAN'S PHONE (Play-signed, CTC in Brave), his report + screenshot: the Kael widget
+  linked itself and showed 16 days lit (cheering Kael, dark), Profile also 16; the wide
+  layout works; a tap opens CTC with no address bar; "Open with" a PGN lands in Bases.
+  The 1x1 was not re-tested on the phone (same code path, emulator-verified).
 
 - **CHAPTER HOMEWORK PRACTICE MODE (2026-10-15, v230).** The teacher can assign a
   Masterclass chapter to be PLAYED from memory instead of stepped through.
