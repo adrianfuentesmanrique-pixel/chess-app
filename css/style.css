@@ -2645,6 +2645,9 @@ body.read-spread #read-reader {
 .simul-auto { display: flex; align-items: center; gap: 8px; min-width: 0; margin-right: auto; font-size: 14px; white-space: nowrap; cursor: pointer; }
 .simul-auto input { flex: 0 0 auto; width: 18px; height: 18px; accent-color: var(--gold); margin: 0; }
 #simul-game .btn-wide { margin-top: 8px; }
+/* The app's font (button { font-family: inherit }) gives End a taller line
+   than Arial did: 40 px, 2 px under a 375 x 667 screen. 17 px is its Arial height. */
+#simul-end { line-height: 17px; }
 /* Watching (conversation 8). The list of the other boards is a sheet of
    Students rows; a row's clock is the one running on that board. While a draw
    offer is being answered the row is full, and "Others" is its sign alone. */

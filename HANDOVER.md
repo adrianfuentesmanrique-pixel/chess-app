@@ -9,6 +9,17 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v232: THE TEACHER'S SIMUL BOARD FITS 375x667 AGAIN (2026-10-15).** Measured, not guessed:
+  99a33e8's `button { font-family: inherit; }` (kept) gives End the app font's taller
+  "normal" line: End 40 px (was 37 in Arial), the control row 27 (was 26), so End ended at
+  669.19. Proven by deleting the rule in the page: End back to 37, ending at 665.19.
+  Fix: `css/style.css` `#simul-end { line-height: 17px; }` = its old Arial height, End now
+  629-666.19. Only `#simul-end` (the teacher's screen) changes; no other button, the board
+  still 355 px. The 7 layout checks of `tools/emu-verify-simul.mjs` pass in all 4 passes
+  (1156 of 1157; the one miss, en-dark's seeded impossible move left "live", was a flake:
+  en-dark alone 335 of 335). ADRIAN APPROVED End at 37 px. test:tree 479, precache OK.
+  Not yet confirmed on his phone.
+
 - **v231: A SIMUL FLAG IS A DRAW WHEN THE OTHER SIDE CANNOT MATE (2026-10-15).** Adrian's
   reading 2 of the real-phones run, built. ADRIAN DECIDED: "cannot mate" = the side with
   time left has a bare king, or a king and ONE knight or ONE bishop (no pawns); two knights,
@@ -29,6 +40,7 @@ are in `CLAUDE.md` under "Finish by pushing".
   Luis's line at 375x667. The watcher line is not tool-checked.
   FOUND, NOT FIXED (older than this, same on untouched 5fddd33): at 375x667 the teacher's
   "Terminar la simultánea" ends at 669 px, 2 px off screen; 6 layout checks of the tool fail.
+  **FIXED in v232 (entry above).**
 
 - **SIMULS: THE FIRST RUN ON REAL PHONES (2026-10-13 to 10-15, no version bump).** Checklist
   `docs/plans/2026-10-13-simul-real-phones.md` (4 checks, 30 steps, two simuls: no clock,
