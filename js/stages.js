@@ -4,6 +4,7 @@
 //
 // Nothing here is rated. The progress lives only on the phone
 // (db 'learnProgress'), never in the endgame rating or the profile radar.
+import { Chess } from '../vendor/chess.js';
 
 // Did the player's move do what the level asks? `move` is chess.js's verbose
 // move, `after` the position once it is played. `why` names what was missing,
@@ -20,12 +21,53 @@ export function levelVerdict(level, move, after) {
       const way = move.piece === 'k' ? 'king' : move.captured ? 'capture' : 'block';
       return !level.how || way === level.how ? ok() : no('escape_' + level.how);
     }
+    case 'stalemate':
+      return after.isStalemate() ? ok() : no(after.isCheckmate() ? 'stalemate_mate' : 'not_stalemate');
+    case 'best': {
+      // The most valuable piece White could take in the level's position.
+      const top = Math.max(0, ...new Chess(level.fen).moves({ verbose: true }).map(m => VALUE[m.captured] || 0));
+      if (!move.captured) return no('not_capture');
+      return VALUE[move.captured] === top ? ok() : no('not_best');
+    }
+    case 'save':
+      return isSafe(after, targetSquare(level, move)) ? ok() : no('not_safe');
+    case 'draw':
+      return after.isInsufficientMaterial() || after.isStalemate() ? ok() : no('not_draw');
     default:
       return no('unknown');
   }
 }
 const ok = () => ({ ok: true, why: null });
 const no = why => ({ ok: false, why });
+
+// Q9 R5 B3 N3 P1. The king only matters as an attacker: it may take a piece
+// only when nothing guards it.
+export const VALUE = { q: 9, r: 5, b: 3, n: 3, p: 1, k: 100 };
+
+// Where the threatened piece of a 'save' level stands after the move.
+const targetSquare = (level, move) => (move.from === level.target ? move.to : level.target);
+
+// Safe = nothing attacks it, or it is guarded and its cheapest attacker is
+// worth at least as much (taking it would only be a trade). chess.js's
+// attackers() ignores whose turn it is, so a check does not count as saving it.
+function isSafe(after, sq) {
+  const att = after.attackers(sq, 'b');
+  if (!att.length) return true;
+  if (!after.isAttacked(sq, 'w')) return false;
+  const cheapest = Math.min(...att.map(s => VALUE[after.get(s).type]));
+  return cheapest >= VALUE[after.get(sq).type];
+}
+
+// The opponent's answer to a wrong 'save' move, as uci: the level's scripted
+// `punish` when it still takes the piece, else the cheapest legal capture of
+// it. null when there is none (the wrong move gave check).
+export function punishMove(level, move, after) {
+  const sq = targetSquare(level, move);
+  const caps = after.moves({ verbose: true }).filter(m => m.to === sq);
+  const scripted = caps.find(m => m.from + m.to === level.punish);
+  const m = scripted || caps.sort((a, b) => VALUE[a.piece] - VALUE[b.piece])[0];
+  return m ? m.from + m.to + (m.promotion || '') : null;
+}
 
 // First try ★★★, one mistake ★★, more ★. A level solved after "Pista" is ★.
 export function levelStars(mistakes, hinted) {

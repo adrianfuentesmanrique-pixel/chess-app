@@ -49,7 +49,7 @@ Later slices add: `stalemate`, `best` (take the most valuable piece), `save` (a 
 ## Sessions
 
 1. **Slice 1 (2026-10-15):** the engine (`stages.js`, `stages-ui.js`, views, styles, storage) + Fundamentos stages 1–3: Jaque (6 levels), Salir del jaque (6: two each by king, capture, block), Mate en uno (8). The section lists only built stages.
-2. **Slice 2:** Fundamentos 4–7: Ahogado (5, goal `stalemate`), Valor de las piezas (6, `best`), Proteger tus piezas (6, `save` + `punish` with a red arrow, as mockup `c-wrong`), Tablas (4, `draw`: repetition demo, insufficient material, stalemate trap).
+2. **Slice 2:** Fundamentos 4–7: Ahogado (5, goal `stalemate`), Valor de las piezas (6, `best`), Proteger tus piezas (6, `save` + `punish` with a red arrow, as mockup `c-wrong`), Tablas (4, `draw`: insufficient material, stalemate trap). **Done v235.** Adrian chose (2026-10-16): no repetition demo, Kael's intro explains repetition in words.
 3. **Slice 3:** Táctica básica — goal `line` (play move, the opponent's reply plays itself, play the follow-up); 6 levels per motif.
 4. **Slice 4:** Principios de apertura — goal `choose`; ~5 levels per principle; Kael explains why the other moves are worse.
 

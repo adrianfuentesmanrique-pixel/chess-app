@@ -10,7 +10,7 @@ import * as db from './db.js';
 import { Sound } from './sound.js';
 import { Chess } from '../vendor/chess.js';
 import { STAGE_SECTIONS } from './stages-data.js';
-import { levelVerdict, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from './stages.js';
+import { levelVerdict, punishMove, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from './stages.js';
 import { $, modal, esc, Endgame, Streak } from './app.js';
 
 const PROGRESS_KEY = 'learnProgress';
@@ -40,6 +40,8 @@ export const StagesUI = {
     $('stage-back').onclick = () => this.openSection(this.section);
     $('stage-hint').onclick = () => this.hint();
     $('stage-next').onclick = () => this.next();
+    $('stage-retry').onclick = () => this.retry();
+    $('stage-retry-hint').onclick = () => { this.retry(); this.hint(); };
     $('stage-dots').addEventListener('click', e => {
       const b = e.target.closest('button');
       if (b) this.playLevel(+b.dataset.i);
@@ -150,6 +152,7 @@ export const StagesUI = {
     this.say('encouraging', t('stage_kael_level'));
     $('stage-hint').classList.add('hidden');
     $('stage-next').classList.add('hidden');
+    this.showRetry(false);
     this.board.setOrientation('w');
     this.board.setShapes({ squares: [], arrows: [] });
     this.board.setPosition(lv.fen);
@@ -190,7 +193,7 @@ export const StagesUI = {
     this.board.interactive = false;
     this.board.setPosition(chess.fen(), { from: result.from, to: result.to });
     if (verdict.ok) this.solved(result);
-    else this.wrong(result, verdict.why);
+    else this.wrong(result, verdict.why, chess);
   },
 
   async solved(result) {
@@ -222,26 +225,59 @@ export const StagesUI = {
     this.timer = setTimeout(() => this.next(), lv.say ? 3200 : 1600);
   },
 
-  wrong(result, why) {
+  wrong(result, why, after) {
     const lv = this.stage.levels[this.levelIdx];
     this.mistakes++;
     this.board.setShapes({ squares: [{ sq: result.to, color: 'red' }], arrows: [] });
     Sound.play('puzzle-wrong');
+    // A piece left hanging: the opponent shows why by taking it (mockup c-wrong).
+    const punish = lv.goal === 'save' ? punishMove(lv, result, after) : null;
+    if (punish) {
+      this.timer = setTimeout(() => this.punish(punish, after), 650);
+      return;
+    }
     this.paintGoal('bad', t('stage_wrong_title'), t('stage_why_' + why) || t('learn_try_again'));
     this.say('encouraging', t('stage_wrong_kael'));
     $('stage-hint').classList.remove('hidden');
-    if (!reduceMotion.matches) {
-      $('stage-board').classList.add('shake');
-      setTimeout(() => $('stage-board').classList.remove('shake'), 500);
-    }
+    this.shake();
     // The wrong move stays a moment so it can be seen, then the level resets.
-    this.timer = setTimeout(() => {
-      this.busy = false;
-      this.board.setShapes({ squares: [], arrows: [] });
-      this.board.setPosition(lv.fen);
-      this.paintGoal('', t('stage_level').replace('{n}', this.levelIdx + 1).replace('{m}', this.stage.levels.length), L(this.stage.goalText));
-      this.board.interactive = true;
-    }, 1200);
+    this.timer = setTimeout(() => this.retry(), 1200);
+  },
+
+  shake() {
+    if (reduceMotion.matches) return;
+    $('stage-board').classList.add('shake');
+    setTimeout(() => $('stage-board').classList.remove('shake'), 500);
+  },
+
+  // The opponent's capture stays on the board, with a red arrow, until the
+  // player taps Reintentar (or Pista).
+  punish(uci, after) {
+    const m = after.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+    this.board.setPosition(after.fen(), { from: m.from, to: m.to });
+    this.board.setShapes({ squares: [{ sq: m.to, color: 'red' }], arrows: [{ from: m.from, to: m.to, color: 'red' }] });
+    this.paintGoal('bad', t('stage_punish_title').replace('{a}', t('stage_pc_by_' + m.piece)).replace('{b}', t('stage_pc_' + m.captured)), t('stage_punish_what'));
+    this.say('encouraging', t('stage_punish_kael'));
+    this.showRetry(true);
+    this.shake();
+  },
+
+  showRetry(on) {
+    $('stage-retry-row').classList.toggle('hidden', !on);
+    $('stage-dots').classList.toggle('hidden', on);
+  },
+
+  // Back to the level's start position, same level, mistakes kept.
+  retry() {
+    clearTimeout(this.timer);
+    const lv = this.stage.levels[this.levelIdx];
+    this.busy = false;
+    this.showRetry(false);
+    this.board.setShapes({ squares: [], arrows: [] });
+    this.board.setPosition(lv.fen);
+    this.paintGoal('', t('stage_level').replace('{n}', this.levelIdx + 1).replace('{m}', this.stage.levels.length), L(this.stage.goalText));
+    $('stage-hint').classList.remove('hidden');
+    this.board.interactive = true;
   },
 
   hint() {

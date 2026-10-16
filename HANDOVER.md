@@ -9,6 +9,26 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v235: LEARN TAB STAGES, SLICE 2 — FUNDAMENTOS 4-7 (2026-10-16).** Fundamentos is
+  complete: Ahogado (5 levels, goal `stalemate`; a mate fails with its own line), Valor de
+  las piezas (6, `best`: take the most valuable capturable piece, Q9 R5 B3 N3 P1, ties both
+  count), Proteger tus piezas (6, `save`: level has `target` + scripted `punish`), Tablas
+  (4, `draw`: insufficient material or stalemate). Tablas teaches no repetition level:
+  Adrian chose option (a) on 2026-10-16, repetition is explained in Kael's intro only.
+  `save` rule (`js/stages.js` `isSafe`): the piece is safe if nothing attacks it, or it is
+  guarded and its cheapest attacker is worth at least as much; a check does not count as
+  saving it. A wrong `save` move: the opponent takes the piece 650 ms later
+  (`punishMove`: the scripted uci if it still takes it, else the cheapest capture), red
+  arrow + red square, bar says "El alfil se come tu torre", Reintentar/Pista replace the
+  level boxes until tapped (mockup `c-wrong`). Tests: every `save` level's every wrong
+  move gets a reply that takes the piece; every `best` level offers captures of different
+  value; Kael's chess claims in `say` lines checked by script. Verified headless at
+  375x667, ES/EN, light/dark, real touch taps through the punish flow, Reintentar and
+  Pista; reduce motion = no shake, no star pop; endgameElo unchanged; no console errors.
+  Seen, NOT changed: the once-a-day streak bubble (Kael's corner, "¡Racha en aumento!")
+  covers the board's bottom-right squares for ~4 s after the first solved level of the day
+  and swallows taps there (slice 1 the same). NOT yet on Adrian's phone (nor v234).
+
 - **v234: LEARN TAB STAGES, SLICE 1 — FUNDAMENTOS 1-3 (2026-10-15).** Lichess-style
   stages, designed from Adrian's choices (plan: `docs/plans/2026-10-15-learn-stages.md`;
   mockups in the untracked `tools/learn-mockups/`). New section "Fundamentos" after Basic

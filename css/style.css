@@ -2783,6 +2783,10 @@ body.mode-light .stage-st .off, body.mode-light .stage-stars .off, body.mode-lig
   font-size: 14px; line-height: 1.35;
 }
 /* Hint and Next sit in the goal bar so the whole level fits 375x667. */
+.stage-retry-row { display: flex; gap: 8px; }
+.stage-retry-row.hidden { display: none; }
+.stage-retry-row .btn { padding: 8px 14px; font-size: 14px; }
+.stage-retry-row #stage-retry { flex: 1; }
 .stage-goal-row .btn { flex: none; margin: -4px 0; padding: 6px 12px; font-size: 14px; }
 .stage-sheet-title { text-align: center; margin: 4px 0 8px; font-size: 22px; }
 .stage-sheet-text { text-align: center; color: var(--muted); font-size: 14px; line-height: 1.45; margin: 0 0 6px; }

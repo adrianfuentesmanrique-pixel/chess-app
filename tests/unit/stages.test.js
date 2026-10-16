@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Chess } from '../../vendor/chess.js';
-import { levelVerdict, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from '../../js/stages.js';
+import { levelVerdict, punishMove, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from '../../js/stages.js';
 import { STAGE_SECTIONS } from '../../js/stages-data.js';
 
 const play = (fen, uci) => {
@@ -44,6 +44,65 @@ test('escape: the way out must be the one the level asks for', () => {
   const blk = { fen: '4k3/8/8/8/8/8/4B3/r3K3 w - - 0 1', goal: 'escape', how: 'block' };
   const step = play(blk.fen, 'e1d2');
   assert.deepEqual(levelVerdict(blk, step.move, step.after), { ok: false, why: 'escape_block' });
+});
+
+test('stalemate: a mate fails with its own why, so does a move that leaves a way out', () => {
+  const lv = { fen: '7k/7p/7P/8/8/3Q4/8/K7 w - - 0 1', goal: 'stalemate' };
+  const good = play(lv.fen, 'd3g3');
+  assert.deepEqual(levelVerdict(lv, good.move, good.after), { ok: true, why: null });
+  const mate = play(lv.fen, 'd3d8');
+  assert.deepEqual(levelVerdict(lv, mate.move, mate.after), { ok: false, why: 'stalemate_mate' });
+  const g6 = play(lv.fen, 'd3g6');   // the h7 pawn can take
+  assert.deepEqual(levelVerdict(lv, g6.move, g6.after), { ok: false, why: 'not_stalemate' });
+});
+
+test('best: only the most valuable capture passes', () => {
+  const lv = { fen: '7k/r7/5n2/8/3B4/8/1p6/6K1 w - - 0 1', goal: 'best' };
+  const rook = play(lv.fen, 'd4a7');
+  assert.deepEqual(levelVerdict(lv, rook.move, rook.after), { ok: true, why: null });
+  const knight = play(lv.fen, 'd4f6');
+  assert.deepEqual(levelVerdict(lv, knight.move, knight.after), { ok: false, why: 'not_best' });
+  const quiet = play(lv.fen, 'g1f1');
+  assert.deepEqual(levelVerdict(lv, quiet.move, quiet.after), { ok: false, why: 'not_capture' });
+  // Bishop and knight are both 3: either one is the best.
+  const tie = { fen: '7k/8/8/2b1n3/3P4/8/8/7K w - - 0 1', goal: 'best' };
+  for (const uci of ['d4c5', 'd4e5']) {
+    const r = play(tie.fen, uci);
+    assert.equal(levelVerdict(tie, r.move, r.after).ok, true, uci);
+  }
+});
+
+test('save: moving, guarding with a cheaper piece or blocking keeps the piece; leaving it does not', () => {
+  const lv = { fen: '6k1/1b6/8/8/8/8/4PP2/3K3R w - - 0 1', goal: 'save', target: 'h1', punish: 'b7h1' };
+  for (const uci of ['h1h4', 'f2f3', 'e2e4']) {   // move away, block, block
+    const r = play(lv.fen, uci);
+    assert.deepEqual(levelVerdict(lv, r.move, r.after), { ok: true, why: null }, uci);
+  }
+  const idle = play(lv.fen, 'd1c1');
+  assert.deepEqual(levelVerdict(lv, idle.move, idle.after), { ok: false, why: 'not_safe' });
+  assert.equal(punishMove(lv, idle.move, idle.after), 'b7h1');   // the scripted reply
+  // h8 is check, but the king takes the undefended rook: the reply is found, not scripted.
+  const h8 = play(lv.fen, 'h1h8');
+  assert.deepEqual(levelVerdict(lv, h8.move, h8.after), { ok: false, why: 'not_safe' });
+  assert.equal(punishMove(lv, h8.move, h8.after), 'g8h8');
+  // A guard counts only when the attacker is worth at least as much as the piece.
+  const rookOnKnight = { fen: '3r2k1/8/8/8/3N4/8/2P5/6K1 w - - 0 1', goal: 'save', target: 'd4', punish: 'd8d4' };
+  const guard = play(rookOnKnight.fen, 'c2c3');
+  assert.equal(levelVerdict(rookOnKnight, guard.move, guard.after).ok, true);
+  const pawnOnKnight = { fen: '6k1/8/8/4p3/3N4/8/2P5/6K1 w - - 0 1', goal: 'save', target: 'd4', punish: 'e5d4' };
+  const guard2 = play(pawnOnKnight.fen, 'c2c3');
+  assert.deepEqual(levelVerdict(pawnOnKnight, guard2.move, guard2.after), { ok: false, why: 'not_safe' });
+});
+
+test('draw: insufficient material or stalemate, nothing else', () => {
+  const kk = { fen: '7k/8/8/3r4/4K3/8/8/8 w - - 0 1', goal: 'draw' };
+  const take = play(kk.fen, 'e4d5');
+  assert.deepEqual(levelVerdict(kk, take.move, take.after), { ok: true, why: null });
+  const away = play(kk.fen, 'e4f4');
+  assert.deepEqual(levelVerdict(kk, away.move, away.after), { ok: false, why: 'not_draw' });
+  const pat = { fen: '8/8/8/8/8/5K2/7p/7k w - - 0 1', goal: 'draw' };
+  const f2 = play(pat.fen, 'f3f2');
+  assert.equal(levelVerdict(pat, f2.move, f2.after).ok, true);
 });
 
 test('stars: first try 3, one mistake 2, more 1, a hint 1', () => {
@@ -107,6 +166,31 @@ test('every level: legal, White to move, in check only when it must be, solved b
             return !levelVerdict(lv, r, c2).ok;
           });
           assert.ok(wrong, `${where}: every escape is the right kind`);
+        }
+        if (lv.goal === 'best') {
+          // A choice only teaches if the captures are not all worth the same.
+          const worths = new Set(new Chess(lv.fen).moves({ verbose: true }).filter(m => m.captured).map(m => m.captured));
+          assert.ok(worths.size >= 2, `${where}: needs captures of different value`);
+        }
+        if (lv.goal === 'save') {
+          // The target is White's and really hangs if White does nothing...
+          const piece = new Chess(lv.fen).get(lv.target);
+          assert.ok(piece && piece.color === 'w', `${where}: target is not a white piece`);
+          const pass = new Chess([parts[0], 'b', '-', '-', '0', '1'].join(' '));
+          const r = pass.move(lv.punish);   // throws if the scripted reply is illegal
+          assert.equal(r.to, lv.target, `${where}: punish does not take the target`);
+          // ...and every wrong move gets a reply that takes it, unless it gave check.
+          let wrongs = 0;
+          for (const m of new Chess(lv.fen).moves({ verbose: true })) {
+            const c2 = new Chess(lv.fen); const mv = c2.move(m);
+            if (levelVerdict(lv, mv, c2).ok) continue;
+            wrongs++;
+            const uci = punishMove(lv, mv, c2);
+            if (!uci) { assert.ok(c2.inCheck(), `${where}: ${mv.san} has no punish`); continue; }
+            const hit = new Chess(c2.fen()).move(uci);
+            assert.equal(hit.to, mv.from === lv.target ? mv.to : lv.target, `${where}: ${mv.san} punish misses`);
+          }
+          assert.ok(wrongs > 0, `${where}: no wrong move`);
         }
         if (lv.say) assert.ok(lv.say.es && lv.say.en, where);
         levels++;
