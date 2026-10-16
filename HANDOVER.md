@@ -9,6 +9,26 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v237: ENDINGS PRACTICE — THE 🖥️ ANALYSIS FOLLOWS THE BOARD (2026-10-16).** Closes
+  the "still open" note under v236. Reproduced first (headless Chrome, touch, p12): after
+  a book move the lines stayed on the starting position (renumbered wrongly, "2.Ke1");
+  after an accepted alternative + the engine's reply they stayed there for good; 🖥️
+  switched on during "Comprobando la jugada…" showed a false "El motor no respondió".
+  Adrian chose option (b): one shared engine, the analysis restarts on the new position.
+  New `Endgame.refreshEngine()` (js/app.js), called after every practice move, book
+  reply, engine reply, rejected move, opening book move and undo. While practice itself
+  is using the engine (`this.thinking`) it only shows "Cargando…" and starts no
+  watchdog; the analysis starts again once practice is done. `showLines` drops lines for
+  a position the board has left (`engine.analysisFen !== this.board.fen`). Retry now
+  calls `refreshEngine()`. Rejected (a) a second Engine (phone memory) and (c) hiding 🖥️.
+  Checked by touch at 375x667, es+en, light+dark: walk-through → Practicar → 🖥️ →
+  book moves, d1-e1 accepted, a rejected move (r106, a rook move that hangs it), free
+  play, 🖥️ on during a check, off/on + instant move: lines always on the board's
+  position, no false ⚠️, board never locked, no page errors. Basic Checkmates practice
+  still answers every move. test:tree 494/494, test:precache OK. Engine cost: in free
+  play each reply now swaps the worker twice (MultiPV 2↔1) while 🖥️ is on. NOT yet
+  confirmed on a phone.
+
 - **v236: ENDINGS PRACTICE NO LONGER FREEZES AFTER YOUR OWN GOOD MOVE (2026-10-16).**
   Testers: "after the walk-through, playing the engine, I can't move", in many endgames.
   Root cause, `Endgame.userMove` (js/app.js): a move off the book line that the engine

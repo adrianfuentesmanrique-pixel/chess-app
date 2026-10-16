@@ -7217,27 +7217,38 @@ export const Endgame = {
     this.engineOn = !this.engineOn;
     $('endgame-engine').classList.toggle('hidden', !this.engineOn);
     $('endgame-engine-toggle').classList.toggle('on', this.engineOn);
+    if (this.engineOn) this.refreshEngine();
+    else { clearTimeout(this._engineWatchdog); engine.stop(); }
+  },
+
+  // (Re)start the 🖥️ analysis on the position now on the board. Practice
+  // calls it after every move and reply: its own move check and replies use
+  // the same engine, which ends the analysis, so the lines used to stay on the
+  // old position for good (2026-10-16). While practice is using the engine it
+  // only says "loading" — the analysis starts once practice is done with it,
+  // so the watchdog never counts practice's own thinking against it.
+  refreshEngine() {
+    if (!this.engineOn) return;
     clearTimeout(this._engineWatchdog);
-    if (this.engineOn) {
-      this._engineGen = (this._engineGen || 0) + 1;
-      const gen = this._engineGen;
-      $('endgame-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
-      engine.onLine = lines => this.showLines(lines);
-      engine.analyse(this.board.fen, 2).catch(() => {});
-      // See Analysis.restartEngine — guards a worker that spawns but never
-      // emits a line (no crash event fires, so nothing else would notice).
-      this._engineWatchdog = setTimeout(() => {
-        if (gen !== this._engineGen || !this.engineOn) return;
-        $('endgame-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${t('engine_timeout')} <button class="btn small" id="endgame-engine-retry">${t('retry_btn')}</button></div>`;
-        $('endgame-engine-retry').onclick = () => { this.toggleEngine(); this.toggleEngine(); };
-      }, 8000);
-    } else {
-      engine.stop();
-    }
+    this._engineGen = (this._engineGen || 0) + 1;
+    const gen = this._engineGen;
+    $('endgame-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
+    if (this.mode === 'practice' && this.thinking) return;
+    engine.onLine = lines => this.showLines(lines);
+    engine.analyse(this.board.fen, 2).catch(() => {});
+    // See Analysis.restartEngine — guards a worker that spawns but never
+    // emits a line (no crash event fires, so nothing else would notice).
+    this._engineWatchdog = setTimeout(() => {
+      if (gen !== this._engineGen || !this.engineOn) return;
+      $('endgame-engine-lines').innerHTML = `<div class="engine-line">⚠️ ${t('engine_timeout')} <button class="btn small" id="endgame-engine-retry">${t('retry_btn')}</button></div>`;
+      $('endgame-engine-retry').onclick = () => this.refreshEngine();
+    }, 8000);
   },
 
   showLines(lines) {
     if (!this.engineOn) return;
+    // Lines still coming in for a position the board has left.
+    if (engine.analysisFen !== this.board.fen) return;
     clearTimeout(this._engineWatchdog);
     const el = $('endgame-engine-lines');
     el.innerHTML = '';
@@ -7294,6 +7305,7 @@ export const Endgame = {
     if (mv) {
       this.moveIdx = 1;
       this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to });
+      this.refreshEngine();
     }
     this.board.interactive = true;
     this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
@@ -7325,6 +7337,7 @@ export const Endgame = {
     if (tryUci === bookUci) {
       this.moveIdx++;
       this.board.setPosition(afterFen, { from: m.from, to: m.to });
+      this.refreshEngine();
       Sound.play('puzzle-correct');
       if (this.moveIdx >= this.current.moves.length) { this.finishPractice(true); return; }
       this.playBookReply();
@@ -7337,6 +7350,7 @@ export const Endgame = {
     this.board.interactive = false;
     this.board.setPosition(afterFen, { from: m.from, to: m.to });
     this.setStatus(t('checking_move'));
+    this.refreshEngine();   // waits: the check needs the engine
     const bookChess = new Chess(preFen);
     let bookAfterFen = null;
     try { bookChess.move(uciToMove(bookUci)); bookAfterFen = bookChess.fen(); } catch { }
@@ -7349,7 +7363,7 @@ export const Endgame = {
       this.bookMode = false;
       Sound.play('puzzle-correct');
       KaelQuotes.chatter(pickKael(KAEL_ALT_MOVE));
-      if (this.checkEnd()) return;
+      if (this.checkEnd()) { this.refreshEngine(); return; }
       // Off the book now, so the engine answers, as in all free play. It used
       // to hand the board back with the opponent still to move: nobody could
       // move again (testers, 2026-10-16 — most often in the draw studies,
@@ -7365,6 +7379,7 @@ export const Endgame = {
       $('endgame-board').classList.add('shake');
       setTimeout(() => $('endgame-board').classList.remove('shake'), 500);
       this.board.interactive = true;
+      this.refreshEngine();
     }
   },
 
@@ -7379,6 +7394,7 @@ export const Endgame = {
     if (!mv) { this.finishPractice(true); return; }
     this.moveIdx++;
     this.board.setPosition(this.chess.fen(), { from: mv.from, to: mv.to });
+    this.refreshEngine();
     // Running the book line to its end is a completed technique, so check that
     // before the game-over test. Some studies are "the side to move is lost" —
     // the player defends the losing side and the line ends in mate against
@@ -7395,6 +7411,7 @@ export const Endgame = {
     this.board.interactive = false;
     this.board.armPremove();
     this.setStatus(t('thinking'));
+    this.refreshEngine();   // waits for the reply
     try {
       const uci = await engine.bestMove(this.chess.fen(), { movetime: THINK_MS.endgame });
       if (!uci || this.over) return;
@@ -7405,6 +7422,7 @@ export const Endgame = {
     } finally {
       this.thinking = false;
       this.board.interactive = true;
+      this.refreshEngine();
       if (!this.over) this.board.firePremove();
     }
   },
@@ -7429,6 +7447,7 @@ export const Endgame = {
     this.board.clearPremove();
     this.board.interactive = true;
     this.board.setPosition(this.chess.fen());
+    this.refreshEngine();
     this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
   },
 
