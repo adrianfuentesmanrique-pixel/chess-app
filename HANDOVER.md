@@ -9,6 +9,17 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v240: PRINCIPIOS DE APERTURA SPLIT INTO FOUR STEPS (2026-10-16).** Adrian asked to
+  divide development in two: step 2 "Piezas menores" (was "Desarrollo"; id `development`
+  kept so progress survives) and a new step 4 after Enroque, "Piezas mayores" (id
+  `major_pieces`, 4 levels, goal `choose`): Ruy López 6.Re1 (rook to a central file
+  guards e4), London 9.Qe2/Qc2/Re1 (the queen off d1 connects the rooks), Exchange
+  French 10.Qc2 (bad Qa4: the edge) and 11.Rfe1/Rae1 (the open e-file; bad Rad1/Rfd1:
+  the d-file is shut by your own d4 pawn). Intro: after castling, don't forget the rooks
+  and queen, always develop them with the center in mind. Verified headless at 375x667,
+  ES/EN, light/dark, real taps: Rad1's reason, Rfe1, Qc2 (not the Pista move) solves,
+  the finish sheet, the four-row list. NOT yet confirmed on Adrian's phone.
+
 - **v239: LEARN TAB STAGES, SLICE 4 — PRINCIPIOS DE APERTURA (2026-10-16).** Third
   section "Principios de apertura" (its own row after Táctica básica): Centro (6 levels),
   Desarrollo (5), Enroque (5, level 3 is long castling), goal `choose`. Positions come

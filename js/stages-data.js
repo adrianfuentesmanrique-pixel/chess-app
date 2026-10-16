@@ -270,7 +270,7 @@ export const STAGE_SECTIONS = [
   {
     id: 'openings',
     title: { es: 'Principios de apertura', en: 'Opening principles' },
-    blurb: { es: 'Centro, desarrollo, enroque', en: 'Center, development, castling' },
+    blurb: { es: 'Centro, piezas menores, enroque, piezas mayores', en: 'Center, minor pieces, castling, major pieces' },
     stages: [
       {
         id: 'center',
@@ -308,7 +308,7 @@ export const STAGE_SECTIONS = [
       },
       {
         id: 'development',
-        title: { es: 'Desarrollo', en: 'Development' },
+        title: { es: 'Piezas menores', en: 'Minor pieces' },
         intro: {
           es: 'Desarrollar es sacar las piezas de su casilla inicial para que jueguen. Primero caballos y alfiles, hacia el centro. La dama espera: si sale pronto, el rival la ataca y gana tiempo.',
           en: 'Developing means bringing your pieces out of their starting squares so they can play. Knights and bishops first, toward the center. The queen waits: if she comes out early, your opponent attacks her and gains time.',
@@ -380,6 +380,32 @@ export const STAGE_SECTIONS = [
           { fen: 'rn1q1rk1/pbp1bpp1/1p2pn1p/3p4/2PP3B/2NBPN2/PP3PPP/R2QK2R w KQ - 2 9', goal: 'choose', good: ['e1g1'], solution: 'e1g1',
             bad: { e1f1: { es: 'El rey se mueve una sola casilla y pierde el derecho a enrocar: la torre de h1 queda encerrada.', en: 'The king moves one square and loses the right to castle: the h1 rook stays shut in.' } },
             say: { es: 'Todas tus piezas menores están fuera: es el momento de enrocar, antes de que se abra el centro.', en: 'All your minor pieces are out: time to castle, before the center opens.' } },
+        ],
+      },
+      {
+        id: 'major_pieces',
+        title: { es: 'Piezas mayores', en: 'Major pieces' },
+        intro: {
+          es: 'Con el rey enrocado, no te olvides de las torres y la dama. Desarróllalas siempre pensando en el centro: la dama a una casilla cercana donde no la ataquen (así tus torres quedan conectadas), y las torres a las columnas del centro o a una columna abierta, sin peones.',
+          en: "With your king castled, don't forget your rooks and queen. Always develop them with the center in mind: the queen to a nearby square where she isn't attacked (that connects your rooks), and the rooks to the central files or to an open file, one with no pawns.",
+        },
+        goalText: { es: 'Lleva una torre o la dama hacia el centro', en: 'Bring a rook or the queen toward the center' },
+        wrongText: { es: 'Aquí buscamos una jugada de torre o de dama hacia el centro.', en: "Here we're looking for a rook or queen move toward the center." },
+        levels: [
+          { fen: 'r1bqk2r/1pppbppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 4 6', goal: 'choose', good: ['f1e1', 'd1e2'], solution: 'f1e1',
+            say: { es: 'La torre llega a e1, una columna central, y protege tu peón de e4 del caballo de f6.', en: 'The rook reaches e1, a central file, and protects your e4 pawn from the knight on f6.' } },
+          { fen: 'r1bqr1k1/pp3ppp/2nbpn2/2pp4/3P1B2/2PBPN2/PP1N1PPP/R2Q1RK1 w - - 3 9', goal: 'choose', good: ['d1e2', 'd1c2', 'f1e1'], solution: 'd1e2',
+            bad: { d1a4: { es: 'La dama se va al borde, lejos del centro y de tu rey.', en: 'The queen goes to the edge, far from the center and from your king.' } },
+            say: { es: 'Con la dama fuera de d1, nada queda entre tus torres: están conectadas y pueden ir al centro.', en: 'With the queen off d1, nothing stands between your rooks: they are connected and can go to the center.' } },
+          { fen: 'r2q1rk1/pp1n1ppp/2pb1n2/3p2B1/3P2b1/2PB1N2/PP1N1PPP/R2Q1RK1 w - - 0 10', goal: 'choose', good: ['d1c2', 'd1e2', 'f1e1'], solution: 'd1c2',
+            bad: { d1a4: { es: 'La dama se va al borde, lejos del centro y de tu rey.', en: 'The queen goes to the edge, far from the center and from your king.' } },
+            say: { es: 'La dama en c2 conecta las torres y apunta a h7 junto al alfil. La columna e está abierta: tus torres irán ahí.', en: 'The queen on c2 connects the rooks and aims at h7 with the bishop. The e-file is open: your rooks will go there.' } },
+          { fen: 'r4rk1/ppqn1ppp/2pb1n2/3p2B1/3P2b1/2PB1N2/PPQN1PPP/R4RK1 w - - 2 11', goal: 'choose', good: ['f1e1', 'a1e1'], solution: 'f1e1',
+            bad: {
+              a1d1: { es: 'La columna d está cerrada por tu propio peón de d4. Busca la columna sin peones.', en: 'The d-file is blocked by your own d4 pawn. Look for the file with no pawns.' },
+              f1d1: { es: 'La columna d está cerrada por tu propio peón de d4. Busca la columna sin peones.', en: 'The d-file is blocked by your own d4 pawn. Look for the file with no pawns.' },
+            },
+            say: { es: 'La columna e no tiene peones: es abierta. Una torre ahí puede llegar hasta el campo del rival.', en: "The e-file has no pawns: it's open. A rook there can reach all the way into your opponent's camp." } },
         ],
       },
     ],
