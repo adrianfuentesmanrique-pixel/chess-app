@@ -1233,6 +1233,37 @@
       </div>
     </div>
 
+    <!-- ── Stages: Fundamentos and later sections (js/stages-ui.js). Their
+         progress stays on the phone (db 'learnProgress') and is never rated. ── -->
+    <div id="stage-list-view" class="hidden">
+      <div class="row screen-head">
+        <button id="stage-back-list" class="btn" data-i18n="back"></button>
+        <h2 id="stage-section-title"></h2>
+      </div>
+      <p id="stage-section-sum" class="hint stage-sum"></p>
+      <div id="stage-list" class="list"></div>
+    </div>
+    <div id="stage-view" class="hidden">
+      <div class="row screen-head">
+        <button id="stage-back" class="btn" data-i18n="back"></button>
+        <h2 id="stage-title" class="ellipsis"></h2>
+      </div>
+      <div id="stage-goal" class="stage-goal" aria-live="polite">
+        <div class="stage-goal-row">
+          <span id="stage-level" class="stage-level"></span><span id="stage-stars" class="stage-stars"></span>
+          <button id="stage-hint" class="btn hidden" data-i18n="stage_hint"></button>
+          <button id="stage-next" class="btn primary hidden" data-i18n="stage_next_level"></button>
+        </div>
+        <div id="stage-what" class="stage-what"></div>
+        <div id="stage-dots" class="stage-dots"></div>
+      </div>
+      <div id="stage-board" class="board-wrap"></div>
+      <div class="stage-kael">
+        <img id="stage-kael-img" src="icons/kael/kael-encouraging.png" alt="Kael">
+        <div id="stage-say" class="stage-bubble"></div>
+      </div>
+    </div>
+
     <!-- ── Sections 1 & 2: lessons (no progress is persisted, by design) ── -->
     <div id="learn-lesson-list-view" class="hidden">
       <div class="row screen-head">

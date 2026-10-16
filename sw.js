@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v233';
+const CACHE = 'chess-training-center-v234';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -111,6 +111,9 @@ const ASSETS = [
   'js/coord.js',
   'js/endgame-fresh.js',
   'js/coord-ui.js',
+  'js/stages.js',
+  'js/stages-data.js',
+  'js/stages-ui.js',
   'js/sound.js',
   'js/move-feel.js',
   // Every sound: one first heard with no signal, or after an update, used to be silent.

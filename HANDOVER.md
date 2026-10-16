@@ -9,6 +9,22 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v234: LEARN TAB STAGES, SLICE 1 — FUNDAMENTOS 1-3 (2026-10-15).** Lichess-style
+  stages, designed from Adrian's choices (plan: `docs/plans/2026-10-15-learn-stages.md`;
+  mockups in the untracked `tools/learn-mockups/`). New section "Fundamentos" after Basic
+  Checkmates, with Jaque (6 levels), Salir del jaque (6: two each by king, capture, block)
+  and Mate en uno (8). Kael's intro sheet the first time, goal bar with level boxes,
+  ★★★/★★/★ by mistakes (Pista = ★), wrong move shows red + why, then resets; right move
+  green, stars fill, next level starts by itself; finish sheet with proud Kael. Code:
+  `js/stages.js` (rules, stars, progress; pure), `js/stages-data.js` (levels),
+  `js/stages-ui.js` (`StagesUI`, views `#stage-list-view` / `#stage-view`), `.stage-*`
+  CSS, `stage_*` i18n. Progress ON THE PHONE ONLY: kv `learnProgress`, not in
+  `SYNCED_KEYS`, never rated (endgameElo checked unchanged). Each solved level counts for
+  the streak. `tests/unit/stages.test.js` plays every level's solution and checks every
+  position is legal (it caught one illegal draft). Verified headless at 375x667, ES/EN,
+  light/dark, real taps; reduce motion = no shake, no star pop. NOT yet on Adrian's phone.
+  Next: slice 2 (Ahogado, Valor de las piezas, Proteger, Tablas).
+
 - **v233: A SLOW START TELLS SENTRY WHETHER IT FINISHED (2026-10-15).** Came from Sentry
   JAVASCRIPT-9: one "Boot failed (timeout): still on the splash after 20000 ms", Android 10,
   Chrome 154, the TWA, La Chorrera, 2026-10-12 (during the v205-v223 burst). The guard's

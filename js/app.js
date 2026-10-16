@@ -38,6 +38,7 @@ import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
 import { CalcUI } from './calc-ui.js';
 import { CoordUI } from './coord-ui.js';
+import { StagesUI } from './stages-ui.js';
 import { OpeningLib } from './opening-lib-ui.js';
 import { eloAfter } from './elo.js';
 import { freshState } from './endgame-fresh.js';
@@ -6786,11 +6787,12 @@ function practiceColor(pos) {
   return pos.result === 'loss' ? (toMove === 'w' ? 'b' : 'w') : toMove;
 }
 
-// The seven sibling views inside #screen-endgame (the "Learn" tab).
+// The nine sibling views inside #screen-endgame (the "Learn" tab).
 const VIEWS = [
   'endgame-sections-view',
   'coord-view',
   'learn-lesson-list-view', 'learn-lesson-view',
+  'stage-list-view', 'stage-view',
   'endgame-list-view', 'endgame-positions-view', 'endgame-viewer-view',
 ];
 
@@ -7082,9 +7084,10 @@ export const Endgame = {
     this.solvedAt = (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
   },
 
-  // The Learn screen holds seven sibling views; exactly one is ever visible.
+  // The Learn screen holds nine sibling views; exactly one is ever visible.
   showView(id) {
     if (id !== 'coord-view') CoordUI.stop();   // a Coordinates run ends with its view
+    if (id !== 'stage-view') StagesUI.stop();  // so does a level's pending step
     for (const v of VIEWS) $(v).classList.toggle('hidden', v !== id);
   },
 
@@ -7106,6 +7109,9 @@ export const Endgame = {
       item.innerHTML = `<b>${esc(cat.title[getLang()])}</b><span class="sub">${cat.lessons.length} ${tn('lessons_count', cat.lessons.length)}</span>`;
       item.onclick = () => this.Lessons.openCategory(cat);
       el.appendChild(item);
+      // Fundamentos and the later stage sections (js/stages-ui.js) follow
+      // Basic Checkmates. Their progress is on the phone and never rated.
+      if (cat.id === 'mates') el.append(...StagesUI.sectionItems());
     }
     const endings = document.createElement('button');
     endings.className = 'list-item';
@@ -8808,6 +8814,7 @@ async function main() {
   PulsoUI.init();
   CalcUI.init(engine);
   CoordUI.init();
+  StagesUI.init();
   Masterclass.init();
   Students.init();
   SimulUI.init();
