@@ -8,9 +8,19 @@ import { Chess } from '../vendor/chess.js';
 
 // Did the player's move do what the level asks? `move` is chess.js's verbose
 // move, `after` the position once it is played. `why` names what was missing,
-// for the line the player reads (i18n stage_why_<why>).
-export function levelVerdict(level, move, after) {
+// for the line the player reads (i18n stage_why_<why>). `ply` is where a 'line'
+// level stands in its `line` (0, 2, 4…: White's moves).
+export function levelVerdict(level, move, after, ply = 0) {
   switch (level.goal) {
+    case 'line': {
+      // Only the scripted move solves it. A first move listed in `also` wins
+      // the same with the same tactic: it is not wrong, the player is asked
+      // to find the other one (Adrian, 2026-10-16).
+      const uci = move.from + move.to + (move.promotion || '');
+      if (uci === level.line[ply]) return ok();
+      if (ply === 0 && (level.also || []).some(alt => alt[0] === uci)) return no('line_also');
+      return no('line_wrong');
+    }
     case 'check':
       return after.inCheck() ? ok() : no('not_check');
     case 'mate':
@@ -66,6 +76,28 @@ export function punishMove(level, move, after) {
   const caps = after.moves({ verbose: true }).filter(m => m.to === sq);
   const scripted = caps.find(m => m.from + m.to === level.punish);
   const m = scripted || caps.sort((a, b) => VALUE[a.piece] - VALUE[b.piece])[0];
+  return m ? m.from + m.to + (m.promotion || '') : null;
+}
+
+// A 'line' level is solved by White's last scripted move.
+export const lineDone = (level, ply) => ply >= level.line.length - 1;
+
+// White's material minus Black's (Q9 R5 B3 N3 P1, kings left out).
+export function material(chess) {
+  let sum = 0;
+  for (const row of chess.board()) for (const p of row) {
+    if (p && p.type !== 'k') sum += p.color === 'w' ? VALUE[p.type] : -VALUE[p.type];
+  }
+  return sum;
+}
+
+// The opponent's answer to a wrong move in a 'line' level, as uci: the most
+// valuable white piece it can win (one that is not safe), with its cheapest
+// attacker. null when nothing hangs: then the level just resets.
+export function linePunish(after) {
+  const caps = after.moves({ verbose: true }).filter(m => m.captured && !m.flags.includes('e') && !isSafe(after, m.to));
+  caps.sort((a, b) => VALUE[b.captured] - VALUE[a.captured] || VALUE[a.piece] - VALUE[b.piece]);
+  const m = caps[0];
   return m ? m.from + m.to + (m.promotion || '') : null;
 }
 

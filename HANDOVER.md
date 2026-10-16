@@ -9,6 +9,32 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v238: LEARN TAB STAGES, SLICE 3 — TÁCTICA BÁSICA (2026-10-16).** New section
+  "Táctica básica" (after Fundamentos, its own row automatically): Horquilla, Clavada,
+  Pincho, Ataque descubierto, 6 levels each, goal `line`. A level has `line: [uci…]`:
+  White's moves at even indexes, Black's scripted replies at odd ones (they play
+  themselves 700 ms after a right move, `StagesUI.reply`); solved by White's last move
+  (`lineDone`). Adrian's decision (2026-10-16): only the scripted move solves it, BUT "if
+  the same material and same tactic is used, don't punish saying that is wrong, just say
+  that the move also win, but try to find other". So a level lists such first moves in
+  `also: [[uci…]]`; playing one shows "¡También gana!" in green, counts no mistake, no
+  shake, and resets after 2.6 s (`StagesUI.also`). Any other wrong move: if Black can win a
+  white piece that is not safe, it takes it (`linePunish`: most valuable, cheapest
+  attacker; red arrow, Reintentar/Pista as in slice 2), else the plain red why and reset.
+  Pista works on every White move. Tests (`tests/unit/stages.test.js`): a small
+  material search (alpha-beta + captures at the end) proves every line is legal, ends with
+  White ahead after Black takes back what it can, the script is Black's best defence, each
+  `also` line wins exactly as much, and at EVERY White turn no unlisted move wins as much
+  (so a good move is never punished). Mutations (drop the `also`, break a line) fail it.
+  The search makes the test take ~13 s. One `also` level so far: Ataque descubierto 4
+  (Bf3+ scripted, Bg6+ also). Verified headless at 375x667, ES/EN, light/dark, real touch
+  taps: a punished wrong first move + Reintentar, a full line (move, reply plays itself,
+  follow-up), the `also` move then the scripted line (★★★), a wrong second move, Pista on
+  the second move; reduce motion = no shake, no star pop (normal motion shakes on both
+  wrong paths); Fundamentos re-run with the slice-2 driver, unchanged; endgameElo null
+  before and after; no console errors. test:tree 494/494, test:precache OK. NOT yet on
+  Adrian's phone (nor v234, v235).
+
 - **v237: ENDINGS PRACTICE — THE 🖥️ ANALYSIS FOLLOWS THE BOARD (2026-10-16).** Closes
   the "still open" note under v236. Reproduced first (headless Chrome, touch, p12): after
   a book move the lines stayed on the starting position (renumbered wrongly, "2.Ke1");

@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Chess } from '../../vendor/chess.js';
-import { levelVerdict, punishMove, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from '../../js/stages.js';
+import { levelVerdict, punishMove, linePunish, lineDone, material, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from '../../js/stages.js';
 import { STAGE_SECTIONS } from '../../js/stages-data.js';
 
 const play = (fen, uci) => {
@@ -15,6 +15,39 @@ const play = (fen, uci) => {
   const move = c.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
   return { move, after: c };
 };
+const uciOf = m => m.from + m.to + (m.promotion || '');
+
+// A small material search for the 'line' levels: White maximises, Black
+// minimises, mate is worth 1000, and when the depth runs out the side to move
+// may still capture (or must answer a check), so a piece left hanging at the
+// end of a line is seen.
+function search(c, depth, alpha = -1e4, beta = 1e4) {
+  const moves = c.moves({ verbose: true });
+  if (!moves.length) return c.inCheck() ? (c.turn() === 'w' ? -1000 : 1000) : 0;
+  const white = c.turn() === 'w';
+  let best = -1e4 * (white ? 1 : -1);
+  let list = moves;
+  if (depth <= 0 && !c.inCheck()) {
+    best = material(c);   // standing pat
+    if (white ? best >= beta : best <= alpha) return best;
+    list = moves.filter(m => m.captured);
+  }
+  list.sort((a, b) => (b.captured ? 1 : 0) - (a.captured ? 1 : 0));
+  for (const m of list) {
+    c.move(m);
+    const v = search(c, depth - 1, alpha, beta);
+    c.undo();
+    if (white) { best = Math.max(best, v); alpha = Math.max(alpha, v); }
+    else { best = Math.min(best, v); beta = Math.min(beta, v); }
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+// What White's first move is worth if both sides play on as far as the line
+// goes. With a window (alpha, beta) the answer is only exact inside it: below
+// it means "less than beta" (fail-soft), which is all the uniqueness check
+// needs, and it is several times faster (chess.js is slow at making moves).
+const firstMoveWorth = (fen, uci, plies, alpha, beta) => { const c = new Chess(fen); c.move(uci); return search(c, plies - 1, alpha, beta); };
 
 test('check: a checking move passes, a quiet one says why', () => {
   const lv = { fen: '4k3/8/8/8/8/8/8/R3K3 w - - 0 1', goal: 'check' };
@@ -105,6 +138,41 @@ test('draw: insufficient material or stalemate, nothing else', () => {
   assert.equal(levelVerdict(pat, f2.move, f2.after).ok, true);
 });
 
+test('line: White plays the scripted moves in order; a listed alternative says so; anything else says why', () => {
+  // Knight fork: Nc7+ hits king and rook, the king steps away, Nxa8.
+  const lv = { fen: 'r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1', goal: 'line', line: ['b5c7', 'e8d7', 'c7a8'], also: [['b5d6', 'e8d7', 'd6b7']] };
+  const c = new Chess(lv.fen);
+  let r = c.move('b5c7');
+  assert.deepEqual(levelVerdict(lv, r, c, 0), { ok: true, why: null });
+  assert.equal(lineDone(lv, 0), false);
+  c.move('e8d7');
+  r = c.move('c7a8');
+  assert.deepEqual(levelVerdict(lv, r, c, 2), { ok: true, why: null });
+  assert.equal(lineDone(lv, 2), true);
+  const alt = play(lv.fen, 'b5d6');
+  assert.deepEqual(levelVerdict(lv, alt.move, alt.after, 0), { ok: false, why: 'line_also' });
+  const idle = play(lv.fen, 'e1d1');
+  assert.deepEqual(levelVerdict(lv, idle.move, idle.after, 0), { ok: false, why: 'line_wrong' });
+  // A listed alternative only counts as the first move.
+  const c2 = new Chess(lv.fen); c2.move('b5c7'); c2.move('e8d7'); r = c2.move('c7b5');
+  assert.deepEqual(levelVerdict(lv, r, c2, 2), { ok: false, why: 'line_wrong' });
+});
+
+test('line punish: Black takes the most valuable piece left en prise, never a guarded one for free', () => {
+  // Wrong move Rd1-d4: the rook hangs to the queen; the knight on a5 is attacked
+  // too, but the b4 pawn guards it, so taking it would cost the queen.
+  const after = play('3q2k1/8/8/N7/1P6/8/8/3R2K1 w - - 0 1', 'd1d4').after;
+  assert.equal(linePunish(after), 'd8d4');
+  // Nothing hangs: no punish, the level just resets.
+  const quiet = play('6k1/8/8/8/8/8/5PPP/6K1 w - - 0 1', 'g1f1').after;
+  assert.equal(linePunish(quiet), null);
+});
+
+test('material counts White minus Black, kings left out', () => {
+  assert.equal(material(new Chess('r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1')), -2);
+  assert.equal(material(new Chess('4k3/8/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1')), 39);
+});
+
 test('stars: first try 3, one mistake 2, more 1, a hint 1', () => {
   assert.equal(levelStars(0, false), 3);
   assert.equal(levelStars(1, false), 2);
@@ -157,6 +225,50 @@ test('every level: legal, White to move, in check only when it must be, solved b
         // Black, who is not to move, may not be standing in check.
         const parts = lv.fen.split(' ');
         assert.equal(new Chess([parts[0], 'b', '-', '-', '0', '1'].join(' ')).inCheck(), false, `${where}: Black in check`);
+        if (lv.goal === 'line') {
+          // White's moves at even indexes, Black's scripted replies at odd ones,
+          // and the line ends on White's move.
+          assert.equal(lv.line.length % 2, 1, `${where}: a line ends on White's move`);
+          const end = new Chess(lv.fen);
+          lv.line.forEach((uci, k) => {
+            const mv = end.move(uci);   // throws on an illegal move
+            if (k % 2 === 0) {
+              assert.deepEqual(levelVerdict(lv, mv, end, k), { ok: true, why: null }, `${where} move ${k + 1}`);
+              assert.equal(lineDone(lv, k), k === lv.line.length - 1, `${where} move ${k + 1}`);
+            }
+          });
+          // White ends up ahead, and stays ahead once Black has taken back what
+          // it can: what the line wins is what the search says the first move wins.
+          const won = search(end, 0);
+          assert.ok(won > material(new Chess(lv.fen)), `${where}: White is not ahead at the end`);
+          const worth = firstMoveWorth(lv.fen, lv.line[0], lv.line.length);
+          assert.equal(won, worth, `${where}: Black has a better defence than the script (${won} vs ${worth})`);
+          // Every listed alternative also wins exactly that much...
+          const also = (lv.also || []).map(alt => {
+            const c2 = new Chess(lv.fen);
+            alt.forEach(u => c2.move(u));
+            assert.equal(search(c2, 0), won, `${where}: alternative ${alt[0]} wins a different amount`);
+            assert.equal(firstMoveWorth(lv.fen, alt[0], lv.line.length), won, `${where}: alternative ${alt[0]} has a better defence`);
+            return alt[0];
+          });
+          // ...and at every White turn no unlisted move wins as much: a good move
+          // is never punished.
+          const at = new Chess(lv.fen);
+          for (let k = 0; k < lv.line.length; k += 2) {
+            const fen = at.fen(), plies = lv.line.length - k;
+            const best = firstMoveWorth(fen, lv.line[k], plies);
+            for (const m of at.moves({ verbose: true })) {
+              const u = uciOf(m);
+              if (u === lv.line[k] || (k === 0 && also.includes(u))) continue;
+              assert.ok(firstMoveWorth(fen, u, plies, best - 1, best) < best, `${where} move ${k + 1}: ${m.san} wins as much as the line`);
+            }
+            at.move(lv.line[k]);
+            if (k + 1 < lv.line.length) at.move(lv.line[k + 1]);
+          }
+          assert.ok(lv.say && lv.say.es && lv.say.en, `${where}: Kael names the tactic`);
+          levels++;
+          return;
+        }
         const { move, after } = play(lv.fen, lv.solution);
         assert.deepEqual(levelVerdict(lv, move, after), { ok: true, why: null }, where);
         if (lv.goal === 'escape') {

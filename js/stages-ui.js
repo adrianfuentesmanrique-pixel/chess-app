@@ -10,7 +10,7 @@ import * as db from './db.js';
 import { Sound } from './sound.js';
 import { Chess } from '../vendor/chess.js';
 import { STAGE_SECTIONS } from './stages-data.js';
-import { levelVerdict, punishMove, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from './stages.js';
+import { levelVerdict, punishMove, linePunish, lineDone, levelStars, recordLevel, stageStars, sectionSummary, nextStageIdx, firstOpenLevel, cleanProgress } from './stages.js';
 import { $, modal, esc, Endgame, Streak } from './app.js';
 
 const PROGRESS_KEY = 'learnProgress';
@@ -27,6 +27,7 @@ export const StagesUI = {
   levelIdx: 0,
   mistakes: 0,
   hinted: false,
+  ply: 0,               // a 'line' level: index of White's next move in `line`
   busy: false,          // a wrong move is on the board, or the level is solved
   timer: null,          // the pending undo / next level / finish sheet
 
@@ -144,6 +145,7 @@ export const StagesUI = {
     this.levelIdx = idx;
     this.mistakes = 0;
     this.hinted = false;
+    this.ply = 0;
     const lv = stage.levels[idx];
     $('stage-title').textContent = L(stage.title);
     this.paintGoal('', t('stage_level').replace('{n}', idx + 1).replace('{m}', stage.levels.length), L(stage.goalText));
@@ -188,12 +190,42 @@ export const StagesUI = {
     const chess = new Chess(this.board.fen);
     let result;
     try { result = chess.move(mv); } catch { return; }
-    const verdict = levelVerdict(lv, result, chess);
+    const verdict = levelVerdict(lv, result, chess, this.ply);
     this.busy = true;
     this.board.interactive = false;
     this.board.setPosition(chess.fen(), { from: result.from, to: result.to });
-    if (verdict.ok) this.solved(result);
+    if (verdict.ok && lv.goal === 'line' && !lineDone(lv, this.ply)) this.reply(result, chess);
+    else if (verdict.ok) this.solved(result);
+    else if (verdict.why === 'line_also') this.also(result);
     else this.wrong(result, verdict.why, chess);
+  },
+
+  // A right move in a 'line' level that is not the last: Black's scripted
+  // reply plays itself, then it is the player's turn again.
+  reply(result, chess) {
+    const lv = this.stage.levels[this.levelIdx];
+    this.board.setShapes({ squares: [{ sq: result.to, color: 'green' }], arrows: [] });
+    this.say('happy', t('stage_line_good'));
+    this.timer = setTimeout(() => {
+      const uci = lv.line[this.ply + 1];
+      const m = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
+      this.board.setPosition(chess.fen(), { from: m.from, to: m.to });
+      this.board.setShapes({ squares: [], arrows: [] });
+      this.ply += 2;
+      this.paintGoal('', t('stage_level').replace('{n}', this.levelIdx + 1).replace('{m}', this.stage.levels.length), t('stage_line_next'));
+      this.say('encouraging', t('stage_line_your_turn'));
+      this.busy = false;
+      this.board.interactive = true;
+    }, 700);
+  },
+
+  // A first move that wins just as much with the same tactic (the level's
+  // `also`): not a mistake, the player is asked to find the scripted one.
+  also(result) {
+    this.board.setShapes({ squares: [{ sq: result.to, color: 'green' }], arrows: [] });
+    this.paintGoal('', t('stage_also_title'), t('stage_why_line_also'));
+    this.say('idea', t('stage_also_kael'));
+    this.timer = setTimeout(() => this.retry(), 2600);
   },
 
   async solved(result) {
@@ -231,7 +263,8 @@ export const StagesUI = {
     this.board.setShapes({ squares: [{ sq: result.to, color: 'red' }], arrows: [] });
     Sound.play('puzzle-wrong');
     // A piece left hanging: the opponent shows why by taking it (mockup c-wrong).
-    const punish = lv.goal === 'save' ? punishMove(lv, result, after) : null;
+    const punish = lv.goal === 'save' ? punishMove(lv, result, after)
+      : lv.goal === 'line' ? linePunish(after) : null;
     if (punish) {
       this.timer = setTimeout(() => this.punish(punish, after), 650);
       return;
@@ -256,7 +289,8 @@ export const StagesUI = {
     const m = after.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
     this.board.setPosition(after.fen(), { from: m.from, to: m.to });
     this.board.setShapes({ squares: [{ sq: m.to, color: 'red' }], arrows: [{ from: m.from, to: m.to, color: 'red' }] });
-    this.paintGoal('bad', t('stage_punish_title').replace('{a}', t('stage_pc_by_' + m.piece)).replace('{b}', t('stage_pc_' + m.captured)), t('stage_punish_what'));
+    const what = this.stage.levels[this.levelIdx].goal === 'line' ? 'stage_punish_line_what' : 'stage_punish_what';
+    this.paintGoal('bad', t('stage_punish_title').replace('{a}', t('stage_pc_by_' + m.piece)).replace('{b}', t('stage_pc_' + m.captured)), t(what));
     this.say('encouraging', t('stage_punish_kael'));
     this.showRetry(true);
     this.shake();
@@ -272,6 +306,7 @@ export const StagesUI = {
     clearTimeout(this.timer);
     const lv = this.stage.levels[this.levelIdx];
     this.busy = false;
+    this.ply = 0;
     this.showRetry(false);
     this.board.setShapes({ squares: [], arrows: [] });
     this.board.setPosition(lv.fen);
@@ -284,7 +319,8 @@ export const StagesUI = {
     if (this.busy) return;
     const lv = this.stage.levels[this.levelIdx];
     this.hinted = true;
-    this.board.setShapes({ squares: [], arrows: [{ from: lv.solution.slice(0, 2), to: lv.solution.slice(2, 4), color: 'green' }] });
+    const uci = lv.goal === 'line' ? lv.line[this.ply] : lv.solution;
+    this.board.setShapes({ squares: [], arrows: [{ from: uci.slice(0, 2), to: uci.slice(2, 4), color: 'green' }] });
     this.say('idea', t('stage_hint_kael'));
   },
 

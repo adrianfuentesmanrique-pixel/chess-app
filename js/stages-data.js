@@ -159,4 +159,108 @@ export const STAGE_SECTIONS = [
       },
     ],
   },
+  // Goal 'line': White plays line[0], line[2]…; Black's scripted replies are
+  // line[1], line[3]… and play themselves. `also` lists other first moves that
+  // win the same with the same tactic: the player is told so and tries again.
+  // The test checks every line wins material against Black's best defence and
+  // that no unlisted move wins as much.
+  {
+    id: 'tactics',
+    title: { es: 'Táctica básica', en: 'Basic tactics' },
+    blurb: { es: 'Horquilla, clavada, pincho, ataque descubierto', en: 'Fork, pin, skewer, discovered attack' },
+    stages: [
+      {
+        id: 'fork',
+        title: { es: 'Horquilla', en: 'Fork' },
+        intro: {
+          es: 'Una horquilla es una jugada que ataca dos piezas a la vez. El rival solo puede salvar una, y te comes la otra. El caballo es el rey de las horquillas, pero cualquier pieza puede hacerlas. Tú juegas, el negro responde solo, y tú rematas.',
+          en: 'A fork is one move that attacks two pieces at once. Your opponent can only save one, and you take the other. The knight is the master of forks, but any piece can make one. You move, Black answers by itself, and you finish it off.',
+        },
+        goalText: { es: 'Ataca dos piezas a la vez y gana una', en: 'Attack two pieces at once and win one' },
+        levels: [
+          { fen: 'r3k3/5ppp/8/1N6/8/8/5PPP/6K1 w - - 0 1', goal: 'line', line: ['b5c7', 'e8d7', 'c7a8'],
+            say: { es: 'Horquilla: el caballo atacó al rey y a la torre. El rey tuvo que moverse y la torre cayó.', en: 'Fork: the knight hit the king and the rook. The king had to move and the rook fell.' } },
+          { fen: '3q4/6kp/8/8/3N4/8/5PPP/6K1 w - - 0 1', goal: 'line', line: ['d4e6', 'g7g8', 'e6d8'],
+            say: { es: 'Horquilla de caballo al rey y a la dama: la dama es tuya.', en: 'A knight fork on king and queen: the queen is yours.' } },
+          { fen: 'r5k1/7p/6p1/8/8/8/6PP/3Q2K1 w - - 0 1', goal: 'line', line: ['d1d5', 'g8h8', 'd5a8'],
+            say: { es: 'La dama también hace horquillas: jaque al rey y ataque a la torre en la misma jugada.', en: 'The queen forks too: check to the king and an attack on the rook in one move.' } },
+          { fen: '3q3k/5ppp/8/6N1/8/8/5PPP/6K1 w - - 0 1', goal: 'line', line: ['g5f7', 'h8g8', 'f7d8'],
+            say: { es: 'El caballo comió un peón con jaque y atacó a la dama a la vez: horquilla.', en: 'The knight took a pawn with check and hit the queen at the same time: a fork.' } },
+          { fen: 'r5k1/p5pp/2n1n3/8/3P4/8/5PPP/6K1 w - - 0 1', goal: 'line', line: ['d4d5', 'c6d8', 'd5e6'],
+            say: { es: 'Horquilla de peón contra los dos caballos. El negro salvó uno y protegió al otro, pero cambiaste un peón por un caballo.', en: 'A pawn fork on both knights. Black saved one and guarded the other, but you traded a pawn for a knight.' } },
+          { fen: 'r3k3/p4ppp/q7/3N4/8/8/5PPP/6K1 w - - 0 1', goal: 'line', line: ['d5c7', 'e8f8', 'c7a6'],
+            say: { es: '¡Horquilla triple! Rey, dama y torre atacados: te llevas la dama, la más valiosa.', en: 'A triple fork! King, queen and rook attacked: you take the queen, the most valuable.' } },
+        ],
+      },
+      {
+        id: 'pin',
+        title: { es: 'Clavada', en: 'Pin' },
+        intro: {
+          es: 'Una pieza clavada no puede moverse sin dejar atacado a su rey, que está detrás. Clávala y aprovéchalo: si es la dama, el rival la pierde a cambio de tu pieza; si es otra, atácala otra vez o cómetela.',
+          en: 'A pinned piece cannot move without exposing the king behind it. Pin it and cash in: if it is the queen, your opponent loses it for your piece; if not, attack it again or take it.',
+        },
+        goalText: { es: 'Clava una pieza y gana material', en: 'Pin a piece and win material' },
+        levels: [
+          { fen: '4k3/ppp2ppp/8/4q3/8/8/PPP2PPP/R4K2 w - - 0 1', goal: 'line', line: ['a1e1', 'e5e1', 'f1e1'],
+            say: { es: 'Clavada: la dama no podía salir de la columna sin dejar al rey en jaque. Se cambió por tu torre: vas ganando.', en: 'Pin: the queen could not leave the file without exposing the king. It went for your rook: you are ahead.' } },
+          { fen: '4k3/pp1q1ppp/8/8/P7/8/1PP2PPP/4KB2 w - - 0 1', goal: 'line', line: ['f1b5', 'd7b5', 'a4b5'],
+            say: { es: 'El alfil clavó la dama contra el rey. Dama por alfil: un gran negocio.', en: 'The bishop pinned the queen to the king. Queen for bishop: a great deal.' } },
+          { fen: '8/4q2k/1P4pp/8/8/8/6PP/R5K1 w - - 0 1', goal: 'line', line: ['a1a7', 'e7a7', 'b6a7'],
+            say: { es: 'Clavada en la fila: la dama no podía escapar, y tu peón protegía la torre.', en: 'A pin along the rank: the queen could not escape, and your pawn guarded the rook.' } },
+          { fen: '3q3k/7p/5rp1/8/8/2P1B3/6PP/6K1 w - - 0 1', goal: 'line', line: ['e3d4', 'd8f8', 'd4f6'],
+            say: { es: 'La torre clavada no pudo huir: alfil por torre.', en: 'The pinned rook could not run away: bishop for rook.' } },
+          { fen: '8/5kpp/8/3r4/8/8/5PPP/3B2K1 w - - 0 1', goal: 'line', line: ['d1b3', 'f7e6', 'b3d5'],
+            say: { es: 'La torre quedó clavada contra el rey. El rey la defendió, pero igual cambias alfil por torre.', en: 'The rook was pinned to the king. The king guarded it, but you still trade a bishop for a rook.' } },
+          { fen: '4k3/1p3ppp/2n5/1B6/3P4/8/5PPP/4K3 w - - 0 1', goal: 'line', line: ['d4d5', 'e8d7', 'd5c6'],
+            say: { es: 'El caballo estaba clavado y no podía huir del peón. Peón por caballo.', en: 'The knight was pinned and could not run from the pawn. A pawn for a knight.' } },
+        ],
+      },
+      {
+        id: 'skewer',
+        title: { es: 'Pincho', en: 'Skewer' },
+        intro: {
+          es: 'El pincho es una clavada al revés: atacas una pieza valiosa y, cuando se aparta, te comes la que estaba detrás. Lo hacen la torre, el alfil y la dama, en línea recta.',
+          en: 'A skewer is a pin turned around: you attack a valuable piece, and when it steps aside you take the one behind it. Rooks, bishops and queens do it, along a straight line.',
+        },
+        goalText: { es: 'Ataca la pieza de delante y gana la de atrás', en: 'Attack the front piece and win the one behind' },
+        levels: [
+          { fen: '8/8/8/3k3r/8/8/5PPP/R5K1 w - - 0 1', goal: 'line', line: ['a1a5', 'd5c6', 'a5h5'],
+            say: { es: 'Pincho: el rey tuvo que apartarse y la torre de detrás quedó sola.', en: 'Skewer: the king had to step aside and the rook behind it was left alone.' } },
+          { fen: '4q3/8/8/4k3/8/8/5PPP/R5K1 w - - 0 1', goal: 'line', line: ['a1e1', 'e5d6', 'e1e8'],
+            say: { es: 'Pincho en la columna: jaque al rey, y detrás estaba la dama.', en: 'A skewer on the file: check to the king, and the queen was behind it.' } },
+          { fen: 'q7/8/8/3k4/8/8/4B1PP/6K1 w - - 0 1', goal: 'line', line: ['e2f3', 'd5d6', 'f3a8'],
+            say: { es: 'Pincho de alfil en la diagonal: el rey se aparta y la dama cae.', en: 'A bishop skewer on the diagonal: the king steps aside and the queen falls.' } },
+          { fen: '7r/8/5k2/8/8/4B3/5PPP/6K1 w - - 0 1', goal: 'line', line: ['e3d4', 'f6e7', 'd4h8'],
+            say: { es: 'Pincho con jaque: el rey no podía quedarse en la diagonal, y la torre de detrás cayó.', en: 'A skewer with check: the king could not stay on the diagonal, and the rook behind it fell.' } },
+          { fen: 'r7/8/2k5/8/8/8/5PPP/4Q1K1 w - - 0 1', goal: 'line', line: ['e1e4', 'c6c7', 'e4a8'],
+            say: { es: 'La dama también hace pinchos: jaque al rey y la torre detrás.', en: 'The queen skewers too: check to the king, rook behind it.' } },
+          { fen: '5q2/8/3k4/8/8/8/5PPP/Q5K1 w - - 0 1', goal: 'line', line: ['a1a3', 'd6c7', 'a3f8'],
+            say: { es: 'Pincho de dama a través del rey: el rey se aparta y te comes su dama.', en: 'A queen skewer through the king: it steps aside and you take its queen.' } },
+        ],
+      },
+      {
+        id: 'discovered',
+        title: { es: 'Ataque descubierto', en: 'Discovered attack' },
+        intro: {
+          es: 'Cuando una pieza se aparta, puede destapar el ataque de otra que estaba detrás. Si además la pieza que se mueve da jaque o ataca algo, el rival no puede atender las dos cosas.',
+          en: 'When a piece moves out of the way, it can uncover an attack by the piece behind it. If the moving piece also gives check or attacks something, your opponent cannot deal with both.',
+        },
+        goalText: { es: 'Mueve una pieza y destapa un ataque', en: 'Move one piece to uncover an attack' },
+        levels: [
+          { fen: '4k3/5ppp/q2p4/8/4N3/8/5PPP/4R1K1 w - - 0 1', goal: 'line', line: ['e4c5', 'e8d8', 'c5a6'],
+            say: { es: 'Jaque descubierto: el caballo se apartó atacando la dama, y la torre de detrás dio jaque.', en: 'Discovered check: the knight stepped away attacking the queen, and the rook behind it gave check.' } },
+          { fen: '4k3/5ppp/8/q1p1B3/8/8/5PPP/4R1K1 w - - 0 1', goal: 'line', line: ['e5c3', 'e8f8', 'c3a5'],
+            say: { es: 'El alfil se apartó con jaque de la torre y atacó la dama. El rey tuvo que moverse.', en: 'The bishop stepped away with check from the rook and hit the queen. The king had to move.' } },
+          { fen: '5k1q/7p/6p1/8/3N4/8/1B3PPP/6K1 w - - 0 1', goal: 'line', line: ['d4e6', 'f8g8', 'b2h8'],
+            say: { es: 'El caballo dio jaque y destapó el alfil sobre la dama: dos ataques en una jugada.', en: 'The knight gave check and uncovered the bishop on the queen: two attacks in one move.' } },
+          { fen: '4k3/ppp5/8/7q/4B3/8/5PPP/4R1K1 w - - 0 1', goal: 'line', line: ['e4f3', 'e8f8', 'f3h5'], also: [['e4g6', 'e8f8', 'g6h5']],
+            say: { es: 'Jaque descubierto: la torre da jaque y el alfil ataca la dama. El negro solo puede atender el jaque.', en: 'Discovered check: the rook gives check and the bishop hits the queen. Black can only deal with the check.' } },
+          { fen: '6k1/3q1ppp/8/8/8/3B4/5PPP/3R2K1 w - - 0 1', goal: 'line', line: ['d3h7', 'g8h7', 'd1d7'],
+            say: { es: 'El alfil comió con jaque y destapó la torre: la dama quedó atacada sin tiempo para huir.', en: 'The bishop captured with check and uncovered the rook: the queen was attacked with no time to escape.' } },
+          { fen: '4k3/2r2ppp/3n4/4P3/8/8/5PPP/4R1K1 w - - 0 1', goal: 'line', line: ['e5d6', 'e8d7', 'd6c7'],
+            say: { es: 'Un peón también descubre: comió el caballo con jaque de la torre, y después se comió la torre negra.', en: 'A pawn can uncover too: it took the knight while the rook gave check, then took the black rook.' } },
+        ],
+      },
+    ],
+  },
 ];
