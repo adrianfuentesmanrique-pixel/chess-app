@@ -9,6 +9,20 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v241: A CRASHED ENGINE NO LONGER KEEPS ITS MEMORY (2026-10-16).** Tester on v237
+  (Adrian's words): "whenever you make a mistake, it freeze again the app, all the app",
+  with 🖥️ on, nothing responds; screenshot on m5 (V.Bron 1955) at the start position.
+  NOT reproduced on a PC: m5, 🖥️ on, 20 wrong moves, CPU slowed 4-6x, page answered in
+  <10 ms, board and Volver worked by touch, no cover over the screen, memory flat.
+  Found on the way: `Engine._handleCrash` (js/engine.js) dropped a faulted worker
+  WITHOUT terminating it, so each crash kept ~130 MB (632 → 1018 MB in six wrong moves
+  when crashes were forced). Now it terminates it; with forced crashes memory stayed
+  flat (637 → 568 MB). The shipped two-line analysis also crashed once on its own in
+  the tests ("RuntimeError: unreachable"), so the leak was reachable in v237 — the
+  likely cause of the freeze, NOT proven on a phone. Tried and REVERTED: one-line
+  analysis in practice to avoid the worker swaps — reusing a worker after
+  `go infinite` crashed this build on every wrong move. NOT yet confirmed on a phone.
+
 - **v240: PRINCIPIOS DE APERTURA SPLIT INTO FOUR STEPS (2026-10-16).** Adrian asked to
   divide development in two: step 2 "Piezas menores" (was "Desarrollo"; id `development`
   kept so progress survives) and a new step 4 after Enroque, "Piezas mayores" (id

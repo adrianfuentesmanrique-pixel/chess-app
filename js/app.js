@@ -7235,6 +7235,10 @@ export const Endgame = {
     $('endgame-engine-lines').innerHTML = `<div class="engine-line">${t('loading')}</div>`;
     if (this.mode === 'practice' && this.thinking) return;
     engine.onLine = lines => this.showLines(lines);
+    // Two lines here, one for practice's own searches: engine.js starts a new
+    // worker at each switch. Do not "save" that by analysing with one line in
+    // practice — reusing a worker after `go infinite` crashed this build
+    // ("RuntimeError: unreachable") on every wrong move (tried 2026-10-16).
     engine.analyse(this.board.fen, 2).catch(() => {});
     // See Analysis.restartEngine — guards a worker that spawns but never
     // emits a line (no crash event fires, so nothing else would notice).

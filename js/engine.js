@@ -59,6 +59,10 @@ export class Engine {
   }
 
   _handleCrash() {
+    // A faulted worker still holds its engine memory (~130 MB measured on a
+    // PC) until it is terminated. Left alive, every crash added another one:
+    // 632 → 1018 MB in six wrong moves (2026-10-16), enough to freeze a phone.
+    if (this.worker) this.worker.terminate();
     this.ready = null;
     this.worker = null;
     this.analysing = false;
