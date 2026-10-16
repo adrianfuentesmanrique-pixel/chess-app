@@ -53,7 +53,7 @@ are in `CLAUDE.md` under "Finish by pushing".
   ON ADRIAN'S PHONE (Play-signed, CTC in Brave), his report + screenshot: the Kael widget
   linked itself and showed 16 days lit (cheering Kael, dark), Profile also 16; the wide
   layout works; a tap opens CTC with no address bar; "Open with" a PGN lands in Bases.
-  The 1x1 was not re-tested on the phone (same code path, emulator-verified).
+  The 1x1 also shows on the phone (Adrian, 2026-10-15). DONE - nothing owed.
 
 - **CHAPTER HOMEWORK PRACTICE MODE (2026-10-15, v230).** The teacher can assign a
   Masterclass chapter to be PLAYED from memory instead of stepped through.
