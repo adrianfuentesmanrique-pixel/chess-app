@@ -49,3 +49,7 @@ __test-book.pdf
 # downloaded previews they were cut from. What shipped, and from where, is
 # written in docs/sound-sources.md.
 sounds-candidates/
+
+# Instagram launch content (images, videos, captions): kept on this PC only,
+# out of the repo so the website never publishes it. See marketing/instagram/captions.md.
+marketing/
