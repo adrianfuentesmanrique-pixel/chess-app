@@ -9,6 +9,22 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **SIMULS: THE FIRST RUN ON REAL PHONES (2026-10-13 to 10-15, no version bump).** Checklist
+  `docs/plans/2026-10-13-simul-real-phones.md` (4 checks, 30 steps, two simuls: no clock,
+  then 10+5). `rules:deploy` run by Adrian first (he was not sure it had been after v204).
+  The teacher's phone was on the new code (Puzzles' "Siguiente" in the bar, "How does it
+  work?" in Simultáneas); Kael's card showed once. The picker listed ONE student
+  (Velociraptorblue). Adrian then ran the rest himself: "the test have being carried out,
+  no issued founded". **PASS on his word**: no per-step detail reached Claude (which
+  place the WhatsApp link opened in, whether a second student was added for "Otros"), and
+  by the standing rule no further run is proposed. No code changed. The three readings
+  were asked: the exact-instant move is too late (KEPT), the draw-offer limit is 10 moves
+  by each side (KEPT), and **a flag is now to be a DRAW when the side with time left cannot
+  mate** (Adrian's choice, NOT BUILT: it changes `firestore.rules` line ~1383, which today
+  requires `winner` = the other side, `js/simul.js` `mayClaimFlag`/`timeLeft`, the words,
+  the rules tests and the tool; its own task). Noted: the app shows its version nowhere,
+  so a phone's version can only be told from a feature.
+
 - **KAEL STREAK WIDGET + WIDGETS LINK THEMSELVES (2026-10-15, web v227, app 1.0.6 / code 8).**
   Supersedes the copy-and-paste parts of the two widget entries below (Profile code box,
   Paste screen, "lost code" state): ADRIAN DECIDED no user should ever copy a code.
@@ -809,9 +825,10 @@ are in `CLAUDE.md` under "Finish by pushing".
     A refusal by the rules is asked for: a signed-in user who was not invited cannot read
     a board nor ask for the boards that name Ana.
   - **Not asked for**: none built. HANDOVER's "Still to do" had no simul line to strike.
-    **Still owed**: nobody has run a simul on a real phone or against the real database
+    **Still owed**: ~~nobody has run a simul on a real phone or against the real database
     (v203 to v209), the link has not been opened from WhatsApp, and the three readings
-    of conversation 6 are still unasked. Kael's "next mission" bubble over a live simul
+    of conversation 6 are still unasked~~ (DONE 2026-10-15, see "SIMULS: THE FIRST RUN
+    ON REAL PHONES"). Kael's "next mission" bubble over a live simul
     board is still its own task.
 - **PUZZLE TAB: THE NEXT BUTTON (2026-10-13, v208).** No spec; Adrian chose from four
   measured mock-ups. The small arrow at the end of `#puzzle-actions` is gone. `#puzzle-next`
@@ -949,8 +966,9 @@ are in `CLAUDE.md` under "Finish by pushing".
   - **History**: a timed game carries `timeControl` and the PGN `[TimeControl "600+5"]`,
     and the card shows "Simultánea · 10+5". A game lost on time is kept as ending when the
     flag fell (the last move's stamp plus what the loser had left), not at the last move.
-  - **Readings of mine Adrian has still not been asked about** (the rules enforce all
-    three): a move at the exact instant the time runs out is too late; a flag is a loss
+  - **Readings of mine** (ASKED 2026-10-15: the first and third KEPT, the flag CHANGED to
+    "a draw if the side with time left cannot mate", not built yet) (the rules enforce all
+    three as written here): a move at the exact instant the time runs out is too late; a flag is a loss
     whatever the other side has left; the draw-offer limit is 10 moves by each side.
   - **Limits, said plainly.** The teacher's phone claims a student's flag only while the
     Simultáneas screen is open; if the teacher is elsewhere and the student's app is

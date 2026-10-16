@@ -49,9 +49,12 @@ the top of `js/simul.js`: `t`, `s`, `cls`, `status`, `invitedAt`, `startAt`,
 `[a-h][1-8][a-h][1-8][qrbn-]`. The clock of 3d is exact in arithmetic
 (`settle()`, and `refereeMove()` in the test file is the rule to write);
 conversation 2 proved that `firestore.rules` can express it. Three
-readings of mine that Adrian has not been asked about: the draw-offer limit
-counts 10 moves by each side (20 single moves); a move at the exact instant the
-time runs out is too late; a flag is a loss whatever the other side has left.
+readings of mine, ASKED 2026-10-15: the draw-offer limit counts 10 moves by
+each side (20 single moves): KEPT; a move at the exact instant the time runs
+out is too late: KEPT; a flag is a loss whatever the other side has left:
+CHANGED by Adrian to "a draw if the side with time left cannot mate" (not yet
+built). First real-phone run against the live database: passed on Adrian's
+word, 2026-10-15 (`docs/plans/2026-10-13-simul-real-phones.md`).
 
 What follows is the design as written on 2026-10-11. The code was read at
 commit `568857c` (cache v188); while this was being written another session
