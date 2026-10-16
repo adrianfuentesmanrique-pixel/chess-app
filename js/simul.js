@@ -364,6 +364,21 @@ export function mayClaimFlag(g, who, nowMs) {
   return (who === 't' || who === 's') && flagged(g, nowMs) !== null;
 }
 
+// The winner on a flag of `g`, the side to move being the one out of time:
+// the other side, or 'draw' when the other side cannot mate (Adrian,
+// 2026-10-15: a bare king, or a king and ONE knight or ONE bishop; two knights
+// still win). Read from the position the stored moves reached, so the phones
+// of both players come to the same answer. Moves that do not play give the
+// plain flag; that board is voided anyway.
+export function flagResult(g) {
+  const out = sideToMove(g), winner = other(out);
+  const p = positionOf(g);
+  if (!p.ok) return winner;
+  const colour = winner === 't' ? g.tc : flip(g.tc);
+  const kept = p.chess.board().flat().filter(sq => sq && sq.color === colour && sq.type !== 'k');
+  return kept.length === 0 || (kept.length === 1 && (kept[0].type === 'n' || kept[0].type === 'b')) ? 'draw' : winner;
+}
+
 // The fields `who`'s move writes, beside `at` (the server's stamp) and, when
 // this move ends the game, status / winner / reason. null if it is not a live
 // game, not their turn, or not a well-formed move. Whether the move is legal

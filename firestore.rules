@@ -1379,11 +1379,14 @@ service cloud.firestore {
                  || (d.reason == 'agreed' && d.winner == 'draw'
                      && old.draw != null && old.draw != who)
                  // The flag: the side to move is out of time by server time.
-                 // Either player may claim it, the loser included.
+                 // Either player may claim it, the loser included. The other
+                 // side wins, or it is a draw when the other side cannot mate
+                 // (the phone decides that, as it does a mate; never a win for
+                 // the side that ran out).
                  || (d.reason == 'flag' && old.base > 0
                      && request.time.toMillis() - old.at.toMillis()
                           >= old[simulTurn(old) == 't' ? 'tMs' : 'sMs']
-                     && d.winner == (simulTurn(old) == 't' ? 's' : 't'))))
+                     && d.winner in [(simulTurn(old) == 't' ? 's' : 't'), 'draw'])))
             // Void: no winner, and who did it is on the record.
             || (keys.hasOnly(['status', 'reason', 'by'])
                 && d.reason == 'void' && d.by == who)

@@ -23,8 +23,8 @@ import * as db from './db.js';
 import { mergeSolved, solvedNewer } from './endgame-fresh.js';
 import { PULSO, applySolve, applyMistake, decideResult, unpackIds, clockOffset } from './pulso.js';
 import {
-  SIMUL, startClocks, checkStart, positionOf, tryMove, packMove, moveWrite, inTime, flagged,
-  mayClaimFlag, resultOf, mayOfferDraw, inviteOpen, mayReplace, voidable,
+  SIMUL, startClocks, checkStart, positionOf, tryMove, packMove, moveWrite, inTime,
+  mayClaimFlag, flagResult, resultOf, mayOfferDraw, inviteOpen, mayReplace, voidable,
 } from './simul.js';
 
 const firebaseConfig = {
@@ -1293,14 +1293,16 @@ export async function resignSimul(id) {
 
 // The side to move is out of time by server time. Either phone may send it,
 // the loser's included, and both will: the second is quietly refused. 'early':
-// by this phone's reckoning there is time left, and nothing is written.
+// by this phone's reckoning there is time left, and nothing is written. A draw
+// when the other side cannot mate: both phones read it from the same stored
+// moves (flagResult).
 export async function claimSimulFlag(id) {
   const g = simulMine(id);
   if (!auth.currentUser || !g || g.status !== 'live') return simulNo('gone');
   const now = simulServerNow();
   if (!mayClaimFlag(g, g.me, now)) return simulNo('early');
   return await simulWrite(() => updateDoc(simulRef(id), {
-    status: 'done', winner: simulOther(flagged(g, now)), reason: 'flag',
+    status: 'done', winner: flagResult(g), reason: 'flag',
   })) || { ok: true };
 }
 

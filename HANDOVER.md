@@ -9,6 +9,27 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v231: A SIMUL FLAG IS A DRAW WHEN THE OTHER SIDE CANNOT MATE (2026-10-15).** Adrian's
+  reading 2 of the real-phones run, built. ADRIAN DECIDED: "cannot mate" = the side with
+  time left has a bare king, or a king and ONE knight or ONE bishop (no pawns); two knights,
+  B+N, two bishops, a pawn or more still WIN on time (the US/online-site rule; strict FIDE
+  would also make K+N vs K+R a loss, not taken). Wording approved as proposed.
+  `js/simul.js` `flagResult(g)`: the winner on a flag, read from `positionOf(g)` (fen + op +
+  mv, so both phones agree); moves that do not play give the plain flag.
+  `js/firebase.js` `claimSimulFlag` writes it. `firestore.rules` Simul `simulEndOk`: a flag's
+  `winner in [the other side, 'draw']` (trusted like a mate; never a win for the side that
+  ran out) — **rules:deploy needed, run by Adrian before the push**. Words (`js/i18n.js`):
+  `simul_res_flag_draw_out` / `_kept` on the boards, `simul_w_flag_draw` for a watcher,
+  `simul_tile_flag_draw` "⏱ Tablas", History `history_end_timeoutDraw` (its headline; the
+  card's second line is the opening name). `js/simul-ui.js`: History's end time for any flag
+  is the side to move's stored time (it was 0 for a draw). Tests: unit 479 (test:tree),
+  rules 590, tool round 7: Luis's board is seeded to a bare king before the teacher's flag
+  (this replaced the "teacher loses on time" case; Ana's and Eva's still cover a lost flag),
+  both phones' own `flagResult` = 'draw', the words on both boards, the tile, History, and
+  Luis's line at 375x667. The watcher line is not tool-checked.
+  FOUND, NOT FIXED (older than this, same on untouched 5fddd33): at 375x667 the teacher's
+  "Terminar la simultánea" ends at 669 px, 2 px off screen; 6 layout checks of the tool fail.
+
 - **SIMULS: THE FIRST RUN ON REAL PHONES (2026-10-13 to 10-15, no version bump).** Checklist
   `docs/plans/2026-10-13-simul-real-phones.md` (4 checks, 30 steps, two simuls: no clock,
   then 10+5). `rules:deploy` run by Adrian first (he was not sure it had been after v204).

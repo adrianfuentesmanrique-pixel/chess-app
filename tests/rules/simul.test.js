@@ -873,14 +873,31 @@ describe('/simulGames — the flag', () => {
     await assertFails(write(asAna(), flag('t')));
   });
 
-  it('it is the side to move that loses, whatever the other has left', async () => {
+  it('the side to move never wins on its own flag', async () => {
     await seed(G, out());
     await assertFails(write(asTeach(), flag('s')));
     await assertFails(write(asAna(), flag('s')));
-    await assertFails(write(asAna(), flag('draw')));
     // The teacher's stored time is tiny, but it is not the teacher's turn.
     await seed(G, afterOne({ tMs: 1 }));
     await assertFails(write(asAna(), flag('s')));
+    await assertFails(write(asAna(), flag('draw')));
+  });
+
+  // Adrian, 2026-10-15: a draw when the side with time cannot mate. The rules
+  // cannot run chess, so they trust the phone on that, as they do for a mate.
+  it('a draw on the flag: from either player, only once the time is used up', async () => {
+    await seed(G, out());
+    await assertSucceeds(write(asTeach(), flag('draw')));
+    await seed(G, out());
+    await assertSucceeds(write(asAna(), flag('draw')));   // the side that ran out
+    await seed(G, out({ sMs: 15_000 }));
+    await assertFails(write(asTeach(), flag('draw')));
+    await assertFails(write(asAna(), flag('draw')));
+    await seed(G, out({ base: 0, inc: 0, tMs: 0, sMs: 0 }));
+    await assertFails(write(asAna(), flag('draw')));
+    await seed(G, out());
+    await assertFails(write(asLuis(), flag('draw')));
+    await assertFails(write(asAna(), { ...flag('draw'), by: 's' }));
   });
 
   it('never without a clock, never by a classmate, nothing else with it', async () => {

@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import {
   SIMUL, MAX_SIMUL_BOARDS, clockOffset, buildStart, startClocks, packMove, unpackMove,
   unpackMoves, tryMove, replayOpening, checkStart, colourToMove, roleOf, sideToMove,
-  positionOf, settle, timeLeft, inTime, flagged, mayClaimFlag, moveWrite, boardResult,
+  positionOf, settle, timeLeft, inTime, flagged, mayClaimFlag, flagResult, moveWrite, boardResult,
   resultOf, resultHolds, mayOfferDraw, waitingBoards, nextBoard, coloursFor, inviteOpen, shownPosition, voidable,
   mayReplace, replayOpeningOn, openingSans, mirrorSquare, handicapSquares, missingPieces,
 } from '../../js/simul.js';
@@ -481,6 +481,52 @@ test('clock: a finished game stands still; the flagged side shows zero', () => {
   assert.equal(timeLeft(resigned, 's', T0 + 500_000), 601_000);   // their last move: 4 s, + 5 s
   const flag = game({ ...end, winner: 's', reason: 'flag' });
   assert.equal(timeLeft(flag, 't', T0 + 500_000), 0);
+  // A drawn flag: the side that ran out still shows zero, the other its time.
+  const drawn = game({ ...end, winner: 'draw', reason: 'flag' });
+  assert.equal(timeLeft(drawn, 't', T0 + 500_000), 0);
+  assert.equal(timeLeft(drawn, 's', T0 + 500_000), 601_000);
+});
+
+// Adrian, 2026-10-15: running out is a draw when the side with time left has
+// only a king, or a king and ONE knight or ONE bishop. Two knights is a loss.
+test('flag result: the other side wins while it has enough to mate', () => {
+  assert.equal(flagResult(game({ sMs: 10_000, n: 1, mv: 'e2e4-', at: T0 + 5_000, prevAt: T0 })), 't');
+  assert.equal(flagResult(game({ tMs: 3_000, n: 2, mv: 'e2e4-e7e5-', at: T0 + 9_000, prevAt: T0 + 5_000 })), 's');
+});
+
+test('flag result: a draw when the side with time has a bare king, or one knight or one bishop', () => {
+  // The student (Black) is to move and runs out; the teacher (White) has time.
+  const sOut = fen => flagResult(game({ fen: fen + ' b - - 0 1' }));
+  assert.equal(sOut('7k/7q/8/8/8/8/8/K7'), 'draw');
+  assert.equal(sOut('7k/7q/8/8/8/8/8/KN6'), 'draw');
+  assert.equal(sOut('7k/7q/8/8/8/8/8/KB6'), 'draw');
+  assert.equal(sOut('7k/7q/8/8/8/8/8/KNN5'), 't');      // two knights: a loss
+  assert.equal(sOut('7k/7q/8/8/8/8/8/KBB5'), 't');
+  assert.equal(sOut('7k/7q/8/8/8/8/8/KBN5'), 't');
+  assert.equal(sOut('7k/7q/8/8/8/8/P7/K7'), 't');       // a pawn can become a queen
+  assert.equal(sOut('7k/7q/8/8/8/8/8/KR6'), 't');
+  // The teacher (White) to move and out; the student has a bare king or a knight.
+  const tOut = fen => flagResult(game({ fen: fen + ' w - - 0 1' }));
+  assert.equal(tOut('7k/8/8/8/8/8/8/KQ6'), 'draw');
+  assert.equal(tOut('6nk/8/8/8/8/8/8/KQ6'), 'draw');
+  assert.equal(tOut('5nnk/8/8/8/8/8/8/KQ6'), 's');
+  // The teacher as Black: who has time is read by colour, not by role.
+  assert.equal(flagResult(game({ tc: 'b', fen: '7k/7q/8/8/8/8/8/K7 b - - 0 1' })), 'draw');
+  assert.equal(flagResult(game({ tc: 'b', fen: '7k/8/8/8/8/8/8/K6Q b - - 0 1' })), 's');
+});
+
+test('flag result: read from the position the moves reached, not the stored start', () => {
+  // White takes Black's queen, Black's king steps aside, White is to move and out.
+  const g = game({ fen: 'k7/8/8/8/8/K7/8/q5R1 w - - 0 1', mv: pack('g1a1', 'a8b8'), n: 2 });
+  assert.equal(sideToMove(g), 't');
+  assert.equal(flagResult(g), 'draw');
+  assert.equal(sideToMove({ ...g, tc: 'b' }), 's');
+  assert.equal(flagResult({ ...g, tc: 'b' }), 'draw');   // the student, as White, is out
+  assert.equal(flagResult({ ...g, mv: pack('g1a1'), n: 1 }), 't');   // Black out, White has the rook
+});
+
+test('flag result: moves that do not play give the plain flag (the board is voided anyway)', () => {
+  assert.equal(flagResult(game({ fen: '7k/7q/8/8/8/8/8/K7 b - - 0 1', mv: 'zzzzz', n: 1 })), 's');
 });
 
 test('no clock: nothing counts, nothing flags, the stored zeros never change', () => {

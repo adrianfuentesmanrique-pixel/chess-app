@@ -523,6 +523,8 @@ async function screens() {
       clockHint: (m, x) => `${m} minutos para cada jugador en cada tablero, más ${x} segundos por jugada. Quien se queda sin tiempo pierde.`,
       extraHint: (m, b, g) => `Tu reloj corre en todos los tableros a la vez. Así tendrás ${m} minutos en cada tablero y cada alumno ${b}. Sugerido: ${g} (2 minutos por tablero).`,
       flagWon: n => `${n} se quedó sin tiempo. Ganaste.`, flagLost: n => `Se te acabó el tiempo. Gana ${n}.`, tFlagWon: '⏱ Ganada', tFlagLost: '⏱ Perdida',
+      flagDrawOut: n => `Se te acabó el tiempo, pero ${n} no puede dar mate: tablas.`, flagDrawKept: n => `A ${n} se le acabó el tiempo, pero no tienes material para dar mate: tablas.`,
+      tFlagDraw: '⏱ Tablas', histFlagDraw: 'Tablas: tiempo agotado sin mate posible',
       moveLate: 'Se te acabó el tiempo antes de que llegara esa jugada.', lowTime: n => `Te queda menos de 1 minuto en el tablero de ${n}.`, autoShort: 'Auto',
       opNone: 'Sin apertura', opOwn: 'Tus jugadas', opLabel: 'Apertura', opNothing: 'Ninguna apertura con ese nombre.',
       opOver: 'Esa jugada termina la partida: una apertura no puede acabar en mate ni en tablas.', whole: 'Tablero completo', less: 'Sin:', lessMe: 'Juegas sin:',
@@ -555,6 +557,8 @@ async function screens() {
       clockHint: (m, x) => `${m} minutes for each player on every board, plus ${x} seconds a move. Whoever runs out of time loses.`,
       extraHint: (m, b, g) => `Your clock runs on every board at once. This gives you ${m} minutes on each board and each student ${b}. Suggested: ${g} (2 minutes a board).`,
       flagWon: n => `${n} ran out of time. You won.`, flagLost: n => `You ran out of time. ${n} wins.`, tFlagWon: '⏱ Won', tFlagLost: '⏱ Lost',
+      flagDrawOut: n => `You ran out of time, but ${n} can't checkmate: draw.`, flagDrawKept: n => `${n} ran out of time, but you can't checkmate: draw.`,
+      tFlagDraw: '⏱ Draw', histFlagDraw: 'Draw: out of time, no mate possible',
       moveLate: 'Your time ran out before that move arrived.', lowTime: n => `You have less than 1 minute left on ${n}’s board.`, autoShort: 'Auto',
       opNone: 'No opening', opOwn: 'Your moves', opLabel: 'Opening', opNothing: 'No opening with that name.',
       opOver: 'That move ends the game: an opening cannot end in mate or a draw.', whole: 'Full board', less: 'Without:', lessMe: 'You play without:',
@@ -1536,20 +1540,41 @@ async function screens() {
       await teach.shot(`${tag}-55-teacher-low-tile`);
 
       // The teacher's flag, really waited out: 6 seconds left, and nobody moves.
+      // Rules bypassed: Luis is down to a bare king (the teacher's army whole,
+      // so no handicap shows), two moves played. Adrian, 2026-10-15: running
+      // out against a side that cannot mate is a draw. Both phones claim it.
+      const BARE = '4k3/8/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ - 0 1';
       l = await stored(`simulGames/${TL}`);
+      await seed(`simulGames/${TL}`, { fen: BARE, op: '', mv: 'd2d4-e8d7-' });
+      const bareFen = (() => { const c = new Chess(BARE); c.move('d4'); c.move('Kd7'); return c.fen().split(' ')[0]; })();
+      await luis.until('his bare king', `__t.fen() === ${JSON.stringify(bareFen)}`);
       let due = Date.now() + 6000;
       await seed(`simulGames/${TL}`, { tMs: due - l.at });
       l = await waitStored(TL, g => g.status === 'done', 'the teacher\'s flag');
       let took = Date.now() - due;
-      await luis.until('said on his phone', stat('Marta · ' + w.flagWon('Marta')));
-      await teach.until('on the tile', `__t.tiles()[2][1] === ${JSON.stringify(w.tFlagLost)}`);
+      await luis.until('said on his phone', stat('Marta · ' + w.flagDrawKept('Marta')));
+      await teach.until('on the tile', `__t.tiles()[2][1] === ${JSON.stringify(w.tFlagDraw)}`);
       await teach.tap(TILE(3));
-      await teach.until('said on the teacher\'s', stat('Luis · ' + w.flagLost('Luis')));
+      await teach.until('said on the teacher\'s', stat('Luis · ' + w.flagDrawOut('Luis')));
       ct = await clocks(teach); cl = await clocks(luis);
-      check(`[${tag}] the teacher's time on Luis's board ran out while they were on another: the flag is claimed only once it has fallen (${took} ms after), stored as Luis's win on time with the moves untouched; Luis reads "${w.flagWon('Marta')}", the teacher "${w.flagLost('Luis')}", the tile "${w.tFlagLost}", the clock 0:00 on both phones`,
-        same(result(l), ['done', 's', 'flag', null]) && l.n === 2 && took >= 0 && took < 4000 && ct.me.text === '0:00' && cl.them.text === '0:00' && !ct.me.run && !cl.them.run, [result(l), took, ct, cl]);
-      await teach.shot(`${tag}-56-teacher-flag-lost`);
-      await luis.shot(`${tag}-57-student-flag-won`);
+      // What each phone's own copy of the board gives: the same draw, so the
+      // claim that comes second is the one refused, not a different result.
+      const own = p => p.ev(`const s = await import('/js/simul.js'); const g = [...__t.S.tBoards, ...__t.S.sBoards].find(x => x.id === '${TL}'); return g ? s.flagResult(g) : null`);
+      const mine = [await own(teach), await own(luis)];
+      check(`[${tag}] the teacher's time on Luis's board ran out while they were on another and Luis has a bare king: claimed only once the flag has fallen (${took} ms after), stored as a DRAW on time with the moves untouched, both phones' own copy giving the draw; Luis reads "${w.flagDrawKept('Marta')}", the teacher "${w.flagDrawOut('Luis')}", the tile "${w.tFlagDraw}"; the teacher's clock 0:00 on both phones, Luis's still showing his time`,
+        same(result(l), ['done', 'draw', 'flag', null]) && l.n === 2 && same(mine, ['draw', 'draw']) && took >= 0 && took < 4000 && ct.me.text === '0:00' && cl.them.text === '0:00' && !ct.me.run && !cl.them.run && cl.me.text !== '0:00' && ct.them.text === cl.me.text, [result(l), mine, took, ct, cl]);
+      await teach.shot(`${tag}-56-teacher-flag-draw`);
+      await luis.shot(`${tag}-57-student-flag-draw`);
+      // The longest of the new words, on the student's board where there is no
+      // spare height: they stay inside the line above the board.
+      await luis.size(667);
+      await sleep(300);
+      r = await luis.ev(`const s = document.getElementById('simul-status'), b = document.getElementById('simul-board').getBoundingClientRect(), q = s.getBoundingClientRect();
+        return { h: Math.round(q.height), cut: s.scrollHeight > s.clientHeight + 1 || s.scrollWidth > s.clientWidth + 1, gap: Math.round(b.top - q.bottom), wide: document.documentElement.scrollWidth, tall: document.documentElement.scrollHeight }`);
+      check(`[${tag}] at 375 x 667 Luis's line above the board holds "${w.flagDrawKept('Marta')}" whole, in its usual height, and the page does not scroll`,
+        !r.cut && r.h <= 32 && r.gap >= 0 && r.wide <= 375 && r.tall <= 667, r);
+      await luis.shot(`${tag}-57b-student-flag-draw-667`);
+      await luis.size(812);
 
       // A student's flag: Ana, 5 seconds left, on her own move.
       await teach.tap(TILE(1));
@@ -1612,17 +1637,25 @@ async function screens() {
         }
       }
       const flat7 = x => [x.vs, x.res, x.out, x.end, x.moves, x.tc, x.pgn];
-      check(`[${tag}] the three games lost on time are kept once on each phone with their control (600+5, in the record and in the PGN) and "timeout" as the ending`,
-        same(got.Marta.map(flat7), [['Ana', '1-0', 'win', 'timeout', 2, '600+5', '600+5'], ['Eva', '0-1', 'win', 'timeout', 1, '600+5', '600+5'], ['Luis', '0-1', 'loss', 'timeout', 1, '600+5', '600+5']])
+      check(`[${tag}] the two games lost on time and the one drawn on time are kept once on each phone with their control (600+5, in the record and in the PGN) and "timeout" or "timeoutDraw" as the ending`,
+        same(got.Marta.map(flat7), [['Ana', '1-0', 'win', 'timeout', 2, '600+5', '600+5'], ['Eva', '0-1', 'win', 'timeout', 1, '600+5', '600+5'], ['Luis', '1/2-1/2', 'draw', 'timeoutDraw', 1, '600+5', '600+5']])
         && same(got.Ana.map(flat7), [['Marta', '1-0', 'loss', 'timeout', 2, '600+5', '600+5']]) && same(got.Eva.map(flat7), [['Marta', '0-1', 'loss', 'timeout', 1, '600+5', '600+5']])
-        && same(got.Luis.map(flat7), [['Marta', '0-1', 'win', 'timeout', 1, '600+5', '600+5']]), got);
-      check(`[${tag}] a game lost on time is kept as ending when the flag fell (the last move's stamp plus what the loser had left), not at the last move`,
+        && same(got.Luis.map(flat7), [['Marta', '1/2-1/2', 'draw', 'timeoutDraw', 1, '600+5', '600+5']]), got);
+      check(`[${tag}] a game ended on time, lost or drawn, is kept as ending when the flag fell (the last move's stamp plus what the side to move had left), not at the last move`,
         got.Ana[0].took === a.at + a.sMs - a.startAt && got.Marta[0].took === got.Ana[0].took && got.Luis[0].took === l.at + l.tMs - l.startAt, [got.Ana[0].took, a.at + a.sMs - a.startAt, got.Luis[0].took, l.at + l.tMs - l.startAt]);
       await ana.ev(`__t.app.showScreen('play'); (await import('/js/history.js')).open();`);
       await ana.until('her games', `!!document.querySelector('#hist-list .hist-item')`);
       r = await ana.ev(`const c = document.querySelector('#hist-list .hist-item'); return { lines: [...c.querySelectorAll('.hist-players .ellipsis, .hist-result, .hist-line2, .hist-meta')].map(x => x.textContent), wide: document.documentElement.scrollWidth }`);
       check(`[${tag}] History shows the control on the card as it does for Play: "${w.histSimul} · 10+5"`, r.lines.some(x => x.startsWith(w.histSimul + ' · 10+5 · ')) && r.wide <= 375, r);
       await ana.shot(`${tag}-62-history-control`);
+      await luis.ev(`__t.app.showScreen('play'); (await import('/js/history.js')).open();`);
+      await luis.until('his games', `!!document.querySelector('#hist-list .hist-item')`);
+      // The card's second line is the opening's name; how it ended is in the
+      // line the card has no room for (History's headline).
+      r = await luis.ev(`const db = await import('/js/db.js'), h = await import('/js/history.js'); const { items } = await db.pageHistory({ count: 500 });
+        const x = items.filter(x => x.source === 'simul').sort((a, b) => b.playedAt - a.playedAt)[0]; return { head: h.headline(x), wide: document.documentElement.scrollWidth }`);
+      check(`[${tag}] Luis's History says how his game ended: "${w.histFlagDraw}"`, r.head.includes(w.histFlagDraw) && r.head.includes('½-½') && r.wide <= 375, r);
+      await luis.shot(`${tag}-62b-history-flag-draw`);
 
       // As it was: the picker with no clock, the switch on, Luis's phone on time.
       r = await look(teach);

@@ -785,6 +785,10 @@ export const SimulUI = {
     if (w && g.reason === 'mate') return named('simul_res_mate_lost', name(w));
     if (w && g.reason === 'resign') return named('simul_w_resign', name(otherSide(w))).replace('{w}', name(w));
     if (w && g.reason === 'flag') return named('simul_w_flag', name(otherSide(w))).replace('{w}', name(w));
+    if (g.reason === 'flag' && g.winner === 'draw') {
+      const out = sideToMove(g);
+      return named('simul_w_flag_draw', name(out)).replace('{w}', name(otherSide(out)));
+    }
     return this.resultLine(g, '');
   },
 
@@ -952,6 +956,8 @@ export const SimulUI = {
   resultLine(g, name) {
     if (g.reason === 'mate') return g.winner === g.me ? t('simul_res_mate_won') : named('simul_res_mate_lost', name);
     if (g.reason === 'resign') return named(g.winner === g.me ? 'simul_res_resign_won' : 'simul_res_resign_lost', name);
+    // A drawn flag: the side to move is the one that ran out.
+    if (g.reason === 'flag' && g.winner === 'draw') return named(sideToMove(g) === g.me ? 'simul_res_flag_draw_out' : 'simul_res_flag_draw_kept', name);
     if (g.reason === 'flag') return named(g.winner === g.me ? 'simul_res_flag_won' : 'simul_res_flag_lost', name);
     const key = { agreed: 'simul_res_agreed', stalemate: 'simul_res_stalemate', repetition: 'simul_res_repetition', fifty: 'simul_res_fifty',
       material: 'simul_res_material', void: 'simul_res_void', unfinished: 'simul_res_unfinished' }[g.reason];
@@ -960,7 +966,7 @@ export const SimulUI = {
   // The same on a tile, where there is room for one word.
   tileResult(g) {
     if (g.reason === 'resign') return t(g.winner === 't' ? 'simul_tile_resigned' : 'simul_tile_i_resigned');
-    if (g.reason === 'flag') return t(g.winner === 't' ? 'simul_tile_flag_won' : 'simul_tile_flag_lost');
+    if (g.reason === 'flag') return t(g.winner === 't' ? 'simul_tile_flag_won' : g.winner === 'draw' ? 'simul_tile_flag_draw' : 'simul_tile_flag_lost');
     return t(g.winner === 't' ? 'simul_tile_won' : g.winner === 's' ? 'simul_tile_lost' : g.winner === 'draw' ? 'simul_tile_draw'
       : g.reason === 'void' ? 'simul_tile_void' : 'simul_tile_open');
   },
@@ -1577,16 +1583,17 @@ export const SimulUI = {
     for (const san of [...p.opening, ...p.sans]) tree.play(san);
     const won = g.winner === 't' ? g.tc : g.winner === 's' ? (g.tc === 'w' ? 'b' : 'w') : g.winner;
     const d = new Date(g.startAt), two = n => String(n).padStart(2, '0');
-    // No stamp is stored for an ending. A game lost on time ended when the
-    // flag fell: the last move's stamp and what the loser had left then.
-    const fell = g.reason === 'flag' && g.winner && g.winner !== 'draw' ? g[otherSide(g.winner) + 'Ms'] : 0;
+    // No stamp is stored for an ending. A game ended on time (lost or drawn)
+    // ended when the flag fell: the last move's stamp and what the side to
+    // move had left then.
+    const fell = g.reason === 'flag' ? g[sideToMove(g) + 'Ms'] : 0;
     const rec = buildRecord({
       chess: p.chess, startFen: g.fen, playerColor: mine, playedAt: g.startAt, endedAt: Math.max(g.at || 0, g.startAt) + fell, pgn: '',
       source: 'simul', opponent: them, timeControl: g.base ? { base: g.base, inc: g.inc } : null,
       ended: {
         result: won === 'w' ? '1-0' : won === 'b' ? '0-1' : won === 'draw' ? '1/2-1/2' : '*',
         outcome: !g.winner ? 'unfinished' : g.winner === 'draw' ? 'draw' : g.winner === g.me ? 'win' : 'loss',
-        endReason: END[g.reason] || 'abandoned',
+        endReason: g.reason === 'flag' && g.winner === 'draw' ? 'timeoutDraw' : END[g.reason] || 'abandoned',
       },
     });
     tree.setHeader('White', mine === 'w' ? me : them);
