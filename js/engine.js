@@ -4,6 +4,10 @@ import { Chess } from '../vendor/chess.js';
 
 const SF_PATH = 'vendor/stockfish-17.1-lite-single-03e3232.js';
 
+// How long a call waits for the one before it (see _serial). Far above the
+// longest search the app asks for (1.2 s) plus a slow phone starting the worker.
+const SERIAL_CAP_MS = 10000;
+
 export class Engine {
   constructor() {
     this.worker = null;
@@ -17,6 +21,20 @@ export class Engine {
     this._bestMoveResolve = null;
     this._readyResolve = null;
     this._lines = [];
+    this._queue = Promise.resolve();
+  }
+
+  // One worker, one search at a time: every public call runs only once the one
+  // before it has finished. Two calls that overlapped each sent their own
+  // stop/isready and go, and the second one's waiting took over the first
+  // one's readyok or bestmove — the first then never answered. That locked
+  // Endings practice for good when the 🖥️ analysis was switched on while a move
+  // was being checked ("Comprobando la jugada…" forever, 2026-10-16). The wait
+  // is capped, so one call that never finishes cannot stop every later one.
+  _serial(fn) {
+    const run = Promise.race([this._queue, new Promise(r => setTimeout(r, SERIAL_CAP_MS))]).then(fn);
+    this._queue = run.catch(() => {});
+    return run;
   }
 
   init() {
@@ -58,9 +76,14 @@ export class Engine {
     this.worker = null;
     this.ready = null;
     this.analysing = false;
+    // Whoever is still waiting gets an answer (no move) instead of waiting
+    // forever on a worker that no longer exists — as _handleCrash does.
+    const ready = this._readyResolve, best = this._bestMoveResolve;
     this._readyResolve = null;
     this._bestMoveResolve = null;
     this._uciokResolve = null;
+    if (ready) ready();
+    if (best) best(null);
   }
 
   _send(cmd) { this.worker.postMessage(cmd); }
@@ -115,7 +138,8 @@ export class Engine {
   }
 
   // Continuous analysis of a position.
-  async analyse(fen, multiPV = 2) {
+  analyse(fen, multiPV = 2) { return this._serial(() => this._analyse(fen, multiPV)); }
+  async _analyse(fen, multiPV) {
     if (this.multiPV !== null && this.multiPV !== multiPV) this.terminate();
     await this.init();
     await this._stopSearch();
@@ -130,7 +154,8 @@ export class Engine {
     this._send('go infinite');
   }
 
-  async stop() {
+  stop() { return this._serial(() => this._stop()); }
+  async _stop() {
     this.analysing = false;
     await this._stopSearch();
   }
@@ -160,7 +185,8 @@ export class Engine {
   // { score, best, ok }. `best` is in engine notation, null where there is no
   // move to play. `ok` is false when the engine died or was stopped before it
   // had a score, so a caller that judges by the score can tell.
-  async evaluateBest(fen, movetime = 250) {
+  evaluateBest(fen, movetime = 250) { return this._serial(() => this._evaluateBest(fen, movetime)); }
+  async _evaluateBest(fen, movetime) {
     // A position with no legal moves has nothing for "go" to search — Stockfish
     // just replies bestmove (none) without ever sending a score line, so the
     // caller would silently get 0 back for what might be a decisive checkmate.
@@ -209,7 +235,8 @@ export class Engine {
   // { best, lines: [{ uci, score }] }, best line first. Play's opening guard
   // picks among them (js/play-book.js). An engine used for this should be used
   // for nothing else: changing MultiPV costs this build a fresh worker.
-  async topMoves(fen, { movetime = 300, count = 4 } = {}) {
+  topMoves(fen, { movetime = 300, count = 4 } = {}) { return this._serial(() => this._topMoves(fen, movetime, count)); }
+  async _topMoves(fen, movetime, count) {
     if (this.multiPV !== null && this.multiPV !== count) this.terminate();
     await this.init();
     await this._stopSearch();
@@ -237,7 +264,8 @@ export class Engine {
   }
 
   // One-shot: best move at a given strength. elo null = full strength.
-  async bestMove(fen, { movetime = 1000, elo = null } = {}) {
+  bestMove(fen, { movetime = 1000, elo = null } = {}) { return this._serial(() => this._bestMove(fen, movetime, elo)); }
+  async _bestMove(fen, movetime, elo) {
     if (this.multiPV !== null && this.multiPV !== 1) this.terminate();
     await this.init();
     await this._stopSearch();

@@ -9,6 +9,22 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v236: ENDINGS PRACTICE NO LONGER FREEZES AFTER YOUR OWN GOOD MOVE (2026-10-16).**
+  Testers: "after the walk-through, playing the engine, I can't move", in many endgames.
+  Root cause, `Endgame.userMove` (js/app.js): a move off the book line that the engine
+  judged as good as the book's (cpLoss <= 50) turned book mode off and gave the board
+  back WITHOUT `engineReply()`, so the opponent was to move and nobody ever did. Most
+  common in the 130 draw studies (every holding move scores 0 like the book move). The
+  walk-through itself was innocent (it only teaches the line). Reproduced on p12 (d1-e1),
+  fixed, and checked by touch in headless Chrome: walk-through, Practicar, own move, the
+  engine answers and it is your turn again. SECOND defect found on the way, also fixed:
+  `js/engine.js` lost an answer when two calls overlapped (🖥️ analysis switched on while
+  practice was checking a move: "Comprobando la jugada…" forever). Every public engine
+  call now runs one at a time (`_serial`, capped at 10 s), and `terminate()` answers
+  anyone still waiting with no move. Still open (not fixed): with 🖥️ on during
+  practice, the analysis does not follow the moves and can be cut off by the move
+  check ("El motor no respondió"). NOT yet confirmed on a phone.
+
 - **v235: LEARN TAB STAGES, SLICE 2 — FUNDAMENTOS 4-7 (2026-10-16).** Fundamentos is
   complete: Ahogado (5 levels, goal `stalemate`; a mate fails with its own line), Valor de
   las piezas (6, `best`: take the most valuable capturable piece, Q9 R5 B3 N3 P1, ties both

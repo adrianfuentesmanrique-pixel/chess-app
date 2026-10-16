@@ -7350,8 +7350,11 @@ export const Endgame = {
       Sound.play('puzzle-correct');
       KaelQuotes.chatter(pickKael(KAEL_ALT_MOVE));
       if (this.checkEnd()) return;
-      this.board.interactive = true;
-      this.setStatus(`${t('practice_you_are')} ${t(this.playerColor === 'w' ? 'white' : 'black')}`);
+      // Off the book now, so the engine answers, as in all free play. It used
+      // to hand the board back with the opponent still to move: nobody could
+      // move again (testers, 2026-10-16 — most often in the draw studies,
+      // where every holding move scores 0 like the book's).
+      this.engineReply();
     } else {
       this.mistakes++;
       this.chess.undo();
