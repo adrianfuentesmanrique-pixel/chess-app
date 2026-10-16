@@ -52,6 +52,35 @@ are in `CLAUDE.md` under "Finish by pushing".
   PLAY: 8 (1.0.6) uploaded to Closed testing - Alpha (replaces 7), submitted for review
   2026-10-15. NOT YET VERIFIED: the install on Adrian's phone and a real signed-in link.
 
+- **CHAPTER HOMEWORK PRACTICE MODE (2026-10-15, v230).** The teacher can assign a
+  Masterclass chapter to be PLAYED from memory instead of stepped through.
+  ASSIGN SHEET (js/students.js, Chapter): tick "Practice mode" + White/Black seg. The side
+  the chapter was saved facing (v229 `orientation`) is proposed; none saved = nothing
+  picked and Send toasts `hw_pick_practice_side` (never a silent guess). Stored as
+  `params.practice` 'w'|'b'; tick off = the old chapter homework exactly.
+  STUDENT: Students.hwPracticeSide(h) reads it; Open calls
+  Masterclass.openForHomework(mcId, chapterId, practice, onDone) -> Analysis.startPractice
+  (color, onDone): the shared guided walker (createWalker in js/app.js, new cfg.noArrow = no
+  arrow before the move; `misses` counts wrong moves + 👁 Show me) over the chapter's MAIN
+  line on the Analysis board; the other side's moves play themselves. Bar #ana-pr-bar
+  (index.html, css/style.css) with Restart and Exit (stopPractice puts the chapter back).
+  The walker moves the board only, never the tree, so stepping through the chapter no
+  longer counts (run.armed = false); only Students.hwPracticeDone(hwId, misses) finishes it.
+  DECIDED (Adrian): 1) MAIN LINE ONLY, variations are not practised. 2) DONE REGARDLESS OF
+  MISTAKES: reaching the end finishes the homework; wrong moves + Show me go to the teacher
+  as `mistakes` (shown like endgame homework, no tries). 3) RESTART IS FREE: it resets the
+  count, only the run that reaches the end reports its mistakes.
+  firestore.rules homework: params hasOnly gains 'practice' + `practice in ['w','b']`;
+  `mistakes` allowed on a chapter whose params carry practice; 3 tests in
+  tests/rules/homework.test.js. rules:deploy run by Adrian before the push.
+  VERIFIED: test:rules 589/589, test:tree, test:precache; `node
+  tools/emu-verify-chapter-practice.mjs <outDir>` (new) 144/144, es/en x light/dark at
+  375 px, the app's own code against the Firestore emulator (assign, proposed side, Send
+  asks, student practice, Restart, Exit, done + mistakes on the teacher's side);
+  cdp-verify-students4-6 pass. NOT RUN: cdp-verify-students3 (its seed is not in the repo)
+  and cdp-verify-students7-9. NOT VERIFIED: a write to the real project (App Check 403 on
+  localhost).
+
 - **SAVED GAMES AND CHAPTERS REMEMBER WHICH WAY THE BOARD FACED (2026-10-15, v229).**
   Field `orientation` 'w'|'b' (optional; missing = 'w').
   BASES (IndexedDB): Analysis.saveToBase() stores `this.board.orientation`. New
