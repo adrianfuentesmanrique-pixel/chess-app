@@ -106,6 +106,7 @@ const DICT = {
   stage_punish_line_what: { es: 'Esa no era la táctica, y dejó una pieza sin protección.', en: "That wasn't the tactic, and it left a piece unprotected." },
   stage_why_line_wrong: { es: 'Esa no es la jugada: busca la táctica.', en: "That's not the move: look for the tactic." },
   stage_why_line_also: { es: 'Esa jugada también gana, pero en este nivel buscamos otra. Encuéntrala.', en: 'That move wins too, but this level wants another one. Find it.' },
+  stage_why_choose_bad: { es: 'Esa jugada no sigue el principio. Mira por qué:', en: "That move doesn't follow the principle. Here's why:" },
   stage_also_title: { es: '¡También gana!', en: 'That wins too!' },
   stage_also_kael: { es: 'Bien visto. Hay otra jugada igual de buena con esta táctica.', en: 'Well spotted. There is another move just as good with this tactic.' },
   stage_line_good: { es: '¡Bien! Mira qué responde el negro…', en: 'Good! Watch how Black answers…' },

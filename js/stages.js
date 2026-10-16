@@ -21,6 +21,14 @@ export function levelVerdict(level, move, after, ply = 0) {
       if (ply === 0 && (level.also || []).some(alt => alt[0] === uci)) return no('line_also');
       return no('line_wrong');
     }
+    case 'choose': {
+      // Openings: any move in `good` follows the principle. A tempting wrong
+      // move listed in `bad` has Kael's own reason; any other move gets the
+      // stage's general line. Never punished (Adrian, 2026-10-16).
+      const uci = move.from + move.to + (move.promotion || '');
+      if (level.good.includes(uci)) return ok();
+      return no(level.bad && level.bad[uci] ? 'choose_bad' : 'choose_other');
+    }
     case 'check':
       return after.inCheck() ? ok() : no('not_check');
     case 'mate':

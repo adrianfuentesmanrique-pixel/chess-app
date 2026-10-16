@@ -269,10 +269,19 @@ export const StagesUI = {
       this.timer = setTimeout(() => this.punish(punish, after), 650);
       return;
     }
-    this.paintGoal('bad', t('stage_wrong_title'), t('stage_why_' + why) || t('learn_try_again'));
-    this.say('encouraging', t('stage_wrong_kael'));
     $('stage-hint').classList.remove('hidden');
     this.shake();
+    if (lv.goal === 'choose') {
+      // Openings: Kael gives the reason (the level's own for a tempting move,
+      // else the stage's general line) and it stays long enough to read.
+      const uci = result.from + result.to + (result.promotion || '');
+      this.paintGoal('bad', t('stage_wrong_title'), why === 'choose_bad' ? t('stage_why_choose_bad') : L(this.stage.wrongText));
+      this.say(why === 'choose_bad' ? 'idea' : 'encouraging', why === 'choose_bad' ? L(lv.bad[uci]) : t('stage_wrong_kael'));
+      this.timer = setTimeout(() => this.retry(), 2600);
+      return;
+    }
+    this.paintGoal('bad', t('stage_wrong_title'), t('stage_why_' + why) || t('learn_try_again'));
+    this.say('encouraging', t('stage_wrong_kael'));
     // The wrong move stays a moment so it can be seen, then the level resets.
     this.timer = setTimeout(() => this.retry(), 1200);
   },

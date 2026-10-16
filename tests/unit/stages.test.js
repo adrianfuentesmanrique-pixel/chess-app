@@ -158,6 +158,23 @@ test('line: White plays the scripted moves in order; a listed alternative says s
   assert.deepEqual(levelVerdict(lv, r, c2, 2), { ok: false, why: 'line_wrong' });
 });
 
+test('choose: any good move passes; a listed bad move and any other move say which', () => {
+  // After 1.e4 e5: develop a knight or a bishop; the early queen is the listed trap.
+  const lv = { fen: 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', goal: 'choose',
+    good: ['g1f3', 'f1c4'], solution: 'g1f3', bad: { d1h5: { es: 'x', en: 'x' } } };
+  for (const uci of lv.good) {
+    const r = play(lv.fen, uci);
+    assert.deepEqual(levelVerdict(lv, r.move, r.after), { ok: true, why: null }, uci);
+  }
+  const queen = play(lv.fen, 'd1h5');
+  assert.deepEqual(levelVerdict(lv, queen.move, queen.after), { ok: false, why: 'choose_bad' });
+  const pawn = play(lv.fen, 'a2a3');
+  assert.deepEqual(levelVerdict(lv, pawn.move, pawn.after), { ok: false, why: 'choose_other' });
+  // A level without a `bad` list still answers every wrong move.
+  const plain = { ...lv, bad: undefined };
+  assert.deepEqual(levelVerdict(plain, queen.move, queen.after), { ok: false, why: 'choose_other' });
+});
+
 test('line punish: Black takes the most valuable piece left en prise, never a guarded one for free', () => {
   // Wrong move Rd1-d4: the rook hangs to the queen; the knight on a5 is attacked
   // too, but the b4 pawn guards it, so taking it would cost the queen.
@@ -268,6 +285,24 @@ test('every level: legal, White to move, in check only when it must be, solved b
           assert.ok(lv.say && lv.say.es && lv.say.en, `${where}: Kael names the tactic`);
           levels++;
           return;
+        }
+        if (lv.goal === 'choose') {
+          // Every good move is legal, Pista's `solution` is one of them, and
+          // there is a legal move that is not good, so the level is a choice.
+          assert.ok(Array.isArray(lv.good) && lv.good.length, `${where}: no good moves`);
+          const legal = new Chess(lv.fen).moves({ verbose: true }).map(uciOf);
+          for (const u of lv.good) assert.ok(legal.includes(u), `${where}: good move ${u} is illegal`);
+          assert.ok(lv.good.includes(lv.solution), `${where}: solution is not in good`);
+          assert.ok(legal.some(u => !lv.good.includes(u)), `${where}: every move is good`);
+          // A listed bad move is legal, not good, and Kael says why in both languages.
+          for (const [u, why] of Object.entries(lv.bad || {})) {
+            assert.ok(legal.includes(u), `${where}: bad move ${u} is illegal`);
+            assert.ok(!lv.good.includes(u), `${where}: ${u} is both good and bad`);
+            assert.ok(why.es && why.en, `${where}: bad move ${u} needs es and en`);
+          }
+          // Any other wrong move gets the stage's general line.
+          assert.ok(stage.wrongText && stage.wrongText.es && stage.wrongText.en, `${where}: stage has no wrongText`);
+          assert.ok(lv.say && lv.say.es && lv.say.en, `${where}: Kael explains the principle`);
         }
         const { move, after } = play(lv.fen, lv.solution);
         assert.deepEqual(levelVerdict(lv, move, after), { ok: true, why: null }, where);
