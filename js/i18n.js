@@ -882,6 +882,12 @@ const DICT = {
   grp_tbl_week_failed: { es: 'No se pudieron contar los deberes de esta semana; se muestran como —.', en: 'Could not count this week\'s homework; shown as —.' },
   grp_tbl_foot: { es: '«Pend.» cuenta los deberes abiertos de todos sus profesores, según su último resumen.', en: '"Open" counts open homework from all their teachers, as of their last summary.' },
   grp_tbl_no_summary: { es: 'sin resumen aún', en: 'no summary yet' },
+  grp_rep_btn: { es: '📤 Compartir informe', en: '📤 Share report' },
+  grp_rep_title: { es: 'Informe de clase · {g}', en: 'Class report · {g}' },
+  grp_rep_rule: { es: 'Últimos 7 días. El puesto premia el esfuerzo: primero los deberes terminados, luego los minutos de práctica. Empates comparten puesto.', en: 'Last 7 days. The rank rewards effort: homework finished first, then minutes practised. Ties share a rank.' },
+  grp_rep_foot: { es: '«Pend.» cuenta los deberes abiertos de todos sus profesores, según el último resumen de cada alumno: no cambia justo después de enviar deberes.', en: '"Open" counts open homework from all their teachers, as of each student\'s last summary: it does not change right after homework is sent.' },
+  grp_rep_page: { es: 'Página {n} de {k}', en: 'Page {n} of {k}' },
+  grp_rep_file: { es: 'informe', en: 'report' },
   stu_decline_confirm: { es: '¿Rechazar la invitación de {n}? No podrá invitarte de nuevo hasta que tú borres el rechazo.', en: "Decline {n}'s invitation? They cannot invite you again until you clear the decline." },
   stu_end_confirm: { es: '¿Dejar de compartir tu entrenamiento con {n}? Dejará de verlo al instante.', en: 'Stop sharing your training with {n}? They lose access at once.' },
   // Simul: the invitation and the waiting room (js/simul-ui.js).

@@ -125,3 +125,26 @@ column is fixed by the official ranking.
   this week, then minutes practised this week. Ties share a rank.
 
 **Owed after session 2:** session 3 — the teacher's class report to print or share (built from the same table data); the legal text and the parents' note stay owed separately.
+
+## Session 3 — the class report (a picture to share)
+
+**Format (Adrian, 2026-10-16): a PNG image**, not a print page — it goes
+straight into WhatsApp, which is how Panamanian schools talk to parents.
+**No rule changes, no new query.**
+
+- A **"Share report"** button inside the grade table. It draws the SAME rows
+  and ranks the table shows: the row building and the effort ranking move out
+  of `gradeTable` into module helpers (`gradeRows`, `rankGradeRows`) that the
+  table and the report both call — nothing is computed twice.
+- One picture, Kael's light navy/gold (it is a paper-like sheet, the same in
+  light and dark mode): app name, group name, school, the date range (last 7
+  days), the effort rule in one line, the table in rank order (#, student, Hw
+  ✓, min, open, rating, solved), and the "Open" note (it is each student's
+  last summary, counting all their teachers — so it does not move right after
+  sending homework).
+- Profile names only — the rows hold nothing else (no email, real name or
+  birth date ever reaches the table). Long names are cut with "…".
+- A big group is cut into pages of 40 rows, shared together (one share sheet,
+  several images); the download fallback saves each.
+- Shared through `shareCanvas` in js/app.js (now exported, and taking several
+  canvases) — the share sheet first, a download otherwise.

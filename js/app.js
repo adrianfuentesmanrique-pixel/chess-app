@@ -864,17 +864,23 @@ function renderPuzzleCard(puzzle, orientation) {
   return canvas;
 }
 
-async function shareCanvas(canvas, filename) {
-  const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
-  const file = new File([blob], filename, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: filename }); return; } catch (e) { if (e.name === 'AbortError') return; }
+// One canvas, or several shared together (a class report cut into pages:
+// "report.png" becomes "report-1.png", "report-2.png"…).
+export async function shareCanvas(canvas, filename) {
+  const list = [].concat(canvas);
+  const names = list.length === 1 ? [filename] : list.map((_, i) => filename.replace(/\.png$/, `-${i + 1}.png`));
+  const blobs = await Promise.all(list.map(c => new Promise(res => c.toBlob(res, 'image/png'))));
+  const files = blobs.map((b, i) => new File([b], names[i], { type: 'image/png' }));
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try { await navigator.share({ files, title: filename }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  blobs.forEach((blob, i) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = names[i];
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
   toast(t('saved'));
 }
 

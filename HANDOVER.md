@@ -9,6 +9,19 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v245: SCHOOL PILOT session 3 — CLASS REPORT PICTURE (2026-10-17).** Plan section
+  "Session 3". NO rule change, no new query. "📤 Share report" in the grade table draws a
+  PNG (Adrian, 2026-10-16: an image for WhatsApp, not a print page): app, group, school,
+  last-7-days range, the effort rule, the table in rank order, the "Open" lag note. Rows
+  and ranks come from the SAME helpers as the table (`gradeRows`, `rankGradeRows` in
+  js/students.js; `drawClassReport` draws, light navy/gold whatever the theme). 40 rows a
+  page, pages shared together; `shareCanvas` in js/app.js is now exported and takes one
+  canvas or several. Verified on the emulators: 4-kid class ranks 1,1,3,4 on table and
+  picture; every string drawn checked — no fake first/last name, email or DOB; ES+EN;
+  share sheet, download fallback, 85 rows → 3 pages; 375 px light+dark. 635 rules tests
+  pass. The school pilot's three planned sessions are done; legal text + parents' note
+  still owed separately.
+
 - **v244: SCHOOL PILOT session 2 — GROUP HOMEWORK + GRADE TABLE (2026-10-16).** Plan
   section "Session 2" in `docs/plans/2026-10-16-school-groups.md`. NO rule change. Group
   card gets "📝 Group homework" (the usual assign sheet → one homework doc per ACTIVE

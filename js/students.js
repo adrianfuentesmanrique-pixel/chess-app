@@ -32,10 +32,10 @@ import {
   createGroup, fetchMyGroups, renameGroup, setGroupOpen, deleteGroup, fetchGroupLinks,
   fetchReportsFor, joinGroup, fetchGroupsByIds,
   // Session 2: homework to the whole group, the grade table.
-  countOpenHomework, assignHomeworkToMany, countDoneThisWeek,
+  countOpenHomework, assignHomeworkToMany, countDoneThisWeek, WEEK_MS,
 } from './firebase.js';
 import {
-  $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen,
+  $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen, shareCanvas,
   paintCapCounter, openAuthModal, openEloHistoryModal, segInit, segValue, buildLevelSeg,
   Puzzles, PuzzleLog, Endgame, Play, Setup,
 } from './app.js';
@@ -1008,8 +1008,11 @@ export const Students = {
   // finished this week, then minutes practised; ties share a rank. Tapping a
   // column only re-orders. Profile names only: a summary carries no email,
   // real name or birth date.
-  gradeTable(g) {
-    const rows = this.groupActive(g).map(uid => {
+  // The table's rows and its ranking, shared by the table and the class
+  // report (session 3) so both always say the same thing. `done` stays null
+  // until countDoneThisWeek() fills it.
+  gradeRows(g) {
+    return this.groupActive(g).map(uid => {
       const r = this.reports[uid];
       return {
         uid, name: this.who(uid).profileName, has: !!r, done: null,
@@ -1019,17 +1022,24 @@ export const Students = {
         solved: r ? r.puzzlesSolvedCount || 0 : null,
       };
     });
+  },
+
+  // Sets x.rank on every row and returns them in rank order.
+  rankGradeRows(rows) {
+    const v = x => (x == null ? -1 : x);
+    const by = [...rows].sort((a, b) => v(b.done) - v(a.done) || v(b.min) - v(a.min));
+    by.forEach((x, i) => {
+      const prev = by[i - 1];
+      x.rank = prev && v(prev.done) === v(x.done) && v(prev.min) === v(x.min) ? prev.rank : i + 1;
+    });
+    return by;
+  },
+
+  gradeTable(g) {
+    const rows = this.gradeRows(g);
     const cols = [['rank', 'grp_tbl_rank'], ['name', 'grp_tbl_name'], ['done', 'grp_tbl_done'],
       ['min', 'grp_tbl_min'], ['open', 'grp_tbl_open'], ['elo', 'grp_tbl_elo'], ['solved', 'grp_tbl_solved']];
     let sortKey = 'rank', asc = true, weekFailed = false;
-    const v = x => (x == null ? -1 : x);
-    const rankAll = () => {
-      const by = [...rows].sort((a, b) => v(b.done) - v(a.done) || v(b.min) - v(a.min));
-      by.forEach((x, i) => {
-        const prev = by[i - 1];
-        x.rank = prev && v(prev.done) === v(x.done) && v(prev.min) === v(x.min) ? prev.rank : i + 1;
-      });
-    };
     return modal(async (box, close) => {
       box.classList.add('grp-tbl-box');
       const paint = () => {
@@ -1066,10 +1076,18 @@ export const Students = {
           else { sortKey = k; asc = k === 'rank' || k === 'name'; }
           paint();
         });
+        const share = document.createElement('button');
+        share.className = 'btn btn-wide primary grp-tbl-share'; share.textContent = t('grp_rep_btn');
+        share.onclick = async () => {
+          share.disabled = true;
+          try { await this.shareClassReport(g, rows, weekFailed); }
+          catch (e) { console.error('Class report failed', e); toast(t('stu_try_again')); }
+          share.disabled = false;
+        };
         const ok = document.createElement('button');
         ok.className = 'btn btn-wide'; ok.textContent = t('ok');
         ok.onclick = () => close(null);
-        box.appendChild(ok);
+        box.append(share, ok);
       };
       box.innerHTML = `<h3>${esc(t('grp_tbl_title').replace('{g}', g.name))}</h3><p class="hint">${esc(t('grp_tbl_loading'))}</p>`;
       try {
@@ -1079,9 +1097,28 @@ export const Students = {
         console.error('Counting this week\'s homework failed', e);
         weekFailed = true;
       }
-      rankAll();
+      this.rankGradeRows(rows);
       paint();
     });
+  },
+
+  // ── Class report (school pilot, session 3) ──
+  // The grade table as a picture for WhatsApp (Adrian, 2026-10-16): the same
+  // rows and ranks, in rank order, 40 rows a page. Profile names only.
+  async shareClassReport(g, rows, weekFailed) {
+    const ranked = this.rankGradeRows(rows);
+    const lang = getLang();
+    const now = new Date(), from = new Date(now.getTime() - WEEK_MS);
+    const day = d => d.toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' });
+    const pages = [];
+    for (let i = 0; i < ranked.length || i === 0; i += REPORT_PAGE_ROWS) pages.push(ranked.slice(i, i + REPORT_PAGE_ROWS));
+    const canvases = pages.map((list, i) => drawClassReport({
+      group: g.name, school: g.school || '', range: `${day(from)} – ${day(now)}`,
+      rows: list, weekFailed,
+      page: pages.length > 1 ? t('grp_rep_page').replace('{n}', i + 1).replace('{k}', pages.length) : '',
+    }));
+    const slug = (g.name || 'grupo').normalize('NFD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'grupo';
+    await shareCanvas(canvases, `${t('grp_rep_file')}-${slug}-${now.toISOString().slice(0, 10)}.png`);
   },
 
   // Name (required) and school (optional, remembered on this phone for the
@@ -2608,3 +2645,103 @@ export const Students = {
     await this.load();
   },
 };
+
+// ── Class report picture (school pilot, session 3) ──
+// A paper-like sheet in Kael's light navy/gold, the same whatever the app's
+// theme, because it is read in WhatsApp or on paper. 40 rows keeps one page
+// readable on a phone once WhatsApp has compressed it.
+const REPORT_PAGE_ROWS = 40;
+
+function drawClassReport({ group, school, range, rows, weekFailed, page }) {
+  const W = 1200, PAD = 50, ROW = 58, NAVY = '#102a43', GOLD = '#f5b942', INK = '#1d2733', DIM = '#5b6675';
+  const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  // [key, label, right edge] — the numbers right-aligned under their heading.
+  const nums = [['done', 'grp_tbl_done', 670], ['min', 'grp_tbl_min', 790], ['open', 'grp_tbl_open', 910],
+    ['elo', 'grp_tbl_elo', 1030], ['solved', 'grp_tbl_solved', 1150]];
+  const NAME_X = 140, NAME_MAX = 400;
+  const measure = document.createElement('canvas').getContext('2d');
+  const lines = (ctx, text, max) => {
+    const out = []; let line = '';
+    for (const w of text.split(' ')) {
+      const test = line ? line + ' ' + w : w;
+      if (ctx.measureText(test).width > max && line) { out.push(line); line = w; } else line = test;
+    }
+    if (line) out.push(line);
+    return out;
+  };
+  const fit = (ctx, s, max) => {
+    if (ctx.measureText(s).width <= max) return s;
+    while (s.length > 1 && ctx.measureText(s + '…').width > max) s = s.slice(0, -1);
+    return s + '…';
+  };
+  measure.font = `26px ${FONT}`;
+  const rule = lines(measure, t('grp_rep_rule'), W - 2 * PAD);
+  const warn = weekFailed ? lines(measure, t('grp_tbl_week_failed'), W - 2 * PAD) : [];
+  measure.font = `22px ${FONT}`;
+  const foot = lines(measure, t('grp_rep_foot'), W - 2 * PAD);
+  const HEAD = 250, ruleH = (rule.length + warn.length) * 36 + 40;
+  const H = HEAD + ruleH + 60 + Math.max(rows.length, 1) * ROW + 40 + foot.length * 30 + 50;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'alphabetic';
+
+  // Header band: app, title, school, dates.
+  ctx.fillStyle = NAVY; ctx.fillRect(0, 0, W, HEAD);
+  ctx.fillStyle = GOLD; ctx.fillRect(0, HEAD - 8, W, 8);
+  ctx.textAlign = 'left';
+  ctx.font = `bold 28px ${FONT}`;
+  ctx.fillText('♞ Chess Training Center', PAD, 62);
+  if (page) { ctx.textAlign = 'right'; ctx.fillText(page, W - PAD, 62); ctx.textAlign = 'left'; }
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold 54px ${FONT}`;
+  ctx.fillText(fit(ctx, t('grp_rep_title').replace('{g}', group), W - 2 * PAD), PAD, 140);
+  ctx.fillStyle = '#c9d4e3';
+  ctx.font = `30px ${FONT}`;
+  ctx.fillText(fit(ctx, [school, range].filter(Boolean).join(' · '), W - 2 * PAD), PAD, 200);
+
+  // The effort rule, then the warning if this week's homework could not be counted.
+  let y = HEAD + 50;
+  ctx.font = `26px ${FONT}`;
+  ctx.fillStyle = INK; rule.forEach(l => { ctx.fillText(l, PAD, y); y += 36; });
+  ctx.fillStyle = '#b4441c'; warn.forEach(l => { ctx.fillText(l, PAD, y); y += 36; });
+  y += 30;
+
+  // Column headings.
+  ctx.font = `bold 24px ${FONT}`;
+  ctx.fillStyle = NAVY;
+  ctx.textAlign = 'center'; ctx.fillText(t('grp_tbl_rank'), 85, y);
+  ctx.textAlign = 'left'; ctx.fillText(t('grp_tbl_name'), NAME_X, y);
+  ctx.textAlign = 'right'; nums.forEach(([, key, x]) => ctx.fillText(t(key), x, y));
+  y += 16;
+  ctx.fillStyle = GOLD; ctx.fillRect(PAD, y, W - 2 * PAD, 4);
+  y += 4;
+
+  rows.forEach((x, i) => {
+    if (i % 2) { ctx.fillStyle = '#f2f4f8'; ctx.fillRect(PAD, y, W - 2 * PAD, ROW); }
+    const mid = y + ROW / 2 + 10;
+    // Top three by effort get a gold disc — only if they did something.
+    if (x.rank <= 3 && (x.done || x.min)) {
+      ctx.fillStyle = GOLD; ctx.beginPath(); ctx.arc(85, y + ROW / 2, 21, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = NAVY; ctx.font = `bold 26px ${FONT}`;
+    ctx.textAlign = 'center'; ctx.fillText(String(x.rank), 85, mid);
+    ctx.fillStyle = INK; ctx.font = `28px ${FONT}`;
+    ctx.textAlign = 'left'; ctx.fillText(fit(ctx, x.name || '—', NAME_MAX), NAME_X, mid);
+    ctx.textAlign = 'right'; ctx.font = `26px ${FONT}`;
+    nums.forEach(([k, , cx]) => {
+      ctx.fillStyle = x[k] == null ? DIM : INK;
+      ctx.fillText(x[k] == null ? '—' : x[k].toLocaleString(), cx, mid);
+    });
+    y += ROW;
+  });
+  ctx.fillStyle = '#d5dbe4'; ctx.fillRect(PAD, y, W - 2 * PAD, 2);
+
+  // Footer: what "Open" means.
+  y += 50;
+  ctx.textAlign = 'left'; ctx.fillStyle = DIM; ctx.font = `22px ${FONT}`;
+  foot.forEach(l => { ctx.fillText(l, PAD, y); y += 30; });
+  return canvas;
+}
