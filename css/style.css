@@ -2342,6 +2342,28 @@ body.read-spread #read-reader {
 .stu-gc-code.closed { opacity: .45; text-decoration: line-through; }
 .stu-gc-hint { text-align: center; margin: 4px 0 8px; }
 .stu-group-card .fr-actions { justify-content: center; }
+/* Session 2: homework to the group + the grade table. */
+.stu-gc-work { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.stu-gc-work .btn { width: 100%; }
+.grp-hw-head { font-weight: 700; font-size: 16px; margin: 4px 0 8px; }
+.grp-hw-head.ok { color: var(--success); }
+.grp-hw-line { margin: 0 0 6px; font-size: 14px; }
+.grp-tbl-warn { color: var(--danger); }
+.grp-tbl-wrap { overflow-x: auto; margin: 8px -4px; }
+.grp-tbl { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.grp-tbl th, .grp-tbl td { padding: 6px 3px; text-align: right; border-bottom: 1px solid var(--panel2); }
+.grp-tbl th { position: sticky; top: 0; background: var(--panel); }
+.grp-tbl th button {
+  border: none; background: none; font: inherit; font-size: 11px; color: var(--muted);
+  cursor: pointer; padding: 2px 0; white-space: nowrap;
+}
+.grp-tbl th button.on { color: var(--text); font-weight: 700; }
+.grp-tbl .c-rank { text-align: center; width: 2em; font-weight: 700; }
+.grp-tbl .rk { display: inline-block; min-width: 22px; line-height: 22px; border-radius: 999px; }
+.grp-tbl .top .rk { background: var(--gold); color: var(--btn-text); }
+.grp-tbl .c-name { text-align: left; max-width: 34vw; }
+.grp-tbl td.c-name span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp-tbl td.c-name small { display: block; font-size: 10px; color: var(--muted); }
 .stu-code-input {
   text-transform: uppercase; text-align: center; font-size: 26px; font-weight: 700;
   letter-spacing: .2em; font-family: ui-monospace, Menlo, Consolas, monospace;

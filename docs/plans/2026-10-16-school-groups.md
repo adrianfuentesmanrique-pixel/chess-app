@@ -88,3 +88,40 @@ New clauses:
 - `js/legal-data.js` still says the app is not for under-13s — legal text update.
 - A one-page note for parents at the pilot school.
 - Session 2: homework to a whole group + a per-group grade table with ranking.
+
+## Session 2 — homework to the whole group, grade table, ranking
+
+**No rule changes.** A group's homework is ordinary `homework/{id}` docs, one
+per student, exactly what `assignHomework` writes.
+
+**Sending (`assignHomeworkToMany` in js/firebase.js).** Each create's rule
+reads its coaching link. Measured on the emulator: one batch takes up to 20
+creates (18 for a chapter, which also reads the class) and 30 is refused —
+so the app sends **batches of 8** (`GROUP_HW_BATCH`), pinned by
+`tests/rules/group-homework.test.js`. A refused batch is retried one student
+at a time, so only the real failures are reported.
+
+- Who gets it: the group's students whose link is **active right now**.
+  Students who join later do not get it.
+- Skipped before sending: anyone with `MAX_OPEN_HOMEWORK` (10) open homework
+  from me. Counted with ONE `count()` query per student (1 read each, no
+  documents downloaded; equality filters, no new index).
+- Chapter: each student is first added as a viewer of the class
+  (`ensureViewer`); a full class skips the rest, reported.
+- Result in words: "Sent to 27 of 28 — 1 already has 10 open".
+- Same assign sheet. A group has its own list draft and position slot, keyed
+  `grp:<code>`, so it never mixes with a student's.
+
+**Grade table (per group, on the group card).** One row per student: profile
+name (never real name/email), puzzle rating, puzzles solved, minutes this
+week, homework done this week / open. Tap a column to sort; the **rank**
+column is fixed by the official ranking.
+
+- Data: the summaries already loaded with the roster (`fetchReportsFor`) +
+  ONE query: my homework finished in the last 7 days
+  (`teacherUid == me, completedAt > now − 7 d`, the existing index), counted
+  per student. "Open" is the summary's `hwOpen`.
+- **Ranking (Adrian, 2026-10-16): effort, not rating** — homework finished
+  this week, then minutes practised this week. Ties share a rank.
+
+**Owed after session 2:** session 3 — the teacher's class report to print or share (built from the same table data); the legal text and the parents' note stay owed separately.

@@ -9,6 +9,21 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v244: SCHOOL PILOT session 2 — GROUP HOMEWORK + GRADE TABLE (2026-10-16).** Plan
+  section "Session 2" in `docs/plans/2026-10-16-school-groups.md`. NO rule change. Group
+  card gets "📝 Group homework" (the usual assign sheet → one homework doc per ACTIVE
+  student, `assignHomeworkToMany` in batches of `GROUP_HW_BATCH` = 8; a refused batch is
+  retried one by one) and "🏆 Grades & ranking" (`gradeTable` in js/students.js).
+  Measured on the emulator: a batch takes 20 creates (18 for a chapter); 30 is refused —
+  pinned by `tests/rules/group-homework.test.js`. Cap: `countOpenHomework` = one count()
+  per student. Table = loaded summaries + ONE query (`countDoneThisWeek`, existing
+  teacherUid+completedAt index). Rank = EFFORT (Adrian, 2026-10-16): homework finished in
+  7 days, then minutes this week; ties share a rank; columns sort, rank stays. A group's
+  list draft / position slot is keyed `grp:<code>` (addToDraft, hwPositionBack). Verified
+  on the emulators: 4-kid class, sent to 3 of 4 with "Already at 10 open (1): Sofía" for
+  puzzles, endgame and position; table ranks and sorts; no real name / email / DOB on the
+  page; 375 px, light+dark, ES+EN. 635 rules tests pass.
+
 - **v243: SCHOOL PILOT session 1 — GROUPS + CLASS CODES (2026-10-16).** Plan:
   `docs/plans/2026-10-16-school-groups.md`. `groups/{code}` (code = doc id, 6 chars,
   alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, Adrian's choice). A student typing the

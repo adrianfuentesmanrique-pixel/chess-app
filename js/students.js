@@ -31,6 +31,8 @@ import {
   MAX_GROUPS, MAX_GROUP_STUDENTS, GROUP_NAME_MAX, GROUP_SCHOOL_MAX, GROUP_CODE_LEN,
   createGroup, fetchMyGroups, renameGroup, setGroupOpen, deleteGroup, fetchGroupLinks,
   fetchReportsFor, joinGroup, fetchGroupsByIds,
+  // Session 2: homework to the whole group, the grade table.
+  countOpenHomework, assignHomeworkToMany, countDoneThisWeek,
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen,
@@ -263,6 +265,10 @@ export const Students = {
     const packed = packPuzzle(puzzle);
     if (!packed) { toast(t('hw_list_bad')); return; }
     const uids = this.asTeacher.filter(l => l.status === 'active').map(l => l.studentUid);
+    // The group on screen has its own draft, 'grp:<code>' (session 2), first.
+    const g = this.groups.find(x => x.id === this.groupSel);
+    if (g && uids.length) uids.unshift('grp:' + g.id);
+    const nameOf = u => (u.startsWith('grp:') ? '🎓 ' + g.name : this.who(u).profileName);
     const add = uid => {
       const list = this.hwDraft[uid] || (this.hwDraft[uid] = []);
       const id = packed.split('|')[0];
@@ -270,13 +276,13 @@ export const Students = {
       if (list.length >= MAX_LIST_PUZZLES) { toast(t('hw_list_full').replace('{n}', MAX_LIST_PUZZLES)); return; }
       list.push(packed);
       this.writeCache();
-      toast(t('hw_list_added').replace('{n}', this.who(uid).profileName)
+      toast(t('hw_list_added').replace('{n}', nameOf(uid))
         .replace('{c}', list.length).replace('{m}', MAX_LIST_PUZZLES), 3500);
     };
     if (uids.length === 1) { add(uids[0]); return; }
     sheet(uids.map(u => {
       const n = (this.hwDraft[u] || []).length;
-      return { label: `${this.who(u).profileName}${n ? ` (${n}/${MAX_LIST_PUZZLES})` : ''}`, action: () => add(u) };
+      return { label: `${nameOf(u)}${n ? ` (${n}/${MAX_LIST_PUZZLES})` : ''}`, action: () => add(u) };
     }));
   },
 
@@ -879,8 +885,16 @@ export const Students = {
       `<div class="stu-gc-code${g.open ? '' : ' closed'}" aria-label="${esc(t('grp_code_aria').replace('{c}', [...g.id].join(' ')))}">${esc(spaced)}</div>` +
       `<p class="hint stu-gc-hint">${esc(t(g.open ? 'grp_code_hint' : 'grp_closed_hint'))}</p>` +
       `<div class="fr-actions"><button class="btn small">${esc(t('grp_copy'))}</button>` +
-      `<button class="btn small">${esc(t(g.open ? 'grp_close' : 'grp_open'))}</button></div>`;
+      `<button class="btn small">${esc(t(g.open ? 'grp_close' : 'grp_open'))}</button></div>` +
+      // Session 2: only once somebody in the group is active.
+      (this.groupActive(g).length
+        ? `<div class="stu-gc-work"><button class="btn small primary">${esc(t('grp_hw_btn'))}</button>` +
+          `<button class="btn small">${esc(t('grp_table_btn'))}</button></div>`
+        : '');
     const [copy, openBtn] = card.querySelectorAll('.fr-actions .btn');
+    const [hwBtn, tblBtn] = card.querySelectorAll('.stu-gc-work .btn');
+    if (hwBtn) hwBtn.onclick = () => this.groupHomework(g);
+    if (tblBtn) tblBtn.onclick = () => this.gradeTable(g);
     card.querySelector('.fr-more').onclick = () => sheet([
       { label: t('grp_rename'), action: () => this.renameGroupFlow(g) },
       { label: t('grp_delete'), danger: true, action: () => this.deleteGroupFlow(g) },
@@ -900,6 +914,174 @@ export const Students = {
     this.loaded = false;
     this.render();
     this.load();
+  },
+
+  // The group's students whose link is active right now (the loaded roster is
+  // that group's, but a link can still say otherwise after a refresh).
+  groupActive(g) {
+    return this.asTeacher.filter(l => l.status === 'active' && l.groupId === g.id).map(l => l.studentUid);
+  },
+
+  // ── Homework to the whole group (school pilot, session 2) ──
+  // The usual assign sheet, then one homework per ACTIVE student, in batches
+  // (assignHomeworkToMany). Nobody who joins later gets it. A group has its
+  // own list draft and position slot under the key 'grp:<code>'.
+  async groupHomework(g, kind0 = 'puzzles') {
+    if (!this.online()) return;
+    const key = 'grp:' + g.id;
+    const uids = this.groupActive(g);
+    if (!uids.length) { toast(t('grp_hw_nobody')); return; }
+    // The sheet proposes a band around the group's middle puzzle rating.
+    const elos = uids.map(u => this.reports[u] && this.reports[u].puzzleElo)
+      .filter(n => typeof n === 'number').sort((a, b) => a - b);
+    const spec = await this.assignSheet(
+      { uid: key, profileName: t('grp_hw_to').replace('{g}', g.name).replace('{n}', uids.length) },
+      { puzzleElo: elos.length ? elos[elos.length >> 1] : undefined }, kind0);
+    if (!spec) return;
+    if (spec.go) { showScreen(spec.go); return; }
+    if (spec.setup) {
+      this.hwForm[key] = spec.form;
+      Setup.open(this.hwPos[key] || undefined, key);
+      return;
+    }
+    const { memberCount, ...task } = spec;
+    let box = null;
+    modal((b, close) => {
+      box = b;
+      b.innerHTML = `<h3>${esc(t('grp_hw_title').replace('{g}', g.name))}</h3><p class="grp-hw-status" role="status" aria-live="polite"></p>`;
+      const ok = document.createElement('button');
+      ok.className = 'btn primary btn-wide'; ok.textContent = t('ok'); ok.disabled = true;
+      ok.onclick = () => close(null);
+      b.appendChild(ok);
+    });
+    const status = msg => { const p = box && box.querySelector('.grp-hw-status'); if (p) p.textContent = msg; };
+    const names = list => list.map(u => this.who(u).profileName).join(', ');
+    status(t('grp_hw_sending').replace('{d}', 0).replace('{n}', uids.length));
+    // Advisory cap per student, as on a student's page (no rule can count).
+    const open = await countOpenHomework(uids);
+    const capped = uids.filter(u => (open[u] || 0) >= MAX_OPEN_HOMEWORK);
+    let todo = uids.filter(u => !capped.includes(u));
+    const full = [], failed = [];
+    if (task.kind === 'chapter') {
+      // Only a class member can read the chapter: each one becomes a viewer
+      // first, as one student's page does. A full class stops there.
+      let count = memberCount;
+      const ready = [];
+      for (const u of todo) {
+        status(t('grp_hw_preparing').replace('{d}', ready.length + full.length + failed.length).replace('{n}', todo.length));
+        const res = full.length ? 'full' : await ensureViewer(task.params.mcId, u, count);
+        if (res === 'added') count++;
+        if (res === 'full') full.push(u);
+        else if (res === 'failed') failed.push(u);
+        else ready.push(u);
+      }
+      todo = ready;
+    }
+    const res = await assignHomeworkToMany(todo, task, (d, n) =>
+      status(t('grp_hw_sending').replace('{d}', d).replace('{n}', n)));
+    failed.push(...res.failed);
+    if (res.sent.length) {
+      if (task.kind === 'list') { delete this.hwDraft[key]; this.writeCache(); }
+      if (task.kind === 'position') delete this.hwPos[key];
+    }
+    const head = t('grp_hw_result').replace('{s}', res.sent.length).replace('{n}', uids.length);
+    const lines = [
+      capped.length && t('grp_hw_capped').replace('{m}', MAX_OPEN_HOMEWORK).replace('{k}', capped.length).replace('{w}', names(capped)),
+      full.length && t('grp_hw_full').replace('{m}', MAX_MEMBERS_MC).replace('{k}', full.length).replace('{w}', names(full)),
+      failed.length && t('grp_hw_failed').replace('{k}', failed.length).replace('{w}', names(failed)),
+    ].filter(Boolean);
+    if (box && box.isConnected) {
+      box.querySelector('.grp-hw-status').outerHTML =
+        `<p class="grp-hw-head ${res.sent.length === uids.length ? 'ok' : ''}">${res.sent.length ? '✓ ' : ''}${esc(head)}</p>` +
+        lines.map(l => `<p class="grp-hw-line">${esc(l)}</p>`).join('') +
+        `<p class="hint">${esc(t('grp_hw_later'))}</p>`;
+      box.querySelector('.btn').disabled = false;
+    } else {
+      toast(head + (lines.length ? ' — ' + lines.join(' · ') : ''), 6000);
+    }
+  },
+
+  // ── Grade table (school pilot, session 2) ──
+  // One row per active student of the group: the summaries already loaded
+  // with the roster + ONE query (my homework finished in the last 7 days).
+  // The rank is fixed — effort, not rating (Adrian, 2026-10-16): homework
+  // finished this week, then minutes practised; ties share a rank. Tapping a
+  // column only re-orders. Profile names only: a summary carries no email,
+  // real name or birth date.
+  gradeTable(g) {
+    const rows = this.groupActive(g).map(uid => {
+      const r = this.reports[uid];
+      return {
+        uid, name: this.who(uid).profileName, has: !!r, done: null,
+        open: r ? r.hwOpen || 0 : null,
+        min: r ? Math.round(sumActive(r.activeTime, 7).total / 60) : null,
+        elo: r && typeof r.puzzleElo === 'number' ? Math.round(r.puzzleElo) : null,
+        solved: r ? r.puzzlesSolvedCount || 0 : null,
+      };
+    });
+    const cols = [['rank', 'grp_tbl_rank'], ['name', 'grp_tbl_name'], ['done', 'grp_tbl_done'],
+      ['min', 'grp_tbl_min'], ['open', 'grp_tbl_open'], ['elo', 'grp_tbl_elo'], ['solved', 'grp_tbl_solved']];
+    let sortKey = 'rank', asc = true, weekFailed = false;
+    const v = x => (x == null ? -1 : x);
+    const rankAll = () => {
+      const by = [...rows].sort((a, b) => v(b.done) - v(a.done) || v(b.min) - v(a.min));
+      by.forEach((x, i) => {
+        const prev = by[i - 1];
+        x.rank = prev && v(prev.done) === v(x.done) && v(prev.min) === v(x.min) ? prev.rank : i + 1;
+      });
+    };
+    return modal(async (box, close) => {
+      box.classList.add('grp-tbl-box');
+      const paint = () => {
+        const dir = asc ? 1 : -1;
+        const list = [...rows].sort((a, b) => {
+          if (sortKey === 'name') return dir * a.name.localeCompare(b.name);
+          // A missing value sorts last whichever way.
+          if (a[sortKey] == null || b[sortKey] == null) return (a[sortKey] == null) - (b[sortKey] == null);
+          return dir * (a[sortKey] - b[sortKey]) || a.rank - b.rank;
+        });
+        const cell = n => (n == null ? '—' : esc(n.toLocaleString()));
+        box.innerHTML =
+          `<h3>${esc(t('grp_tbl_title').replace('{g}', g.name))}</h3>` +
+          `<p class="hint">${esc(t('grp_tbl_hint'))}</p>` +
+          (weekFailed ? `<p class="hint grp-tbl-warn">${esc(t('grp_tbl_week_failed'))}</p>` : '') +
+          `<div class="grp-tbl-wrap"><table class="grp-tbl"><thead><tr>` +
+          cols.map(([k, key]) => {
+            const on = k === sortKey;
+            return `<th aria-sort="${on ? (asc ? 'ascending' : 'descending') : 'none'}" class="c-${k}">` +
+              `<button type="button" data-k="${k}"${on ? ' class="on"' : ''}>${esc(t(key))}${on ? (asc ? ' ▲' : ' ▼') : ''}</button></th>`;
+          }).join('') +
+          `</tr></thead><tbody>` +
+          list.map(x =>
+            `<tr><td class="c-rank${x.rank <= 3 && (x.done || x.min) ? ' top' : ''}"><b class="rk">${x.rank}</b></td>` +
+            `<td class="c-name"><span>${esc(x.name)}</span>${x.has ? '' : `<small>${esc(t('grp_tbl_no_summary'))}</small>`}</td>` +
+            `<td>${cell(x.done)}</td><td>${cell(x.min)}</td><td>${cell(x.open)}</td>` +
+            `<td>${cell(x.elo)}</td><td>${cell(x.solved)}</td></tr>`).join('') +
+          `</tbody></table></div>` +
+          `<p class="hint">${esc(t('grp_tbl_foot'))}</p>`;
+        box.querySelectorAll('th button').forEach(b => b.onclick = () => {
+          const k = b.dataset.k;
+          if (k === sortKey) asc = !asc;
+          // Rank and name read top-down; numbers biggest first.
+          else { sortKey = k; asc = k === 'rank' || k === 'name'; }
+          paint();
+        });
+        const ok = document.createElement('button');
+        ok.className = 'btn btn-wide'; ok.textContent = t('ok');
+        ok.onclick = () => close(null);
+        box.appendChild(ok);
+      };
+      box.innerHTML = `<h3>${esc(t('grp_tbl_title').replace('{g}', g.name))}</h3><p class="hint">${esc(t('grp_tbl_loading'))}</p>`;
+      try {
+        const week = await countDoneThisWeek();
+        rows.forEach(x => { x.done = week[x.uid] || 0; });
+      } catch (e) {
+        console.error('Counting this week\'s homework failed', e);
+        weekFailed = true;
+      }
+      rankAll();
+      paint();
+    });
   },
 
   // Name (required) and school (optional, remembered on this phone for the
@@ -1677,6 +1859,12 @@ export const Students = {
   hwPositionBack(uid, fen) {
     if (fen) this.hwPos[uid] = fen;
     showScreen('students');
+    // A whole group's position (session 2): back to that group's sheet.
+    if (uid.startsWith('grp:')) {
+      const g = this.groups.find(x => 'grp:' + x.id === uid);
+      if (g && g.id === this.groupSel) this.groupHomework(g, 'position');
+      return;
+    }
     const r = this.reports[uid];
     const link = this.asTeacher.find(l => l.studentUid === uid && l.status === 'active');
     if (r && link) this.openPage(this.who(uid), r, { assign: 'position' });

@@ -20,6 +20,8 @@ import {
   increment, arrayUnion,
   // School groups: the legacy-links query compares createdAt with a cutoff.
   Timestamp, connectFirestoreEmulator,
+  // Group homework: open homework per student, counted without downloading it.
+  getCountFromServer,
 } from '../vendor/firebase-10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from '../vendor/firebase-10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -2375,18 +2377,86 @@ async function deleteHomeworkBetween(teacherUid, studentUid) {
 
 // Teacher side. The rule refuses it unless the link is ACTIVE right now.
 // Everything starts at zero; createdAt is the server's clock.
-export async function assignHomework(studentUid, { kind, title, note, params, dueDate }) {
+export async function assignHomework(studentUid, task) {
   const user = auth.currentUser;
   if (!user || !studentUid) return null;
+  const ref = await addDoc(collection(firestore, 'homework'), homeworkData(user.uid, studentUid, task));
+  return ref.id;
+}
+
+// ── Homework to a whole group (school pilot, session 2) ──
+// Plan: docs/plans/2026-10-16-school-groups.md, "Session 2". No rule of its
+// own: one ordinary homework doc per student. Each create's rule reads its
+// coaching link and a batch may make 20 reads, so 8 per batch (measured: 20
+// fit, 18 for a chapter; tests/rules/group-homework.test.js pins 8).
+export const GROUP_HW_BATCH = 8;
+
+function homeworkData(teacherUid, studentUid, { kind, title, note, params, dueDate }) {
   const data = {
-    teacherUid: user.uid, studentUid, kind,
+    teacherUid, studentUid, kind,
     title: String(title).slice(0, 80), params,
     status: 'open', done: 0, seconds: 0, createdAt: serverTimestamp(),
   };
   if (note) data.note = String(note).slice(0, 500);
   if (dueDate) data.dueDate = dueDate;
-  const ref = await addDoc(collection(firestore, 'homework'), data);
-  return ref.id;
+  return data;
+}
+
+// How many open homework I gave each of these students: one count() each
+// (1 read, nothing downloaded). A failed count is left out = not known.
+export async function countOpenHomework(uids) {
+  const user = auth.currentUser;
+  const out = {};
+  if (!user) return out;
+  await Promise.all([...new Set(uids)].map(async uid => {
+    try {
+      const snap = await getCountFromServer(query(collection(firestore, 'homework'),
+        where('teacherUid', '==', user.uid), where('studentUid', '==', uid), where('status', '==', 'open')));
+      out[uid] = snap.data().count;
+    } catch (e) { /* offline, or not mine to count */ }
+  }));
+  return out;
+}
+
+// The same task to every uid, GROUP_HW_BATCH per batch. A refused batch (one
+// link no longer active refuses all of it) is retried one by one, so only
+// the real failures come back. onProgress(done, total) after each step.
+export async function assignHomeworkToMany(uids, task, onProgress = () => {}) {
+  const user = auth.currentUser;
+  const sent = [], failed = [];
+  if (!user) return { sent, failed: [...uids] };
+  const col = collection(firestore, 'homework');
+  for (let i = 0; i < uids.length; i += GROUP_HW_BATCH) {
+    const part = uids.slice(i, i + GROUP_HW_BATCH);
+    try {
+      const batch = writeBatch(firestore);
+      for (const uid of part) batch.set(doc(col), homeworkData(user.uid, uid, task));
+      await batch.commit();
+      sent.push(...part);
+    } catch (e) {
+      for (const uid of part) {
+        try { await addDoc(col, homeworkData(user.uid, uid, task)); sent.push(uid); }
+        catch (e2) { failed.push(uid); }
+      }
+    }
+    onProgress(sent.length + failed.length, uids.length);
+  }
+  return { sent, failed };
+}
+
+// Grade table: homework of MINE finished in the last 7 days, counted per
+// student. One query on the (teacherUid, completedAt) index that
+// fetchFinishedHomework already uses; every group shares it.
+export const WEEK_MS = 7 * 24 * 3600 * 1000;
+export async function countDoneThisWeek() {
+  const user = auth.currentUser;
+  const out = {};
+  if (!user) return out;
+  const snap = await getDocs(query(collection(firestore, 'homework'),
+    where('teacherUid', '==', user.uid), where('completedAt', '>', new Date(Date.now() - WEEK_MS)),
+    orderBy('completedAt'), limit(1000)));
+  snap.forEach(d => { const s = d.data().studentUid; out[s] = (out[s] || 0) + 1; });
+  return out;
 }
 
 function hwList(snap) {
