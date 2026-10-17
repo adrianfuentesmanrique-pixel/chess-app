@@ -9,6 +9,26 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v243: SCHOOL PILOT session 1 — GROUPS + CLASS CODES (2026-10-16).** Plan:
+  `docs/plans/2026-10-16-school-groups.md`. `groups/{code}` (code = doc id, 6 chars,
+  alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, Adrian's choice). A student typing the
+  code creates their own coaching link ALREADY ACTIVE (`groupJoinOk()` in the rules reads
+  the group: this teacher's, open); joinGroup() in js/firebase.js is one batch with the
+  summary, so the 3-teacher cap holds. Links carry `groupId` ('' on friends invites).
+  Teacher roster: chips Individual + one per group, ONE roster loaded at a time
+  (fetchGroupLinks / fetchMyStudentLinks; summaries by fetchReportsFor, one get each).
+  Legacy links without groupId come from a teacherUid+createdAt<2026-11-01 query —
+  needs the new composite index (`npm.cmd run indexes:deploy`). Badge: Profile
+  (`#profile-groups`, kv `groupBadges`) and the "My teachers" row. First/last name and
+  birth date are now OPTIONAL; the profile gate is username only. Dev switch:
+  `http://localhost:<port>/?emu` uses the local Auth+Firestore emulators (App Check
+  skipped there) — `firebase emulators:start --only auth,firestore` with JDK 17 on PATH.
+  Verified end to end on the emulators (two throwaway accounts): create, join, wrong /
+  look-alike / closed code messages, badge, leave, reopen, remove, rename, delete; 375 px,
+  light+dark, ES+EN. Rules tests: `tests/rules/groups.test.js` (627 total pass). Still
+  owed: legal text (js/legal-data.js says not for under-13s), parents' note, session 2
+  (homework to a whole group + per-group grade table).
+
 - **v242: A LIGHTER FIRST LAUNCH (Sentry JAVASCRIPT-9 again, 2026-10-16).** The second
   event (Adrian's screenshots): OnePlus 8 Pro, Android 11, Chrome 90 (2021), Paris, 3g,
   1.35 Mbps, swControlled false (first launch, nothing cached), ms 30106 when the 20 s

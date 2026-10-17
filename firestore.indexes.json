@@ -18,6 +18,14 @@
       ]
     },
     {
+      "collectionGroup": "coaching",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "homework",
       "queryScope": "COLLECTION",
       "fields": [

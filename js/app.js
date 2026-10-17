@@ -476,7 +476,9 @@ function openCompleteProfileModal() {
     const submit = document.createElement('button');
     submit.className = 'btn primary big'; submit.textContent = t('save');
     submit.onclick = async () => {
-      if (!first.value.trim() || !last.value.trim() || !username.value.trim()) return;
+      // Only the username is required: real name and birth date are optional
+      // (school pilot — collect as little as possible about children).
+      if (!username.value.trim()) { errorEl.textContent = t('username_required'); return; }
       submit.disabled = true;
       try {
         await Auth.completeProfile({ firstName: first.value.trim(), lastName: last.value.trim(), username: username.value.trim(), dateOfBirth: dob.value });
@@ -8319,6 +8321,14 @@ export const Profile = {
     $('profile-auth-btn').classList.toggle('hidden', !!user);
     const profileName = await db.kvGet('profileName', '');
     $('profile-display-name').textContent = profileName || (user && (user.displayName || user.email)) || t('your_name');
+    // School pilot: the group(s) I joined with a class code, saved by
+    // js/students.js (refreshMyGroups) under this key.
+    const badges = (user && await db.kvGet('groupBadges', null)) || [];
+    const box = $('profile-groups');
+    box.innerHTML = (Array.isArray(badges) ? badges : []).map(g =>
+      `<span class="group-badge" title="${esc(g.school || '')}"><b aria-hidden="true">🎓</b>` +
+      `<span>${esc(g.name)}${g.school ? ' · ' + esc(g.school) : ''}</span></span>`).join('');
+    box.classList.toggle('hidden', !box.innerHTML);
   },
 
   // Terms §18 promises account + data deletion "anytime from Profile" —

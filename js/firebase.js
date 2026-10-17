@@ -9,6 +9,7 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile,
   deleteUser, reauthenticateWithPopup, reauthenticateWithCredential, EmailAuthProvider,
+  connectAuthEmulator,
 } from '../vendor/firebase-10.14.1/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, orderBy, limit, getDocs,
@@ -17,6 +18,8 @@ import {
   addDoc, collectionGroup, serverTimestamp, writeBatch, onSnapshot,
   // Students homework: progress is added, not overwritten, so two phones add up.
   increment, arrayUnion,
+  // School groups: the legacy-links query compares createdAt with a cutoff.
+  Timestamp, connectFirestoreEmulator,
 } from '../vendor/firebase-10.14.1/firebase-firestore.js';
 import { initializeAppCheck, ReCaptchaV3Provider } from '../vendor/firebase-10.14.1/firebase-app-check.js';
 import * as db from './db.js';
@@ -125,13 +128,27 @@ const app = initializeApp(firebaseConfig);
 if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
-initializeAppCheck(app, {
-  provider: new ReCaptchaV3Provider('6LeR3GYtAAAAACqUurrsfN2K6oTEywe0RGhW0yTc'),
-  isTokenAutoRefreshEnabled: true,
-});
+// DEV ONLY: http://localhost:8811/?emu points the app at the local Auth +
+// Firestore emulators (`npx.cmd firebase emulators:start --only auth,firestore`),
+// so a feature whose rules are not deployed yet can be tried end to end with
+// throwaway accounts. Never true on the real site or in the TWA. The
+// emulators do not check App Check, and its token request (403 in the
+// browser pane) would hold every Auth call back, so it is skipped there.
+const EMULATORS = location.hostname === 'localhost' && new URLSearchParams(location.search).has('emu');
+if (!EMULATORS) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider('6LeR3GYtAAAAACqUurrsfN2K6oTEywe0RGhW0yTc'),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 const auth = getAuth(app);
 const firestore = getFirestore(app);
+
+if (EMULATORS) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
+}
 
 let suppressSync = false;
 
@@ -152,7 +169,9 @@ export const Auth = {
 
   async signUpWithEmail({ email, password, firstName, lastName, username, dateOfBirth }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const displayName = `${firstName} ${lastName}`.trim();
+    // Real name and birth date are OPTIONAL (school pilot, 2026-10-16): with
+    // no name, the auth display name is the username.
+    const displayName = `${firstName || ''} ${lastName || ''}`.trim() || username;
     await updateProfile(cred.user, { displayName });
     suppressSync = true;
     try {
@@ -1848,6 +1867,7 @@ export async function inviteStudent(studentUid) {
     teacherUid: user.uid,
     studentUid,
     status: 'pending',
+    groupId: '',   // not in a group: the "Individual" roster asks for exactly this
     createdAt: serverTimestamp(),
   });
   return true;
@@ -1891,8 +1911,33 @@ async function fetchLinksWhere(field, max) {
   snap.forEach(d => out.push({ id: d.id, ...d.data() }));
   return out;
 }
-export const fetchMyStudentLinks = () => fetchLinksWhere('teacherUid', MAX_STUDENTS + 10);
 export const fetchMyTeacherLinks = () => fetchLinksWhere('studentUid', 50);
+
+// Teacher side, the "Individual" roster: links I made by inviting a friend,
+// i.e. NOT in a group. New ones carry groupId '' and are asked for directly.
+// Links made before groupId existed have no such field, and Firestore cannot
+// ask for a missing field — so a second query takes every link of mine made
+// before LEGACY_LINK_CUTOFF (index: coaching teacherUid+createdAt) and keeps
+// the ungrouped ones. Before that index is deployed the second query fails;
+// then the old capped query stands in, which is exact while no groups exist.
+const LEGACY_LINK_CUTOFF = Date.UTC(2026, 10, 1);
+export async function fetchMyStudentLinks() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const col = collection(firestore, 'coaching');
+  const out = new Map();
+  const add = snap => snap.forEach(d => { if (!d.data().groupId) out.set(d.id, { id: d.id, ...d.data() }); });
+  add(await getDocs(query(col, where('teacherUid', '==', user.uid), where('groupId', '==', ''),
+    limit(MAX_STUDENTS + 10))));
+  try {
+    add(await getDocs(query(col, where('teacherUid', '==', user.uid),
+      where('createdAt', '<', Timestamp.fromMillis(LEGACY_LINK_CUTOFF)), limit(MAX_GROUP_STUDENTS))));
+  } catch (e) {
+    console.warn('Legacy links query failed (index not deployed yet?) — using the capped query', e);
+    add(await getDocs(query(col, where('teacherUid', '==', user.uid), limit(MAX_STUDENTS + 10))));
+  }
+  return [...out.values()];
+}
 
 // Teacher uids with an ACTIVE link to me, oldest acceptance first, capped at
 // MAX_TEACHERS. The summary's `teachers` list is always built from this, never
@@ -2068,6 +2113,187 @@ export async function fetchStudentReports() {
   const out = {};
   snap.forEach(d => { out[d.id] = { uid: d.id, ...d.data() }; });
   return out;
+}
+
+// Teacher side, for a roster that may be one group of hundreds: the summaries
+// of exactly these students, one getDoc each. A summary that does not list me
+// (not published yet, or I was pruned) is a permission error — skipped.
+export async function fetchReportsFor(uids) {
+  const out = {};
+  await Promise.all([...new Set(uids)].map(async uid => {
+    try {
+      const d = await getDoc(doc(firestore, 'studentReports', uid));
+      if (d.exists()) out[uid] = { uid, ...d.data() };
+    } catch (e) { /* not shared with me */ }
+  }));
+  return out;
+}
+
+// ── Groups and class codes (school pilot) ─────────────────────────────────
+// groups/{code}: a teacher's group; the class code IS the document id. A
+// student who types the code creates their own coaching link already active
+// (joinGroup) — the code is the yes. Rules: the groups block and
+// groupJoinOk() in firestore.rules; tests: tests/rules/groups.test.js.
+// Plan: docs/plans/2026-10-16-school-groups.md.
+
+// 6 characters, no look-alikes (Adrian, 2026-10-16): no 0/O, no 1/I. The
+// rules check exactly this alphabet.
+export const GROUP_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const GROUP_CODE_LEN = 6;
+// ADVISORY, like MAX_STUDENTS: no rule can count. MAX_GROUP_STUDENTS bounds
+// one group's roster query; MAX_GROUPS the group list.
+export const MAX_GROUPS = 30;
+export const MAX_GROUP_STUDENTS = 200;
+export const GROUP_NAME_MAX = 40;
+export const GROUP_SCHOOL_MAX = 60;
+
+// What the student typed → the code, or '' if it cannot be one. Spaces and
+// dashes are dropped and case ignored, so "k7r-m3p" works.
+export function normalizeGroupCode(typed) {
+  const c = String(typed || '').toUpperCase().replace(/[\s-]/g, '');
+  return c.length === GROUP_CODE_LEN && [...c].every(ch => GROUP_CODE_CHARS.includes(ch)) ? c : '';
+}
+
+function newGroupCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(GROUP_CODE_LEN));
+  // 256 is a multiple of 32, so `% 32` is unbiased.
+  return [...bytes].map(b => GROUP_CODE_CHARS[b % GROUP_CODE_CHARS.length]).join('');
+}
+
+function groupFields(name, school) {
+  const out = { name: String(name || '').trim().slice(0, GROUP_NAME_MAX) };
+  const s = String(school || '').trim().slice(0, GROUP_SCHOOL_MAX);
+  if (s) out.school = s;
+  return out;
+}
+
+// A new open group with a fresh code. The get() first avoids a collision; a
+// setDoc on somebody else's code would be refused by the rules anyway.
+export async function createGroup(name, school = '') {
+  const user = auth.currentUser;
+  if (!user) return null;
+  const fields = groupFields(name, school);
+  if (!fields.name) return null;
+  for (let i = 0; i < 6; i++) {
+    const code = newGroupCode();
+    const ref = doc(firestore, 'groups', code);
+    if ((await getDoc(ref)).exists()) continue;
+    await setDoc(ref, { teacherUid: user.uid, ...fields, open: true, createdAt: serverTimestamp() });
+    return { id: code, teacherUid: user.uid, ...fields, open: true };
+  }
+  throw new Error('No free class code found');
+}
+
+export async function fetchMyGroups() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  const snap = await getDocs(query(collection(firestore, 'groups'),
+    where('teacherUid', '==', user.uid), limit(MAX_GROUPS + 5)));
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out;
+}
+
+// school '' removes it (deleteField), so a typo can be undone.
+export async function renameGroup(code, name, school = '') {
+  const f = groupFields(name, school);
+  if (!f.name) return false;
+  await updateDoc(doc(firestore, 'groups', code), { name: f.name, school: f.school || deleteField() });
+  return true;
+}
+
+// Closed = nobody new can join with the code; who is in stays in.
+export async function setGroupOpen(code, open) {
+  await updateDoc(doc(firestore, 'groups', code), { open: !!open });
+  return true;
+}
+
+// One group's links (teacher side). Equality filters only: no composite index.
+export async function fetchGroupLinks(code) {
+  const user = auth.currentUser;
+  if (!user || !code) return [];
+  const snap = await getDocs(query(collection(firestore, 'coaching'),
+    where('teacherUid', '==', user.uid), where('groupId', '==', code), limit(MAX_GROUP_STUDENTS)));
+  const out = [];
+  snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+  return out;
+}
+
+// Delete a group: every student in it is removed (their link and the homework
+// I gave them, as removeStudent does), then the group. Batches of ≤ 450
+// writes; the group goes last, so a failure halfway leaves the group there to
+// delete again rather than students without a group.
+export async function deleteGroup(code) {
+  const user = auth.currentUser;
+  if (!user || !code) return false;
+  const links = await fetchGroupLinks(code);
+  const refs = [];
+  for (const l of links) {
+    refs.push(doc(firestore, 'coaching', l.id));
+    refs.push(...await homeworkRefs(user.uid, l.studentUid));
+  }
+  for (let i = 0; i < refs.length; i += 450) {
+    const batch = writeBatch(firestore);
+    refs.slice(i, i + 450).forEach(r => batch.delete(r));
+    await batch.commit();
+  }
+  await deleteDoc(doc(firestore, 'groups', code));
+  return true;
+}
+
+// Any signed-in user may read a group by its code. null = no such code.
+export async function lookupGroup(code) {
+  if (!normalizeGroupCode(code)) return null;
+  const d = await getDoc(doc(firestore, 'groups', code));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+
+// The groups behind my links (student side, for the badge). Deleted ones are
+// left out.
+export async function fetchGroupsByIds(codes) {
+  const out = {};
+  await Promise.all([...new Set(codes)].filter(c => normalizeGroupCode(c)).map(async c => {
+    try {
+      const g = await lookupGroup(c);
+      if (g) out[c] = g;
+    } catch (e) { /* offline or gone */ }
+  }));
+  return out;
+}
+
+// Student side: typing the code. ONE batch — my link to that teacher becomes
+// active in the group (created, or updated if one already exists: a pending
+// invite, an old decline, another of that teacher's groups) AND my summary is
+// rewritten naming the teacher, so the 3-teacher cap in the summary rule holds.
+// Throws an Error whose .code says why, before anything is written:
+// 'bad-code' | 'lookalike' | 'no-group' | 'closed' | 'own-group' | 'max-teachers'.
+export async function joinGroup(typed) {
+  const user = auth.currentUser;
+  if (!user) return null;
+  const fail = code => { const e = new Error(code); e.code = code; return e; };
+  const code = normalizeGroupCode(typed);
+  // Right length but a 0/O/1/I in it: say that, not "wrong length".
+  if (!code) throw fail(String(typed || '').replace(/[\s-]/g, '').length === GROUP_CODE_LEN ? 'lookalike' : 'bad-code');
+  const g = await lookupGroup(code);
+  if (!g) throw fail('no-group');
+  if (g.teacherUid === user.uid) throw fail('own-group');
+  if (!g.open) throw fail('closed');
+  const links = await fetchMyTeacherLinks();
+  const others = activeTeacherUids(links, { drop: g.teacherUid });
+  if (others.length >= MAX_TEACHERS) throw fail('max-teachers');
+  const ref = doc(firestore, 'coaching', coachingIdOf(g.teacherUid, user.uid));
+  const batch = writeBatch(firestore);
+  if (links.some(l => l.teacherUid === g.teacherUid)) {
+    batch.update(ref, { status: 'active', groupId: code, respondedAt: serverTimestamp() });
+  } else {
+    batch.set(ref, {
+      teacherUid: g.teacherUid, studentUid: user.uid, status: 'active', groupId: code,
+      createdAt: serverTimestamp(), respondedAt: serverTimestamp(),
+    });
+  }
+  batch.set(doc(firestore, 'studentReports', user.uid), await buildStudentReport([...others, g.teacherUid]));
+  await batch.commit();
+  return g;
 }
 
 // ── Homework (Students stage 4) ─────────────────────────────────────
@@ -2280,7 +2506,7 @@ async function pullOrBootstrap(uid) {
           setDoc(ref, { [key]: owed }, { merge: true }).catch(e => console.error('Firestore sync failed for', key, e));
         }
       }
-      // Both, not just firstName. username arrived with Friends, so every
+      // The username is the gate. It arrived with Friends, so every
       // account created before it has a firstName and no username — and those
       // accounts passed a firstName-only gate forever, were never asked, and
       // updatePublicLeaderboardDoc() below deletes usernameLower for them.
@@ -2288,7 +2514,9 @@ async function pullOrBootstrap(uid) {
       // search, which is the one place it needs to be found. A Google sign-in
       // never sets a username either: the provider supplies a display name and
       // nothing else, so it lands in exactly the same hole.
-      Auth.needsProfileCompletion = !remote.firstName || !remote.username;
+      // Only the username: a real name is optional since the school pilot,
+      // so an account without one must not be asked again on every open.
+      Auth.needsProfileCompletion = !remote.username;
     } else {
       const local = {};
       for (const key of SYNCED_KEYS) {
@@ -2297,7 +2525,7 @@ async function pullOrBootstrap(uid) {
       }
       await setDoc(ref, local, { merge: true });
       for (const key of DAY_MAP_KEYS) accountDayMaps[key] = mergeSolved(local[key], null);
-      Auth.needsProfileCompletion = !local.firstName || !local.username;
+      Auth.needsProfileCompletion = !local.username;
     }
   } finally {
     suppressSync = false;

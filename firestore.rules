@@ -742,6 +742,85 @@ service cloud.firestore {
         && link.data.studentUid == s;
     }
 
+    // ── Groups and class codes (school pilot, plan 2026-10-16-school-groups) ──
+    //   groups/{code}   a teacher's group. The class code IS the document id:
+    //                   6 characters with no look-alikes (no 0/O, no 1/I).
+    // Knowing the code is what lets a student join, so the rules prove a code
+    // valid by READING the group: it exists, it is this teacher's, it is open.
+    // No server is involved.
+    function groupPath(code) {
+      return /databases/$(database)/documents/groups/$(code);
+    }
+    function codeOk(c) {
+      return c is string && c.matches('^[A-HJ-NP-Z2-9]{6}$');
+    }
+    // codeOk() first (&& short-circuits), so a malformed value never reaches
+    // the path. get() of a missing group errors and an error denies — the
+    // right answer for a wrong code.
+    function groupOpenFor(code, t) {
+      return codeOk(code)
+        && get(groupPath(code)).data.teacherUid == t
+        && get(groupPath(code)).data.open == true;
+    }
+
+    // A student creating their own link by typing a class code. Created
+    // ALREADY ACTIVE — the code is the acceptance — so there is no pending
+    // step and no friendship needed (a class cannot friend its teacher). The
+    // 3-teacher cap is unchanged: the app writes this link and the summary in
+    // one batch, and the summary rule refuses a 4th teacher.
+    function groupJoinOk(linkId, d) {
+      return d.keys().hasOnly(['teacherUid', 'studentUid', 'status', 'groupId', 'createdAt', 'respondedAt'])
+        && d.keys().hasAll(['teacherUid', 'studentUid', 'status', 'groupId', 'createdAt', 'respondedAt'])
+        && d.studentUid == me()
+        && d.teacherUid is string
+        && d.teacherUid.size() > 0 && d.teacherUid.size() <= 128
+        && d.teacherUid != me()
+        && linkId == d.teacherUid + '_' + me()
+        && d.status == 'active'
+        && d.createdAt == request.time
+        && d.respondedAt == request.time
+        && groupOpenFor(d.groupId, d.teacherUid)
+        // A teacher who blocked this student cannot be joined.
+        && !exists(/databases/$(database)/documents/blocks/$(d.teacherUid)/blocked/$(me()));
+    }
+
+    match /groups/{code} {
+      // get: anyone signed in — the student must look the code up to join, and
+      // to show the group's name on their badge. list: only your own groups
+      // (the query must say teacherUid == me), so nobody can page through
+      // codes. Guessing one costs a read per try out of ~1 billion.
+      allow get: if signedIn();
+      allow list: if signedIn() && resource.data.teacherUid == me();
+
+      // A setDoc on a code that already exists is an UPDATE, which only the
+      // owner may do and which can never change teacherUid or createdAt — so
+      // a collision can never take over somebody else's group. The app checks
+      // with a get first and picks another code.
+      allow create: if signedIn()
+        && codeOk(code)
+        && after().keys().hasOnly(['teacherUid', 'name', 'school', 'open', 'createdAt'])
+        && after().keys().hasAll(['teacherUid', 'name', 'open', 'createdAt'])
+        && after().teacherUid == me()
+        && groupTextOk(after())
+        && after().open == true
+        && after().createdAt == request.time;
+
+      // Rename, change the school, close (stop new joins) or reopen.
+      allow update: if signedIn()
+        && resource.data.teacherUid == me()
+        && after().diff(resource.data).affectedKeys().hasOnly(['name', 'school', 'open'])
+        && groupTextOk(after())
+        && after().open is bool;
+
+      // The app deletes the group's links (and their homework) in the same
+      // batches; the teacher may always delete an active link.
+      allow delete: if signedIn() && resource.data.teacherUid == me();
+    }
+    function groupTextOk(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 40
+        && (!('school' in d) || (d.school is string && d.school.size() <= 60));
+    }
+
     match /coaching/{linkId} {
       // Only the two people in the link can read it. .get(field, default), NOT
       // resource.data.teacherUid — the same trap documented on /friendRequests.
@@ -755,12 +834,17 @@ service cloud.firestore {
         && (resource.data.get('teacherUid', '') == me()
             || resource.data.get('studentUid', '') == me());
 
-      // Only the TEACHER creates a link, and only as 'pending'. It grants
-      // nothing on its own: no summary can name this teacher until the student
-      // flips it to 'active' (see linkActiveAfter above).
-      allow create: if signedIn()
-        && after().keys().hasOnly(['teacherUid', 'studentUid', 'status', 'createdAt'])
+      // Two ways in. (1) The TEACHER invites a friend, and only as 'pending'.
+      // It grants nothing on its own: no summary can name this teacher until
+      // the student flips it to 'active' (see linkActiveAfter above).
+      // (2) The STUDENT joins a group with its class code — see groupJoinOk().
+      allow create: if signedIn() && (groupJoinOk(linkId, after()) || (
+        after().keys().hasOnly(['teacherUid', 'studentUid', 'status', 'createdAt', 'groupId'])
         && after().keys().hasAll(['teacherUid', 'studentUid', 'status', 'createdAt'])
+        // '' = not in a group. Optional so a phone still on the old version
+        // can invite until it updates; the app's "Individual" roster also
+        // fetches the links made before groupId existed.
+        && after().get('groupId', '') == ''
         && after().teacherUid == me()
         && after().studentUid is string
         && after().studentUid.size() > 0 && after().studentUid.size() <= 128
@@ -782,19 +866,29 @@ service cloud.firestore {
         // Blocking is silent by design, exactly as on /friendRequests. A
         // blocked teacher gets a plain permission error and the app shows the
         // ordinary "Invite sent" toast. A block is never revealed.
-        && !exists(/databases/$(database)/documents/blocks/$(after().studentUid)/blocked/$(me()));
+        && !exists(/databases/$(database)/documents/blocks/$(after().studentUid)/blocked/$(me()))));
 
       // Only the STUDENT answers, only once, and only pending → active or
       // pending → declined. Nothing else on the document may move: the diff
       // allows exactly the two answer fields. So an active link cannot be put
       // back to pending, a decline cannot be turned into an accept later, and
       // the teacher cannot accept on the student's behalf.
+      //
+      // The one exception is the class code (second branch): a student who
+      // types a valid code of THIS link's teacher may make the link active in
+      // that group whatever state it is in — a pending invite, an old decline,
+      // or another of the same teacher's groups. Typing the code is the
+      // student's own yes, exactly like Accept.
       allow update: if signedIn()
         && resource.data.studentUid == me()
-        && resource.data.status == 'pending'
-        && after().diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])
-        && after().status in ['active', 'declined']
-        && after().respondedAt == request.time;
+        && ((resource.data.status == 'pending'
+             && after().diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt'])
+             && after().status in ['active', 'declined']
+             && after().respondedAt == request.time)
+            || (after().diff(resource.data).affectedKeys().hasOnly(['status', 'respondedAt', 'groupId'])
+                && after().status == 'active'
+                && after().respondedAt == request.time
+                && groupOpenFor(after().groupId, resource.data.teacherUid)));
 
       // The student may delete in any state: that is "End", and also clearing
       // an old decline. The teacher may delete only 'pending' (withdraw the

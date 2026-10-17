@@ -1381,6 +1381,8 @@
           <div style="display:flex; align-items:center; gap:6px;">
             <span id="profile-display-name" style="font-weight:700;"></span>
           </div>
+          <!-- School pilot: the group(s) I joined with a class code. -->
+          <div id="profile-groups" class="group-badges hidden"></div>
           <button id="profile-auth-btn" class="btn small" data-i18n="sign_in_or_up"></button>
           <!-- Sign out and Delete account moved to Settings (⚙️) — account actions
                sit out of the way there, not on the Profile tab. -->
@@ -1562,6 +1564,9 @@
         <h3 class="group-head" data-i18n="stu_my_teachers"></h3>
         <div id="stu-teacher-list" class="list"></div>
       </div>
+      <!-- School pilot: a student types their class code (js/students.js
+           joinSheet). Always here, so a child with no teacher yet finds it. -->
+      <button id="stu-join" class="btn btn-wide stu-join" data-i18n="grp_join_btn_main"></button>
       <!-- A simul a teacher invited me to: Join / Not now, waiting, started
            (js/simul-ui.js). The banner says the same on every other screen. -->
       <div id="stu-simul" class="mc-section hidden">
@@ -1593,6 +1598,10 @@
           <!-- Only for a teacher with at least one student who accepted. -->
           <button id="stu-simul-open" class="btn hidden" data-i18n="simul_entry"></button>
         </div>
+        <!-- School pilot: Individual + one chip per group + New group. Only the
+             chosen roster is loaded (a group can be hundreds of students). -->
+        <div id="stu-groups" class="stu-groups"></div>
+        <div id="stu-group-card" class="stu-group-card hidden"></div>
         <div id="stu-list" class="list"></div>
         <p id="stu-empty" class="hint empty-note hidden" data-i18n="stu_no_students"></p>
       </div>

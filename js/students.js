@@ -27,6 +27,10 @@ import {
   fetchFinishedHomework, packResult, unpackResult, MAX_HW_RESULTS, MAX_HW_RESULTS_CHARS,
   MAX_LIST_PUZZLES, packPuzzle, unpackPuzzle, ensureViewer, fetchMyMasterclasses, fetchChapters,
   MAX_MEMBERS as MAX_MEMBERS_MC, MAX_HW_GAME_CHARS,
+  // School pilot: groups with a class code (plan 2026-10-16-school-groups).
+  MAX_GROUPS, MAX_GROUP_STUDENTS, GROUP_NAME_MAX, GROUP_SCHOOL_MAX, GROUP_CODE_LEN,
+  createGroup, fetchMyGroups, renameGroup, setGroupOpen, deleteGroup, fetchGroupLinks,
+  fetchReportsFor, joinGroup, fetchGroupsByIds,
 } from './firebase.js';
 import {
   $, esc, toast, modal, sheet, askConfirm, showScreen, activeScreen,
@@ -56,6 +60,9 @@ import { SimulUI } from './simul-ui.js';
 // links costs no reads at boot. It is keyed to the uid, and sign-out wipes the
 // whole kv store anyway (Auth.signOut → db.clearSyncedProfileData).
 const CACHE_KEY = 'studentsCache';
+// [{name, school}] of the groups I joined with a class code, for the Profile
+// badge (js/app.js renderAccount reads it by this same literal key).
+export const BADGES_KEY = 'groupBadges';
 // Somebody with no links is still asked once in a while whether an invite has
 // arrived, so the gold dot can appear without them opening the screen first.
 // One query (1 read when empty) per 6 hours, not per boot.
@@ -146,9 +153,18 @@ export const Students = {
   finNew: [],
   finSeenAt: 0,       // completedAt (ms) of the newest finished homework fetched
   finCheckAt: 0,      // when the check last ran (memory only)
+  // School pilot. Teacher: my groups, and which roster is on screen — ''
+  // is "Individual" (friends I invited), otherwise a group code. Only ONE
+  // roster is loaded at a time, so asTeacher/reports hold just that one:
+  // a school group can be hundreds of students.
+  groups: [],
+  groupSel: '',
+  // Student: code → group, for the groups my links point at (the badge).
+  myGroups: {},
 
   init() {
     $('stu-invite').onclick = () => this.invite();
+    $('stu-join').onclick = () => this.joinSheet();
     // The Masterclass list lives on the Bases tab; Base.refresh() redraws it.
     $('stu-mc').onclick = () => showScreen('base');
     $('stu-signin').onclick = () => openAuthModal();
@@ -185,6 +201,7 @@ export const Students = {
     this.homework = []; this.hwSeen = []; this.doneSeen = {}; this.hwGiven = {};
     this.hwDraft = {}; this.hwPos = {}; this.hwForm = {}; this.hwGone = new Set();
     this.finNew = []; this.finSeenAt = 0; this.finCheckAt = 0;
+    this.groups = []; this.groupSel = ''; this.myGroups = {};
     if (this.hwRun) this.hwDrop();
     this.loaded = false; this.failed = false; this.cachedAt = 0; this.practiceS = 0;
     if (uid) await this.readCache();
@@ -208,6 +225,9 @@ export const Students = {
     this.hwDraft = c.hwDraft || {};
     this.finNew = c.finNew || [];
     this.finSeenAt = c.finSeenAt || 0;
+    this.groups = c.groups || [];
+    this.groupSel = c.groupSel || '';
+    this.myGroups = c.myGroups || {};
     this.cachedAt = c.at || 0;
     this.loaded = true;
     return c;
@@ -223,6 +243,7 @@ export const Students = {
       homework: this.homework, hwSeen: this.hwSeen, doneSeen: this.doneSeen,
       hwGiven: this.hwGiven, hwDraft: this.hwDraft,
       finNew: this.finNew, finSeenAt: this.finSeenAt,
+      groups: this.groups, groupSel: this.groupSel, myGroups: this.myGroups,
       inviteCheckAt: (prev && prev.uid === this.uid && prev.inviteCheckAt) || 0,
       ...extra,
     }));
@@ -230,6 +251,9 @@ export const Students = {
 
   hasTeacher() { return this.asStudent.some(l => l.status === 'active'); },
   hasStudents() { return !!this.uid && this.asTeacher.some(l => l.status === 'active'); },
+  // I teach at all: a student on screen, or a group (whose roster may not be
+  // the one loaded). The finished-homework check runs for either.
+  teaches() { return this.hasStudents() || (!!this.uid && this.groups.length > 0); },
 
   // ── the list draft (stage 5, teacher) ──
   // "Give to a student" on a puzzle in my log review: pick whose list, and the
@@ -277,6 +301,7 @@ export const Students = {
     }
     if (this.uid !== uid) return;
     this.asStudent = plain(links);
+    await this.refreshMyGroups(links);
     // New homework is how a student finds out at all (no notifications on the
     // free plan) — about one read per homework, only with a teacher.
     if (this.hasTeacher()) await this.loadMyHomework();
@@ -300,7 +325,7 @@ export const Students = {
   // strip without another read.
   async checkFinished({ force = false } = {}) {
     const uid = this.uid;
-    if (!uid || !navigator.onLine || !this.hasStudents()) return;
+    if (!uid || !navigator.onLine || !this.teaches()) return;
     if (!force && Date.now() - this.finCheckAt < FIN_CHECK_MS) return;
     this.finCheckAt = Date.now();
     const since = this.finSeenAt || Date.now() - FIN_FIRST_DAYS * 86400000;
@@ -313,11 +338,12 @@ export const Students = {
       return;
     }
     if (this.uid !== uid) return;
-    const mine = new Set(this.asTeacher.filter(l => l.status === 'active').map(l => l.studentUid));
+    // Not filtered by the roster on screen: with groups only one roster is
+    // loaded. A homework still existing means the link does too — removing a
+    // student or ending deletes that pair's homework in the same batch.
     for (const h of plain(list)) {
       // +1 ms: the next check asks for "later than the newest one I have".
       this.finSeenAt = Math.max(this.finSeenAt, (h.doneMs || 0) + 1);
-      if (!mine.has(h.studentUid)) continue;
       const given = this.hwGiven[h.studentUid] || (this.hwGiven[h.studentUid] = []);
       const at = given.findIndex(x => x.id === h.id);
       if (at >= 0) given[at] = h; else given.push(h);
@@ -326,6 +352,7 @@ export const Students = {
       }
     }
     if (!this.finSeenAt) this.finSeenAt = since;
+    await this.fillPeople(this.finNew.map(x => x.studentUid));
     await this.writeCache();
     this.paintDot();
     if (activeScreen === 'students') this.renderFinished();
@@ -378,10 +405,26 @@ export const Students = {
     if (!uid) { this.render(); return; }
     if (!navigator.onLine) { this.render(); return; }
     try {
-      const [asTeacher, asStudent] = await Promise.all([fetchMyStudentLinks(), fetchMyTeacherLinks()]);
-      // Summaries only when somebody has accepted me — 0 reads otherwise.
-      const reports = asTeacher.some(l => l.status === 'active') ? await fetchStudentReports() : {};
+      const sel = this.groupSel;
+      const [groups, asStudent, roster] = await Promise.all([
+        fetchMyGroups(), fetchMyTeacherLinks(),
+        sel ? fetchGroupLinks(sel) : fetchMyStudentLinks()]);
+      // The group on screen was deleted (on another phone): back to Individual.
+      if (sel && !groups.some(g => g.id === sel)) {
+        if (this.uid !== uid) return;
+        this.groupSel = '';
+        this.groups = plain(groups);
+        return this.load();
+      }
+      const asTeacher = roster;
+      // Summaries of THIS roster only, one get each — 0 reads with nobody
+      // accepted. (The old array-contains query would fetch every student of
+      // every group at once.)
+      const active = asTeacher.filter(l => l.status === 'active').map(l => l.studentUid);
+      const reports = active.length ? await fetchReportsFor(active) : {};
+      await this.refreshMyGroups(asStudent);
       if (this.uid !== uid) return;
+      this.groups = plain(groups).sort((a, b) => a.name.localeCompare(b.name));
       this.asTeacher = plain(asTeacher);
       this.asStudent = plain(asStudent);
       if (this.hasTeacher()) await this.loadMyHomework();
@@ -404,6 +447,20 @@ export const Students = {
     if (this.uid === uid) await this.checkFinished({ force: true });
     this.paintDot();
     this.render();
+  },
+
+  // The groups my active links point at — one get per group, only for a
+  // student who joined with a code. Also written to kv BADGES_KEY, which the
+  // Profile reads to draw the badge (it must not import this file).
+  async refreshMyGroups(links) {
+    const codes = links.filter(l => l.status === 'active' && l.groupId).map(l => l.groupId);
+    const got = codes.length ? await fetchGroupsByIds(codes) : {};
+    // Offline or a failed get keeps the name we had, rather than a blank badge.
+    const next = {};
+    for (const c of codes) if (got[c] || this.myGroups[c]) next[c] = got[c] || this.myGroups[c];
+    this.myGroups = plain(next);
+    await db.kvSet(BADGES_KEY, Object.values(this.myGroups)
+      .map(g => ({ name: g.name, school: g.school || '' })));
   },
 
   // Mine, from every teacher. Keeps the local copy of a homework that is
@@ -518,8 +575,8 @@ export const Students = {
     const wrap = $('stu-fin');
     const el = $('stu-fin-list');
     el.innerHTML = '';
-    const mine = new Set(this.asTeacher.filter(l => l.status === 'active').map(l => l.studentUid));
-    const items = this.finNew.filter(x => mine.has(x.studentUid)).sort((a, b) => b.doneMs - a.doneMs);
+    const gone = new Set(this.asTeacher.filter(l => l.status !== 'active').map(l => l.studentUid));
+    const items = this.finNew.filter(x => !gone.has(x.studentUid)).sort((a, b) => b.doneMs - a.doneMs);
     wrap.classList.toggle('hidden', !items.length);
     if (!items.length) return;
     for (const x of items) {
@@ -708,7 +765,11 @@ export const Students = {
       const p = this.who(l.teacherUid);
       if (l.status === 'pending') el.appendChild(this.inviteCard(p));
       else if (l.status === 'active') {
-        el.appendChild(this.row(p, t('stu_your_teacher'), [
+        // Joined with a class code: the group (and school) instead of the
+        // generic line — the same badge the Profile shows.
+        const g = l.groupId && this.myGroups[l.groupId];
+        const sub = g ? `🎓 ${g.name}${g.school ? ' · ' + g.school : ''}` : t('stu_your_teacher');
+        el.appendChild(this.row(p, sub, [
           { cls: 'btn small danger', key: 'stu_end', on: b => this.end(p, b) },
         ]));
       } else {
@@ -764,7 +825,9 @@ export const Students = {
     const el = $('stu-list');
     el.innerHTML = '';
     const live = this.asTeacher.filter(l => l.status !== 'declined');
-    paintCapCounter('stu-count', this.loaded ? live.length : null, MAX_STUDENTS);
+    const g = this.groups.find(x => x.id === this.groupSel) || null;
+    paintCapCounter('stu-count', this.loaded ? live.length : null, g ? MAX_GROUP_STUDENTS : MAX_STUDENTS);
+    this.renderGroups(g);
     const active = this.asTeacher.filter(l => l.status === 'active')
       .map(l => this.who(l.studentUid))
       .sort((a, b) => a.profileName.localeCompare(b.profileName));
@@ -780,8 +843,178 @@ export const Students = {
     for (const l of this.asTeacher.filter(x => x.status === 'declined')) {
       el.appendChild(this.row(this.who(l.studentUid), null, [], t('stu_declined_note')));
     }
-    $('stu-empty').classList.toggle('hidden', !this.loaded || this.asTeacher.length > 0);
+    const empty = $('stu-empty');
+    empty.textContent = t(g ? 'grp_empty' : 'stu_no_students');
+    empty.classList.toggle('hidden', !this.loaded || this.asTeacher.length > 0);
     $('stu-simul-open').classList.toggle('hidden', !this.hasStudents());
+  },
+
+  // ── Groups (school pilot, I am the teacher) ──
+  // A row of chips: Individual (friends I invited), one per group, ＋ New.
+  // Picking one loads ONLY that roster. A group shows its class code big,
+  // with Copy, Close/Open and ⋯ (Rename, Delete).
+  renderGroups(g) {
+    const bar = $('stu-groups');
+    bar.innerHTML = '';
+    const chip = (label, on, fn, extra = '') => {
+      const b = document.createElement('button');
+      b.className = 'stu-chip' + (on ? ' on' : '') + extra;
+      b.textContent = label;
+      b.setAttribute('aria-pressed', String(on));
+      b.onclick = fn;
+      bar.appendChild(b);
+    };
+    chip(t('grp_individual'), !g, () => this.selectGroup(''));
+    for (const x of this.groups) chip(x.name + (x.open ? '' : ' 🔒'), !!g && g.id === x.id, () => this.selectGroup(x.id));
+    if (this.groups.length < MAX_GROUPS) chip(t('grp_new'), false, () => this.newGroup(), ' add');
+    $('stu-invite').classList.toggle('hidden', !!g);
+    const card = $('stu-group-card');
+    card.classList.toggle('hidden', !g);
+    if (!g) return;
+    const spaced = g.id.slice(0, 3) + ' ' + g.id.slice(3);
+    card.innerHTML =
+      `<div class="stu-gc-head"><span class="fr-name">${esc(g.name)}` +
+      `<span class="fr-sub">${esc(g.school || '')}</span></span>` +
+      `<button class="fr-more" aria-label="${esc(t('grp_more'))}">⋯</button></div>` +
+      `<div class="stu-gc-code${g.open ? '' : ' closed'}" aria-label="${esc(t('grp_code_aria').replace('{c}', [...g.id].join(' ')))}">${esc(spaced)}</div>` +
+      `<p class="hint stu-gc-hint">${esc(t(g.open ? 'grp_code_hint' : 'grp_closed_hint'))}</p>` +
+      `<div class="fr-actions"><button class="btn small">${esc(t('grp_copy'))}</button>` +
+      `<button class="btn small">${esc(t(g.open ? 'grp_close' : 'grp_open'))}</button></div>`;
+    const [copy, openBtn] = card.querySelectorAll('.fr-actions .btn');
+    card.querySelector('.fr-more').onclick = () => sheet([
+      { label: t('grp_rename'), action: () => this.renameGroupFlow(g) },
+      { label: t('grp_delete'), danger: true, action: () => this.deleteGroupFlow(g) },
+    ]);
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(g.id); toast(t('grp_copied')); }
+      catch (e) { toast(g.id, 4000); }
+    };
+    openBtn.onclick = () => this.toggleGroupOpen(g, openBtn);
+  },
+
+  selectGroup(code) {
+    if (code === this.groupSel) return;
+    this.groupSel = code;
+    // The other roster's lists are not this one's: draw empty + "Loading…".
+    this.asTeacher = []; this.reports = {};
+    this.loaded = false;
+    this.render();
+    this.load();
+  },
+
+  // Name (required) and school (optional, remembered on this phone for the
+  // next group — a teacher usually has several at one school).
+  async askGroup(title, name = '', school = null) {
+    const lastSchool = school ?? ((await db.kvGet('groupSchoolLast', '')) || '');
+    return modal((box, close) => {
+      box.innerHTML = `<h3>${esc(title)}</h3>` +
+        `<label class="fld-label">${esc(t('grp_name'))}</label>` +
+        `<input class="input" maxlength="${GROUP_NAME_MAX}">` +
+        `<p class="hint">${esc(t('grp_name_hint'))}</p>` +
+        `<label class="fld-label">${esc(t('grp_school'))}</label>` +
+        `<input class="input" maxlength="${GROUP_SCHOOL_MAX}">`;
+      const [n, s] = box.querySelectorAll('input');
+      n.value = name; s.value = lastSchool;
+      const row = document.createElement('div'); row.className = 'row';
+      const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('ok');
+      const ca = document.createElement('button'); ca.className = 'btn'; ca.textContent = t('cancel');
+      ok.onclick = () => { if (n.value.trim()) close({ name: n.value.trim(), school: s.value.trim() }); else n.focus(); };
+      ca.onclick = () => close(null);
+      row.append(ok, ca);
+      box.appendChild(row);
+      setTimeout(() => n.focus(), 50);
+    });
+  },
+
+  async newGroup() {
+    if (!this.uid || !this.online()) return;
+    if (this.groups.length >= MAX_GROUPS) { toast(t('grp_max').replace('{n}', MAX_GROUPS)); return; }
+    const a = await this.askGroup(t('grp_new_title'));
+    if (!a) return;
+    try {
+      const g = await createGroup(a.name, a.school);
+      if (!g) return;
+      await db.kvSet('groupSchoolLast', a.school);
+      this.groups = [...this.groups, plain(g)].sort((x, y) => x.name.localeCompare(y.name));
+      toast(t('grp_created').replace('{c}', g.id), 3500);
+      this.selectGroup(g.id);
+    } catch (e) {
+      console.error('Creating a group failed', e);
+      toast(t('stu_try_again'));
+    }
+  },
+
+  async renameGroupFlow(g) {
+    if (!this.online()) return;
+    const a = await this.askGroup(t('grp_rename'), g.name, g.school || '');
+    if (!a) return;
+    await this.run(() => renameGroup(g.id, a.name, a.school));
+  },
+
+  async toggleGroupOpen(g, btn) {
+    if (!this.online()) return;
+    btn.disabled = true;
+    await this.run(() => setGroupOpen(g.id, !g.open));
+  },
+
+  async deleteGroupFlow(g) {
+    if (!this.online()) return;
+    const n = this.asTeacher.filter(l => l.groupId === g.id).length;
+    if (!await askConfirm(t('grp_delete_confirm').replace('{g}', esc(g.name)).replace('{n}', n))) return;
+    this.groupSel = '';
+    await this.run(() => deleteGroup(g.id));
+  },
+
+  // ── Joining a class with its code (I am the student) ──
+  // Typing the code IS the yes, so the box shows the same promise as an
+  // invite card: what the teacher will see, and what never.
+  joinSheet() {
+    if (!this.uid) { openAuthModal(); return; }
+    return modal((box, close) => {
+      const shares = ['stu_share_profile', 'stu_share_ratings', 'stu_share_themes',
+        'stu_share_counts', 'stu_share_minutes', 'stu_share_homework'];
+      box.innerHTML = `<h3>${esc(t('grp_join_title'))}</h3>` +
+        `<p class="hint">${esc(t('grp_join_hint'))}</p>` +
+        `<input class="input stu-code-input" maxlength="${GROUP_CODE_LEN + 2}" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="${esc(t('grp_join_title'))}">` +
+        `<p class="stu-invite-lead">${esc(t('grp_join_shares'))}</p>` +
+        `<ul class="stu-share">${shares.map(k => `<li>${esc(t(k))}</li>`).join('')}</ul>` +
+        `<p class="stu-never">${esc(t('stu_share_never'))}</p>` +
+        `<p class="auth-error" role="alert"></p>`;
+      const inp = box.querySelector('input');
+      const err = box.querySelector('.auth-error');
+      const row = document.createElement('div'); row.className = 'row';
+      const ok = document.createElement('button'); ok.className = 'btn primary'; ok.textContent = t('grp_join_btn');
+      const ca = document.createElement('button'); ca.className = 'btn'; ca.textContent = t('cancel');
+      ca.onclick = () => close(null);
+      inp.oninput = () => { err.textContent = ''; };
+      inp.onkeydown = e => { if (e.key === 'Enter') ok.click(); };
+      ok.onclick = async () => {
+        if (!this.online()) return;
+        ok.disabled = true;
+        err.textContent = '';
+        try {
+          await Activity.flush(true);
+          const g = await joinGroup(inp.value);
+          this.practiceS = 0;
+          close(g);
+          toast(t('grp_joined').replace('{g}', g.name), 3500);
+          await this.load();
+        } catch (e) {
+          let msg = {
+            'bad-code': 'grp_err_bad', lookalike: 'grp_err_lookalike', 'no-group': 'grp_err_none', closed: 'grp_err_closed',
+            'own-group': 'grp_err_own', 'max-teachers': 'stu_max_teachers',
+          }[e && e.code];
+          // A wrong or closed code is the student's typo, not a fault.
+          if (!msg) console.error('Joining a class failed', e);
+          msg = msg || 'grp_err_other';
+          err.textContent = t(msg).replace('{n}', MAX_TEACHERS).replace('{l}', GROUP_CODE_LEN);
+          ok.disabled = false;
+        }
+      };
+      row.append(ok, ca);
+      box.appendChild(row);
+      setTimeout(() => inp.focus(), 50);
+    });
   },
 
   // Ratings, minutes this week; homework joins in stage 4. Tapping the card
