@@ -5195,6 +5195,7 @@ export const Puzzles = {
   elo: 1200,
   themeElo: {},
   attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
+  hwRated: {},                // homework id -> puzzle ids that homework has already rated
   themeFilter: 'random',      // 'random' | Set<themeId>
   // Students homework mode: {id, title, themes[], minRating, maxRating, count,
   // done} while a homework runs (started from its card, js/students.js). It
@@ -5426,6 +5427,7 @@ export const Puzzles = {
     this.elo = await db.kvGet('puzzleElo', 1200);
     this.themeElo = await db.kvGet('puzzleThemeElo', {});
     this.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
+    this.hwRated = await db.kvGet('puzzleHwRated', {});
     this.difficulty = await db.kvGet('puzzleDifficulty', 0);
     this.autoNext = await db.kvGet('puzzleAutoNext', false);
     $('puzzle-progress').textContent = t('puzzles_loading');
@@ -5550,6 +5552,22 @@ export const Puzzles = {
   recordResult(win) {
     if (this.eloRecorded || !this.current) return;
     this.eloRecorded = true;
+    // Inside a homework a puzzle is rated once: its first win or first miss.
+    // Replaying it in the same homework (a list brings a missed one back, a
+    // student can reopen the homework) shows ±0 and moves nothing (Adrian,
+    // 2026-10-22). Kept on this device only, so no rules change.
+    const hwId = this.homework && this.homework.id;
+    if (hwId) {
+      const ids = Array.isArray(this.hwRated[hwId]) ? this.hwRated[hwId] : (this.hwRated[hwId] = []);
+      if (ids.includes(this.current.id)) {
+        this.lastDelta = 0;
+        this.showEloDelta(0);
+        if (win) Streak.recordActivity();
+        return;
+      }
+      ids.push(this.current.id);
+      db.kvSet('puzzleHwRated', this.hwRated);
+    }
     // First 10 rated attempts calibrate fast (a strong player starting at
     // 1200 shouldn't have to grind slowly through puzzles far below their
     // level) — up to ~±190 swing, then settle into the normal K.
@@ -8897,6 +8915,7 @@ async function main() {
       Puzzles.themeElo = await db.kvGet('puzzleThemeElo', {});
       Puzzles.solved = await db.kvGet('puzzlesSolved', {});
       Puzzles.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
+      Puzzles.hwRated = await db.kvGet('puzzleHwRated', {});
       Puzzles.difficulty = await db.kvGet('puzzleDifficulty', 0);
       Puzzles.autoNext = await db.kvGet('puzzleAutoNext', false);
       Puzzles.updateEloBadge();

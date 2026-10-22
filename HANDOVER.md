@@ -9,6 +9,18 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v246: PUZZLE RATING FIXES (2026-10-22).** (1) The fast start (first 10 rated, K 192)
+  can no longer carry a rating past 2200: `ELO_FAST_CEILING` in js/elo.js, applied inside
+  `eloAfter`, so Puzzles, theme ratings AND Sealed Moves get it; a rating already above
+  2200 is never pulled down by a win. Measured: 10 wins on Harder from 1200 used to reach
+  ~3000, now stop at 2200 while the puzzles offered climb 1700 -> 2650; the 11th pays K 24.
+  Blindfold (js/blind-elo.js, its own K) is NOT capped - say so if Adrian asks.
+  (2) Homework: `Puzzles.recordResult` rates a puzzle once per homework (first win or first
+  miss); replays show a grey "0" and move nothing. Stored on the device only in kv
+  `puzzleHwRated` {homeworkId: [puzzleIds]} (not synced, no rules change, so a second
+  device could rate it once more). Verified headless 375px, ES/EN, light/dark, incl. after
+  a reload; normal Puzzles still rates as before.
+
 - **v245: SCHOOL PILOT session 3 — CLASS REPORT PICTURE (2026-10-17).** Plan section
   "Session 3". NO rule change, no new query. "📤 Share report" in the grade table draws a
   PNG (Adrian, 2026-10-16: an image for WhatsApp, not a print page): app, group, school,
