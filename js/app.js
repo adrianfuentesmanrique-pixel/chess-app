@@ -5195,7 +5195,7 @@ export const Puzzles = {
   elo: 1200,
   themeElo: {},
   attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
-  hwRated: {},                // homework id -> puzzle ids that homework has already rated
+  hwRated: {},                // homework id (or 'daily:<date>') -> puzzle ids it has already rated
   themeFilter: 'random',      // 'random' | Set<themeId>
   // Students homework mode: {id, title, themes[], minRating, maxRating, count,
   // done} while a homework runs (started from its card, js/students.js). It
@@ -5555,14 +5555,21 @@ export const Puzzles = {
     // Inside a homework a puzzle is rated once: its first win or first miss.
     // Replaying it in the same homework (a list brings a missed one back, a
     // student can reopen the homework) shows ±0 and moves nothing (Adrian,
-    // 2026-10-22). Kept on this device only, so no rules change.
-    const hwId = this.homework && this.homework.id;
-    if (hwId) {
-      const ids = Array.isArray(this.hwRated[hwId]) ? this.hwRated[hwId] : (this.hwRated[hwId] = []);
-      if (ids.includes(this.current.id)) {
+    // 2026-10-22). The puzzle of the day the same, once per day, whichever
+    // puzzle it is (it can change with the rating's band) - reopening it from
+    // Home paid again (2026-10-24). Kept on this device only, so no rules
+    // change; only today's daily entry is kept.
+    const daily = !this.homework && this.isDailyPuzzle;
+    const scope = this.homework ? this.homework.id : daily ? 'daily:' + todayStr() : null;
+    if (scope) {
+      if (daily) for (const k of Object.keys(this.hwRated)) if (k.startsWith('daily:') && k !== scope) delete this.hwRated[k];
+      const ids = Array.isArray(this.hwRated[scope]) ? this.hwRated[scope] : (this.hwRated[scope] = []);
+      if (daily ? ids.length : ids.includes(this.current.id)) {
         this.lastDelta = 0;
         this.showEloDelta(0);
         if (win) Streak.recordActivity();
+        // A miss first, then the solve on a reopen: the mission still counts.
+        if (win && daily) DailyMissions.complete('puzzle');
         return;
       }
       ids.push(this.current.id);

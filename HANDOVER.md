@@ -9,6 +9,14 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v247: PUZZLE OF THE DAY RATED ONCE A DAY (2026-10-24).** Reopening it from Home
+  (`DailyMissions.goPuzzle`) paid the rating again each time. `Puzzles.recordResult` now
+  uses the v246 homework guard with the scope `'daily:<todayStr()>'` in the same kv
+  `puzzleHwRated` (key name kept): the first win or miss of the day is the only rating
+  change, whichever puzzle the band gives; later attempts show a grey 0. A solve on a
+  reopen still completes the mission. Older `daily:` entries are dropped; homework ones
+  kept. Verified headless 375px ES/EN light/dark through the real Home button.
+
 - **v246: PUZZLE RATING FIXES (2026-10-22).** (1) The fast start (first 10 rated, K 192)
   can no longer carry a rating past 2200: `ELO_FAST_CEILING` in js/elo.js, applied inside
   `eloAfter`, so Puzzles, theme ratings AND Sealed Moves get it; a rating already above
