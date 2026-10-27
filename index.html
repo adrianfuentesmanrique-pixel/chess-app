@@ -856,6 +856,13 @@
       <button id="puzzle-hw-exit" class="btn small" data-i18n="hw_exit"></button>
       <i class="puzzle-hw-bar"><b class="puzzle-hw-fill"></b></i>
     </div>
+    <!-- "Learn from your mistakes" (Puzzles.paintReview): puzzles missed before,
+         a clean solve pays a quarter and takes it off the list. -->
+    <div id="puzzle-review" class="puzzle-hw hidden" role="status">
+      <span class="puzzle-hw-ico" aria-hidden="true">🔁</span>
+      <span class="puzzle-hw-text"><b class="puzzle-hw-title" data-i18n="review_btn"></b><span class="puzzle-hw-count"></span></span>
+      <button id="puzzle-review-exit" class="btn small" data-i18n="hw_exit"></button>
+    </div>
     <div class="row wrap" style="justify-content:space-between">
       <span id="puzzle-progress" class="hint"></span>
       <span class="row wrap badge-group">
@@ -1438,6 +1445,8 @@
         <button id="radar-pick" class="btn" data-i18n="radar_choose"></button>
       </div>
       <div class="radar-wrap"><canvas id="chart-puzzle"></canvas></div>
+      <button id="profile-review-btn" class="btn profile-review-btn">🔁 <span data-i18n="review_btn"></span> <b id="profile-review-count" class="profile-review-count"></b></button>
+      <p class="hint" style="margin:6px 0 0; text-align:center" data-i18n="review_note"></p>
     </div>
     <div class="profile-card">
       <h3 data-i18n="radar_endgame"></h3>

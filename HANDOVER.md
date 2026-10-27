@@ -9,6 +9,19 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v248: "LEARN FROM YOUR MISTAKES" (2026-10-27).** Profile, under the puzzle themes
+  radar: button `#profile-review-btn` with the count, opens `Puzzles.startReview()`. A
+  rated MISS in Puzzles / puzzle of the day / homework goes on kv `puzzleMistakes`
+  (`Puzzles.mistakes`, {id, fen, moves, rating, themes}, oldest first, cap 300, this
+  device only - NOT synced, no rules change); a clean solve anywhere takes it off
+  (`noteMistake`). Rush, Blindfold and Sealed Moves never add. Review mode (`Puzzles.review`,
+  gold bar `#puzzle-review` like homework, theme button hidden): a miss costs nothing and
+  stays; a clean solve pays 1/4 of the current gain (REVIEW_FACTOR, theme ratings too),
+  0 when under 1 point, no new rated attempt, off the list (`recordReview`). Next goes to
+  the following one; empty -> "all done" toast and the mode ends. Starting homework or the
+  daily puzzle leaves the mode. Adrian's choices 2026-10-27 (all four recommendations).
+  The list starts empty on update: misses before v248 were never stored.
+
 - **v247: PUZZLE OF THE DAY RATED ONCE A DAY (2026-10-24).** Reopening it from Home
   (`DailyMissions.goPuzzle`) paid the rating again each time. `Puzzles.recordResult` now
   uses the v246 homework guard with the scope `'daily:<todayStr()>'` in the same kv

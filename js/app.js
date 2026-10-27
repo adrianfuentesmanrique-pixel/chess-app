@@ -1304,6 +1304,7 @@ export const DailyMissions = {
     const elo = await db.kvGet('puzzleElo', 1200);
     const daily = await puzzleOfDay(elo);
     if (!daily) { toast(t('puzzles_unavailable')); return; }
+    if (Puzzles.review) { Puzzles.review = false; Puzzles.paintReview(); }
     Puzzles.loadPuzzle(daily);
     Puzzles.isDailyPuzzle = true;
   },
@@ -5174,6 +5175,10 @@ export const PuzzleLog = {
 // How far from the player's own ELO each difficulty aims. A 2000-rated player
 // solving 1700s gains ~3 ELO a puzzle, which feels like standing still; this
 // lets them ask for puzzles at or above their level instead.
+// "Learn from your mistakes": the list's length cap, and what a solve pays.
+const MISTAKES_MAX = 300;
+const REVIEW_FACTOR = 0.25;
+
 const DIFFICULTY_LEVELS = [
   { v: -500, key: 'diff_easiest' },
   { v: -250, key: 'diff_easy' },
@@ -5196,6 +5201,12 @@ export const Puzzles = {
   themeElo: {},
   attemptCount: 0,            // rated attempts so far — first 10 calibrate faster
   hwRated: {},                // homework id (or 'daily:<date>') -> puzzle ids it has already rated
+  // "Learn from your mistakes": puzzles whose rated attempt was a miss, oldest
+  // first ({id, fen, moves, rating, themes}, kv puzzleMistakes, this device
+  // only). `review` is the mode that replays them, on top of everything else
+  // like homework.
+  mistakes: [],
+  review: false,
   themeFilter: 'random',      // 'random' | Set<themeId>
   // Students homework mode: {id, title, themes[], minRating, maxRating, count,
   // done} while a homework runs (started from its card, js/students.js). It
@@ -5216,6 +5227,7 @@ export const Puzzles = {
     this.board = new Board($('puzzle-board'), { onMove: mv => this.userMove(mv), onSound: type => Sound.play(type), premove: true });
     $('puzzle-theme-btn').onclick = () => this.openThemePicker();
     $('puzzle-hw-exit').onclick = () => this.exitHomework();
+    $('puzzle-review-exit').onclick = () => this.exitReview();
     $('puzzle-options').onclick = () => this.openOptions();
     // One handler on the bar, not one on the button and one on the bar: a tap
     // on the button bubbles here, and two nextPuzzle()s must never run.
@@ -5428,6 +5440,7 @@ export const Puzzles = {
     this.themeElo = await db.kvGet('puzzleThemeElo', {});
     this.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
     this.hwRated = await db.kvGet('puzzleHwRated', {});
+    this.mistakes = await db.kvGet('puzzleMistakes', []);
     this.difficulty = await db.kvGet('puzzleDifficulty', 0);
     this.autoNext = await db.kvGet('puzzleAutoNext', false);
     $('puzzle-progress').textContent = t('puzzles_loading');
@@ -5443,6 +5456,7 @@ export const Puzzles = {
   },
 
   pool() {
+    if (this.review) return this.mistakes;
     if (this.homework && this.homework.list) return this.homework.list;
     if (this.homework) return PUZZLES.filter(p => this.hwMatches(p));
     if (this.themeFilter === 'random') return PUZZLES;
@@ -5463,6 +5477,8 @@ export const Puzzles = {
   },
 
   async startHomework(hw) {
+    this.review = false;
+    this.paintReview();
     this.homework = hw;
     this.paintHomework();
     if (activeScreen !== 'puzzles') showScreen('puzzles');
@@ -5494,13 +5510,54 @@ export const Puzzles = {
     if (this.loaded) this.nextPuzzle();
   },
 
+  // ── "Learn from your mistakes" (Profile, under the themes radar) ──
+  // Replays the puzzles missed before, oldest first. A clean solve pays a
+  // quarter of the usual gain (0 under 1 point) and takes it off the list; a
+  // miss costs nothing and it stays (Adrian, 2026-10-27).
+  async startReview() {
+    if (!this.loaded) await this.ensureLoaded();
+    if (!this.mistakes.length) { toast(t('review_empty')); return; }
+    if (this.homework) { this.homework = null; Students.hwStop(); this.paintHomework(); }
+    this.review = true;
+    this.paintReview();
+    if (activeScreen !== 'puzzles') showScreen('puzzles');
+    window.scrollTo(0, 0);
+    this.nextPuzzle();
+  },
+
+  exitReview() {
+    if (!this.review) return;
+    this.review = false;
+    this.paintReview();
+    if (this.loaded) this.nextPuzzle();
+  },
+
+  paintReview() {
+    $('puzzle-review').classList.toggle('hidden', !this.review);
+    $('puzzle-theme-btn').classList.toggle('hidden', this.review || !!this.homework);
+    if (this.review) $('puzzle-review').querySelector('.puzzle-hw-count').textContent =
+      t('review_left').replace('{n}', this.mistakes.length);
+  },
+
+  // A rated miss goes on the list (once, newest last, at most MISTAKES_MAX);
+  // a clean solve anywhere takes it off.
+  noteMistake(p, missed) {
+    const at = this.mistakes.findIndex(x => x.id === p.id);
+    if (missed && at < 0) {
+      this.mistakes.push({ id: p.id, fen: p.fen, moves: p.moves, rating: p.rating, themes: p.themes || [] });
+      if (this.mistakes.length > MISTAKES_MAX) this.mistakes.splice(0, this.mistakes.length - MISTAKES_MAX);
+    } else if (!missed && at >= 0) this.mistakes.splice(at, 1);
+    else return;
+    db.kvSet('puzzleMistakes', this.mistakes);
+  },
+
   // The gold bar over the board: title, n/count, Exit. The theme button hides
   // while it shows — the homework decides the themes.
   paintHomework() {
     const bar = $('puzzle-hw');
     const hw = this.homework;
     bar.classList.toggle('hidden', !hw);
-    $('puzzle-theme-btn').classList.toggle('hidden', !!hw);
+    $('puzzle-theme-btn').classList.toggle('hidden', !!hw || this.review);
     if (!hw) return;
     bar.querySelector('.puzzle-hw-title').textContent = hw.title;
     bar.querySelector('.puzzle-hw-count').textContent =
@@ -5559,6 +5616,7 @@ export const Puzzles = {
     // puzzle it is (it can change with the rating's band) - reopening it from
     // Home paid again (2026-10-24). Kept on this device only, so no rules
     // change; only today's daily entry is kept.
+    if (this.review) { this.recordReview(win); return; }
     const daily = !this.homework && this.isDailyPuzzle;
     const scope = this.homework ? this.homework.id : daily ? 'daily:' + todayStr() : null;
     if (scope) {
@@ -5567,7 +5625,7 @@ export const Puzzles = {
       if (daily ? ids.length : ids.includes(this.current.id)) {
         this.lastDelta = 0;
         this.showEloDelta(0);
-        if (win) Streak.recordActivity();
+        if (win) { Streak.recordActivity(); this.noteMistake(this.current, false); }
         // A miss first, then the solve on a reopen: the mission still counts.
         if (win && daily) DailyMissions.complete('puzzle');
         return;
@@ -5600,6 +5658,33 @@ export const Puzzles = {
     // cheapest way to "use the app" in the whole product.
     if (win) Streak.recordActivity();
     if (win && this.isDailyPuzzle) DailyMissions.complete('puzzle');
+    this.noteMistake(this.current, !win);
+    Badges.checkNew();
+  },
+
+  // A puzzle replayed from "Learn from your mistakes". A miss moves nothing and
+  // it stays on the list. A clean solve pays a quarter of what it would pay
+  // now (theme ratings too), nothing when that is under one point, does not
+  // count as a new rated attempt, and takes it off the list.
+  recordReview(win) {
+    if (!win) { this.lastDelta = 0; this.showEloDelta(0); return; }
+    const attemptCount = this.attemptCount, rating = this.current.rating;
+    const quarter = elo => {
+      const gain = eloAfter({ elo, rating, win: true, attemptCount, factor: REVIEW_FACTOR }) - elo;
+      return gain >= 1 ? elo + gain : elo;
+    };
+    const before = this.elo;
+    this.elo = quarter(this.elo);
+    this.lastDelta = Math.round(this.elo) - Math.round(before);
+    db.kvSet('puzzleElo', this.elo);
+    for (const th of this.current.themes || []) this.themeElo[th] = quarter(this.themeElo[th] ?? 1200);
+    db.kvSet('puzzleThemeElo', this.themeElo);
+    this.updateEloBadge();
+    this.showEloDelta(this.lastDelta);
+    if (this.elo !== before) recordEloHistory('puzzleEloHistory', this.elo);
+    Streak.recordActivity();
+    this.noteMistake(this.current, false);
+    this.paintReview();
     Badges.checkNew();
   },
 
@@ -5678,6 +5763,17 @@ export const Puzzles = {
     // Moving on from a puzzle that was attempted and got away still counts as
     // a miss in the strip; skipping one that was never touched does not.
     if (this.current && !this.logged && this.failedThis) this.log(false);
+    // Learn from your mistakes: the next one on the list after this puzzle,
+    // wrapping round, so one missed again does not come straight back.
+    if (this.review) {
+      const list = this.mistakes;
+      if (!list.length) { toast(t('review_done')); this.exitReview(); return; }
+      const at = list.findIndex(p => p.id === this.current?.id);
+      this.isDailyPuzzle = false;
+      this.paintReview();
+      this.loadPuzzle(list[(at + 1) % list.length] || list[0]);
+      return;
+    }
     // In homework mode, aim at the player's own level clamped into the band.
     const hw = this.homework;
     // A hand-picked list goes in the teacher's order: the next unsolved one
@@ -8301,6 +8397,7 @@ export const Profile = {
 
   init() {
     $('radar-pick').onclick = () => openRadarPicker();
+    $('profile-review-btn').onclick = () => Puzzles.startReview();
     $('profile-edit-btn').onclick = () => this.openEditModal();
     $('profile-auth-btn').onclick = () => openAuthModal();
     // Sign out and Delete account now live in the Settings sheet (openSettings), not here.
@@ -8542,6 +8639,7 @@ export const Profile = {
     $('profile-elo-opening').textContent = openingNames.length ? Math.round(openingAvg) : '—';
     $('profile-elo-endgame').textContent = endgameNames.length ? Math.round(endgameAvg) : '—';
     $('profile-elo-blindfold').textContent = Math.round(blindfoldElo);
+    $('profile-review-count').textContent = (Puzzles.loaded ? Puzzles.mistakes : await db.kvGet('puzzleMistakes', [])).length;
 
     this.drawRadar('overall',
       [t('radar_axis_opening'), t('radar_axis_puzzle'), t('radar_axis_endgame')],
@@ -8923,6 +9021,7 @@ async function main() {
       Puzzles.solved = await db.kvGet('puzzlesSolved', {});
       Puzzles.attemptCount = await db.kvGet('puzzleAttemptCount', 0);
       Puzzles.hwRated = await db.kvGet('puzzleHwRated', {});
+      Puzzles.mistakes = await db.kvGet('puzzleMistakes', []);
       Puzzles.difficulty = await db.kvGet('puzzleDifficulty', 0);
       Puzzles.autoNext = await db.kvGet('puzzleAutoNext', false);
       Puzzles.updateEloBadge();
