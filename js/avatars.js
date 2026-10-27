@@ -5,7 +5,7 @@
 // touched inside a function, never at module top level.
 import { t } from './i18n.js';
 import * as db from './db.js';
-import { $, toast } from './app.js';
+import { $, toast, modal } from './app.js';
 import { Auth } from './firebase.js';
 
 // Baby Kael is the beta testers' thank-you (Adrian, 2026-10-28): everyone who
@@ -28,11 +28,38 @@ async function isTester() {
     const h = await db.kvGet(k, []);
     early = Array.isArray(h) && h.some(e => typeof e?.date === 'string' && e.date < TESTER_CUTOFF);
   }
-  if (early) {
-    await db.kvSet('testerAvatar', true);
-    toast(t('avatar_tester_unlocked'), 4000);
-  }
+  if (early) await db.kvSet('testerAvatar', true);
   return early;
+}
+
+// The thank-you card (Adrian, 2026-10-28): once per tester, on whichever device
+// first sees them (kv testerThanksShown, synced). Never over another dialog -
+// the onboarding, a sign-in sheet - it waits for the next chance instead.
+let thanking = false;
+async function thankTester() {
+  if (thanking || !(await isTester()) || await db.kvGet('testerThanksShown', false) === true) return;
+  if ($('modal-root')?.children.length) return;
+  thanking = true;
+  await db.kvSet('testerThanksShown', true);
+  const use = await modal((box, close) => {
+    box.classList.add('tester-thanks');
+    box.innerHTML = `<div class="tester-thanks-pic"><img src="avatars/kael_baby.png" alt="" width="150" height="150"></div>`
+      + `<h3 class="stage-sheet-title">${t('tester_thanks_title')}</h3>`
+      + `<p class="stage-sheet-text">${t('tester_thanks_text')}</p>`
+      + `<p class="tester-thanks-name">${t('tester_thanks_name')}</p>`
+      + `<p class="hint stage-sheet-hint">${t('tester_thanks_only')}</p>`;
+    const go = document.createElement('button');
+    go.className = 'btn big stage-gold'; go.textContent = t('tester_thanks_use'); go.onclick = () => close(true);
+    const later = document.createElement('button');
+    later.className = 'btn stage-again'; later.textContent = t('tester_thanks_later'); later.onclick = () => close(false);
+    box.append(go, later);
+  });
+  thanking = false;
+  if (use) {
+    await db.kvSet('avatarId', 'kael_baby');
+    await Avatars.refresh();
+    toast(t('tester_thanks_done'));
+  }
 }
 
 // ═════════════════════ AVATARS ═════════════════════
@@ -62,6 +89,8 @@ export function avatarHtml(avatarId, sizePx = 40) {
 }
 
 export const Avatars = {
+  thankTester,
+
   async renderGridInto(container, selectedId, onPick) {
     container.innerHTML = '';
     const tester = await isTester();
@@ -80,7 +109,6 @@ export const Avatars = {
   async refresh() {
     const id = await db.kvGet('avatarId', AVATAR_OPTIONS[0].id);
     $('profile-avatar-wrap').innerHTML = avatarHtml(id, 56);
-    isTester();   // says thank you the first time Profile opens for a tester
     this.paintTopbar(id);
     return id;
   },

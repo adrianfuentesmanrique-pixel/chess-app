@@ -9,6 +9,12 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v250: THE TESTERS' THANK-YOU CARD (2026-10-28).** In-app, not a push (Adrian's
+  choice). `Avatars.thankTester()` (js/avatars.js): once per tester (kv
+  `testerThanksShown`, synced), 1.5 s after the app opens and after a sign-in, never over
+  another dialog. Big Baby Kael with a gold ring, "¡Gracias por tu ayuda!", the reason,
+  "Usarlo ahora" (sets avatarId kael_baby) / "Más tarde". Replaces v249's toast.
+
 - **v249: BABY KAEL, THE BETA TESTERS' AVATAR (2026-10-28).** Avatar id `kael_baby`
   (`{ id, tester: true }` in js/avatars.js, art avatars/kael_baby.png from the master
   `avatars/CTC new arts/avatars/kaelbaby.png`, mapped in tools/build_avatars.py). Adrian's

@@ -756,6 +756,11 @@ body.coord-running #kael-corner #kael-fab { pointer-events: none; }
 /* Baby Kael, the beta testers' own: a gold ring, locked or not. */
 .avatar-pick-cell.tester .avatar-badge { box-shadow: 0 0 0 2px var(--gold); }
 .avatar-pick-cell.tester.locked .avatar-badge { opacity: .55; filter: grayscale(.35); }
+/* The thank-you card that gives it (js/avatars.js thankTester). */
+.tester-thanks-pic { display: flex; justify-content: center; margin: 2px 0 12px; }
+.tester-thanks-pic img { width: 150px; height: 150px; border-radius: 50%; box-shadow: 0 0 0 3px var(--gold), 0 0 26px var(--gold-glow); }
+.tester-thanks .stage-again { width: 100%; }
+.tester-thanks-name { text-align: center; font-size: 20px; font-weight: 700; color: var(--gold); margin: 4px 0 6px; }
 .avatar-edit-wrap { position: relative; flex: 0 0 auto; display: inline-flex; }
 .avatar-edit-btn {
   position: absolute; right: -4px; bottom: -4px; width: 22px; height: 22px;
