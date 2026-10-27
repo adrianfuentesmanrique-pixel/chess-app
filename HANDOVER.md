@@ -9,6 +9,17 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v249: BABY KAEL, THE BETA TESTERS' AVATAR (2026-10-28).** Avatar id `kael_baby`
+  (`{ id, tester: true }` in js/avatars.js, art avatars/kael_baby.png from the master
+  `avatars/CTC new arts/avatars/kaelbaby.png`, mapped in tools/build_avatars.py). Adrian's
+  rule: everyone who was here BEFORE the Play Store launch (TESTER_CUTOFF '2026-10-21') -
+  an account whose Firebase creationTime is before that day, OR a rating history on the
+  phone (puzzle/opening/endgame/blindfold/calc EloHistory) with a date before it.
+  `isTester()` runs when the picker opens and on Profile; once true it sets kv
+  `testerAvatar` (added to SYNCED_KEYS, users doc has no hasOnly - no rules change) and
+  says thank you once. Everyone else sees it in the picker with a lock, a gold ring and
+  "Exclusive for our beta testers". Pre-launch WEBSITE users get it too (Adrian accepted).
+
 - **v248: "LEARN FROM YOUR MISTAKES" (2026-10-27).** Profile, under the puzzle themes
   radar: button `#profile-review-btn` with the count, opens `Puzzles.startReview()`. A
   rated MISS in Puzzles / puzzle of the day / homework goes on kv `puzzleMistakes`

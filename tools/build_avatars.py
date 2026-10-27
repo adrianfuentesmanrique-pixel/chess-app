@@ -50,6 +50,9 @@ AVATARS = {
     "icebishop": "ice",
     "lightningrook": "storm",
     "smokeking": "shadow",
+    # Baby Kael, the beta testers' reward (2026-10-28). The source is the
+    # generator's green-screen picture keyed onto the navy glow of the set.
+    "kaelbaby": "kael_baby",
 }
 
 

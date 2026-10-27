@@ -56,6 +56,9 @@ const SYNCED_KEYS = [
   'rushMonth180', 'rushMonth300', 'rushMonthKey', 'puzzleAttemptCount', 'radarThemes',
   'blindfoldElo', 'blindfoldEloHistory', 'blindfoldHintWarningSeen', 'soundEnabled',
   'puzzleSkipConfirm',
+  // Baby Kael, the beta testers' avatar (js/avatars.js): once earned it goes
+  // with the account to every device.
+  'testerAvatar',
   'blindfoldAttemptCount', 'blindfoldSeconds',
   // Sealed Moves: its own rating. The keys say calc, like every id of the mode.
   // calcElo is also published (PUBLIC_ALWAYS_KEYS); the other three are not.

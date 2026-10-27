@@ -1,4 +1,4 @@
-const CACHE = 'chess-training-center-v248';
+const CACHE = 'chess-training-center-v249';
 // Transient hand-off for the Web Share Target: the POST below stashes the shared
 // file here and the app reads it on the next load. Kept OUT of the version wipe in
 // `activate` so an update mid-share doesn't drop it.
@@ -79,7 +79,7 @@ const ART = [
     'bishop1 bishop2 bishop3 bishop4 flame1 flame2 flame3 flame4 flame5 flame6 knight1 knight2 ' +
     'knight3 knight4 pawn1 pawn2 pawn3 pawn4 pawn5 pawn6 queen1 queen2 queen3 rook1 rook2 rook3'),
   ...names('avatars',
-    'bear bishop_b bishop_w crystal dragon eagle fire galaxy griffin hydra ice king_b king_w ' +
+    'bear bishop_b bishop_w crystal dragon eagle fire galaxy griffin hydra ice kael_baby king_b king_w ' +
     'knight_b knight_w kraken lion owl pawn_b pawn_w phoenix queen_b queen_w raven rook_b rook_w ' +
     'shadow storm tiger void wolf'),
 ];

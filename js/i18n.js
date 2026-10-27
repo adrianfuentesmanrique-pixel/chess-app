@@ -1544,6 +1544,8 @@ const DICT = {
   daily_missions_tap: { es: 'Toca para ir ›', en: 'Tap to go ›' },
   mission_go_confirm: { es: '¿Ir a tu siguiente misión?', en: 'Go to your next mission?' },
   avatar_locked_toast: { es: 'Próximamente disponible 🔒', en: 'Coming soon 🔒' },
+  avatar_tester_toast: { es: 'Exclusivo para quienes probaron la beta 🔒', en: 'Exclusive for our beta testers 🔒' },
+  avatar_tester_unlocked: { es: '¡Gracias por probar la beta! Kael bebé ya es tuyo 🐴', en: 'Thanks for testing the beta! Baby Kael is yours 🐴' },
   // Kael onboarding
   kael_welcome_title: { es: '¡Bienvenido!', en: 'Welcome!' },
   kael_welcome_body: { es: 'Soy Kael, tu compañero de entrenamiento de ajedrez. Para adaptar tu experiencia, quiero conocer un poco tu nivel.', en: "I'm Kael, your chess training partner. First, let me get a sense of how strong you are so I can point you in the right direction." },
