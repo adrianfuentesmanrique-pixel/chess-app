@@ -9,6 +9,18 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v251: A USERNAME THE ACCOUNT HAS IS NEVER ASKED FOR AGAIN (2026-10-29).** Adrian's
+  account (uid hxxaE1n6…, Google) was asked for a username on 27 Oct 20:58 on a new phone;
+  his answer "Impervious" replaced "Zugzwang" everywhere. Firestore has no history (PITR
+  off), so what emptied `users/{uid}.username` could not be proven; one Auth account only,
+  so not a duplicate account. Fixed in data by hand (users, leaderboard incl.
+  usernameLower, studentReports -> Zugzwang, via the Firestore REST API with the CLI
+  login). Fixed in code: `pullOrBootstrap` asks only when `knownUsername(uid)` - the
+  account's OWN `leaderboard/{uid}.username` - is also empty, and otherwise writes that
+  name back to the account doc and kv. Deliberately NOT the phone's kv `username`: the
+  emulator test showed it can be a previous account's name. `tools/emu-verify-username.mjs`
+  (4 accounts, 12 checks, emulator only). No rules change.
+
 - **v250: THE TESTERS' THANK-YOU CARD (2026-10-28).** In-app, not a push (Adrian's
   choice). `Avatars.thankTester()` (js/avatars.js): once per tester (kv
   `testerThanksShown`, synced), 1.5 s after the app opens and after a sign-in, never over

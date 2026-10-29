@@ -2556,6 +2556,18 @@ export async function saveHomeworkProgress(hwId, { addDone = 0, addSeconds = 0, 
   return true;
 }
 
+// A username this account already has in its own public leaderboard entry
+// (only the account can write it, so it is the account's own name). Null when
+// there is none, which is the only time to ask. Not this phone's stored name:
+// that can be a different account's (checked in tools/emu-verify-username.mjs).
+async function knownUsername(uid) {
+  try {
+    const pub = await getDoc(doc(firestore, 'leaderboard', uid));
+    const v = pub.exists() ? pub.data().username : null;
+    return typeof v === 'string' && v.trim() ? v.trim() : null;
+  } catch (e) { console.warn('Leaderboard name not read', e); return null; }
+}
+
 async function pullOrBootstrap(uid) {
   const ref = doc(firestore, 'users', uid);
   const snap = await getDoc(ref);
@@ -2589,12 +2601,28 @@ async function pullOrBootstrap(uid) {
       // nothing else, so it lands in exactly the same hole.
       // Only the username: a real name is optional since the school pilot,
       // so an account without one must not be asked again on every open.
-      Auth.needsProfileCompletion = !remote.username;
+      // Never ask for a name the account already has (2026-10-28: Adrian's
+      // account was asked on a new phone, and the new answer replaced the old
+      // name everywhere). If this document has none, the account's public
+      // leaderboard entry or this phone may still hold it: put it back
+      // instead of asking.
+      const name = remote.username || await knownUsername(uid);
+      if (name && !remote.username) {
+        await db.kvSet('username', name);
+        if (!remote.profileName) await db.kvSet('profileName', name);
+        setDoc(ref, { username: name, ...(remote.profileName ? {} : { profileName: name }) }, { merge: true })
+          .catch(e => console.error('Username repair failed', e));
+      }
+      Auth.needsProfileCompletion = !name;
     } else {
       const local = {};
       for (const key of SYNCED_KEYS) {
         const v = await db.kvGet(key, null);
         if (v !== null) local[key] = v;
+      }
+      if (!local.username) {
+        const name = await knownUsername(uid);
+        if (name) { local.username = name; local.profileName ??= name; await db.kvSet('username', name); }
       }
       await setDoc(ref, local, { merge: true });
       for (const key of DAY_MAP_KEYS) accountDayMaps[key] = mergeSolved(local[key], null);
