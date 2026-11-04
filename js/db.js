@@ -10,8 +10,25 @@ const DB_VER = 5;
 
 let dbPromise = null;
 
-function open() {
-  if (dbPromise) return dbPromise;
+// The browser can close our connection on its own (another tab upgrading the
+// database, storage trouble, the app sitting in the background). A closed or
+// closing connection throws InvalidStateError on db.transaction(), so a cached
+// one is tried first and replaced when it is no longer usable.
+function usable(db) {
+  try { db.transaction('kv'); return true; }
+  catch (e) { if (e && e.name === 'InvalidStateError') return false; throw e; }
+}
+
+async function open() {
+  if (dbPromise) {
+    const db = await dbPromise.catch(() => null);
+    if (db && usable(db)) return db;
+    dbPromise = null;
+  }
+  return connect();
+}
+
+function connect() {
   dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
     // Stepwise so an existing install upgrades in place instead of trying to
@@ -57,10 +74,18 @@ function open() {
         db.createObjectStore('posIndex');
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      const forget = () => { if (dbPromise === mine) dbPromise = null; };
+      // Another tab wants a newer version: step aside so its upgrade can run.
+      db.onversionchange = () => { db.close(); forget(); };
+      db.onclose = forget;
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
     req.onblocked = () => reject(new Error('Database upgrade blocked — close other tabs of this app'));
   });
+  const mine = dbPromise;
   return dbPromise;
 }
 

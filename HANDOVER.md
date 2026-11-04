@@ -9,6 +9,18 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v252: THE DATABASE RECONNECTS WHEN THE BROWSER CLOSES IT (2026-11-04).** Sentry
+  JAVASCRIPT-D: `InvalidStateError: ... The database connection is closing` in
+  `kvGet` (Chrome 117, Windows, 31 Oct, after an AbortError). `js/db.js` cached one
+  connection forever. Now `open()` tries the cached one (`usable()`: an empty
+  `db.transaction('kv')`) and opens a new one when it is closed or closing;
+  `onclose` / `onversionchange` drop the cache, and versionchange closes our side
+  so another tab's upgrade or a delete is no longer blocked. A failed open is no
+  longer cached forever either. Checked headless with a throwaway script: the old
+  db.js throws the exact Sentry error on a closed connection and on a database
+  delete; the new one carries on (4/4). This supersedes the 2026-09 note below
+  that called the old `db.js:251` kvGet error transient.
+
 - **v251: A USERNAME THE ACCOUNT HAS IS NEVER ASKED FOR AGAIN (2026-10-29).** Adrian's
   account (uid hxxaE1n6…, Google) was asked for a username on 27 Oct 20:58 on a new phone;
   his answer "Impervious" replaced "Zugzwang" everywhere. Firestore has no history (PITR
