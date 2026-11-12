@@ -756,6 +756,12 @@ body.coord-running #kael-corner #kael-fab { pointer-events: none; }
 /* Baby Kael, the beta testers' own: a gold ring, locked or not. */
 .avatar-pick-cell.tester .avatar-badge { box-shadow: 0 0 0 2px var(--gold); }
 .avatar-pick-cell.tester.locked .avatar-badge { opacity: .55; filter: grayscale(.35); }
+/* Streak icons: a gold ring once earned; while locked, the streak they need. */
+.avatar-pick-cell.streak:not(.locked) .avatar-badge { box-shadow: 0 0 0 2px var(--gold); }
+.avatar-pick-cell.streak.locked { padding-bottom: 22px; }
+.avatar-pick-cell.streak.locked .avatar-lock { top: 22px; }
+.avatar-days { position: absolute; left: 2px; right: 2px; bottom: 4px; text-align: center;
+  font-size: 10.5px; font-weight: 700; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The thank-you card that gives it (js/avatars.js thankTester). */
 .tester-thanks-pic { display: flex; justify-content: center; margin: 2px 0 12px; }
 .tester-thanks-pic img { width: 150px; height: 150px; border-radius: 50%; box-shadow: 0 0 0 3px var(--gold), 0 0 26px var(--gold-glow); }
@@ -1411,6 +1417,53 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
    band underneath still has to read, so this only says "this one is you".
    It deliberately outranks .tier-podium's own ring for the same reason. */
 .lb-row.lb-me { box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* ── Wall of Flames (js/wall.js) ───────── */
+/* The way in, at the foot of Profile's Streak progress card. */
+.wall-btn {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 12px;
+  padding: 12px 14px; border-radius: var(--radius); cursor: pointer; text-align: left; font: inherit;
+  background: var(--gold-bg); color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+}
+.wall-btn img { width: 40px; height: 40px; flex: 0 0 auto; }
+.wall-btn .wb-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wall-btn b { color: var(--gold); font-size: 16px; }
+.wall-btn small { color: var(--muted); font-size: 13px; }
+.wall-btn .wb-arrow { color: var(--gold); font-size: 24px; font-weight: 700; }
+.wall-title { display: flex; align-items: center; gap: 8px; font-size: 21px; white-space: nowrap; min-width: 0; }
+.wall-title img { width: 28px; height: 28px; }
+.wall-sub { color: var(--muted); font-size: 13px; margin: -2px 0 10px; }
+/* The podium: 2nd, 1st, 3rd. Empty when nobody is burning. */
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 8px; margin: 26px 0 14px; }
+.podium:empty { display: none; }
+.pod {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0;
+  background: none; border: none; padding: 0; color: var(--text); font: inherit; cursor: pointer;
+}
+.pod-av { position: relative; display: inline-flex; }
+.pod-av .avatar-badge { box-shadow: 0 0 0 3px var(--gold-bg), 0 0 0 4px color-mix(in srgb, var(--gold) 55%, transparent); }
+.pod.p1 .pod-av .avatar-badge { box-shadow: 0 0 0 3px var(--gold), 0 0 18px -2px var(--gold-glow); }
+.pod-crown { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 20px; }
+.pod-tier { position: absolute; right: -8px; bottom: -6px; width: 30px; height: 30px; }
+.pod-name { font-weight: 700; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 6px; }
+.pod-days { color: var(--gold); font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
+.pod-step {
+  width: 100%; border-radius: 10px 10px 4px 4px; display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 8px; font-size: 22px; font-weight: 800; color: var(--gold);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--gold) 34%, var(--panel)), var(--panel));
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); border-bottom: none;
+}
+.p1 .pod-step { height: 78px; } .p2 .pod-step { height: 56px; } .p3 .pod-step { height: 40px; }
+.wall-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 20px; }
+.wall-val { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wall-val img { width: 24px; height: 24px; }
+/* "Your place", under the podium (not pinned to the bottom: Kael's corner covers it there). */
+.wall-me-label { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 6px 4px; }
+.lb-row.wall-me-row { box-shadow: inset 0 0 0 2px var(--accent); margin-bottom: 6px; }
+.wall-me-row .lb-name small { color: var(--muted); font-weight: 500; font-size: 12px; }
+.wall-me-hint { margin: 0 0 14px 4px; }
+#wall-me:not(:empty) { margin-bottom: 14px; }
 
 /* ── friends ───────────────────────────── */
 /* The Profile tab's two entry points. A grid, not a flex row, so both halves

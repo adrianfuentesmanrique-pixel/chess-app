@@ -9,6 +9,24 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v253: THE WALL OF FLAMES (MURO DE FUEGO) + FIVE STREAK ICONS (2026-11-12).**
+  Plan + approved mockup: `docs/superpowers/plans/2026-11-11-wall-of-flames.md`,
+  `docs/wall-of-flames/`. Button `#profile-wall-btn` at the foot of Profile's Streak
+  progress card (current flame; "puesto N de M" once the wall has been opened — no
+  read just for the button). Screen `#screen-wall`, `js/wall.js` (`Wall`): podium
+  2-1-3, "Tu puesto" row under it, rank 4+ as `.lb-row`; 🔥 Ahora (streakCount, only
+  if streakLastDate is within ~36 h of our day — `streakAlive` in `js/wall-rules.js`)
+  / 🏆 Récord (bestStreak). Fetches 500 / 200 leaderboard docs, kept 5 min.
+  `streakLastDate` + `bestStreak` added to `PUBLIC_DETAIL_KEYS` (so a private profile
+  is not on the wall) and to the `/leaderboard` rules (validated; private may not
+  carry them) — **rules deploy needed**. Old docs gain the fields on that player's
+  next streak/profile write. Avatars: `fire` 7, `ice` 30, `storm` 90, `crystal` 180,
+  `shadow` 360 days of bestStreak (`streakDays` in AVATAR_OPTIONS,
+  `streakAvatarOpen`); locked ones show "🔥 1 mes"; the other seven stay "coming
+  soon". No unlock toast (not asked). Tests: `tests/unit/wall.test.js` (7),
+  6 new rules cases in `tests/rules/existing.test.js`; headless 36/36 (375px,
+  light/dark, es/en), with fake docs fed through `Wall.cache`.
+
 - **v252: THE DATABASE RECONNECTS WHEN THE BROWSER CLOSES IT (2026-11-04).** Sentry
   JAVASCRIPT-D: `InvalidStateError: ... The database connection is closing` in
   `kvGet` (Chrome 117, Windows, 31 Oct, after an AbortError). `js/db.js` cached one

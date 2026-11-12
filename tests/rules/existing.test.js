@@ -194,6 +194,41 @@ describe('/leaderboard/{uid} — the private-profile guarantee', () => {
   });
 });
 
+// The Wall of Flames (v253): the streak's last day and the best streak ever.
+describe('/leaderboard/{uid} — Wall of Flames fields', () => {
+  const wall = { streakCount: 23, streakLastDate: '2026-11-11', bestStreak: 40 };
+
+  it('a PUBLIC profile CAN publish streakLastDate and bestStreak', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), `leaderboard/${ALICE}`), { ...validPublic, ...wall }));
+  });
+
+  it('a PRIVATE profile CANNOT carry streakLastDate', async () => {
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, profileVisibility: 'private', streakLastDate: '2026-11-11' }));
+  });
+
+  it('a PRIVATE profile CANNOT carry bestStreak', async () => {
+    await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),
+      { ...validPublic, profileVisibility: 'private', bestStreak: 40 }));
+  });
+
+  it('CANNOT write an impossible or wrong-type best streak', async () => {
+    for (const bestStreak of [999999, -1, '40']) {
+      await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`), { ...validPublic, bestStreak }));
+    }
+  });
+
+  it('CANNOT write a streak date that is not YYYY-MM-DD', async () => {
+    for (const streakLastDate of ['11/11/2026', '2026-11-11T00:00', 20261111, 'x'.repeat(10)]) {
+      await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`), { ...validPublic, streakLastDate }));
+    }
+  });
+
+  it('CANNOT publish them on someone else\'s entry', async () => {
+    await assertFails(setDoc(doc(asBob(), `leaderboard/${ALICE}`), { ...validPublic, ...wall }));
+  });
+});
+
 describe('/leaderboard/{uid} — forged scores', () => {
   it('CANNOT write an impossible puzzle ELO', async () => {
     await assertFails(setDoc(doc(asAlice(), `leaderboard/${ALICE}`),

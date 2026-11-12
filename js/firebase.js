@@ -106,7 +106,9 @@ const PUBLIC_ALWAYS_KEYS = ['profileName', 'username', 'avatarId', 'puzzleElo',
 // These only go out while the profile is public. On a private profile they are
 // actively DELETED from the public doc — merge writes never remove a field, so
 // merely skipping them would leave yesterday's copy readable forever.
-const PUBLIC_DETAIL_KEYS = ['puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount'];
+// streakLastDate and bestStreak feed the Wall of Flames (js/wall.js).
+const PUBLIC_DETAIL_KEYS = ['puzzleThemeElo', 'openingElo', 'endgameElo', 'streakCount',
+  'streakLastDate', 'bestStreak'];
 
 // Any of these changing means the public doc needs rewriting.
 const PUBLISHED_KEYS = [...PUBLIC_ALWAYS_KEYS, ...PUBLIC_DETAIL_KEYS, 'profileVisibility'];

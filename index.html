@@ -1412,6 +1412,12 @@
         <button id="profile-share-streak" class="btn small" data-i18n="share_streak"></button>
       </div>
       <div id="profile-streak-ladder" class="streak-ladder"></div>
+      <!-- The Wall of Flames (js/wall.js): everyone's streaks. -->
+      <button id="profile-wall-btn" class="wall-btn" type="button">
+        <img id="profile-wall-icon" src="streaks/flame1.png" alt="">
+        <span class="wb-txt"><b data-i18n="wall_title"></b><small id="profile-wall-sub"></small></span>
+        <span class="wb-arrow" aria-hidden="true">›</span>
+      </button>
       <button id="profile-remind-row" class="btn small hidden" style="width:100%; margin-top:10px;"></button>
     </div>
 
@@ -1476,6 +1482,24 @@
     <input type="text" id="leaderboard-search" class="input" data-i18n-ph="search_player">
     <div id="leaderboard-status" class="hint"></div>
     <div id="leaderboard-list" class="list"></div>
+  </section>
+
+  <!-- ══════════ WALL OF FLAMES (js/wall.js) ══════════ -->
+  <section id="screen-wall" class="screen hidden">
+    <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
+    <div class="row screen-head">
+      <button id="wall-back" class="btn" data-i18n="back"></button>
+      <h2 class="wall-title"><img src="streaks/flame1.png" alt=""><span data-i18n="wall_title"></span></h2>
+    </div>
+    <div id="wall-sub" class="wall-sub"></div>
+    <div class="seg" id="wall-mode">
+      <button data-v="now" class="on">🔥 <span data-i18n="wall_now"></span></button>
+      <button data-v="record">🏆 <span data-i18n="wall_record"></span></button>
+    </div>
+    <div id="wall-status" class="hint"></div>
+    <div id="wall-podium" class="podium"></div>
+    <div id="wall-me"></div>
+    <div id="wall-list" class="list wall-list"></div>
   </section>
 
   <!-- ══════════ FRIENDS ══════════ -->

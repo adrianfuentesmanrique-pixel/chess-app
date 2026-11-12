@@ -33,6 +33,7 @@ import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
+import { Wall } from './wall.js';
 import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
@@ -952,7 +953,7 @@ function streakTierIndex(days) {
   for (let i = 0; i < STREAK_TIERS.length; i++) if (days >= STREAK_TIERS[i].days) idx = i; else break;
   return idx; // -1 means below the first tier (0 days)
 }
-function streakIcon(days) {
+export function streakIcon(days) {
   const idx = streakTierIndex(days);
   return idx >= 0 ? STREAK_TIERS[idx].icon : 'flame1';
 }
@@ -1600,7 +1601,7 @@ export async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['home', 'analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students', 'simul'];
+const SCREENS = ['home', 'analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'wall', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students', 'simul'];
 // Starts as Home (HOME_SCREEN below), the base of the Back stack, so the
 // showScreen('home') that ends main() adds no history entry of its own.
 export let activeScreen = 'home';
@@ -1734,7 +1735,7 @@ const MENU_AREA = {
   play: 'play',
   read: 'read',
   students: 'students', simul: 'students',
-  profile: 'profile', leaderboard: 'profile', 'public-profile': 'profile',
+  profile: 'profile', leaderboard: 'profile', wall: 'profile', 'public-profile': 'profile',
   friends: 'profile', 'friends-leaderboard': 'profile', 'friends-blocked': 'profile',
 };
 
@@ -8579,6 +8580,7 @@ export const Profile = {
     if (btn) btn.onclick = () => { this.streakLadderOpen = !this.streakLadderOpen; this.renderStreakLadder(); };
     const how = el.querySelector('.streak-how-btn');
     if (how) how.onclick = () => { this.streakHowOpen = !this.streakHowOpen; this.renderStreakLadder(); };
+    Wall.paintButton();
     Notifications.profileRow(openSettings);
   },
 
@@ -8977,6 +8979,7 @@ async function main() {
   });
   Profile.init();
   Leaderboard.init();
+  Wall.init();
   PublicProfile.init();
   Friends.init();
   PulsoUI.init();

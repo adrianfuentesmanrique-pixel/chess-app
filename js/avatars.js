@@ -3,10 +3,11 @@
 //
 // Imports from js/app.js (cycle) — every app.js binding used here is only
 // touched inside a function, never at module top level.
-import { t } from './i18n.js';
+import { t, getLang } from './i18n.js';
 import * as db from './db.js';
 import { $, toast, modal } from './app.js';
 import { Auth } from './firebase.js';
+import { streakAvatarOpen } from './wall-rules.js';
 
 // Baby Kael is the beta testers' thank-you (Adrian, 2026-10-28): everyone who
 // was here before the Play Store launch on 21 October 2026 - an account made
@@ -76,11 +77,17 @@ export const AVATAR_OPTIONS = [
   { id: 'eagle' }, { id: 'owl' }, { id: 'bear' }, { id: 'raven' },
   // the beta testers' own (isTester above); locked for everyone else
   { id: 'kael_baby', tester: true },
+  // earned with the streak (Adrian, 2026-11-11): unlocked by the BEST streak
+  // ever (kv bestStreak), so a lost streak never takes one back.
+  { id: 'fire', streakDays: 7, label: { es: '7 días', en: '7 days' } },
+  { id: 'ice', streakDays: 30, label: { es: '1 mes', en: '1 month' } },
+  { id: 'storm', streakDays: 90, label: { es: '3 meses', en: '3 months' } },
+  { id: 'crystal', streakDays: 180, label: { es: '6 meses', en: '6 months' } },
+  { id: 'shadow', streakDays: 360, label: { es: '1 año', en: '1 year' } },
   // coming soon — shown locked to everyone as a preview of future content
   { id: 'dragon', locked: true }, { id: 'phoenix', locked: true }, { id: 'griffin', locked: true },
   { id: 'kraken', locked: true }, { id: 'hydra', locked: true }, { id: 'galaxy', locked: true },
-  { id: 'crystal', locked: true }, { id: 'shadow', locked: true }, { id: 'storm', locked: true },
-  { id: 'fire', locked: true }, { id: 'ice', locked: true }, { id: 'void', locked: true },
+  { id: 'void', locked: true },
 ];
 
 export function avatarHtml(avatarId, sizePx = 40) {
@@ -94,14 +101,23 @@ export const Avatars = {
   async renderGridInto(container, selectedId, onPick) {
     container.innerHTML = '';
     const tester = await isTester();
+    const best = await db.kvGet('bestStreak', 0);
+    const lang = getLang();
     for (const opt of AVATAR_OPTIONS) {
-      const locked = !!opt.locked || (opt.tester && !tester);
+      const locked = !!opt.locked || (opt.tester && !tester) || !streakAvatarOpen(opt, best);
       const cell = document.createElement('div');
-      cell.className = 'avatar-pick-cell' + (locked ? ' locked' : '') + (opt.tester ? ' tester' : '');
+      cell.className = 'avatar-pick-cell' + (locked ? ' locked' : '') + (opt.tester ? ' tester' : '')
+        + (opt.streakDays ? ' streak' : '');
       cell.dataset.id = opt.id;
       cell.classList.toggle('selected', opt.id === selectedId);
-      cell.innerHTML = avatarHtml(opt.id, 44) + (locked ? '<span class="avatar-lock">🔒</span>' : '');
-      cell.onclick = () => { if (locked) toast(t(opt.tester ? 'avatar_tester_toast' : 'avatar_locked_toast')); else onPick(opt.id); };
+      // A streak icon still to earn says how long a streak it needs.
+      const days = opt.streakDays && locked ? `<span class="avatar-days">🔥 ${opt.label[lang]}</span>` : '';
+      cell.innerHTML = avatarHtml(opt.id, 44) + (locked ? '<span class="avatar-lock">🔒</span>' : '') + days;
+      cell.onclick = () => {
+        if (!locked) onPick(opt.id);
+        else if (opt.streakDays) toast(t('avatar_streak_toast').replace('{d}', opt.label[lang]));
+        else toast(t(opt.tester ? 'avatar_tester_toast' : 'avatar_locked_toast'));
+      };
       container.appendChild(cell);
     }
   },
