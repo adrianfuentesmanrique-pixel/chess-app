@@ -12,20 +12,24 @@ import { BadgeCard } from './badge-card.js';
 
 // The streak icons, in order: Profile's streak ladder shows them on its rungs.
 export const STREAK_AVATARS = () => AVATAR_OPTIONS.filter(o => o.streakDays);
+// The mission icons, in order: Home's missions card and the missions ladder.
+export const MISSION_AVATARS = () => AVATAR_OPTIONS.filter(o => o.missionDays);
 
-// Called when the best streak grows from `before` to `after`: each streak icon
-// just won gets the achievement card. Tapping it opens the icon picker.
-function celebrateStreak(before, after) {
-  const won = streakRewardsCrossed(AVATAR_OPTIONS, before, after);
+// Called when a best run grows from `before` to `after`: each icon just won
+// gets the achievement card. Tapping it opens the icon picker.
+function celebrate(field, nameKey, before, after) {
+  const won = streakRewardsCrossed(AVATAR_OPTIONS, before, after, field);
   if (!won.length) return;
   BadgeCard.enqueue(won.map(o => ({
     id: 'avatar_' + o.id,
     img: `avatars/${o.id}.png`,
     kicker: () => t('avatar_won_kicker'),
-    label: () => t('avatar_won_name').replace('{n}', o.name[getLang()]).replace('{d}', o.label[getLang()]),
+    label: () => t(nameKey).replace('{n}', o.name[getLang()]).replace('{d}', o.label[getLang()]),
     onTap: () => { showScreen('profile'); setTimeout(() => Profile.openEditModal(), 450); },
   })));
 }
+const celebrateStreak = (before, after) => celebrate('streakDays', 'avatar_won_name', before, after);
+const celebrateMissions = (before, after) => celebrate('missionDays', 'avatar_won_mission_name', before, after);
 
 // Baby Kael is the beta testers' thank-you (Adrian, 2026-10-28): everyone who
 // was here before the Play Store launch on 21 October 2026 - an account made
@@ -103,10 +107,16 @@ export const AVATAR_OPTIONS = [
   { id: 'storm', streakDays: 90, label: { es: '3 meses', en: '3 months' }, name: { es: 'Tormenta', en: 'Storm' } },
   { id: 'crystal', streakDays: 180, label: { es: '6 meses', en: '6 months' }, name: { es: 'Cristal', en: 'Crystal' } },
   { id: 'shadow', streakDays: 360, label: { es: '1 año', en: '1 year' }, name: { es: 'Sombra', en: 'Shadow' } },
-  // coming soon — shown locked to everyone as a preview of future content
-  { id: 'dragon', locked: true }, { id: 'phoenix', locked: true }, { id: 'griffin', locked: true },
-  { id: 'kraken', locked: true }, { id: 'hydra', locked: true }, { id: 'galaxy', locked: true },
-  { id: 'void', locked: true },
+  // earned with the daily missions (Adrian, 2026-11-16): days in a row with all
+  // three done, by the BEST such run (kv bestDailyMissionStreak). The days are
+  // the "Misiones diarias" badge ladder's, so each icon comes with its badge.
+  { id: 'griffin', missionDays: 7, label: { es: '7 días', en: '7 days' }, name: { es: 'Grifo', en: 'Griffin' } },
+  { id: 'phoenix', missionDays: 30, label: { es: '1 mes', en: '1 month' }, name: { es: 'Fénix', en: 'Phoenix' } },
+  { id: 'hydra', missionDays: 90, label: { es: '3 meses', en: '3 months' }, name: { es: 'Hidra', en: 'Hydra' } },
+  { id: 'kraken', missionDays: 180, label: { es: '6 meses', en: '6 months' }, name: { es: 'Kraken', en: 'Kraken' } },
+  { id: 'dragon', missionDays: 270, label: { es: '9 meses', en: '9 months' }, name: { es: 'Dragón', en: 'Dragon' } },
+  { id: 'galaxy', missionDays: 365, label: { es: '1 año', en: '1 year' }, name: { es: 'Galaxia', en: 'Galaxy' } },
+  { id: 'void', missionDays: 730, label: { es: '2 años', en: '2 years' }, name: { es: 'Vacío', en: 'Void' } },
 ];
 
 export function avatarHtml(avatarId, sizePx = 40) {
@@ -117,25 +127,30 @@ export function avatarHtml(avatarId, sizePx = 40) {
 export const Avatars = {
   thankTester,
   celebrateStreak,
+  celebrateMissions,
 
   async renderGridInto(container, selectedId, onPick) {
     container.innerHTML = '';
     const tester = await isTester();
     const best = await db.kvGet('bestStreak', 0);
+    const bestMissions = await db.kvGet('bestDailyMissionStreak', 0);
     const lang = getLang();
     for (const opt of AVATAR_OPTIONS) {
-      const locked = !!opt.locked || (opt.tester && !tester) || !streakAvatarOpen(opt, best);
+      const locked = !!opt.locked || (opt.tester && !tester) || !streakAvatarOpen(opt, best, bestMissions);
+      const earned = opt.streakDays || opt.missionDays;
       const cell = document.createElement('div');
       cell.className = 'avatar-pick-cell' + (locked ? ' locked' : '') + (opt.tester ? ' tester' : '')
-        + (opt.streakDays ? ' streak' : '');
+        + (earned ? ' streak' : '');
       cell.dataset.id = opt.id;
       cell.classList.toggle('selected', opt.id === selectedId);
-      // A streak icon still to earn says how long a streak it needs.
-      const days = opt.streakDays && locked ? `<span class="avatar-days">🔥 ${opt.label[lang]}</span>` : '';
+      // An icon still to earn says how long a run it needs: 🔥 streak, 🎯 missions.
+      const mark = opt.missionDays ? '🎯' : '🔥';
+      const days = earned && locked ? `<span class="avatar-days">${mark} ${opt.label[lang]}</span>` : '';
       cell.innerHTML = avatarHtml(opt.id, 44) + (locked ? '<span class="avatar-lock">🔒</span>' : '') + days;
       cell.onclick = () => {
         if (!locked) onPick(opt.id);
         else if (opt.streakDays) toast(t('avatar_streak_toast').replace('{d}', opt.label[lang]));
+        else if (opt.missionDays) toast(t('avatar_mission_toast').replace('{d}', opt.label[lang]));
         else toast(t(opt.tester ? 'avatar_tester_toast' : 'avatar_locked_toast'));
       };
       container.appendChild(cell);

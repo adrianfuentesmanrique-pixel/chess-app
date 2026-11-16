@@ -979,6 +979,22 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .daily-mission-label { flex: 1; font-size: 14px; }
 .daily-mission-row.done .daily-mission-label { color: var(--muted); text-decoration: line-through; }
 .daily-mission-arrow { color: var(--muted); font-size: 14px; }
+/* The run of full mission days, at the foot of Home's missions card. */
+.home-missions-run {
+  display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 8px; padding: 10px 0 2px;
+  background: none; border: none; border-top: 1px solid var(--input-border);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.home-missions-run:empty { display: none; }
+.mrun-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mrun-text b { font-size: 14px; }
+.mrun-text small { font-size: 12px; font-weight: 700; color: var(--gold); }
+.mrun-bar { height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; }
+.mrun-bar span { display: block; height: 100%; background: var(--gold); border-radius: 3px; }
+.home-missions-run .streak-gift-chip { width: 40px; height: 40px; }
+/* The missions ladder sheet. */
+.mladder-lead { color: var(--muted); font-size: 13px; margin: -4px 0 10px; text-align: center; }
+.mladder-hint { margin: 10px 0 12px; text-align: center; }
 
 /* ── Home ("Inicio") ───────────────────── */
 /* Kael's line: his bust in a gold ring and one sentence in a speech bubble. */

@@ -18,14 +18,18 @@ export function streakAlive(lastDate, now = new Date()) {
 
 // Whether a streak profile icon ({ streakDays } in AVATAR_OPTIONS) is earned
 // with this best streak. Icons without streakDays are not decided here.
-export function streakAvatarOpen(opt, bestStreak) {
-  return !opt.streakDays || (+bestStreak || 0) >= opt.streakDays;
+// Mission icons ({ missionDays }) go by the best run of full mission days.
+export function streakAvatarOpen(opt, bestStreak, bestMissionStreak = 0) {
+  if (opt.streakDays && (+bestStreak || 0) < opt.streakDays) return false;
+  if (opt.missionDays && (+bestMissionStreak || 0) < opt.missionDays) return false;
+  return true;
 }
 
-// The streak icons a best streak moving from `before` to `after` has just won.
-export function streakRewardsCrossed(options, before, after) {
+// The icons a best run moving from `before` to `after` has just won.
+// field: 'streakDays' (the flame streak) or 'missionDays' (the daily missions).
+export function streakRewardsCrossed(options, before, after, field = 'streakDays') {
   const b = +before || 0, a = +after || 0;
-  return options.filter(o => o.streakDays && b < o.streakDays && a >= o.streakDays);
+  return options.filter(o => o[field] && b < o[field] && a >= o[field]);
 }
 
 // mode 'now': live streaks only, on streakCount. 'record': bestStreak.

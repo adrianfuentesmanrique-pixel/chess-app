@@ -12,6 +12,15 @@ test('a new best streak wins exactly the icons it passes, once', () => {
   assert.deepEqual(ids(40, 40), []);
 });
 
+test('mission icons go by the best mission run, not the flame streak', () => {
+  const griffin = { id: 'griffin', missionDays: 7 };
+  assert.equal(streakAvatarOpen(griffin, 400, 6), false);
+  assert.equal(streakAvatarOpen(griffin, 0, 7), true);
+  const opts = [{ id: 'fire', streakDays: 7 }, griffin];
+  assert.deepEqual(streakRewardsCrossed(opts, 6, 7, 'missionDays').map(o => o.id), ['griffin']);
+  assert.deepEqual(streakRewardsCrossed(opts, 6, 7).map(o => o.id), ['fire']);
+});
+
 const NOON = new Date(2026, 10, 11, 12, 0);      // 11 Nov 2026, local noon
 const EARLY = new Date(2026, 10, 11, 1, 0);      // 11 Nov 2026, 01:00
 

@@ -29,7 +29,7 @@ import { TIME_CONTROLS, controlById, controlLabel, createClock, startClock, stop
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
 import { fenKey, nodeAt, PositionIndex } from './explore-index.js';
-import { AVATAR_OPTIONS, avatarHtml, Avatars, STREAK_AVATARS } from './avatars.js';
+import { AVATAR_OPTIONS, avatarHtml, Avatars, STREAK_AVATARS, MISSION_AVATARS } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
@@ -1211,6 +1211,7 @@ export const DailyMissions = {
     this.date = await db.kvGet('dailyMissionsDate', null);
     this.done = await db.kvGet('dailyMissionsDone', { puzzle: false, play: false, opening: false });
     this.streak = +(await db.kvGet('dailyMissionStreak', 0));
+    this.best = +(await db.kvGet('bestDailyMissionStreak', 0)) || 0;
     if (this.date !== today) {
       const lastComplete = await db.kvGet('dailyMissionLastCompleteDate', null);
       if (!(lastComplete && isYesterday(lastComplete, today))) this.streak = 0;
@@ -1235,7 +1236,12 @@ export const DailyMissions = {
       this.streak += 1;
       await db.kvSet('dailyMissionStreak', this.streak);
       const best = await db.kvGet('bestDailyMissionStreak', 0);
-      if (this.streak > best) await db.kvSet('bestDailyMissionStreak', this.streak);
+      if (this.streak > best) {
+        await db.kvSet('bestDailyMissionStreak', this.streak);
+        // A new best run can win a mission icon (griffin at 7 days ... void at 2 years).
+        Avatars.celebrateMissions(best, this.streak);
+      }
+      this.best = Math.max(+best || 0, this.streak);
       KaelQuotes.show({ title: '🎯 ' + t('daily_missions_complete'), text: t(doneMsgKey), mood: 'proud' }, 5500);
       // delayed so it doesn't immediately overwrite the message just shown above
       setTimeout(() => Badges.checkNew(), 5700);
@@ -1304,6 +1310,57 @@ export const DailyMissions = {
       btn.onclick = () => row.go();
       el.appendChild(btn);
     }
+    this.renderRun();
+  },
+
+  best: 0,   // bestDailyMissionStreak: the mission icons go by it
+
+  // The foot of Home's missions card: the run of full days, a bar to the next
+  // mission icon, and that icon. Tapping it opens the missions ladder.
+  renderRun() {
+    const el = $('home-missions-run');
+    if (!el) return;
+    const lang = getLang();
+    const icons = MISSION_AVATARS();
+    const next = icons.find(o => this.best < o.missionDays);
+    const head = this.streak > 0 ? tn('missions_run', this.streak) : t('missions_run_none');
+    const sub = next
+      ? tn('missions_run_next', next.missionDays - this.streak).replace('{name}', next.name[lang])
+      : t('missions_run_all');
+    const pct = next ? Math.max(0, Math.min(100, Math.round(this.streak / next.missionDays * 100))) : 100;
+    const icon = next || icons[icons.length - 1];
+    el.innerHTML = `<span class="mrun-text"><b>${esc(head)}</b>
+        <span class="mrun-bar"><span style="width:${pct}%"></span></span>
+        <small>${esc(sub)}</small></span>
+      <span class="streak-gift-chip${next ? '' : ' won'}">${avatarHtml(icon.id, 34)}${next ? '<span class="streak-gift-lock">🔒</span>' : ''}</span>
+      <span class="daily-mission-arrow" aria-hidden="true">›</span>`;
+    el.onclick = () => this.openLadder();
+  },
+
+  // Every mission icon and the run it needs, in a sheet.
+  openLadder() {
+    const lang = getLang();
+    const won = o => this.best >= o.missionDays;
+    const rows = MISSION_AVATARS().map(o => {
+      const state = won(o)
+        ? `<span class="streak-tier-check" title="${esc(t('streak_unlocked'))}">✓</span>`
+        : `<span class="streak-tier-away">${esc(tn('streak_locked_in', o.missionDays - this.streak))}</span>`;
+      return `<div class="streak-tier-row streak-gift-row${won(o) ? ' unlocked' : ' locked'}">
+        <span class="streak-gift-chip${won(o) ? ' won' : ''}">${avatarHtml(o.id, 30)}${won(o) ? '' : '<span class="streak-gift-lock">🔒</span>'}</span>
+        <span class="streak-tier-days">${esc(o.label[lang])}<span class="streak-gift${won(o) ? ' won' : ''}">${esc(t(won(o) ? 'streak_gift_won' : 'streak_gift').replace('{n}', o.name[lang]))}</span></span>
+        ${state}
+      </div>`;
+    }).join('');
+    modal((box, close) => {
+      box.classList.add('mladder');
+      box.innerHTML = `<h3 class="stage-sheet-title">🎯 ${esc(t('missions_ladder_title'))}</h3>
+        <p class="mladder-lead">${esc(t('missions_ladder_lead').replace('{n}', this.streak).replace('{b}', this.best))}</p>
+        <div class="streak-tier-list">${rows}</div>
+        <p class="hint mladder-hint">${esc(t('missions_ladder_hint'))}</p>`;
+      const ok = document.createElement('button');
+      ok.className = 'btn big'; ok.textContent = t('close'); ok.onclick = () => close(null);
+      box.appendChild(ok);
+    });
   },
 
   async goPuzzle() {

@@ -9,6 +9,17 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v255: THE LAST SEVEN ICONS ARE WON WITH THE DAILY MISSIONS (2026-11-16).** By the
+  best run of days with all 3 missions (kv `bestDailyMissionStreak`), on the
+  "Misiones diarias" badge days: griffin 7, phoenix 30, hydra 90, kraken 180,
+  dragon 270, galaxy 365, void 730 (`missionDays` in AVATAR_OPTIONS; no icon is
+  "coming soon" any more). `DailyMissions.complete` → `Avatars.celebrateMissions`
+  (same card as the streak icons). Home's missions card has a foot row
+  `#home-missions-run` (`DailyMissions.renderRun`: run, bar to the next icon, that
+  icon) that opens a sheet with all seven (`DailyMissions.openLadder`). Picker marks
+  locked ones "🎯 1 mes" (streak ones "🔥"). `streakAvatarOpen` /
+  `streakRewardsCrossed` in js/wall-rules.js take the mission field. Headless 24/24.
+
 - **v254: STREAK ICONS CELEBRATED AND SHOWN ON THE LADDER (2026-11-16).** A new best
   streak that passes 7/30/90/180/360 days gets the achievement card
   (`Avatars.celebrateStreak` → `BadgeCard.enqueue` with `img`, `kicker`, `onTap`,
