@@ -1545,6 +1545,10 @@ const DICT = {
   mission_go_confirm: { es: '¿Ir a tu siguiente misión?', en: 'Go to your next mission?' },
   avatar_locked_toast: { es: 'Próximamente disponible 🔒', en: 'Coming soon 🔒' },
   avatar_tester_toast: { es: 'Exclusivo para quienes probaron la beta 🔒', en: 'Exclusive for our beta testers 🔒' },
+  avatar_won_kicker: { es: '¡Felicidades! Nuevo icono de perfil', en: 'Congratulations! New profile icon' },
+  avatar_won_name: { es: '{n} · racha de {d}', en: '{n} · {d} streak' },
+  streak_gift: { es: '🎁 Gana el icono {n}', en: '🎁 Wins the {n} icon' },
+  streak_gift_won: { es: '✓ Icono {n} ganado', en: '✓ {n} icon won' },
   avatar_streak_toast: { es: 'Se desbloquea con una racha de {d} 🔥', en: 'Unlocks with a streak of {d} 🔥' },
   // The Wall of Flames (js/wall.js)
   wall_title: { es: 'Muro de Fuego', en: 'Wall of Flames' },

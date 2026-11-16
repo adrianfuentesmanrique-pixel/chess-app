@@ -19,7 +19,7 @@ const SETTLE_MS = 450;    // a beat after the move that earned it, and time for 
 const HOLD_POLL_MS = 400;
 
 export const BadgeCard = {
-  queue: [],            // { id, icon, label() } waiting their turn
+  queue: [],            // { id, icon, label(), [img, kicker(), onTap()] } waiting their turn
   seen: new Set(),      // ids already queued this session -- two checkNew() calls
                         // racing over the same solve must not show a badge twice
   current: null,
@@ -40,9 +40,10 @@ export const BadgeCard = {
     el.className = 'badge-card';
     el.setAttribute('aria-live', 'polite');
     el.onclick = () => {
-      if (!this.current) return;
+      const item = this.current;
+      if (!item) return;
       this.dismiss();
-      this.open();
+      (item.onTap || this.open)();
     };
     document.body.appendChild(el);
     this.el = el;
@@ -71,14 +72,15 @@ export const BadgeCard = {
     const el = this.el;
     this.current = item;
     el.innerHTML = `
-      <span class="badge-card-art"><img src="icons/badges/${item.id}.png" alt=""></span>
+      <span class="badge-card-art"><img src="${item.img || `icons/badges/${item.id}.png`}" alt=""></span>
       <span class="badge-card-text">
         <span class="badge-card-kicker"></span>
         <span class="badge-card-name"></span>
       </span>
       <span class="badge-card-go" aria-hidden="true">›</span>`;
     el.querySelector('img').onerror = e => e.target.replaceWith(document.createTextNode(item.icon ?? '🏆'));
-    el.querySelector('.badge-card-kicker').textContent = t('badge_congrats');
+    // A profile icon won with the streak brings its own picture, kicker and tap.
+    el.querySelector('.badge-card-kicker').textContent = item.kicker ? item.kicker() : t('badge_congrats');
     el.querySelector('.badge-card-name').textContent = item.label();
     el.classList.toggle('pos-bottom', this.position === 'bottom');
     void el.offsetWidth;            // so a card following another replays its entrance

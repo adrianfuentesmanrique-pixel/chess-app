@@ -801,6 +801,21 @@ body.coord-running #kael-corner #kael-fab { pointer-events: none; }
 .streak-tier-days { flex: 1; min-width: 0; font-size: 14px; }
 .streak-tier-row.locked .streak-tier-days { color: var(--muted); }
 .streak-tier-row.current { background: var(--gold-bg); border-radius: 10px; border-bottom-color: transparent; }
+/* The profile icon a rung wins: a gold line under its day, and the icon itself
+   in a small ring at the row's end (dim with a lock until won by the best streak). */
+.streak-gift { display: block; font-size: 12px; font-weight: 700; color: var(--gold); margin-top: 2px; }
+.streak-tier-row.locked .streak-gift:not(.won) { color: color-mix(in srgb, var(--gold) 75%, var(--muted)); }
+.streak-gift-chip {
+  position: relative; flex: 0 0 auto; width: 36px; height: 36px; padding: 0; border: none; background: none;
+  display: grid; place-items: center; cursor: pointer; border-radius: 50%;
+}
+.streak-gift-chip .avatar-badge { box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 45%, transparent); }
+.streak-gift-chip:not(.won) .avatar-badge { filter: grayscale(.7); opacity: .55; }
+.streak-gift-chip.won .avatar-badge { box-shadow: 0 0 0 2px var(--gold), 0 0 10px -2px var(--gold-glow); }
+.streak-gift-lock { position: absolute; right: -3px; bottom: -3px; font-size: 12px; line-height: 1; }
+.streak-tier-row .streak-gift-chip img { width: 100%; height: 100%; filter: none; opacity: 1; }
+/* A day that wins an icon but has no flame of its own (3 and 6 months). */
+.streak-gift-row .streak-gift-chip { width: 34px; height: 34px; }
 .streak-tier-check { color: var(--gold); font-weight: 700; flex: 0 0 auto; }
 .streak-tier-away { color: var(--muted); font-size: 12px; flex: 0 0 auto; }
 .streak-ladder-more { width: 100%; margin-top: 10px; }

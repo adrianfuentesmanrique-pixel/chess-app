@@ -5,9 +5,27 @@
 // touched inside a function, never at module top level.
 import { t, getLang } from './i18n.js';
 import * as db from './db.js';
-import { $, toast, modal } from './app.js';
+import { $, toast, modal, showScreen, Profile } from './app.js';
 import { Auth } from './firebase.js';
-import { streakAvatarOpen } from './wall-rules.js';
+import { streakAvatarOpen, streakRewardsCrossed } from './wall-rules.js';
+import { BadgeCard } from './badge-card.js';
+
+// The streak icons, in order: Profile's streak ladder shows them on its rungs.
+export const STREAK_AVATARS = () => AVATAR_OPTIONS.filter(o => o.streakDays);
+
+// Called when the best streak grows from `before` to `after`: each streak icon
+// just won gets the achievement card. Tapping it opens the icon picker.
+function celebrateStreak(before, after) {
+  const won = streakRewardsCrossed(AVATAR_OPTIONS, before, after);
+  if (!won.length) return;
+  BadgeCard.enqueue(won.map(o => ({
+    id: 'avatar_' + o.id,
+    img: `avatars/${o.id}.png`,
+    kicker: () => t('avatar_won_kicker'),
+    label: () => t('avatar_won_name').replace('{n}', o.name[getLang()]).replace('{d}', o.label[getLang()]),
+    onTap: () => { showScreen('profile'); setTimeout(() => Profile.openEditModal(), 450); },
+  })));
+}
 
 // Baby Kael is the beta testers' thank-you (Adrian, 2026-10-28): everyone who
 // was here before the Play Store launch on 21 October 2026 - an account made
@@ -79,11 +97,12 @@ export const AVATAR_OPTIONS = [
   { id: 'kael_baby', tester: true },
   // earned with the streak (Adrian, 2026-11-11): unlocked by the BEST streak
   // ever (kv bestStreak), so a lost streak never takes one back.
-  { id: 'fire', streakDays: 7, label: { es: '7 días', en: '7 days' } },
-  { id: 'ice', streakDays: 30, label: { es: '1 mes', en: '1 month' } },
-  { id: 'storm', streakDays: 90, label: { es: '3 meses', en: '3 months' } },
-  { id: 'crystal', streakDays: 180, label: { es: '6 meses', en: '6 months' } },
-  { id: 'shadow', streakDays: 360, label: { es: '1 año', en: '1 year' } },
+  // `label` is the streak it needs, `name` the icon's own name.
+  { id: 'fire', streakDays: 7, label: { es: '7 días', en: '7 days' }, name: { es: 'Fuego', en: 'Fire' } },
+  { id: 'ice', streakDays: 30, label: { es: '1 mes', en: '1 month' }, name: { es: 'Hielo', en: 'Ice' } },
+  { id: 'storm', streakDays: 90, label: { es: '3 meses', en: '3 months' }, name: { es: 'Tormenta', en: 'Storm' } },
+  { id: 'crystal', streakDays: 180, label: { es: '6 meses', en: '6 months' }, name: { es: 'Cristal', en: 'Crystal' } },
+  { id: 'shadow', streakDays: 360, label: { es: '1 año', en: '1 year' }, name: { es: 'Sombra', en: 'Shadow' } },
   // coming soon — shown locked to everyone as a preview of future content
   { id: 'dragon', locked: true }, { id: 'phoenix', locked: true }, { id: 'griffin', locked: true },
   { id: 'kraken', locked: true }, { id: 'hydra', locked: true }, { id: 'galaxy', locked: true },
@@ -97,6 +116,7 @@ export function avatarHtml(avatarId, sizePx = 40) {
 
 export const Avatars = {
   thankTester,
+  celebrateStreak,
 
   async renderGridInto(container, selectedId, onPick) {
     container.innerHTML = '';

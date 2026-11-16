@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { streakAlive, wallRows, streakAvatarOpen } from '../../js/wall-rules.js';
+import { streakAlive, wallRows, streakAvatarOpen, streakRewardsCrossed } from '../../js/wall-rules.js';
+
+test('a new best streak wins exactly the icons it passes, once', () => {
+  const opts = [{ id: 'fire', streakDays: 7 }, { id: 'ice', streakDays: 30 }, { id: 'wolf' }];
+  const ids = (b, a) => streakRewardsCrossed(opts, b, a).map(o => o.id);
+  assert.deepEqual(ids(6, 7), ['fire']);
+  assert.deepEqual(ids(7, 8), []);            // already won: no second card
+  assert.deepEqual(ids(29, 30), ['ice']);
+  assert.deepEqual(ids(0, 40), ['fire', 'ice']); // a cloud copy jumping ahead
+  assert.deepEqual(ids(40, 40), []);
+});
 
 const NOON = new Date(2026, 10, 11, 12, 0);      // 11 Nov 2026, local noon
 const EARLY = new Date(2026, 10, 11, 1, 0);      // 11 Nov 2026, 01:00

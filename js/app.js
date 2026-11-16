@@ -29,7 +29,7 @@ import { TIME_CONTROLS, controlById, controlLabel, createClock, startClock, stop
 import { Themes, ColorMode } from './appearance.js';
 import { renderMoveList } from './movelist.js';
 import { fenKey, nodeAt, PositionIndex } from './explore-index.js';
-import { AVATAR_OPTIONS, avatarHtml, Avatars } from './avatars.js';
+import { AVATAR_OPTIONS, avatarHtml, Avatars, STREAK_AVATARS } from './avatars.js';
 import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
@@ -961,9 +961,11 @@ export function streakIcon(days) {
 export const Streak = {
   count: 0,
   lastDate: null,
+  best: 0,        // bestStreak, for the streak icons on Profile's ladder
 
   async init() {
     this.count = +(await db.kvGet('streakCount', 0));
+    this.best = +(await db.kvGet('bestStreak', 0)) || 0;
     this.lastDate = await db.kvGet('streakLastDate', null);
     const today = todayStr();
     // A stored date that is today or later is never a break. "Later" happens
@@ -1023,7 +1025,12 @@ export const Streak = {
     await db.kvSet('streakCount', this.count);
     await db.kvSet('streakLastDate', this.lastDate);
     const best = await db.kvGet('bestStreak', 0);
-    if (this.count > best) await db.kvSet('bestStreak', this.count);
+    if (this.count > best) {
+      await db.kvSet('bestStreak', this.count);
+      // A new best can win a profile icon (fire at 7 days ... shadow at a year).
+      Avatars.celebrateStreak(best, this.count);
+    }
+    this.best = Math.max(+best || 0, this.count);
     const newTier = streakTierIndex(this.count);
     const tierUp = newTier > prevTier;
     this.render({ tierUp, lit: wasPending });
@@ -8531,16 +8538,43 @@ export const Profile = {
     const open = this.streakLadderOpen;
     const start = open ? 0 : Math.max(0, idx);
     const end = open ? STREAK_TIERS.length : Math.min(STREAK_TIERS.length, Math.max(0, idx) + 6);
-    const rows = STREAK_TIERS.slice(start, end).map((tier, i) => {
-      const real = start + i;
+    // The profile icons the streak wins (fire 7 days ... shadow a year), shown on
+    // the rung of their day. They go by the BEST streak, so one already won stays
+    // lit after the streak breaks. A day with no rung of its own (90, 180) gets a
+    // row of its own between the rungs around it.
+    const rewards = STREAK_AVATARS();
+    const won = o => Streak.best >= o.streakDays;
+    const gift = o => `<span class="streak-gift${won(o) ? ' won' : ''}">${esc(won(o)
+      ? t('streak_gift_won').replace('{n}', o.name[lang]) : t('streak_gift').replace('{n}', o.name[lang]))}</span>`;
+    const chip = o => `<button type="button" class="streak-gift-chip${won(o) ? ' won' : ''}" data-gift="${o.id}"
+      aria-label="${esc(o.name[lang])}">${avatarHtml(o.id, 30)}${won(o) ? '' : '<span class="streak-gift-lock">🔒</span>'}</button>`;
+    const state = (unlocked, d) => unlocked
+      ? `<span class="streak-tier-check" title="${esc(t('streak_unlocked'))}">✓</span>`
+      : `<span class="streak-tier-away">${esc(tn('streak_locked_in', d - days))}</span>`;
+    const shown = STREAK_TIERS.slice(start, end);
+    const lo = shown[0]?.days ?? 0, hi = shown[shown.length - 1]?.days ?? 0;
+    const items = shown.map((tier, i) => ({ days: tier.days, tier, real: start + i }));
+    for (const o of rewards) {
+      if (!STREAK_TIERS.some(s => s.days === o.streakDays) && o.streakDays > lo && o.streakDays < hi) items.push({ days: o.streakDays, reward: o });
+    }
+    items.sort((a, b) => a.days - b.days);
+    const rows = items.map(it => {
+      if (it.reward) {
+        const o = it.reward, reached = days >= o.streakDays;
+        return `<div class="streak-tier-row streak-gift-row${reached ? ' unlocked' : ' locked'}">
+          ${chip(o)}
+          <span class="streak-tier-days">${esc(o.label[lang])}${gift(o)}</span>
+          ${state(reached, o.streakDays)}
+        </div>`;
+      }
+      const { tier, real } = it;
       const unlocked = real <= idx;
-      const state = unlocked
-        ? `<span class="streak-tier-check" title="${esc(t('streak_unlocked'))}">✓</span>`
-        : `<span class="streak-tier-away">${esc(tn('streak_locked_in', tier.days - days))}</span>`;
+      const o = rewards.find(r => r.streakDays === tier.days);
       return `<div class="streak-tier-row${unlocked ? ' unlocked' : ' locked'}${real === idx ? ' current' : ''}">
         <img src="streaks/${tier.icon}.png" alt="" loading="lazy">
-        <span class="streak-tier-days">${esc(tier.label[lang])}</span>
-        ${state}
+        <span class="streak-tier-days">${esc(tier.label[lang])}${o ? gift(o) : ''}</span>
+        ${state(unlocked, tier.days)}
+        ${o ? chip(o) : ''}
       </div>`;
     }).join('');
 
@@ -8580,6 +8614,12 @@ export const Profile = {
     if (btn) btn.onclick = () => { this.streakLadderOpen = !this.streakLadderOpen; this.renderStreakLadder(); };
     const how = el.querySelector('.streak-how-btn');
     if (how) how.onclick = () => { this.streakHowOpen = !this.streakHowOpen; this.renderStreakLadder(); };
+    // A won icon opens the picker; one still to win says what it takes.
+    el.querySelectorAll('.streak-gift-chip').forEach(b => b.onclick = () => {
+      const o = rewards.find(r => r.id === b.dataset.gift);
+      if (won(o)) this.openEditModal();
+      else toast(t('avatar_streak_toast').replace('{d}', o.label[lang]));
+    });
     Wall.paintButton();
     Notifications.profileRow(openSettings);
   },
@@ -8622,6 +8662,8 @@ export const Profile = {
     await DailyMissions.init();
     await Badges.checkNew();
     Badges.renderTrophyCase();
+    // Re-read: a sign-in can bring a longer best streak from the cloud.
+    Streak.best = Math.max(Streak.count, +(await db.kvGet('bestStreak', 0)) || 0);
     this.renderStreakLadder();
 
     const puzzleElo = await db.kvGet('puzzleElo', 1200);

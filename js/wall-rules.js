@@ -22,6 +22,12 @@ export function streakAvatarOpen(opt, bestStreak) {
   return !opt.streakDays || (+bestStreak || 0) >= opt.streakDays;
 }
 
+// The streak icons a best streak moving from `before` to `after` has just won.
+export function streakRewardsCrossed(options, before, after) {
+  const b = +before || 0, a = +after || 0;
+  return options.filter(o => o.streakDays && b < o.streakDays && a >= o.streakDays);
+}
+
 // mode 'now': live streaks only, on streakCount. 'record': bestStreak.
 // Rows without a number above 0 are left out; ties keep the query's order.
 export function wallRows(entries, mode, now = new Date()) {

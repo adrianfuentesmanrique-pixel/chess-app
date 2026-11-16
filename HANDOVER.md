@@ -9,6 +9,17 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v254: STREAK ICONS CELEBRATED AND SHOWN ON THE LADDER (2026-11-16).** A new best
+  streak that passes 7/30/90/180/360 days gets the achievement card
+  (`Avatars.celebrateStreak` → `BadgeCard.enqueue` with `img`, `kicker`, `onTap`,
+  new optional fields in `js/badge-card.js`); tapping opens the icon picker. Called
+  from `Streak.recordActivity` only when bestStreak grows, so it shows once.
+  Profile's ladder: a rung that wins an icon says "🎁 Gana el icono Hielo" (gold)
+  with the icon in a ring at the row's end (dim + 🔒 until `Streak.best` reaches it;
+  tap = picker or a toast); 90 and 180 have no rung, so they get their own rows
+  (`.streak-gift-row`) between the rungs. `Streak.best` is re-read in
+  `Profile.refresh`. Headless check 28/28 (375px, light/dark, es/en).
+
 - **v253: THE WALL OF FLAMES (MURO DE FUEGO) + FIVE STREAK ICONS (2026-11-12).**
   Plan + approved mockup: `docs/superpowers/plans/2026-11-11-wall-of-flames.md`,
   `docs/wall-of-flames/`. Button `#profile-wall-btn` at the foot of Profile's Streak
