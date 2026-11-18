@@ -59,6 +59,8 @@ const SYNCED_KEYS = [
   // Baby Kael, the beta testers' avatar (js/avatars.js): once earned it goes
   // with the account to every device.
   'testerAvatar', 'testerThanksShown',
+  // The streak and mission icons already congratulated (js/avatars.js).
+  'avatarsCelebrated',
   'blindfoldAttemptCount', 'blindfoldSeconds',
   // Sealed Moves: its own rating. The keys say calc, like every id of the mode.
   // calcElo is also published (PUBLIC_ALWAYS_KEYS); the other three are not.

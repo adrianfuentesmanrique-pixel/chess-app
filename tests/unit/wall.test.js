@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { streakAlive, wallRows, streakAvatarOpen, streakRewardsCrossed } from '../../js/wall-rules.js';
+import { streakAlive, wallRows, streakAvatarOpen, streakRewardsCrossed, rewardsOwed } from '../../js/wall-rules.js';
+
+test('icons already held but never congratulated are owed a card, once', () => {
+  const opts = [{ id: 'wolf' }, { id: 'fire', streakDays: 7 }, { id: 'ice', streakDays: 30 }, { id: 'griffin', missionDays: 7 }];
+  const ids = (b, m, done) => rewardsOwed(opts, b, m, done).map(o => o.id);
+  assert.deepEqual(ids(40, 8, undefined), ['fire', 'ice', 'griffin']);  // first opening after the update
+  assert.deepEqual(ids(40, 8, ['fire', 'ice', 'griffin']), []);         // never twice
+  assert.deepEqual(ids(10, 0, ['fire']), []);
+  assert.deepEqual(ids(31, 0, ['fire']), ['ice']);
+  assert.deepEqual(ids(0, 0, 'junk'), []);
+});
 
 test('a new best streak wins exactly the icons it passes, once', () => {
   const opts = [{ id: 'fire', streakDays: 7 }, { id: 'ice', streakDays: 30 }, { id: 'wolf' }];

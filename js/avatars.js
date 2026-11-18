@@ -7,7 +7,7 @@ import { t, getLang } from './i18n.js';
 import * as db from './db.js';
 import { $, toast, modal, showScreen, Profile } from './app.js';
 import { Auth } from './firebase.js';
-import { streakAvatarOpen, streakRewardsCrossed } from './wall-rules.js';
+import { streakAvatarOpen, rewardsOwed } from './wall-rules.js';
 import { BadgeCard } from './badge-card.js';
 
 // The streak icons, in order: Profile's streak ladder shows them on its rungs.
@@ -15,21 +15,50 @@ export const STREAK_AVATARS = () => AVATAR_OPTIONS.filter(o => o.streakDays);
 // The mission icons, in order: Home's missions card and the missions ladder.
 export const MISSION_AVATARS = () => AVATAR_OPTIONS.filter(o => o.missionDays);
 
-// Called when a best run grows from `before` to `after`: each icon just won
-// gets the achievement card. Tapping it opens the icon picker.
-function celebrate(field, nameKey, before, after) {
-  const won = streakRewardsCrossed(AVATAR_OPTIONS, before, after, field);
-  if (!won.length) return;
-  BadgeCard.enqueue(won.map(o => ({
-    id: 'avatar_' + o.id,
-    img: `avatars/${o.id}.png`,
-    kicker: () => t('avatar_won_kicker'),
-    label: () => t(nameKey).replace('{n}', o.name[getLang()]).replace('{d}', o.label[getLang()]),
-    onTap: () => { showScreen('profile'); setTimeout(() => Profile.openEditModal(), 450); },
-  })));
+// Every streak or mission icon the player holds gets the achievement card once
+// (kv avatarsCelebrated, synced, so a second phone does not repeat it). Run when
+// a best run grows, and on opening the app: players who already held icons
+// before the cards existed get them then, one after another (Adrian, 2026-11-18).
+// Tapping a card opens the icon picker.
+let owedChain = Promise.resolve();
+function celebrateOwed() {
+  owedChain = owedChain.then(async () => {
+    const best = await db.kvGet('bestStreak', 0);
+    const bestMissions = await db.kvGet('bestDailyMissionStreak', 0);
+    const celebrated = await db.kvGet('avatarsCelebrated', []);
+    const owed = rewardsOwed(AVATAR_OPTIONS, best, bestMissions, celebrated);
+    if (!owed.length) return;
+    // Each is marked when its card is on screen, not when queued: closing the
+    // app halfway through the run keeps the rest for the next opening.
+    BadgeCard.enqueue(owed.map(o => ({
+      onShow: () => { owedChain = owedChain.then(async () => {
+        const list = await db.kvGet('avatarsCelebrated', []);
+        const ids = Array.isArray(list) ? list : [];
+        if (!ids.includes(o.id)) await db.kvSet('avatarsCelebrated', [...ids, o.id]);
+      }).catch(e => console.error('[avatars]', e)); },
+      id: 'avatar_' + o.id,
+      img: `avatars/${o.id}.png`,
+      kicker: () => t('avatar_won_kicker'),
+      label: () => t(o.missionDays ? 'avatar_won_mission_name' : 'avatar_won_name')
+        .replace('{n}', o.name[getLang()]).replace('{d}', o.label[getLang()]),
+      onTap: () => { showScreen('profile'); setTimeout(() => Profile.openEditModal(), 450); },
+    })));
+  }).catch(e => console.error('[avatars]', e));
+  return owedChain;
 }
-const celebrateStreak = (before, after) => celebrate('streakDays', 'avatar_won_name', before, after);
-const celebrateMissions = (before, after) => celebrate('missionDays', 'avatar_won_mission_name', before, after);
+const celebrateStreak = () => celebrateOwed();
+const celebrateMissions = () => celebrateOwed();
+
+// On opening the app: wait until no sheet is open (the onboarding, the testers'
+// thank-you), so the cards are not hidden behind one. Gives up after a minute;
+// the next opening tries again.
+function catchUpCelebrations(tries = 20) {
+  if ($('modal-root')?.children.length || document.getElementById('tour-root')) {
+    if (tries > 0) setTimeout(() => catchUpCelebrations(tries - 1), 3000);
+    return;
+  }
+  celebrateOwed();
+}
 
 // Baby Kael is the beta testers' thank-you (Adrian, 2026-10-28): everyone who
 // was here before the Play Store launch on 21 October 2026 - an account made
@@ -128,6 +157,7 @@ export const Avatars = {
   thankTester,
   celebrateStreak,
   celebrateMissions,
+  catchUpCelebrations,
 
   async renderGridInto(container, selectedId, onPick) {
     container.innerHTML = '';

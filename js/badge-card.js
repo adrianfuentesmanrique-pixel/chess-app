@@ -86,6 +86,7 @@ export const BadgeCard = {
     void el.offsetWidth;            // so a card following another replays its entrance
     el.classList.add('show');
     if (this.sound) Sound.play(this.sound);
+    item.onShow?.();
     this.timer = setTimeout(() => this.dismiss(), SHOW_MS);
   },
 

@@ -9,6 +9,15 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v256: OWED ICON CARDS (2026-11-18).** Every streak/mission icon a player holds gets
+  the achievement card once: `celebrateOwed()` in `js/avatars.js` (pure rule
+  `rewardsOwed` in `js/wall-rules.js`), kv `avatarsCelebrated` (synced). On opening the
+  app (`Avatars.catchUpCelebrations`, waits for any open sheet) players who held icons
+  before the cards existed get them one after another; each id is saved when its card is
+  ON SCREEN (`onShow` in `js/badge-card.js`), so closing midway keeps the rest. The
+  live path (celebrateStreak/celebrateMissions) goes through the same function. Players
+  who already saw a card in v254/v255 see it once more, since nothing recorded it then.
+  Headless 9/9 + v255 missions 24/24; unit 508.
 - **v255: THE LAST SEVEN ICONS ARE WON WITH THE DAILY MISSIONS (2026-11-16).** By the
   best run of days with all 3 missions (kv `bestDailyMissionStreak`), on the
   "Misiones diarias" badge days: griffin 7, phoenix 30, hydra 90, kraken 180,

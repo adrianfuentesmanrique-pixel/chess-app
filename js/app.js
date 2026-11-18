@@ -9149,6 +9149,8 @@ async function main() {
     if (Auth.user && Auth.needsProfileCompletion) openCompleteProfileModal();
     // A sign-in can make a tester (an account older than the launch).
     else setTimeout(() => Avatars.thankTester().catch(e => console.error('[tester]', e)), 800);
+    // The account's best streak can bring icons this phone never congratulated.
+    setTimeout(() => Avatars.catchUpCelebrations(), 2500);
   });
   Avatars.paintTopbar();
   // The app always opens on Home. What opens it for a reason runs after this
@@ -9179,6 +9181,9 @@ async function main() {
     const onboarded = await Onboarding.maybeShow();
     // The beta testers' thank-you card, once (js/avatars.js), after Home has settled.
     setTimeout(() => Avatars.thankTester().catch(e => console.error('[tester]', e)), 1500);
+    // The icon cards owed to players who held streak or mission icons before
+    // the cards existed, one after another (js/avatars.js).
+    setTimeout(() => Avatars.catchUpCelebrations(), 3000);
     // Kael's quote on opening is not said on Home (Adrian, 2026-10-12): his
     // line at the top of that screen is the greeting.
     if (!onboarded) setTimeout(() => { if (activeScreen !== 'home') KaelQuotes.showRandom(); }, 900);

@@ -32,6 +32,14 @@ export function streakRewardsCrossed(options, before, after, field = 'streakDays
   return options.filter(o => o[field] && b < o[field] && a >= o[field]);
 }
 
+// The streak and mission icons this player holds but has never had the card
+// for. celebrated: the ids already congratulated (kv avatarsCelebrated).
+export function rewardsOwed(options, bestStreak, bestMissionStreak, celebrated) {
+  const done = new Set(Array.isArray(celebrated) ? celebrated : []);
+  return options.filter(o => (o.streakDays || o.missionDays) && !done.has(o.id)
+    && streakAvatarOpen(o, bestStreak, bestMissionStreak));
+}
+
 // mode 'now': live streaks only, on streakCount. 'record': bestStreak.
 // Rows without a number above 0 are left out; ties keep the query's order.
 export function wallRows(entries, mode, now = new Date()) {
