@@ -34,6 +34,7 @@ import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Wall } from './wall.js';
+import { isYesterday } from './streak-rules.js';
 import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
@@ -963,10 +964,16 @@ export const Streak = {
   lastDate: null,
   best: 0,        // bestStreak, for the streak icons on Profile's ladder
 
+  initRun: 0,
   async init() {
-    this.count = +(await db.kvGet('streakCount', 0));
-    this.best = +(await db.kvGet('bestStreak', 0)) || 0;
-    this.lastDate = await db.kvGet('streakLastDate', null);
+    // Two inits can overlap (the boot one and the one after the account pull):
+    // only the one started last may set the numbers.
+    const run = ++this.initRun;
+    const count = +(await db.kvGet('streakCount', 0));
+    const best = +(await db.kvGet('bestStreak', 0)) || 0;
+    const lastDate = await db.kvGet('streakLastDate', null);
+    if (run !== this.initRun) return;
+    this.count = count; this.best = best; this.lastDate = lastDate;
     const today = todayStr();
     // A stored date that is today or later is never a break. "Later" happens
     // exactly once per user: the old UTC day rule could file an evening
@@ -978,7 +985,11 @@ export const Streak = {
       // profile, which meant other players saw a streak that had already died.
       // bestStreak is deliberately untouched: the record still stands.
       this.count = 0;
-      await db.kvSet('streakCount', 0);
+      // Only once the account's copy is in (Auth.settled): before that, this
+      // phone's date can be old only because another phone kept the streak,
+      // and a 0 written now could land over the account's live streak.
+      // The init that runs after the pull writes it if the streak really broke.
+      if (Auth.settled) await db.kvSet('streakCount', 0);
     }
     this.render();
   },
@@ -1646,11 +1657,6 @@ function todayStr() {
 }
 // 'YYYY-MM' — the season key for the monthly leaderboards.
 export function monthStr() { return todayStr().slice(0, 7); }
-function isYesterday(dateStr, todayStrVal) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const t = new Date(todayStrVal + 'T00:00:00');
-  return (t - d) === 86400000;
-}
 
 // Appends (or updates today's) point to a dated ELO history array kept in kv.
 export async function recordEloHistory(key, value) {
@@ -9107,7 +9113,7 @@ async function main() {
   Home.init();
   await DailyMissions.init();
   setTimeout(() => DailyMissions.remindIfIncomplete(), 45000);
-  Auth.onChange(async () => {
+  const afterAuth = async () => {
     // remote data may have just replaced local kv values (sign-in) — refresh live views
     await Streak.init();
     // Home: the line, the chip, the puzzle board (the rating may have moved to
@@ -9151,7 +9157,12 @@ async function main() {
     else setTimeout(() => Avatars.thankTester().catch(e => console.error('[tester]', e)), 800);
     // The account's best streak can bring icons this phone never congratulated.
     setTimeout(() => Avatars.catchUpCelebrations(), 2500);
-  });
+  };
+  Auth.onChange(afterAuth);
+  // The account can be pulled in before boot gets here (a fast connection, a
+  // slow phone): its one notice has then gone out to nobody. Catch it up, or
+  // the streak shown is the phone's old one and a broken one is never zeroed.
+  if (Auth.settled) afterAuth().catch(e => console.error('[auth]', e));
   Avatars.paintTopbar();
   // The app always opens on Home. What opens it for a reason runs after this
   // and wins: a shared file (handleIncomingFiles), a Pulso link (PulsoUI.boot),

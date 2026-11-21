@@ -9,6 +9,18 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v257: STREAKS LOST THOUGH PLAYED EVERY DAY (2026-11-21, a user's report).** Three
+  causes, all fixed: (1) `isYesterday` wanted exactly 24 h between local midnights, so
+  the day after a clock change (25/23 h) broke every streak — Spain 26 Oct, US 2 Nov,
+  Chile 7 Sep; now calendar days in `js/streak-rules.js`. (2) Sign-in replaced the
+  phone's streak with the account's: a day that never reached the account came back
+  older, Streak.init zeroed it and the 0 synced up. Now `mergeStreak` (newer day wins;
+  consecutive days carry on; best = max) and the account is put right. (3) Streak.init
+  wrote its 0 before the account pull (`Auth.settled`), and app.js's Auth.onChange was
+  registered after boot awaits, so a fast pull's notice was missed — now `afterAuth`
+  runs once if already settled. Streaks lost BEFORE v257 are not given back (no record
+  of them). Check: `node tools/emu-verify-streak.mjs <out>` 12/12; username 12/12.
+  `tools/emu-verify-widget-link.mjs` fails at start on main too (module path), not this.
 - **v256: OWED ICON CARDS (2026-11-18).** Every streak/mission icon a player holds gets
   the achievement card once: `celebrateOwed()` in `js/avatars.js` (pure rule
   `rewardsOwed` in `js/wall-rules.js`), kv `avatarsCelebrated` (synced). On opening the

@@ -26,6 +26,7 @@ import {
 import { initializeAppCheck, ReCaptchaV3Provider } from '../vendor/firebase-10.14.1/firebase-app-check.js';
 import * as db from './db.js';
 import { mergeSolved, solvedNewer } from './endgame-fresh.js';
+import { mergeStreak } from './streak-rules.js';
 import { PULSO, applySolve, applyMistake, decideResult, unpackIds, clockOffset } from './pulso.js';
 import {
   SIMUL, startClocks, checkStart, positionOf, tryMove, packMove, moveWrite, inTime,
@@ -82,6 +83,8 @@ const SYNCED_KEYS = [
 // wins per entry), and a phone only ever SENDS the entries it has newer —
 // setDoc(merge) writes those fields and leaves the rest of the map alone.
 const DAY_MAP_KEYS = ['endgameSolvedAt'];
+// Merged on sign-in by mergeStreak (js/streak-rules.js), never just replaced.
+const STREAK_KEYS = ['streakCount', 'streakLastDate', 'bestStreak'];
 const accountDayMaps = {};   // key → what the account is known to hold
 
 // Profile visibility is stored as a WORD, not a yes/no, so further levels
@@ -166,6 +169,10 @@ export const Auth = {
   // False until Firebase has said who is signed in, or that nobody is. Until
   // then `user: null` means "not known yet", not "signed out".
   known: false,
+  // True once the account's data has been pulled in (or nobody is signed in):
+  // from then on this phone's copy is the merged one. Streak.init writes a
+  // broken streak's 0 only after this (js/app.js).
+  settled: false,
   needsProfileCompletion: false,
   listeners: [],
 
@@ -2579,9 +2586,22 @@ async function pullOrBootstrap(uid) {
   try {
     if (snap.exists()) {
       const remote = snap.data();
+      // The streak is merged, not replaced: see mergeStreak in js/streak-rules.js.
+      const streak = mergeStreak(
+        { count: await db.kvGet('streakCount', 0), lastDate: await db.kvGet('streakLastDate', null), best: await db.kvGet('bestStreak', 0) },
+        { count: remote.streakCount, lastDate: remote.streakLastDate, best: remote.bestStreak });
       for (const key of SYNCED_KEYS) {
-        if (DAY_MAP_KEYS.includes(key)) continue;
+        if (DAY_MAP_KEYS.includes(key) || STREAK_KEYS.includes(key)) continue;
         if (remote[key] !== undefined) await db.kvSet(key, remote[key]);
+      }
+      await db.kvSet('streakCount', streak.count);
+      if (streak.lastDate) await db.kvSet('streakLastDate', streak.lastDate);
+      await db.kvSet('bestStreak', streak.best);
+      // This phone is ahead of the account: put the account right. Not awaited
+      // (a write waits forever while offline).
+      if (streak.push) {
+        setDoc(ref, { streakCount: streak.count, bestStreak: streak.best, ...(streak.lastDate ? { streakLastDate: streak.lastDate } : {}) }, { merge: true })
+          .catch(e => console.error('Firestore sync failed for the streak', e));
       }
       for (const key of DAY_MAP_KEYS) {
         const local = await db.kvGet(key, null);
@@ -2717,5 +2737,6 @@ onAuthStateChanged(auth, async (user) => {
     try { await pullOrBootstrap(user.uid); } catch (e) { console.error('Firestore pull failed', e); }
     adoptWidget().catch(e => console.error('Widget link failed', e));
   }
+  Auth.settled = true;
   Auth._notify();
 });
