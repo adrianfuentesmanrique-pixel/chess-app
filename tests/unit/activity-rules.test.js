@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { addTo, prune, gamesByDay, buildFeed } from '../../js/activity-rules.js';
+import { addTo, prune, gamesByDay, buildFeed, recordDay } from '../../js/activity-rules.js';
 
 test('addTo counts attempts, wins, misses and keeps the best run', () => {
   let log = {};
@@ -67,4 +67,30 @@ test('buildFeed leaves out days older than 60 and unknown areas', () => {
     hist: { puzzle: [{ date: '2026-08-01', value: 1200 }] },
   });
   assert.deepEqual(feed, []);
+});
+
+test('recordDay: the first day the rating stood highest, none while it never climbed', () => {
+  assert.equal(recordDay([{ date: 'a', value: 1200 }, { date: 'b', value: 1300 }, { date: 'c', value: 1250 }, { date: 'd', value: 1300 }]), 'b');
+  assert.equal(recordDay([{ date: 'a', value: 1200 }, { date: 'b', value: 1150 }]), null);
+  assert.equal(recordDay([{ date: 'a', value: 1200 }]), null);
+  assert.equal(recordDay(undefined), null);
+});
+
+test('buildFeed marks the record day of each rating', () => {
+  const feed = buildFeed({ today: '2026-11-24', hist: {
+    puzzle: [{ date: '2026-11-20', value: 1400 }, { date: '2026-11-22', value: 1520 }, { date: '2026-11-24', value: 1512 }],
+  } });
+  assert.deepEqual(feed.map(d => [d.day, d.rows[0].record]), [['2026-11-24', false], ['2026-11-22', true], ['2026-11-20', false]]);
+});
+
+test('buildFeed ends with the day the account was made, even past the 60 days', () => {
+  const log = { '2026-11-24': { puzzle: { n: 1, ok: 1, miss: 0, draw: 0 } } };
+  let feed = buildFeed({ today: '2026-11-24', log, joined: { day: '2026-03-02', kind: 'account' } });
+  assert.deepEqual(feed.map(d => d.day), ['2026-11-24', '2026-03-02']);
+  assert.deepEqual(feed[1].rows, [{ area: 'joined', kind: 'account' }]);
+  // Made today: the last row of today, under what was played.
+  feed = buildFeed({ today: '2026-11-24', log, joined: { day: '2026-11-24', kind: 'start' } });
+  assert.deepEqual(feed[0].rows.map(r => r.area), ['puzzle', 'joined']);
+  // A date in the future (a wrong clock) is left out.
+  assert.equal(buildFeed({ today: '2026-11-24', joined: { day: '2026-12-01', kind: 'account' } }).length, 0);
 });

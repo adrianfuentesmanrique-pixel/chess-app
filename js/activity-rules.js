@@ -59,7 +59,19 @@ export function gamesByDay(games, dayOf) {
 // `hist` is { area: [{ date, value }] } — the ELO histories. A day's ELO is
 // where it ended; its movement is against the point before it (none for the
 // very first point, which has nothing to move from).
-export function buildFeed({ log = {}, hist = {}, games = {}, today, keep = KEEP_DAYS }) {
+// The day an area's rating stood highest — the first day it reached its peak —
+// or null while it has never climbed above where it started.
+export function recordDay(list) {
+  if (!Array.isArray(list) || list.length < 2) return null;
+  let best = list[0];
+  for (const p of list) if (p && p.value > best.value) best = p;
+  return best === list[0] ? null : best.date;
+}
+
+// `joined` ({ day, kind: 'account' | 'start' }) is where the history begins: it
+// is the last row of all, whatever its age — kept out of the 60-day window,
+// since a history with no beginning reads as if it were cut off.
+export function buildFeed({ log = {}, hist = {}, games = {}, today, keep = KEEP_DAYS, joined = null }) {
   const t = dayNum(today);
   const inside = day => { const d = t - dayNum(day); return d >= 0 && d < keep; };
   const days = new Map();
@@ -79,15 +91,23 @@ export function buildFeed({ log = {}, hist = {}, games = {}, today, keep = KEEP_
     if (inside(day)) Object.assign(row(day, 'games'), { n: e.n, ok: e.ok, miss: e.miss, draw: e.draw });
   }
   for (const [area, list] of Object.entries(hist)) {
+    const peak = recordDay(list);
     (list || []).forEach((p, i) => {
       if (!p || !inside(p.date)) return;
       const r = row(p.date, area);
       r.elo = p.value;
       r.delta = i > 0 ? p.value - list[i - 1].value : null;
+      r.record = p.date === peak;
     });
   }
+  const join = joined && joined.day && dayNum(joined.day) <= t ? joined : null;
+  if (join && !days.has(join.day)) days.set(join.day, {});
   return [...days.keys()].sort((a, b) => dayNum(b) - dayNum(a)).map(day => ({
     day,
-    rows: AREAS.filter(a => days.get(day)[a]).map(a => days.get(day)[a]),
+    rows: [
+      ...AREAS.filter(a => days.get(day)[a]).map(a => days.get(day)[a]),
+      // The first thing that ever happened, so the last row of its day.
+      ...(join && join.day === day ? [{ area: 'joined', kind: join.kind }] : []),
+    ],
   }));
 }

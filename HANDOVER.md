@@ -9,6 +9,13 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v260: ACTIVITY — START, RECORDS, SHOW LESS (2026-11-24).** The feed's last row is
+  where it begins: "Creaste tu cuenta" (Auth.user.metadata.creationTime) or, signed out,
+  "Empezaste a entrenar" on the oldest kept date (`joinedDay` in js/activity-log.js); it
+  is outside the 60-day window on purpose. Each rating's peak day (`recordDay` in
+  js/activity-rules.js: the first day at the highest value, none if it never climbed)
+  gets a gold "🏆 Récord" chip. "Ver menos" folds back to 3 days and scrolls the card
+  into view. Unit 527; headless 69/69.
 - **v259: SURVIVAL MODE + PROFILE ACTIVITY (2026-11-24).** Survival (`js/survival.js`,
   `#screen-survival`, 6th chip in every `.puzzle-modes` row, 12-column grid 4/4/4 then
   4/3/5): puzzles until the first miss, target `survivalTarget(score)` = 800 + 50 a solve

@@ -8,13 +8,14 @@
 import * as db from './db.js';
 import { t, tn, getLang } from './i18n.js';
 import { pageHistory } from './db.js';
+import { Auth } from './firebase.js';
 import { addTo, prune, gamesByDay, buildFeed, ELO_KEYS, KEEP_DAYS } from './activity-rules.js';
 import { dayBefore } from './streak-rules.js';
 
 export const LOG_KEY = 'activityLog';
 const FIRST_DAYS = 3;     // days shown before "Show more"
 const MORE_DAYS = 7;      // and added by each tap
-const ICONS = { puzzle: '🧩', survival: '🛡️', rush: '⚡', blind: '🙈', calc: '✉️', endgame: '🏁', opening: '📖', games: '♟️' };
+const ICONS = { joined: '<img src="icons/logo-mark.png" alt="">', puzzle: '🧩', survival: '🛡️', rush: '⚡', blind: '🙈', calc: '✉️', endgame: '🏁', opening: '📖', games: '♟️' };
 
 const p2 = n => String(n).padStart(2, '0');
 export const dayStr = (d = new Date()) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
@@ -43,12 +44,17 @@ function dayLabel(day, today) {
 }
 
 function rowHtml(r, last) {
+  if (r.area === 'joined') {
+    return `<div class="act-row act-joined${last ? ' last' : ''}"><span class="act-ico" aria-hidden="true">${ICONS.joined}</span>` +
+      `<span class="act-txt">${esc(t(r.kind === 'account' ? 'act_joined_account' : 'act_joined_start'))}</span><span class="act-pills"></span></div>`;
+  }
   const text = r.n == null ? t(`act_${r.area}_x`) : tn(`act_${r.area}`, r.n);
   let sub = '';
   if (r.elo != null) {
     const d = r.delta;
     const move = d ? `<span class="${d > 0 ? 'act-up' : 'act-down'}">${d > 0 ? '↗' : '↘'} ${Math.abs(d)}</span>` : '';
-    sub = `<small>ELO ${r.elo} ${move}</small>`;
+    const record = r.record ? `<span class="act-record">🏆 ${esc(t('act_record'))}</span>` : '';
+    sub = `<small>ELO ${r.elo} ${move}${record}</small>`;
   }
   const pills = [];
   if (r.best != null) pills.push(`<b class="act-pill best">🏆 ${r.best}</b>`);
@@ -59,6 +65,22 @@ function rowHtml(r, last) {
   }
   return `<div class="act-row${last ? ' last' : ''}"><span class="act-ico" aria-hidden="true">${ICONS[r.area]}</span>` +
     `<span class="act-txt">${esc(text)}${sub}</span><span class="act-pills">${pills.join('')}</span></div>`;
+}
+
+// Where the history begins: the day the account was made, or — with no
+// account — the oldest day anything was kept on this phone.
+function joinedDay(hist, log, games) {
+  const made = Auth.user?.metadata?.creationTime;
+  if (made) {
+    const d = new Date(made);
+    if (!isNaN(d)) return { day: dayStr(d), kind: 'account' };
+  }
+  const dates = [
+    ...Object.values(hist).flatMap(l => (Array.isArray(l) ? l : []).map(p => p?.date)),
+    ...Object.keys(log),
+    ...games.map(g => g.playedAt && dayStr(new Date(g.playedAt))),
+  ].filter(d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  return dates.length ? { day: dates[0], kind: 'start' } : null;
 }
 
 export const ActivityFeed = {
@@ -73,7 +95,7 @@ export const ActivityFeed = {
     let games = [];
     try { games = (await pageHistory({ count: 600, match: g => g.playedAt >= since })).items; } catch {}
     const log = await db.kvGet(LOG_KEY, {});
-    this.feed = buildFeed({ log, hist, games: gamesByDay(games, ms => dayStr(new Date(ms))), today });
+    this.feed = buildFeed({ log, hist, games: gamesByDay(games, ms => dayStr(new Date(ms))), today, joined: joinedDay(hist, log, games) });
     this.today = today;
   },
 
@@ -91,10 +113,23 @@ export const ActivityFeed = {
       html += `<div class="act-day">${esc(dayLabel(d.day, this.today))}</div>`;
       html += d.rows.map((r, i) => rowHtml(r, i === d.rows.length - 1)).join('');
     }
-    if (this.feed.length > this.shown) html += `<button type="button" class="btn act-more">${esc(t('act_more'))}</button>`;
+    const canMore = this.feed.length > this.shown, canLess = this.shown > FIRST_DAYS && this.feed.length > FIRST_DAYS;
+    if (canMore || canLess) {
+      html += `<div class="act-btns">` +
+        (canLess ? `<button type="button" class="btn act-less">${esc(t('act_less'))}</button>` : '') +
+        (canMore ? `<button type="button" class="btn act-more">${esc(t('act_more'))}</button>` : '') + `</div>`;
+    }
     el.innerHTML = html;
     el.classList.remove('hidden');
-    const more = el.querySelector('.act-more');
+    const more = el.querySelector('.act-more'), less = el.querySelector('.act-less');
     if (more) more.onclick = () => { this.shown += MORE_DAYS; this.paint(el); };
+    // Back to the first days, and the card's top back on screen: the list it
+    // folds away may have been many screens long.
+    if (less) less.onclick = () => {
+      this.shown = FIRST_DAYS;
+      this.paint(el);
+      const main = document.querySelector('main');
+      if (main) main.scrollTop += el.getBoundingClientRect().top - 70;
+    };
   },
 };

@@ -1729,7 +1729,16 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 .act-pill.miss { background: color-mix(in srgb, var(--danger) 20%, transparent); color: color-mix(in srgb, var(--danger) 80%, var(--text)); }
 .act-pill.draw { background: var(--panel2); color: var(--muted); }
 .act-pill.best { background: var(--gold-bg); color: color-mix(in srgb, var(--gold) 72%, var(--text)); white-space: nowrap; }
-.act-more { width: 100%; margin-top: 8px; }
+.act-btns { display: flex; gap: 8px; margin-top: 8px; }
+.act-btns .btn { flex: 1; min-width: 0; }
+/* The day an area's rating stood highest. */
+.act-record { margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 800;
+  background: var(--gold-bg); color: color-mix(in srgb, var(--gold) 72%, var(--text)); white-space: nowrap; }
+/* Where the history begins: the app's mark in a gold ring. */
+/* Cream in both themes: the logo is navy and vanished on the dark panel. */
+.act-joined .act-ico { background: color-mix(in srgb, var(--gold) 28%, #fff); box-shadow: 0 0 0 3px var(--panel), inset 0 0 0 1.5px color-mix(in srgb, var(--gold) 60%, transparent); }
+.act-joined .act-ico img { width: 22px; height: 22px; object-fit: contain; }
+.act-joined .act-txt { font-weight: 700; }
 
 /* ── puzzle rush ───────────────────────── */
 .rush-board-stack { position: relative; }
