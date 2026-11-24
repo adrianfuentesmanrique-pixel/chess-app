@@ -8,7 +8,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // to the next is 23 or 25 hours on a clock-change day, and the old rule
 // ("exactly 24 hours apart") broke every streak that crossed one (Spain on
 // 26 Oct, the US on 2 Nov, Chile on 7 Sep). Calendar days never do that.
-function dayNum(s) {
+export function dayNum(s) {
   const [y, m, d] = s.split('-').map(Number);
   return Date.UTC(y, m - 1, d) / 86400000;
 }

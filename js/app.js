@@ -49,6 +49,8 @@ import { Masterclass } from './masterclass.js';
 import { Students } from './students.js';
 import { SimulUI } from './simul-ui.js';
 import { Activity } from './activity.js';
+import { Survival } from './survival.js';
+import { logActivity, ActivityFeed } from './activity-log.js';
 import { Notifications } from './notifications.js';
 import { shouldInvite, MAX_ASKS } from './remind-invite.js';
 import { hourLabel } from './remind-time.js';
@@ -1698,7 +1700,7 @@ export async function recordEloHistory(key, value) {
 
 // ═════════════════════ tabs ═════════════════════
 
-const SCREENS = ['home', 'analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'wall', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'pulso', 'blind', 'calc', 'students', 'simul'];
+const SCREENS = ['home', 'analysis', 'base', 'play', 'read', 'trainer', 'puzzles', 'setup', 'endgame', 'profile', 'leaderboard', 'wall', 'public-profile', 'friends', 'friends-leaderboard', 'friends-blocked', 'masterclass', 'rush', 'survival', 'pulso', 'blind', 'calc', 'students', 'simul'];
 // Starts as Home (HOME_SCREEN below), the base of the Back stack, so the
 // showScreen('home') that ends main() adds no history entry of its own.
 export let activeScreen = 'home';
@@ -1750,6 +1752,7 @@ export function showScreen(name) {
   // Leaving the Rush screen ends the run. Without this the clock kept ticking
   // on a hidden board and the run "finished" while the player was elsewhere.
   if (name !== 'rush') Rush.stop();
+  if (name !== 'survival') Survival.stop();
   // The same for a Coordinates run in Learn: its clock does not outlive the screen.
   if (name !== 'endgame') CoordUI.stop();
   // The same for a Pulso board. The match itself goes on without this phone:
@@ -1828,7 +1831,7 @@ const MENU_AREA = {
   endgame: 'endgame',
   base: 'base', masterclass: 'base',
   trainer: 'trainer',
-  puzzles: 'puzzles', rush: 'puzzles', blind: 'puzzles', pulso: 'puzzles', calc: 'puzzles',
+  puzzles: 'puzzles', rush: 'puzzles', survival: 'puzzles', blind: 'puzzles', pulso: 'puzzles', calc: 'puzzles',
   play: 'play',
   read: 'read',
   students: 'students', simul: 'students',
@@ -1908,7 +1911,7 @@ const TAB_ORDER = [...document.querySelectorAll('#tabbar button')].map(b => b.da
 // sub-screens (a leaderboard, Friends, a public profile, Masterclass, Setup)
 // are deliberately left out: each is left by its Back button, and a sideways
 // swipe there would walk away from the screen Back is meant to return to.
-const SWIPE_AS_HOME = new Set(['rush', 'blind', 'pulso', 'calc']);
+const SWIPE_AS_HOME = new Set(['rush', 'survival', 'blind', 'pulso', 'calc']);
 
 // The tab beside `screen` in the drawer's order (dir +1 = next, -1 = previous),
 // or null at either end and on a sub-screen that is not in SWIPE_AS_HOME,
@@ -2153,6 +2156,7 @@ function syncPuzzleModeSeg(mode) {
 function openPuzzleMode(mode) {
   if (mode === 'blind') Blind.open();
   else if (mode === 'rush') Rush.openIntro();
+  else if (mode === 'survival') Survival.open();
   else if (mode === 'pulso') PulsoUI.open();
   else if (mode === 'calc') CalcUI.open();
   else showScreen('puzzles');
@@ -5099,6 +5103,7 @@ export const Trainer = {
     // by however the study base happens to be named — a base can mix
     // openings or be mislabeled, which would otherwise silently corrupt
     // the tracking.
+    logActivity('opening', result === 'win' ? { ok: true } : result === 'draw' ? { draw: true } : { miss: true });
     const openingName = classifyOpening(this.chess.history());
     if (!openingName) {
       KaelQuotes.show({ text: t('not_an_opening_msg'), author: null, mood: 'thinking' }, 5500);
@@ -5145,10 +5150,10 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 export const eloDeltaText = d => (d > 0 ? '+' : '') + d;
 
 export const PuzzleLog = {
-  logs: { puzzles: [], blind: [], rush: [], calc: [] },
+  logs: { puzzles: [], blind: [], rush: [], calc: [], survival: [] },
   // Sealed Moves has no row to spare under its board: its strip is drawn in the
   // sheet its rating opens (js/calc-ui.js openProgress), while that is open.
-  containers: { puzzles: 'puzzle-log', blind: 'blind-log', rush: 'rush-log', calc: 'calc-log' },
+  containers: { puzzles: 'puzzle-log', blind: 'blind-log', rush: 'rush-log', calc: 'calc-log', survival: 'survival-log' },
 
   // `delta` is the ELO that attempt moved. Null where a puzzle has no rating
   // of its own (a Rush run is scored as one run), and those dots keep showing
@@ -5707,6 +5712,7 @@ export const Puzzles = {
   recordResult(win) {
     if (this.eloRecorded || !this.current) return;
     this.eloRecorded = true;
+    logActivity('puzzle', win ? { ok: true } : { miss: true });
     // Inside a homework a puzzle is rated once: its first win or first miss.
     // Replaying it in the same homework (a list brings a missed one back, a
     // student can reopen the homework) shows ±0 and moves nothing (Adrian,
@@ -6182,8 +6188,11 @@ export const Rush = {
   // Target rating ramps up directly with the current run's score (a rush
   // "streak" is just its score, since one mistake ends the run), rather than
   // walking a fixed sorted list — so difficulty visibly tracks performance.
+  // Survival (js/survival.js) climbs from lower and more gently.
+  target() { return Math.min(2400, 900 + this.score * 55); },
+
   pickNext() {
-    const target = Math.min(2400, 900 + this.score * 55);
+    const target = this.target();
     // A run climbs from ~900 to 2400, crossing most bands. Fetch the next one
     // ahead of time without blocking — the pool already loaded stays playable
     // if it hasn't arrived yet.
@@ -6396,6 +6405,7 @@ export const Rush = {
     const overall = await db.kvGet('rushBestScore', 0);
     if (this.score > overall) await db.kvSet('rushBestScore', this.score);
     await this.recordSeasonScore();
+    logActivity('rush', { best: this.score });
     Badges.checkNew();
     // A run that scores 0 or 1 is a run you bailed out of; three solved is a
     // real one. Starting a run and letting the clock die no longer counts.
@@ -6648,6 +6658,7 @@ export const Blind = {
   recordResult(win) {
     if (this.eloRecorded || !this.current) return;
     this.eloRecorded = true;
+    logActivity('blind', win ? { ok: true } : { miss: true });
     // A peek gives up only the extra for a short look; the puzzle's normal
     // points are still paid in full. All the maths is in js/blind-elo.js.
     const before = this.elo;
@@ -7694,6 +7705,7 @@ export const Endgame = {
     Sound.play(success ? 'game-win' : 'game-lose');
     this.setStatus(success ? t('practice_win') : t('practice_fail'));
     $('endgame-share').classList.toggle('hidden', !success);
+    logActivity('endgame', success ? { ok: true } : { miss: true });
     const cat = this.current.category;
     const cur = this.elo[cat] ?? 1200;
     const expScore = 1 / (1 + Math.pow(10, (NOMINAL_PRACTICE_RATING - cur) / 400));
@@ -8763,6 +8775,7 @@ export const Profile = {
     // Re-read: a sign-in can bring a longer best streak from the cloud.
     Streak.best = Math.max(Streak.count, +(await db.kvGet('bestStreak', 0)) || 0);
     this.renderStreakLadder();
+    ActivityFeed.render();
 
     const puzzleElo = await db.kvGet('puzzleElo', 1200);
     const themeElo = await db.kvGet('puzzleThemeElo', {});
@@ -9104,6 +9117,7 @@ async function main() {
   OpeningLib.init();
   Puzzles.init();
   Rush.init();
+  Survival.init();
   Blind.init();
   Endgame.init();
   KaelQuotes.init();

@@ -185,7 +185,7 @@ button { font-family: inherit; }
   pointer-events: none;
 }
 body.mode-light .watermark { filter: none; }
-#play-setup, #trainer-setup, #rush-intro, #blind-start, #base-list-view, #endgame-sections-view, #read-shelf {
+#play-setup, #trainer-setup, #rush-intro, #survival-intro, #blind-start, #base-list-view, #endgame-sections-view, #read-shelf {
   position: relative; isolation: isolate; overflow: hidden;
 }
 /* The empty shelf is only a few lines tall; without a floor the watermark would
@@ -195,11 +195,11 @@ body.mode-light .watermark { filter: none; }
 /* Screens with a single "start" action: keep the button anchored to the
    same spot near the bottom of the viewport no matter how much option
    content sits above it, so switching between these tabs feels uniform. */
-#play-setup, #trainer-setup, #rush-intro, #blind-start {
+#play-setup, #trainer-setup, #rush-intro, #survival-intro, #blind-start {
   display: flex; flex-direction: column;
   min-height: calc(100dvh - 190px);
 }
-#play-setup .btn.big, #trainer-setup .btn.big, #rush-intro .btn.big, #blind-start .btn.big { margin-top: auto; }
+#play-setup .btn.big, #trainer-setup .btn.big, #rush-intro .btn.big, #survival-intro .btn.big, #blind-start .btn.big { margin-top: auto; }
 /* List-style landing screens don't have a single bottom button to anchor,
    but still need full-viewport height so the watermark isn't clipped short
    like it would be if it only sized to the (short) list content. */
@@ -563,13 +563,18 @@ h2 { margin: 4px 0 10px; font-size: 20px; }
 .seg.scroll::-webkit-scrollbar { display: none; }
 .seg.scroll button { flex: 0 0 auto; }
 /* The four puzzle modes: two rows of two, every one in sight and the same size. */
-/* Five modes in two rows: three on top, two below. Six columns, so a top chip
-   takes two and a bottom chip three. */
-/* The leaderboards' five boards use the same grid: the three ELO boards on
-   top, the two points (Rush) boards below. */
+/* Six puzzle modes (v259) in two rows of three, on twelve columns: the top
+   three take four each; below, the short "⚔ Duelo" gives one to the long
+   "✉️ Jugadas selladas" (4 / 3 / 5). */
+/* The leaderboards' five boards: the three ELO boards on top, the two points
+   (Rush) boards below — six columns, two each on top and three below. */
 .seg.puzzle-modes, .seg.lb-modes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.seg.puzzle-modes { grid-template-columns: repeat(12, 1fr); }
 .seg.puzzle-modes button, .seg.lb-modes button { grid-column: span 2; min-width: 0; min-height: 40px; padding: 8px 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.seg.puzzle-modes button:nth-child(n+4), .seg.lb-modes button:nth-child(n+4) { grid-column: span 3; }
+.seg.puzzle-modes button { grid-column: span 4; }
+.seg.puzzle-modes button:nth-child(5) { grid-column: span 3; }
+.seg.puzzle-modes button:nth-child(6) { grid-column: span 5; }
+.seg.lb-modes button:nth-child(n+4) { grid-column: span 3; }
 /* All time / This month, under the Rush row and the same two halves as it. */
 .seg.lb-period { display: grid; grid-template-columns: 1fr 1fr; margin-top: 6px; }
 .seg.lb-period button { min-width: 0; padding: 7px 4px; font-size: 13px; text-align: center; }
@@ -1671,6 +1676,60 @@ body.mode-light .annotate-btn.active { outline-color: var(--accent); }
 /* Someone already in the class: no checkbox, and dimmed so the eye skips it. */
 .mc-pick.taken { opacity: .55; cursor: default; }
 .mc-pick input { width: 18px; height: 18px; accent-color: var(--gold); margin: 0; }
+
+/* ── survival (js/survival.js) ─────────── */
+.sv-hero { display: flex; align-items: center; gap: 14px; margin: 14px 0 6px; }
+.sv-hero p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.sv-shield { width: 60px; height: 60px; flex: 0 0 auto; border-radius: 18px; display: grid; place-items: center; font-size: 32px;
+  background: var(--gold-bg); border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); }
+/* Eight steps, each taller: the run getting harder. */
+.sv-ladder { display: flex; align-items: flex-end; gap: 5px; height: 34px; margin: 2px 0 12px; padding: 0 2px; }
+.sv-ladder i { flex: 1; border-radius: 4px 4px 0 0;
+  background: linear-gradient(to top, color-mix(in srgb, var(--gold) 25%, transparent), color-mix(in srgb, var(--gold) 75%, transparent)); }
+.sv-ladder i:nth-child(1) { height: 8px; } .sv-ladder i:nth-child(2) { height: 12px; }
+.sv-ladder i:nth-child(3) { height: 16px; } .sv-ladder i:nth-child(4) { height: 20px; }
+.sv-ladder i:nth-child(5) { height: 24px; } .sv-ladder i:nth-child(6) { height: 28px; }
+.sv-ladder i:nth-child(7) { height: 32px; } .sv-ladder i:nth-child(8) { height: 34px; }
+.sv-rules { list-style: none; padding: 0; margin: 10px 0 14px; display: flex; flex-direction: column; gap: 8px; }
+.sv-rules li { display: flex; gap: 10px; align-items: center; background: var(--panel); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; }
+.sv-rules li > span:first-child { font-size: 18px; width: 24px; text-align: center; flex: 0 0 auto; }
+.sv-start { margin-top: 14px; }
+.sv-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.sv-score { font-size: 22px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; min-width: 64px; }
+.sv-skip { display: inline-flex; align-items: center; gap: 6px; }
+.sv-skip small { background: var(--gold); color: #102a43; border-radius: 999px; font-weight: 800; padding: 0 7px; font-size: 12px; }
+.sv-skip:disabled { opacity: .45; }
+#survival-game .plog { margin-top: 8px; }
+.sv-result-title { margin-bottom: 4px; }
+.sv-new { display: inline-block; background: var(--gold); color: #102a43; font-weight: 800; border-radius: 999px; padding: 3px 12px; font-size: 13px; margin-bottom: 6px; }
+.sv-result-num { font-size: 64px; font-weight: 800; color: var(--gold); line-height: 1; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.sv-result-label { margin-top: 0; }
+.sv-log-slot .plog { justify-content: center; margin-top: 12px; }
+.sv-killer { color: var(--muted); font-size: 13px; margin: 4px 0 10px; }
+.sv-killer:empty { display: none; }
+
+/* ── profile activity (js/activity-log.js) ── */
+.act-head { margin: 0 0 4px; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.act-empty { margin: 6px 0 0; }
+.act-day { color: var(--muted); font-size: 13px; font-weight: 700; margin: 14px 0 4px; }
+.act-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; position: relative; padding: 8px 0; }
+/* The dashed line through the day's icons, from the first to the last. */
+.act-row::before { content: ''; position: absolute; left: 16px; top: 0; bottom: 0; border-left: 2px dashed color-mix(in srgb, var(--muted) 45%, transparent); }
+.act-day + .act-row::before { top: 50%; }
+.act-row.last::before { bottom: 50%; }
+.act-ico { position: relative; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 17px;
+  background: var(--panel2); box-shadow: 0 0 0 3px var(--panel); }
+.act-txt { min-width: 0; font-size: 15px; line-height: 1.3; }
+.act-txt small { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.act-up { color: var(--success); font-weight: 700; }
+.act-down { color: var(--danger); font-weight: 700; }
+.act-pills { display: flex; gap: 4px; }
+.act-pill { min-width: 30px; text-align: center; border-radius: 7px; padding: 3px 7px; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; }
+.act-pill.ok { background: color-mix(in srgb, var(--success) 22%, transparent); color: color-mix(in srgb, var(--success) 75%, var(--text)); }
+.act-pill.miss { background: color-mix(in srgb, var(--danger) 20%, transparent); color: color-mix(in srgb, var(--danger) 80%, var(--text)); }
+.act-pill.draw { background: var(--panel2); color: var(--muted); }
+.act-pill.best { background: var(--gold-bg); color: color-mix(in srgb, var(--gold) 72%, var(--text)); white-space: nowrap; }
+.act-more { width: 100%; margin-top: 8px; }
 
 /* ── puzzle rush ───────────────────────── */
 .rush-board-stack { position: relative; }

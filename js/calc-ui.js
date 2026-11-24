@@ -48,6 +48,7 @@ import { REPLY_MS } from './move-feel.js';
 import { uciLineToSan } from './engine.js';
 import { calcMainLine, calcNewTree, calcIsMine, calcEnter, calcGrade, calcVerdict, calcAddReply, calcRows, calcSideOk, calcToJudge,
   calcStartElo, calcPay, calcFresh, calcAnalysisTree } from './calc.js';
+import { logActivity } from './activity-log.js';
 import { $, toast, modal, esc, showScreen, activeScreen, Puzzles, PuzzleLog, Streak, Analysis, recordEloHistory, eloDeltaText, openEloHistoryModal } from './app.js';
 
 // The engine's time on one search. A judged move takes two at most: the
@@ -192,6 +193,8 @@ export const CalcUI = {
       this.paid = { elo: this.elo, n: this.attemptCount };
       this.attemptCount++;
       db.kvSet('calcAttemptCount', this.attemptCount);
+      // Counted once, at its first verdict (a settle can re-pay it later).
+      logActivity('calc', verdict !== 'failed' ? { ok: true } : { miss: true });
     }
     this.elo = calcPay({ elo: this.paid.elo, rating: p.rating, attemptCount: this.paid.n, verdict, hinted: this.hinted });
     this.rated = true;

@@ -847,6 +847,7 @@
       <button data-v="puzzles" class="on" data-i18n="mode_puzzles"></button>
       <button data-v="blind" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
+      <button data-v="survival" data-i18n="mode_survival"></button>
       <button data-v="pulso" data-i18n="mode_pulso"></button>
       <button data-v="calc" data-i18n="mode_calc"></button>
     </div>
@@ -914,6 +915,7 @@
         <button data-v="puzzles" data-i18n="mode_puzzles"></button>
         <button data-v="blind" data-i18n="mode_blind"></button>
         <button data-v="rush" class="on" data-i18n="mode_rush"></button>
+        <button data-v="survival" data-i18n="mode_survival"></button>
         <button data-v="pulso" data-i18n="mode_pulso"></button>
         <button data-v="calc" data-i18n="mode_calc"></button>
       </div>
@@ -960,6 +962,61 @@
     </div>
   </section>
 
+  <!-- ══════════ SURVIVAL ══════════ -->
+  <!-- Puzzles until the first miss, each a little harder (js/survival.js) —
+       Rush's engine over the survival-* elements. No clock, no ELO. -->
+  <section id="screen-survival" class="screen hidden">
+    <div id="survival-intro">
+      <img src="icons/logo-mark.png" class="watermark" alt="" loading="lazy">
+      <h2 class="sr-only" data-i18n="survival_title"></h2>
+      <div class="seg puzzle-modes" data-mode="survival">
+        <button data-v="puzzles" data-i18n="mode_puzzles"></button>
+        <button data-v="blind" data-i18n="mode_blind"></button>
+        <button data-v="rush" data-i18n="mode_rush"></button>
+        <button data-v="survival" class="on" data-i18n="mode_survival"></button>
+        <button data-v="pulso" data-i18n="mode_pulso"></button>
+        <button data-v="calc" data-i18n="mode_calc"></button>
+      </div>
+      <div class="sv-hero"><span class="sv-shield" aria-hidden="true">🛡️</span><p data-i18n="survival_lead"></p></div>
+      <div class="sv-ladder" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <ul class="sv-rules">
+        <li><span aria-hidden="true">❌</span><span data-i18n="survival_rule_miss"></span></li>
+        <li><span aria-hidden="true">⏭</span><span data-i18n="survival_rule_skip"></span></li>
+        <li><span aria-hidden="true">⏱</span><span data-i18n="survival_rule_calm"></span></li>
+      </ul>
+      <div class="row wrap profile-elo-row">
+        <div class="elo-card"><span>🏆 <span data-i18n="survival_best"></span></span><b id="survival-best-score"></b></div>
+      </div>
+      <button id="survival-start" class="btn primary big sv-start" data-i18n="survival_start"></button>
+    </div>
+    <div id="survival-game" class="hidden">
+      <div class="sv-bar">
+        <span id="survival-score" class="sv-score"></span>
+        <span id="survival-rating" class="elo-badge"></span>
+        <button id="survival-skip" type="button" class="btn small sv-skip"></button>
+      </div>
+      <div class="rush-board-stack"><div id="survival-board" class="board-wrap"></div></div>
+      <div id="survival-status" class="status-bar"></div>
+      <div id="survival-log" class="plog"></div>
+    </div>
+    <div id="survival-result" class="hidden">
+      <div class="profile-card" style="text-align:center">
+        <h2 id="survival-result-title" class="sv-result-title"></h2>
+        <span id="survival-result-new" class="sv-new hidden">🏆 <span data-i18n="survival_new_best"></span></span>
+        <div id="survival-result-score" class="sv-result-num"></div>
+        <div id="survival-result-label" class="hint sv-result-label"></div>
+        <p id="survival-result-best" class="hint"></p>
+        <div id="survival-log-slot" class="sv-log-slot"></div>
+        <div id="survival-result-killer" class="sv-killer"></div>
+        <div class="row wrap" style="justify-content:center">
+          <button id="survival-share" class="btn" data-i18n-aria="share">📤</button>
+          <button id="survival-again" class="btn primary" data-i18n="survival_again"></button>
+        </div>
+        <button id="survival-exit" class="btn" style="margin-top:10px" data-i18n="rush_back_puzzles"></button>
+      </div>
+    </div>
+  </section>
+
   <!-- ══════════ PULSO ══════════ -->
   <!-- A live 1-v-1 puzzle tug-of-war between two friends. js/pulso-ui.js shows
        one pane at a time: the lobby, waiting for an answer, and the match
@@ -971,6 +1028,7 @@
         <button data-v="puzzles" data-i18n="mode_puzzles"></button>
         <button data-v="blind" data-i18n="mode_blind"></button>
         <button data-v="rush" data-i18n="mode_rush"></button>
+        <button data-v="survival" data-i18n="mode_survival"></button>
         <button data-v="pulso" class="on" data-i18n="mode_pulso"></button>
         <button data-v="calc" data-i18n="mode_calc"></button>
       </div>
@@ -1059,6 +1117,7 @@
       <button data-v="puzzles" data-i18n="mode_puzzles"></button>
       <button data-v="blind" class="on" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
+      <button data-v="survival" data-i18n="mode_survival"></button>
       <button data-v="pulso" data-i18n="mode_pulso"></button>
       <button data-v="calc" data-i18n="mode_calc"></button>
     </div>
@@ -1139,6 +1198,7 @@
       <button data-v="puzzles" data-i18n="mode_puzzles"></button>
       <button data-v="blind" data-i18n="mode_blind"></button>
       <button data-v="rush" data-i18n="mode_rush"></button>
+      <button data-v="survival" data-i18n="mode_survival"></button>
       <button data-v="pulso" data-i18n="mode_pulso"></button>
       <button data-v="calc" class="on" data-i18n="mode_calc"></button>
     </div>
@@ -1399,6 +1459,9 @@
         </div>
       </div>
     </div>
+
+    <!-- What was trained each day, newest first (js/activity-log.js). -->
+    <div id="profile-activity" class="profile-card act-card hidden"></div>
 
     <!-- The missions live on Home; this row says how many are done and opens
          it. #daily-missions-streak is the missions' own counter (🔥 n). -->

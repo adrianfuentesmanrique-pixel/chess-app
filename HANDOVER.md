@@ -9,6 +9,20 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v259: SURVIVAL MODE + PROFILE ACTIVITY (2026-11-24).** Survival (`js/survival.js`,
+  `#screen-survival`, 6th chip in every `.puzzle-modes` row, 12-column grid 4/4/4 then
+  4/3/5): puzzles until the first miss, target `survivalTarget(score)` = 800 + 50 a solve
+  (cap 2400), one skip a run, no clock, NO ELO; record kv `survivalBest` (synced), no
+  leaderboard yet. It is Rush's engine via `Object.create(Rush)` like Pulso; Rush gained
+  `target()` so a mode can change the climb. Activity card `#profile-activity` under
+  `#profile-account`: `js/activity-rules.js` (pure, unit-tested) + `js/activity-log.js`
+  (`logActivity(area, {ok|miss|draw|best})`, `ActivityFeed.render()`). Counts in kv
+  `activityLog` (phone only, 60 days) from v259 on; the ELO lines come from the synced
+  `*EloHistory` keys, so older days show "Trained puzzles · ELO 1478 ↗ 28" without counts;
+  games come from `playHistory`. Logged at: Puzzles.recordResult, Blind.recordResult,
+  Endgame.finishPractice, recordOpeningResult, CalcUI.pay (first verdict), Rush.finish,
+  Survival.finish. Headless 49/49 (es/en, light/dark, 375 + 360 chips); unit 524.
+  Mockup run + approved-look shots: scratchpad only.
 - **v258: STREAK RESTORES (2026-11-24).** 2 a calendar month for the flame streak and 2
   for the daily missions run (separate). Only a run that missed exactly ONE day; it keeps
   its number with yesterday as its last day (the missed day is not added), and the offer
