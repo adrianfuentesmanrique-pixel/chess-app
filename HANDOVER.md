@@ -9,6 +9,17 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v258: STREAK RESTORES (2026-11-24).** 2 a calendar month for the flame streak and 2
+  for the daily missions run (separate). Only a run that missed exactly ONE day; it keeps
+  its number with yesterday as its last day (the missed day is not added), and the offer
+  stands until the player credits a new day. Rules: `restoresLeft/useRestore/canRestore/
+  dayBefore` in `js/streak-rules.js`. UI: `js/rescue.js` (offer sheet on opening, once a
+  day per kind; gold row in Profile's streak card / Home's missions row; "n restores this
+  month" notes). Storage: kv `streakRestores` {month, flame, missions} and `streakLost`
+  (both synced), `missionLost` and `rescueOffered` (phone only; the missions keys are
+  phone-only anyway). Streak.init / DailyMissions.init save the lost run before zeroing.
+  Headless 38/38 (es/en, light/dark, 375px); unit 518; emu-verify-streak 12/12.
+  Joseivan's streak was set by hand on 2026-11-21 (42, last day 20 Nov) at Adrian's request.
 - **v257: STREAKS LOST THOUGH PLAYED EVERY DAY (2026-11-21, a user's report).** Three
   causes, all fixed: (1) `isYesterday` wanted exactly 24 h between local midnights, so
   the day after a clock change (25/23 h) broke every streak — Spain 26 Oct, US 2 Nov,

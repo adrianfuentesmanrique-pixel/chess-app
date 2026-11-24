@@ -34,7 +34,8 @@ import { BADGE_DEFS, badgeLabel, Badges } from './badges.js';
 import { BadgeCard } from './badge-card.js';
 import { Leaderboard, PublicProfile } from './leaderboard.js';
 import { Wall } from './wall.js';
-import { isYesterday } from './streak-rules.js';
+import { isYesterday, canRestore } from './streak-rules.js';
+import { Rescue, BUOY } from './rescue.js';
 import { Friends } from './friends.js';
 import { PulsoUI } from './pulso-ui.js';
 import { PulsoMatch } from './pulso-match.js';
@@ -989,7 +990,11 @@ export const Streak = {
       // phone's date can be old only because another phone kept the streak,
       // and a 0 written now could land over the account's live streak.
       // The init that runs after the pull writes it if the streak really broke.
-      if (Auth.settled) await db.kvSet('streakCount', 0);
+      if (Auth.settled) {
+        // One missed day: keep what broke so it can be restored (js/rescue.js).
+        if (count > 0 && canRestore({ count, lastDate }, lastDate, today)) await db.kvSet('streakLost', { count, lastDate });
+        await db.kvSet('streakCount', 0);
+      }
     }
     this.render();
   },
@@ -1225,7 +1230,13 @@ export const DailyMissions = {
     this.best = +(await db.kvGet('bestDailyMissionStreak', 0)) || 0;
     if (this.date !== today) {
       const lastComplete = await db.kvGet('dailyMissionLastCompleteDate', null);
-      if (!(lastComplete && isYesterday(lastComplete, today))) this.streak = 0;
+      if (!(lastComplete && isYesterday(lastComplete, today))) {
+        // One missed day: keep what broke so it can be restored (js/rescue.js).
+        if (this.streak > 0 && canRestore({ count: this.streak, lastDate: lastComplete }, lastComplete, today)) {
+          await db.kvSet('missionLost', { count: this.streak, lastDate: lastComplete });
+        }
+        this.streak = 0;
+      }
       this.date = today;
       this.done = { puzzle: false, play: false, opening: false };
       await db.kvSet('dailyMissionsDate', this.date);
@@ -1346,10 +1357,21 @@ export const DailyMissions = {
       <span class="streak-gift-chip${next ? '' : ' won'}">${avatarHtml(icon.id, 34)}${next ? '<span class="streak-gift-lock">🔒</span>' : ''}</span>
       <span class="daily-mission-arrow" aria-hidden="true">›</span>`;
     el.onclick = () => this.openLadder();
+    el.classList.remove('rescue');
+    // A run that missed one day and can be restored: the row says so and opens the offer.
+    Rescue.refresh().then(() => {
+      const s = Rescue.state.missions;
+      if (!s || this.streak > 0) return;
+      el.classList.add('rescue');
+      el.querySelector('.mrun-text b').textContent = tn('rescue_row', s.count);
+      el.querySelector('.mrun-text small').textContent = tn('rescue_row_left', s.left);
+      el.onclick = () => Rescue.open('missions');
+    }).catch(e => console.error('[rescue]', e));
   },
 
   // Every mission icon and the run it needs, in a sheet.
-  openLadder() {
+  async openLadder() {
+    await Rescue.refresh().catch(e => console.error('[rescue]', e));
     const lang = getLang();
     const won = o => this.best >= o.missionDays;
     const rows = MISSION_AVATARS().map(o => {
@@ -1366,8 +1388,13 @@ export const DailyMissions = {
       box.classList.add('mladder');
       box.innerHTML = `<h3 class="stage-sheet-title">🎯 ${esc(t('missions_ladder_title'))}</h3>
         <p class="mladder-lead">${esc(t('missions_ladder_lead').replace('{n}', this.streak).replace('{b}', this.best))}</p>
+        ${Rescue.state.missions ? `<button type="button" class="rescue-row" data-rescue="missions">${BUOY}
+          <span class="rescue-row-text"><b>${esc(tn('rescue_row', Rescue.state.missions.count))}</b><small>${esc(tn('rescue_row_left', Rescue.state.missions.left))}</small></span>
+          <span class="daily-mission-arrow" aria-hidden="true">›</span></button>`
+          : `<p class="rescue-note">${BUOY}${esc(Rescue.noteText('missions'))}</p>`}
         <div class="streak-tier-list">${rows}</div>
         <p class="hint mladder-hint">${esc(t('missions_ladder_hint'))}</p>`;
+      box.querySelectorAll('[data-rescue]').forEach(b => b.onclick = () => { close(null); setTimeout(() => Rescue.open('missions'), 250); });
       const ok = document.createElement('button');
       ok.className = 'btn big'; ok.textContent = t('close'); ok.onclick = () => close(null);
       box.appendChild(ok);
@@ -8669,6 +8696,7 @@ export const Profile = {
           <div class="streak-now-bar"><span style="width:${pct}%"></span></div>
         </div>
       </div>
+      <div class="rescue-slot"></div>
       <div class="streak-tier-list">${rows}</div>
       ${showToggle ? `<button class="btn small streak-ladder-more">${esc(toggleLabel)}</button>` : ''}
       ${this.streakHowHtml()}`;
@@ -8685,6 +8713,13 @@ export const Profile = {
     });
     Wall.paintButton();
     Notifications.profileRow(openSettings);
+    // The streak restore row (js/rescue.js): read from storage, so drawn a beat later.
+    Rescue.refresh().then(() => {
+      const slot = el.querySelector('.rescue-slot');
+      if (!slot) return;
+      slot.innerHTML = Rescue.flameHtml();
+      Rescue.wire(slot);
+    }).catch(e => console.error('[rescue]', e));
   },
 
   // The rules the flame actually follows, in the one place the flame lives.
@@ -9157,6 +9192,8 @@ async function main() {
     else setTimeout(() => Avatars.thankTester().catch(e => console.error('[tester]', e)), 800);
     // The account's best streak can bring icons this phone never congratulated.
     setTimeout(() => Avatars.catchUpCelebrations(), 2500);
+    // A run that missed one day: offer a restore (js/rescue.js), once a day.
+    setTimeout(() => Rescue.offer().catch(e => console.error('[rescue]', e)), 2000);
   };
   Auth.onChange(afterAuth);
   // The account can be pulled in before boot gets here (a fast connection, a

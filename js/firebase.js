@@ -62,6 +62,9 @@ const SYNCED_KEYS = [
   'testerAvatar', 'testerThanksShown',
   // The streak and mission icons already congratulated (js/avatars.js).
   'avatarsCelebrated',
+  // Streak restores (js/rescue.js): the month's count goes with the account so
+  // a second phone cannot hand out two more; the flame run that broke too.
+  'streakRestores', 'streakLost',
   'blindfoldAttemptCount', 'blindfoldSeconds',
   // Sealed Moves: its own rating. The keys say calc, like every id of the mode.
   // calcElo is also published (PUBLIC_ALWAYS_KEYS); the other three are not.

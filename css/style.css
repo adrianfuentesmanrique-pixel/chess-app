@@ -996,6 +996,38 @@ label.theme-pick-row:first-of-type { font-weight: 700; }
 .mladder-lead { color: var(--muted); font-size: 13px; margin: -4px 0 10px; text-align: center; }
 .mladder-hint { margin: 10px 0 12px; text-align: center; }
 
+/* ── Streak restores (js/rescue.js) ── */
+.rescue-buoy { width: 22px; height: 22px; flex: 0 0 auto; color: var(--gold); }
+.rescue-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 12px; padding: 12px 14px;
+  border: 1.5px solid var(--gold); border-radius: 14px; background: var(--gold-bg);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  box-shadow: 0 0 18px -6px var(--gold-glow); min-height: 48px;
+}
+.rescue-row .rescue-buoy { width: 28px; height: 28px; }
+.rescue-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rescue-row-text b { font-size: 15px; }
+.rescue-row-text small { font-size: 12px; color: var(--muted); }
+.rescue-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: -4px 0 12px; font-size: 12px; color: var(--muted); }
+.rescue-note .rescue-buoy { width: 16px; height: 16px; }
+.home-missions-run.rescue .mrun-bar { display: none; }
+.home-missions-run.rescue .mrun-text b { color: var(--gold); }
+.home-missions-run.rescue .mrun-text small { color: var(--muted); font-weight: 400; }
+/* The offer sheet: the flame that went out, a gold lifebuoy round it. */
+.rescue-pic { position: relative; width: 120px; height: 120px; margin: 4px auto 10px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--panel2); box-shadow: 0 0 0 3px var(--gold), 0 0 26px var(--gold-glow); }
+.rescue-pic img { width: 84px; height: 84px; filter: grayscale(1); opacity: .6; }
+.rescue-target { font-size: 56px; filter: grayscale(1); opacity: .6; }
+.rescue-pic-buoy { position: absolute; right: -6px; bottom: -6px; width: 44px; height: 44px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--panel); box-shadow: 0 0 0 2px var(--gold); }
+.rescue-pic-buoy .rescue-buoy { width: 30px; height: 30px; }
+.rescue-left { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 14px; font-size: 13px; color: var(--muted); }
+.rescue-pips { display: inline-flex; gap: 6px; }
+.rescue-pip { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--gold); }
+.rescue-pip.on { background: var(--gold); box-shadow: 0 0 8px var(--gold-glow); }
+.rescue-sheet .stage-again { width: 100%; }
+.rescue-sheet .stage-sheet-hint { margin-top: 10px; }
+
 /* ── Home ("Inicio") ───────────────────── */
 /* Kael's line: his bust in a gold ring and one sentence in a speech bubble. */
 .home-kael { display: flex; align-items: flex-end; gap: 8px; margin: 4px 0 10px; }

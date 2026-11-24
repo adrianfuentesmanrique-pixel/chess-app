@@ -1,6 +1,35 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isYesterday, mergeStreak } from '../../js/streak-rules.js';
+import { isYesterday, mergeStreak, dayBefore, restoresLeft, useRestore, canRestore } from '../../js/streak-rules.js';
+
+test('dayBefore crosses months, years and clock changes', () => {
+  assert.equal(dayBefore('2026-11-21'), '2026-11-20');
+  assert.equal(dayBefore('2026-12-01'), '2026-11-30');
+  assert.equal(dayBefore('2027-01-01'), '2026-12-31');
+  assert.equal(dayBefore('2026-10-26'), '2026-10-25');
+});
+
+test('two restores a month for each kind, back again next month', () => {
+  assert.equal(restoresLeft(null, 'flame', '2026-11-21'), 2);
+  let rec = useRestore(null, 'flame', '2026-11-21');
+  assert.equal(restoresLeft(rec, 'flame', '2026-11-21'), 1);
+  assert.equal(restoresLeft(rec, 'missions', '2026-11-21'), 2);   // separate
+  rec = useRestore(rec, 'flame', '2026-11-25');
+  assert.equal(restoresLeft(rec, 'flame', '2026-11-30'), 0);
+  assert.equal(restoresLeft(useRestore(rec, 'flame', '2026-11-30'), 'flame', '2026-11-30'), 0);  // never below 0
+  assert.equal(restoresLeft(rec, 'flame', '2026-12-01'), 2);
+  assert.deepEqual(useRestore(rec, 'missions', '2026-12-01'), { month: '2026-12', flame: 0, missions: 1 });
+});
+
+test('a run can be restored only when exactly one day was missed and nothing credited since', () => {
+  const lost = { count: 42, lastDate: '2026-11-19' };
+  assert.equal(canRestore(lost, '2026-11-19', '2026-11-21'), true);    // missed the 20th
+  assert.equal(canRestore(lost, '2026-11-19', '2026-11-22'), false);   // two days missed
+  assert.equal(canRestore(lost, '2026-11-21', '2026-11-21'), false);   // already played today: a new run
+  assert.equal(canRestore({ count: 0, lastDate: '2026-11-19' }, '2026-11-19', '2026-11-21'), false);
+  assert.equal(canRestore(null, '2026-11-19', '2026-11-21'), false);
+  assert.equal(canRestore({ count: 5, lastDate: '2026-10-31' }, '2026-10-31', '2026-11-02'), true);
+});
 
 test('the day after a clock change is still "yesterday" (25 or 23 hours long)', () => {
   assert.equal(isYesterday('2026-10-25', '2026-10-26'), true);  // Spain, clocks back
