@@ -9,6 +9,20 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **CAMERA POSITION CAPTURE — FEASIBILITY TEST (2026-11-25, dev only, nothing ships).**
+  tools/board-camera/ (Python: OpenCV + PyTorch, run from that folder). Photos
+  stay outside the repo in C:\Users\Adrian\BoardPhotos; all output goes to its
+  `out\` folder. Result on 18 photos of one wooden board: the board finder
+  (cream-square grid fit, `detect.py`) placed the grid itself on 14/18; the
+  other 4 needed dragged corners (`manual_corners.json`). The square recogniser
+  (MobileNetV3-small from ImageNet weights, `evaluate.py`, leave-one-position-
+  out) got 77% of squares and 0/18 whole positions; accuracy was still rising
+  with every position added (70/77/81% on 1/2/3), so the limit is training data.
+  Verdict: NOT buildable from real photos alone; needs a big labelled set
+  (filmed positions or rendered boards) before an app build is worth it. The
+  dim-light and flash shots are still owed (the "4"/"5" photos that came were
+  daylight from Black's side; p2-5 and p3-5 show each other's position, see
+  `SHOWS` in common.py). No docs/plans file: the answer was not "go".
 - **v261: SURVIVAL DOTS SHOW RATING AND TIME (2026-11-24).** Each dot in the Survival
   strip reads "1532 (45 s)" / "998 (4 min)" / "2400 (1.5 h)" instead of its number,
   green or red as before. `spentText`/`dotText` and `Survival.logDot` in js/survival.js
