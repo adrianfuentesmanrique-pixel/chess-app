@@ -23,10 +23,22 @@ export const SKIPS = 1;
 export const survivalTarget = score => Math.min(2400, 800 + score * 50);
 const MISS_MS = 1300;   // the wrong move stays on screen this long before the result
 
+// The time a puzzle took, as its dot shows it: "45 s", "4 min", "1.5 h".
+export function spentText(ms) {
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  return `${Math.round(s / 360) / 10} h`;
+}
+// A dot of the strip: the puzzle's rating and how long it took.
+export const dotText = (rating, ms) => `${rating} (${spentText(ms)})`;
+
 export const Survival = {
   game: null,
   skips: SKIPS,
   stoppedBy: null,   // the rating of the puzzle that ended the run
+  shownAt: 0,        // when the puzzle on the board appeared, for its dot's time
 
   init() {
     const self = this;
@@ -38,7 +50,7 @@ export const Survival = {
       running: false, run: null, countingIn: false, timer: null, usedIds: new Set(),
       target() { return survivalTarget(this.score); },
       updateHud: () => this.paintHud(),
-      loadNext() { Rush.loadNext.call(this); self.paintHud(); },
+      loadNext() { Rush.loadNext.call(this); self.shownAt = Date.now(); self.paintHud(); },
       onSolve: run => this.solved(run),
       onMistake: run => this.missed(run),
     });
@@ -95,6 +107,12 @@ export const Survival = {
     skip.disabled = this.skips <= 0;
   },
 
+  logDot(solved) {
+    const p = this.game.current;
+    if (!p) return;
+    PuzzleLog.add('survival', p, solved, null, null, dotText(p.rating, Date.now() - (this.shownAt || Date.now())));
+  },
+
   skip() {
     const g = this.game;
     if (!g.running || this.skips <= 0) return;
@@ -107,14 +125,14 @@ export const Survival = {
   solved(run) {
     const g = this.game;
     g.score++;
-    PuzzleLog.add('survival', g.current, true);
+    this.logDot(true);
     this.paintHud();
     setTimeout(() => { if (g.live(run)) g.loadNext(); }, REPLY_MS.rushNext);
   },
 
   missed(run) {
     const g = this.game;
-    PuzzleLog.add('survival', g.current, false);
+    this.logDot(false);
     Sound.play('puzzle-wrong');
     this.stoppedBy = g.current.rating;
     g.el('status').textContent = t('survival_missed');

@@ -5160,9 +5160,10 @@ export const PuzzleLog = {
   // their position in the strip instead.
   // `note` ({ icon, text }) marks a dot as special — a Blindfold puzzle played
   // in list mode — with the icon on the dot and the text in its label.
-  add(mode, puzzle, solved, delta = null, note = null) {
+  // `text` replaces what the dot shows (Survival: "1532 (45 s)").
+  add(mode, puzzle, solved, delta = null, note = null, text = null) {
     if (!puzzle) return;
-    const entry = { puzzle, solved, delta, note };
+    const entry = { puzzle, solved, delta, note, text };
     this.logs[mode].push(entry);
     this.render(mode);
     return entry;
@@ -5177,8 +5178,10 @@ export const PuzzleLog = {
     this.logs[mode].forEach((entry, i) => {
       const b = document.createElement('button');
       b.className = 'plog-dot ' + (entry.solved ? 'ok' : 'miss');
-      b.textContent = (entry.note ? entry.note.icon : '') + (entry.delta == null ? String(i + 1) : eloDeltaText(entry.delta));
+      b.textContent = (entry.note ? entry.note.icon : '') +
+        (entry.text ?? (entry.delta == null ? String(i + 1) : eloDeltaText(entry.delta)));
       const label = `${t('log_review_title').replace('{n}', i + 1)} — ${t(entry.solved ? 'log_solved' : 'log_missed')}` +
+        (entry.text ? ` — ${entry.text}` : '') +
         (entry.delta == null ? '' : ` — ${t(mode === 'calc' ? 'calc_elo' : 'puzzle_elo')} ${eloDeltaText(entry.delta)}`) +
         (entry.note ? ` — ${entry.note.text}` : '');
       b.title = label;

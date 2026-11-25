@@ -9,6 +9,11 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v261: SURVIVAL DOTS SHOW RATING AND TIME (2026-11-24).** Each dot in the Survival
+  strip reads "1532 (45 s)" / "998 (4 min)" / "2400 (1.5 h)" instead of its number,
+  green or red as before. `spentText`/`dotText` and `Survival.logDot` in js/survival.js
+  (timer starts in its `loadNext`); `PuzzleLog.add` took a 6th `text` argument that
+  overrides what a dot shows. Other modes are unchanged.
 - **v260: ACTIVITY — START, RECORDS, SHOW LESS (2026-11-24).** The feed's last row is
   where it begins: "Creaste tu cuenta" (Auth.user.metadata.creationTime) or, signed out,
   "Empezaste a entrenar" on the oldest kept date (`joinedDay` in js/activity-log.js); it
