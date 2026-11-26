@@ -1487,7 +1487,7 @@ const DICT = {
   blind_change_time_toast: { es: 'El panel de inicio se abrirá después de este puzzle. Este puzzle conserva su tema, su modo y su tiempo.', en: 'The start panel will open after this puzzle. This puzzle keeps its theme, its mode and its time.' },
   blind_paid_extra: { es: '{s} s: {a} normal, {b} extra', en: '{s} s look: {a} normal, {b} extra' },
   puzzle_rated_once: { es: 'Ya lo resolviste antes: no cambia tu ELO', en: 'Solved before: your rating does not change' },
-  blind_paid_normal: { es:'{s} s: {a} normal, sin extra', en: '{s} s look: {a} normal, no extra' },
+  blind_paid_normal: { es: '{s} s: {a} normal, sin extra', en: '{s} s look: {a} normal, no extra' },
   blind_paid_peeked: { es: '{s} s: {a} normal, sin extra (usaste un vistazo)', en: '{s} s look: {a} normal, no extra (you peeked)' },
   blind_paid_loss: { es: '{s} s: {a} — un fallo cuesta lo mismo con cualquier tiempo', en: '{s} s look: {a} — a miss costs the same at any time' },
   blind_last_paid: { es: 'Último puzzle — {x}', en: 'Last puzzle — {x}' },
