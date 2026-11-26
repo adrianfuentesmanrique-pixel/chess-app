@@ -67,6 +67,8 @@ const SYNCED_KEYS = [
   'streakRestores', 'streakLost',
   'survivalBest',
   'blindfoldAttemptCount', 'blindfoldSeconds',
+  // Blindfold puzzles already solved: each pays rating once (v262).
+  'blindfoldSolved',
   // Sealed Moves: its own rating. The keys say calc, like every id of the mode.
   // calcElo is also published (PUBLIC_ALWAYS_KEYS); the other three are not.
   'calcElo', 'calcEloHistory', 'calcAttemptCount', 'calcSolved',

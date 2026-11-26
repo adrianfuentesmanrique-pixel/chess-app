@@ -9,6 +9,15 @@ are in `CLAUDE.md` under "Finish by pushing".
 
 ## Already done and pushed — do NOT redo these
 
+- **v262: A PUZZLE PAYS RATING ONCE (2026-11-26).** Two accounts reached ~3000 on
+  mate-in-1 alone: at 2400+ a phone loads only the top two rating files (29
+  mate-in-1 puzzles); once all were solved, `Puzzles.nextPuzzle` served them again
+  and every known answer paid in full (simulated: 2522 → 3000 in 176 solves).
+  Now `Puzzles.wasSolved` (set in loadPuzzle from `solved`) makes a repeat ±0 both
+  ways, with the toast `puzzle_rated_once`; an exhausted pool first loads every
+  rating file. Blindfold had no memory at all: new synced key `blindfoldSolved`,
+  unsolved first, a repeat pays nothing. firestore.rules unchanged (users doc has
+  no field allowlist). The two accounts' stored ratings were NOT changed by this.
 - **CAMERA POSITION CAPTURE — FEASIBILITY TEST (2026-11-25, dev only, nothing ships).**
   tools/board-camera/ (Python: OpenCV + PyTorch, run from that folder). Photos
   stay outside the repo in C:\Users\Adrian\BoardPhotos; all output goes to its

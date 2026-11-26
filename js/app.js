@@ -5724,6 +5724,21 @@ export const Puzzles = {
     // Home paid again (2026-10-24). Kept on this device only, so no rules
     // change; only today's daily entry is kept.
     if (this.review) { this.recordReview(win); return; }
+    // A puzzle already solved pays nothing and costs nothing (v262). Once a
+    // theme's loaded puzzles were all solved, the picker served them again and
+    // each known answer paid in full: two accounts climbed past 2900 on the
+    // same 29 mate-in-1 puzzles (Adrian, 2026-11-26).
+    if (this.wasSolved) {
+      this.lastDelta = 0;
+      this.showEloDelta(0);
+      if (!this.ratedOnceSaid) { this.ratedOnceSaid = true; toast(t('puzzle_rated_once')); }
+      if (win) {
+        Streak.recordActivity();
+        this.noteMistake(this.current, false);
+        if (this.isDailyPuzzle) DailyMissions.complete('puzzle');
+      }
+      return;
+    }
     const daily = !this.homework && this.isDailyPuzzle;
     const scope = this.homework ? this.homework.id : daily ? 'daily:' + todayStr() : null;
     if (scope) {
@@ -5902,9 +5917,16 @@ export const Puzzles = {
     // only serve puzzles hundreds of points below the player. Ask for the band
     // that matches the target every time; loadBand() is a no-op once cached.
     try { await ensureForRating(target); } catch { /* keep playing what we have */ }
-    const pool = this.pool();
+    let pool = this.pool();
     if (!pool.length) return;
-    const fresh = pool.filter(p => !this.solved[p.id]);
+    let fresh = pool.filter(p => !this.solved[p.id]);
+    // Every loaded puzzle of this choice is solved: bring in the other rating
+    // files before serving one again (a solved one moves nothing anyway).
+    if (!fresh.length && !hw) {
+      try { await ensureForRating(target, PUZZLE_BANDS.length); } catch { /* play what is there */ }
+      pool = this.pool();
+      fresh = pool.filter(p => !this.solved[p.id]);
+    }
     const list = fresh.length ? fresh : pool;
     let windowSize = 100, candidates = [];
     while (candidates.length === 0 && windowSize <= 1200) {
@@ -5928,6 +5950,8 @@ export const Puzzles = {
     this.moveIdx = 0;
     this.failedThis = false;
     this.eloRecorded = false;
+    // Solved before (on any device): rated once, so this time it moves nothing.
+    this.wasSolved = !!this.solved?.[puzzle.id];
     this.lastDelta = null;
     this.clearEloDelta();
     this.logged = false;
@@ -6527,7 +6551,8 @@ export const Blind = {
 
   async loadTimeSettings() {
     this.attemptCount = await db.kvGet('blindfoldAttemptCount', 0);
-    this.seconds = clampBlindSeconds(await db.kvGet('blindfoldSeconds', BLIND_SECONDS_DEFAULT));
+    this.solved = await db.kvGet('blindfoldSolved', {});
+    this.seconds =clampBlindSeconds(await db.kvGet('blindfoldSeconds', BLIND_SECONDS_DEFAULT));
     // Not a synced key: the mode is remembered on this device only.
     this.mode = (await db.kvGet('blindfoldMode', 'look')) === 'list' ? 'list' : 'look';
     // Not synced either, like the Puzzles pair they were split from.
@@ -6662,6 +6687,19 @@ export const Blind = {
     if (this.eloRecorded || !this.current) return;
     this.eloRecorded = true;
     logActivity('blind', win ? { ok: true } : { miss: true });
+    // Rated once, as in Puzzles: a puzzle solved here before pays and costs nothing.
+    if (this.wasSolved) {
+      this.lastDelta = 0;
+      this.paidLine = t('puzzle_rated_once');
+      this.timeLocked = false;
+      this.updateTimeControl();
+      this.updateBonus();
+      return;
+    }
+    if (win) {
+      this.solved[this.current.id] = 1;
+      db.kvSet('blindfoldSolved', this.solved);
+    }
     // A peek gives up only the extra for a short look; the puzzle's normal
     // points are still paid in full. All the maths is in js/blind-elo.js.
     const before = this.elo;
@@ -6723,8 +6761,11 @@ export const Blind = {
       pick = blindPick(PUZZLES, target, themes);
     }
     if (pick.fallback && !this.themeMissSaid) { this.themeMissSaid = true; toast(t('blind_theme_none')); }
-    const list = pick.list;
+    // Ones not solved here before come first; a solved one moves nothing (v262).
+    const fresh = pick.list.filter(p => !this.solved[p.id]);
+    const list = fresh.length ? fresh : pick.list;
     this.current = list[Math.floor(Math.random() * list.length)];
+    this.wasSolved = !!this.solved[this.current.id];
     this.chess = new Chess(this.current.fen);
     this.moveIdx = 0;
     this.peeksUsed = 0;
